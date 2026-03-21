@@ -1,0 +1,83 @@
+{
+  "entities": {
+    "Presentation": {
+      "title": "Presentation",
+      "description": "A presentation document with an embed URL.",
+      "type": "object",
+      "properties": {
+        "embedUrl": {
+          "type": "string",
+          "description": "The Microsoft Office Web Viewer URL."
+        },
+        "presenterId": {
+          "type": "string",
+          "description": "The UID of the presenter."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The time the presentation was created."
+        }
+      },
+      "required": ["embedUrl", "presenterId", "createdAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "A chat message from the audience.",
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "The content of the message."
+        },
+        "userId": {
+          "type": "string",
+          "description": "The UID of the sender."
+        },
+        "userName": {
+          "type": "string",
+          "description": "The name of the sender."
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The time the message was sent."
+        },
+        "isQuestion": {
+          "type": "boolean",
+          "description": "Whether the message is a question."
+        },
+        "presentationId": {
+          "type": "string",
+          "description": "The ID of the presentation this message belongs to."
+        },
+        "presenterId": {
+          "type": "string",
+          "description": "The UID of the presenter who can moderate this message."
+        },
+        "likes": {
+          "type": "number",
+          "description": "The number of likes this message has received."
+        },
+        "likedBy": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The UIDs of the users who have liked this message."
+        }
+      },
+      "required": ["text", "userId", "userName", "timestamp", "isQuestion", "presentationId", "presenterId"]
+    }
+  },
+  "firestore": {
+    "/presentations/{presentationId}": {
+      "schema": "Presentation",
+      "description": "Collection of presentations."
+    },
+    "/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Collection of chat messages."
+    }
+  }
+}

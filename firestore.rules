@@ -1,0 +1,71 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+             (request.auth.token.email == "parajayzee@gmail.com");
+    }
+
+    function isValidString(val, maxLen) {
+      return val is string && val.size() > 0 && val.size() <= maxLen;
+    }
+
+    // Presentation Validation
+    function isValidPresentation(data) {
+      return data.keys().hasAll(['embedUrl', 'presenterId', 'createdAt']) &&
+             data.embedUrl is string &&
+             data.presenterId == request.auth.uid &&
+             data.createdAt is timestamp;
+    }
+
+    function isRecent(time) {
+      return time > request.time - duration.value(5, 'm') &&
+             time < request.time + duration.value(5, 'm');
+    }
+
+    // Message Validation
+    function isValidMessage(data) {
+      return data.keys().hasAll(['text', 'userId', 'userName', 'timestamp', 'isQuestion', 'presentationId', 'presenterId']) &&
+             isValidString(data.text, 500) &&
+             data.userId == request.auth.uid &&
+             isValidString(data.userName, 50) &&
+             data.timestamp is timestamp &&
+             isRecent(data.timestamp) &&
+             data.isQuestion is bool &&
+             isValidString(data.presentationId, 100) &&
+             isValidString(data.presenterId, 100);
+    }
+
+    function isValidLikeUpdate() {
+      let diff = request.resource.data.diff(resource.data);
+      return diff.affectedKeys().hasOnly(['likes', 'likedBy']) &&
+             request.resource.data.likes is number &&
+             request.resource.data.likedBy is list &&
+             math.abs(request.resource.data.likes - (('likes' in resource.data) ? resource.data.likes : 0)) == 1;
+    }
+
+    // Match Rules
+    match /presentations/{presentationId} {
+      allow read: if true; // Publicly readable for the audience
+      allow create: if isAuthenticated() && isValidPresentation(request.resource.data);
+      allow update: if isAuthenticated() && isOwner(resource.data.presenterId) && isValidPresentation(request.resource.data);
+      allow delete: if isAuthenticated() && isOwner(resource.data.presenterId);
+    }
+
+    match /messages/{messageId} {
+      allow read: if true; // Publicly readable for the audience
+      allow create: if isAuthenticated() && isValidMessage(request.resource.data);
+      allow update: if isAuthenticated() && isValidLikeUpdate();
+      allow delete: if isAuthenticated(); // Allow any guest to delete as requested
+    }
+  }
+}

@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+@theme {
+  --color-osu-orange: #FF6600;
+  --color-osu-black: #000000;
+}
+
+@layer base {
+  html, body, #root {
+    height: 100dvh;
+    overflow: hidden;
+  }
+}
