@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Presentation } from '../types';
 import { useAuth } from './AuthProvider';
-import { Maximize2, Minimize2, Monitor, Clock } from 'lucide-react';
+import { Maximize2, Minimize2, Monitor, Clock, Maximize, Minimize, ChevronUp, ChevronDown } from 'lucide-react';
 import { ScreenCapture } from './ScreenCapture';
 
 interface PresenterAreaProps {
@@ -13,12 +13,35 @@ type ViewMode = 'embed' | 'capture';
 export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation }) => {
   const { user } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = async () => {
+    if (!document.fullscreenElement) {
+      try {
+        await document.documentElement.requestFullscreen();
+      } catch (err) {
+        console.error("Error attempting to enable fullscreen:", err);
+      }
+    } else {
+      if (document.exitFullscreen) {
+        await document.exitFullscreen();
+      }
+    }
+  };
 
   return (
     <div className="flex flex-col h-full bg-slate-50 border-r border-slate-200">
@@ -42,12 +65,22 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation }) =>
               <Clock className="w-4 h-4 text-osu-orange" />
               {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </div>
-            <button 
-              onClick={() => setIsCollapsed(!isCollapsed)}
-              className="p-1.5 hover:bg-slate-100 rounded-md transition-colors"
-            >
-              {isCollapsed ? <Maximize2 className="w-5 h-5" /> : <Minimize2 className="w-5 h-5" />}
-            </button>
+            <div className="flex items-center gap-1 border-l border-slate-200 pl-4">
+              <button 
+                onClick={toggleFullscreen}
+                className="p-1.5 hover:bg-slate-100 rounded-md transition-colors text-slate-600"
+                title={isFullscreen ? "Exit Full Screen" : "Full Screen"}
+              >
+                {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+              </button>
+              <button 
+                onClick={() => setIsCollapsed(!isCollapsed)}
+                className="p-1.5 hover:bg-slate-100 rounded-md transition-colors text-slate-600"
+                title={isCollapsed ? "Expand Header" : "Collapse Header"}
+              >
+                {isCollapsed ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
+              </button>
+            </div>
           </div>
         </div>
         

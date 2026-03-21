@@ -4,7 +4,7 @@ import { PresenterArea } from './components/PresenterArea';
 import { ChatSidebar } from './components/ChatSidebar';
 import { Presentation } from './types';
 import { db } from './firebase';
-import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot, doc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { LogIn, Presentation as PresentationIcon, Loader2 } from 'lucide-react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
@@ -15,29 +15,55 @@ function AppContent() {
   // Check for view parameter
   const urlParams = new URLSearchParams(window.location.search);
   const isChatOnly = urlParams.get('view') === 'chat';
+  const presentationId = urlParams.get('id');
 
   useEffect(() => {
-    // Listen for the latest presentation
-    const q = query(
-      collection(db, 'presentations'), 
-      orderBy('createdAt', 'desc'), 
-      limit(1)
-    );
-    
-  const unsubscribe = onSnapshot(q, (snapshot) => {
-    console.log('AppContent - Presentation Snapshot:', snapshot.empty ? 'Empty' : 'Found');
-    if (!snapshot.empty) {
-      const doc = snapshot.docs[0];
-      const data = doc.data();
-      console.log('AppContent - Presentation Data:', data.presenterId);
-      setPresentation({ id: doc.id, ...data } as Presentation);
-    }
-  }, (error) => {
-    console.error("Presentation snapshot error:", error);
-  });
+    if (loading) return;
 
-    return () => unsubscribe();
-  }, []);
+    let unsubscribe: () => void;
+
+    const loadPresentation = async () => {
+      if (presentationId) {
+        // Listen to specific presentation
+        const docRef = doc(db, 'presentations', presentationId);
+        unsubscribe = onSnapshot(docRef, (docSnap) => {
+          if (docSnap.exists()) {
+            setPresentation({ id: docSnap.id, ...docSnap.data() } as Presentation);
+          }
+        }, (error) => {
+          console.error("Presentation snapshot error:", error);
+        });
+      } else if (!isChatOnly && user) {
+        // Presenter creating a new session
+        try {
+          const docRef = await addDoc(collection(db, 'presentations'), {
+            presenterId: user.uid,
+            embedUrl: '',
+            createdAt: serverTimestamp()
+          });
+          
+          // Update URL with the new ID without reloading the page
+          const newUrl = new URL(window.location.href);
+          newUrl.searchParams.set('id', docRef.id);
+          window.history.replaceState({}, '', newUrl.toString());
+          
+          unsubscribe = onSnapshot(docRef, (docSnap) => {
+            if (docSnap.exists()) {
+              setPresentation({ id: docSnap.id, ...docSnap.data() } as Presentation);
+            }
+          });
+        } catch (error) {
+          console.error("Error creating presentation:", error);
+        }
+      }
+    };
+
+    loadPresentation();
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [loading, user, presentationId, isChatOnly]);
 
   if (loading) {
     return (

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { auth, db } from '../firebase';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, getDocFromServer, doc, deleteDoc, updateDoc, arrayUnion, arrayRemove, increment } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, getDocFromServer, doc, deleteDoc, updateDoc, arrayUnion, arrayRemove, increment, where, writeBatch } from 'firebase/firestore';
 import { Message, Presentation } from '../types';
 import { useAuth } from './AuthProvider';
 import { Send, HelpCircle, MessageSquare, QrCode, Trash2, LogIn, LogOut, ThumbsUp, Download, Mail } from 'lucide-react';
@@ -80,6 +80,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [inputText, setInputText] = useState('');
   const [isQuestion, setIsQuestion] = useState(false);
   const [showQR, setShowQR] = useState(!isChatOnly);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const [hasJoined, setHasJoined] = useState(() => {
@@ -92,7 +93,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
   // Construct chat-only URL for QR code
   const baseUrl = window.location.origin + window.location.pathname;
-  const chatOnlyUrl = `${baseUrl}?view=chat`;
+  const chatOnlyUrl = presentation?.id ? `${baseUrl}?view=chat&id=${presentation.id}` : `${baseUrl}?view=chat`;
 
   useEffect(() => {
     // Test connection
@@ -107,19 +108,30 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     };
     testConnection();
 
-    const q = query(collection(db, 'messages'), orderBy('timestamp', 'asc'));
+    const q = query(
+      collection(db, 'messages'), 
+      where('presentationId', '==', presentation?.id || 'default')
+    );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const msgs = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data({ serverTimestamps: 'estimate' })
       })) as Message[];
+      
+      // Sort client-side to avoid requiring a composite index
+      msgs.sort((a, b) => {
+        const timeA = a.timestamp?.toMillis() || 0;
+        const timeB = b.timestamp?.toMillis() || 0;
+        return timeA - timeB;
+      });
+      
       setMessages(msgs);
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'messages');
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [presentation?.id]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -175,6 +187,19 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       await deleteDoc(doc(db, 'messages', id));
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `messages/${id}`);
+    }
+  };
+
+  const handleClearChat = async () => {
+    try {
+      const batch = writeBatch(db);
+      messages.forEach((msg) => {
+        batch.delete(doc(db, 'messages', msg.id));
+      });
+      await batch.commit();
+      setShowClearConfirm(false);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'messages');
     }
   };
 
@@ -239,7 +264,33 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   };
 
   return (
-    <div className="flex flex-col h-full max-h-full overflow-hidden bg-white shadow-xl border-l border-slate-200">
+    <div className="flex flex-col h-full max-h-full overflow-hidden bg-white shadow-xl border-l border-slate-200 relative">
+      {/* Clear Chat Confirmation Modal */}
+      {showClearConfirm && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full">
+            <h3 className="text-lg font-bold text-slate-900 mb-2">Clear Chat?</h3>
+            <p className="text-sm text-slate-600 mb-6">
+              This will permanently delete all messages in this presentation session. This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowClearConfirm(false)}
+                className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleClearChat}
+                className="px-4 py-2 text-sm font-bold text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors"
+              >
+                Clear All Messages
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Chat Header */}
       <div className="p-4 bg-osu-black text-white flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -269,6 +320,13 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 title="Email Chat Log"
               >
                 <Mail className="w-4 h-4" />
+              </button>
+              <button 
+                onClick={() => setShowClearConfirm(true)}
+                className="p-1 hover:bg-red-900/50 rounded transition-colors text-slate-400 hover:text-red-400"
+                title="Clear Chat"
+              >
+                <Trash2 className="w-4 h-4" />
               </button>
             </>
           )}
