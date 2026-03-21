@@ -46,9 +46,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation }) =>
   return (
     <div className="flex flex-col h-full bg-slate-50 border-r border-slate-200">
       {/* Header */}
-      <div className={`p-4 bg-white border-b border-slate-200 transition-all duration-300 ${isCollapsed ? 'h-12 py-1' : 'h-auto'}`}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+      <div className={`p-4 bg-white border-b border-slate-200 transition-all duration-300 ${isCollapsed ? 'h-12 py-1' : 'h-auto'} relative`}>
+        <div className="flex items-center justify-between relative">
+          <div className="flex items-center gap-4 z-10">
             <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
               <Monitor className="w-4 h-4 text-osu-orange" />
               Screen Presentation
@@ -60,7 +60,15 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation }) =>
               </div>
             )}
           </div>
-          <div className="flex items-center gap-4">
+
+          {/* Centered ActiveDeck Logo */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <h1 className="text-xl font-black tracking-tight text-slate-800">
+              Active<span className="text-osu-orange">Deck</span>
+            </h1>
+          </div>
+
+          <div className="flex items-center gap-4 z-10">
             <div className="flex items-center gap-2 text-base font-mono font-bold text-slate-800 bg-white px-3 py-1.5 rounded-lg border-2 border-osu-orange shadow-sm">
               <Clock className="w-4 h-4 text-osu-orange" />
               {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -94,6 +102,12 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation }) =>
 
       {/* Main Content Area */}
       <div className="flex-1 relative bg-osu-black overflow-hidden flex items-center justify-center">
+        {/* ActiveDeck Watermark */}
+        <div className="absolute top-6 left-6 z-50 pointer-events-none opacity-50">
+          <h1 className="text-2xl font-black tracking-tight text-white drop-shadow-md">
+            Active<span className="text-osu-orange">Deck</span>
+          </h1>
+        </div>
         <ScreenCapture />
       </div>
     </div>
