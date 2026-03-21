@@ -3,7 +3,7 @@ import { auth, db } from '../firebase';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, getDocFromServer, doc, deleteDoc, updateDoc, arrayUnion, arrayRemove, increment } from 'firebase/firestore';
 import { Message, Presentation } from '../types';
 import { useAuth } from './AuthProvider';
-import { Send, HelpCircle, MessageSquare, QrCode, Trash2, LogIn, LogOut, ThumbsUp } from 'lucide-react';
+import { Send, HelpCircle, MessageSquare, QrCode, Trash2, LogIn, LogOut, ThumbsUp, Download, Mail } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { QRCodeSVG } from 'qrcode.react';
@@ -82,6 +82,14 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [showQR, setShowQR] = useState(!isChatOnly);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const [hasJoined, setHasJoined] = useState(() => {
+    return localStorage.getItem('activeDeckJoined') === 'true';
+  });
+  const [guestEmail, setGuestEmail] = useState(() => {
+    return localStorage.getItem('activeDeckGuestEmail') || '';
+  });
+  const [joinEmailInput, setJoinEmailInput] = useState('');
+
   // Construct chat-only URL for QR code
   const baseUrl = window.location.origin + window.location.pathname;
   const chatOnlyUrl = `${baseUrl}?view=chat`;
@@ -124,19 +132,40 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     if (!inputText.trim() || !user) return;
 
     try {
-      await addDoc(collection(db, 'messages'), {
+      const emailToSave = user.isAnonymous ? guestEmail : user.email;
+      const userName = user.isAnonymous 
+        ? (guestEmail ? guestEmail.split('@')[0] : `Guest ${user.uid.slice(0, 4)}`) 
+        : user.displayName || 'User';
+
+      const messageData: any = {
         text: inputText,
         userId: user.uid,
-        userName: user.isAnonymous ? `Guest ${user.uid.slice(0, 4)}` : user.displayName || 'User',
+        userName: userName,
         timestamp: serverTimestamp(),
         isQuestion: isQuestion,
         presentationId: presentation?.id || 'default',
         presenterId: presentation?.presenterId || 'default',
-      });
+      };
+
+      if (emailToSave) {
+        messageData.userEmail = emailToSave;
+      }
+
+      await addDoc(collection(db, 'messages'), messageData);
       setInputText('');
       setIsQuestion(false);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'messages');
+    }
+  };
+
+  const handleJoin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setGuestEmail(joinEmailInput);
+    setHasJoined(true);
+    localStorage.setItem('activeDeckJoined', 'true');
+    if (joinEmailInput) {
+      localStorage.setItem('activeDeckGuestEmail', joinEmailInput);
     }
   };
 
@@ -172,6 +201,43 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     }
   };
 
+  const handleDownloadWord = () => {
+    const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>Chat Log</title></head><body>";
+    const footer = "</body></html>";
+    const content = messages.map(m => {
+      const time = m.timestamp?.toDate().toLocaleString() || '';
+      const type = m.isQuestion ? '<b>[QUESTION]</b> ' : '';
+      const likes = m.likes ? ` (Likes: ${m.likes})` : '';
+      const email = m.userEmail ? ` &lt;${m.userEmail}&gt;` : '';
+      return `<p><i>${time}</i> <b>${m.userName}${email}</b>: ${type}${m.text}${likes}</p>`;
+    }).join('');
+    
+    const html = header + "<h1>ActiveDeck Chat Log</h1>" + content + footer;
+    const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'chat-log.doc';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleEmailChat = () => {
+    const content = messages.map(m => {
+      const time = m.timestamp?.toDate().toLocaleString() || '';
+      const type = m.isQuestion ? '[QUESTION] ' : '';
+      const likes = m.likes ? ` (Likes: ${m.likes})` : '';
+      const email = m.userEmail ? ` <${m.userEmail}>` : '';
+      return `[${time}] ${m.userName}${email}: ${type}${m.text}${likes}`;
+    }).join('\n\n');
+    
+    const subject = encodeURIComponent('ActiveDeck Chat Log');
+    const body = encodeURIComponent('Here is the chat log from your presentation:\n\n' + content);
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  };
+
   return (
     <div className="flex flex-col h-full max-h-full overflow-hidden bg-white shadow-xl border-l border-slate-200">
       {/* Chat Header */}
@@ -188,6 +254,24 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           </div>
         </div>
         <div className="flex items-center gap-1">
+          {canModerate && (
+            <>
+              <button 
+                onClick={handleDownloadWord}
+                className="p-1 hover:bg-slate-800 rounded transition-colors text-slate-400 hover:text-white"
+                title="Download as Word"
+              >
+                <Download className="w-4 h-4" />
+              </button>
+              <button 
+                onClick={handleEmailChat}
+                className="p-1 hover:bg-slate-800 rounded transition-colors text-slate-400 hover:text-white"
+                title="Email Chat Log"
+              >
+                <Mail className="w-4 h-4" />
+              </button>
+            </>
+          )}
           <button 
             onClick={() => setShowQR(!showQR)}
             className="p-1 hover:bg-slate-800 rounded transition-colors text-slate-400 hover:text-white"
@@ -283,38 +367,62 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
       {/* Input Area - Only visible for audience members (isChatOnly) */}
       {isChatOnly && (
-        <form onSubmit={handleSendMessage} className="p-3 bg-white border-t border-slate-200">
-          <div className="flex items-center gap-2 mb-2">
-            <button
-              type="button"
-              onClick={() => setIsQuestion(!isQuestion)}
-              className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black uppercase transition-all border",
-                isQuestion 
-                  ? "bg-osu-orange text-white border-osu-orange" 
-                  : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200"
-              )}
-            >
-              <HelpCircle className="w-2.5 h-2.5" />
-              Flag Question
-            </button>
-          </div>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Type a message..."
-              className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-osu-orange"
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-            />
-            <button
-              type="submit"
-              className="p-2 bg-osu-black text-white rounded-md hover:bg-slate-800 transition-colors"
-            >
-              <Send className="w-4 h-4" />
-            </button>
-          </div>
-        </form>
+        <div className="bg-white border-t border-slate-200">
+          {user?.isAnonymous && !hasJoined ? (
+            <form onSubmit={handleJoin} className="p-4 flex flex-col gap-3">
+              <div className="text-center mb-1">
+                <h3 className="text-sm font-bold text-slate-900">Join the Discussion</h3>
+                <p className="text-xs text-slate-500 mt-1">Enter your email for follow-ups, or join anonymously.</p>
+              </div>
+              <input
+                type="email"
+                placeholder="Email address (optional)"
+                value={joinEmailInput}
+                onChange={(e) => setJoinEmailInput(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-osu-orange"
+              />
+              <button
+                type="submit"
+                className="w-full bg-osu-orange text-white font-bold py-2 px-4 rounded-md hover:bg-[#c03900] transition-colors text-sm"
+              >
+                {joinEmailInput ? 'Join with Email' : 'Join Anonymously'}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleSendMessage} className="p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <button
+                  type="button"
+                  onClick={() => setIsQuestion(!isQuestion)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black uppercase transition-all border",
+                    isQuestion 
+                      ? "bg-osu-orange text-white border-osu-orange" 
+                      : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200"
+                  )}
+                >
+                  <HelpCircle className="w-2.5 h-2.5" />
+                  Flag Question
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Type a message..."
+                  className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-osu-orange"
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                />
+                <button
+                  type="submit"
+                  className="p-2 bg-osu-black text-white rounded-md hover:bg-slate-800 transition-colors"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
       )}
     </div>
   );

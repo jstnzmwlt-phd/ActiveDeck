@@ -38,6 +38,7 @@ service cloud.firestore {
              isValidString(data.text, 500) &&
              data.userId == request.auth.uid &&
              isValidString(data.userName, 50) &&
+             (!('userEmail' in data) || isValidString(data.userEmail, 100)) &&
              data.timestamp is timestamp &&
              isRecent(data.timestamp) &&
              data.isQuestion is bool &&

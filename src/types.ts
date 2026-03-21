@@ -12,6 +12,7 @@ export interface Message {
   text: string;
   userId: string;
   userName: string;
+  userEmail?: string;
   timestamp: Timestamp;
   isQuestion: boolean;
   likes?: number;
