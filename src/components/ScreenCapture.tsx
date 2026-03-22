@@ -66,15 +66,27 @@ export const ScreenCapture: React.FC = () => {
     <div className="relative w-full h-full flex flex-col bg-slate-900 overflow-hidden group">
       {/* Video Display */}
       <div className="flex-1 relative flex items-center justify-center bg-black">
+        {/* OSU Logo Watermark - Only visible when not sharing */}
+        {!isCapturing && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-10 z-0">
+            <img 
+              src="https://a.espncdn.com/i/teamlogos/ncaa/500/197.png" 
+              alt="OSU Logo Watermark" 
+              className="w-2/3 max-w-2xl object-contain" 
+              referrerPolicy="no-referrer" 
+            />
+          </div>
+        )}
+        
         <video
           ref={videoRef}
           autoPlay
           playsInline
-          className={`w-full h-full object-contain ${isCapturing ? 'opacity-100' : 'opacity-0'}`}
+          className={`w-full h-full object-contain relative z-10 ${isCapturing ? 'opacity-100' : 'opacity-0'}`}
         />
         
         {!isCapturing && !error && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 p-8 text-center">
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 p-8 text-center z-20">
             <Monitor className="w-16 h-16 mb-4 opacity-20" />
             <h3 className="text-xl font-bold text-slate-300 mb-2">Ready to Present</h3>
             <p className="max-w-md text-sm text-slate-400 mb-8">

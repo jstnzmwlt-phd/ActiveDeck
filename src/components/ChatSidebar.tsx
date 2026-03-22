@@ -355,27 +355,39 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         </div>
       )}
 
-      {/* Messages Area */}
-      <div 
-        ref={scrollRef}
-        className="flex-1 overflow-y-auto p-4 space-y-4 bg-white"
-      >
-        {messages.length === 0 && (
-          <div className="h-full flex flex-col items-center justify-center text-slate-300 opacity-50">
-            <MessageSquare className="w-8 h-8 mb-2" />
-            <p className="text-xs font-medium">No messages yet</p>
-          </div>
-        )}
-        {messages.map((msg) => (
-          <div 
-            key={msg.id}
-            className={cn(
-              "p-3 rounded-lg border transition-all",
-              msg.isQuestion 
-                ? "bg-orange-50 border-osu-orange/30 shadow-sm" 
-                : "bg-slate-50 border-slate-100"
-            )}
-          >
+      {/* Messages Area Wrapper */}
+      <div className="flex-1 relative overflow-hidden bg-white">
+        {/* OSU Logo Watermark */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-10 z-0">
+          <img 
+            src="https://a.espncdn.com/i/teamlogos/ncaa/500/197.png" 
+            alt="OSU Logo Watermark" 
+            className="w-3/4 object-contain" 
+            referrerPolicy="no-referrer" 
+          />
+        </div>
+
+        {/* Messages Area */}
+        <div 
+          ref={scrollRef}
+          className="absolute inset-0 overflow-y-auto p-4 space-y-4 z-10"
+        >
+          {messages.length === 0 && (
+            <div className="h-full flex flex-col items-center justify-center text-slate-300 opacity-50">
+              <MessageSquare className="w-8 h-8 mb-2" />
+              <p className="text-xs font-medium">No messages yet</p>
+            </div>
+          )}
+          {messages.map((msg) => (
+            <div 
+              key={msg.id}
+              className={cn(
+                "p-3 rounded-lg border transition-all relative backdrop-blur-sm",
+                msg.isQuestion 
+                  ? "bg-orange-50/90 border-osu-orange/30 shadow-sm" 
+                  : "bg-slate-50/90 border-slate-100"
+              )}
+            >
             <div className="flex items-start justify-between mb-1">
               <div className="flex flex-col">
                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
@@ -421,6 +433,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
             </div>
           </div>
         ))}
+      </div>
       </div>
 
       {/* Input Area - Only visible for audience members (isChatOnly) */}
