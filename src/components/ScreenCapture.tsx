@@ -148,7 +148,7 @@ export const ScreenCapture: React.FC = () => {
         )}
 
         {error && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-red-400 p-8 text-center bg-red-950/20 backdrop-blur-sm">
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-red-400 p-8 text-center bg-red-950/20 backdrop-blur-sm z-20">
             <AlertCircle className="w-12 h-12 mb-4" />
             <p className="text-lg font-bold mb-2">Capture Error</p>
             <p className="text-sm max-w-xs">{error}</p>
@@ -163,7 +163,7 @@ export const ScreenCapture: React.FC = () => {
       </div>
 
       {/* Controls Overlay */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 px-6 py-3 bg-slate-800/90 backdrop-blur-md border border-slate-700 rounded-full shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 px-6 py-3 bg-slate-800/90 backdrop-blur-md border border-slate-700 rounded-full shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-50">
         {!isCapturing ? (
           <button
             onClick={startCapture}
@@ -185,7 +185,7 @@ export const ScreenCapture: React.FC = () => {
 
       {/* Status Badge */}
       {isCapturing && (
-        <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 bg-red-600/90 text-white text-[10px] font-black uppercase tracking-widest rounded-md animate-pulse">
+        <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 bg-red-600/90 text-white text-[10px] font-black uppercase tracking-widest rounded-md animate-pulse z-50">
           <div className="w-2 h-2 bg-white rounded-full" />
           Live Presentation
         </div>
