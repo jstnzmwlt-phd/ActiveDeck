@@ -6,7 +6,6 @@ export const ScreenCapture: React.FC = () => {
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
-  const [captureType, setCaptureType] = useState<'window' | 'monitor' | 'browser' | 'all'>('window');
 
   const startCapture = async () => {
     setError(null);
@@ -15,13 +14,6 @@ export const ScreenCapture: React.FC = () => {
         video: true,
         audio: false,
       };
-
-      // Apply displaySurface hint if not 'all'
-      if (captureType !== 'all') {
-        constraints.video = {
-          displaySurface: captureType,
-        };
-      }
 
       const mediaStream = await navigator.mediaDevices.getDisplayMedia(constraints);
 
@@ -90,52 +82,8 @@ export const ScreenCapture: React.FC = () => {
             <Monitor className="w-16 h-16 mb-4 opacity-20" />
             <h3 className="text-xl font-bold text-slate-300 mb-2">Ready to Present</h3>
             <p className="max-w-md text-sm text-slate-400 mb-8">
-              Choose your preferred capture mode and select the content you want to share with the audience.
+              Click "Start Sharing" to select the window, screen, or tab you want to present to the audience.
             </p>
-
-            {/* Capture Mode Selector */}
-            <div className="flex items-center gap-2 p-1.5 bg-slate-800 rounded-2xl border border-slate-700 shadow-xl mb-8">
-              <button
-                onClick={() => setCaptureType('window')}
-                className={`px-4 py-2 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${
-                  captureType === 'window' 
-                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' 
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                Window
-              </button>
-              <button
-                onClick={() => setCaptureType('monitor')}
-                className={`px-4 py-2 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${
-                  captureType === 'monitor' 
-                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' 
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                Monitor
-              </button>
-              <button
-                onClick={() => setCaptureType('browser')}
-                className={`px-4 py-2 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${
-                  captureType === 'browser' 
-                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' 
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                Browser Tab
-              </button>
-              <button
-                onClick={() => setCaptureType('all')}
-                className={`px-4 py-2 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${
-                  captureType === 'all' 
-                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' 
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                Show All
-              </button>
-            </div>
 
             <button
               onClick={startCapture}
