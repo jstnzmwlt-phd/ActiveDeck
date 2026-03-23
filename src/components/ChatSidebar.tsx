@@ -384,8 +384,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               className={cn(
                 "p-3 rounded-lg border transition-all relative backdrop-blur-sm",
                 msg.isQuestion 
-                  ? "bg-orange-50/90 border-osu-orange/30 shadow-sm" 
-                  : "bg-slate-50/90 border-slate-100"
+                  ? "bg-orange-100/90 border-osu-orange/40 shadow-sm" 
+                  : "bg-orange-50/60 border-orange-100/50 shadow-sm"
               )}
             >
             <div className="flex items-start justify-between mb-1">
@@ -404,10 +404,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 <button
                   onClick={() => handleLikeMessage(msg)}
                   className={cn(
-                    "flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold transition-colors",
-                    msg.likedBy?.includes(user?.uid || '') 
-                      ? "bg-indigo-100 text-indigo-600" 
-                      : "bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-600"
+                    "flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold transition-colors border",
+                    (msg.likes || 0) > 0 
+                      ? "bg-yellow-400 text-slate-900 border-yellow-500 shadow-sm" 
+                      : "bg-slate-100 text-slate-400 border-transparent hover:bg-slate-200 hover:text-slate-600"
                   )}
                   title={msg.likedBy?.includes(user?.uid || '') ? "Unlike" : "Like"}
                 >
