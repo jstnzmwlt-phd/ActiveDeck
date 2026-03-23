@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from './components/AuthProvider';
 import { PresenterArea } from './components/PresenterArea';
 import { ChatSidebar } from './components/ChatSidebar';
+import { Header } from './components/Header';
 import { Presentation } from './types';
 import { db } from './firebase';
 import { collection, query, orderBy, limit, onSnapshot, doc, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -84,15 +85,19 @@ function AppContent() {
   }
 
   return (
-    <div className="flex flex-row h-[100dvh] w-screen overflow-hidden bg-slate-100 font-sans antialiased">
-      {/* Presenter View (Flexible, but takes most space) */}
-      <div className="flex-1 h-full min-w-0">
-        <PresenterArea presentation={presentation} />
-      </div>
+    <div className="flex flex-col h-[100dvh] w-screen overflow-hidden bg-slate-100 font-sans antialiased">
+      <Header />
+      
+      <div className="flex flex-row flex-1 overflow-hidden">
+        {/* Presenter View (Flexible, but takes most space) */}
+        <div className="flex-1 h-full min-w-0">
+          <PresenterArea presentation={presentation} />
+        </div>
 
-      {/* Audience Chat (Fixed width sidebar) */}
-      <div className="w-[350px] h-full flex-shrink-0">
-        <ChatSidebar presentation={presentation} />
+        {/* Audience Chat (Fixed width sidebar) */}
+        <div className="w-[350px] h-full flex-shrink-0">
+          <ChatSidebar presentation={presentation} />
+        </div>
       </div>
     </div>
   );
