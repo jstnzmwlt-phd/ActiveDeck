@@ -22,6 +22,10 @@ export const ScreenCapture: React.FC = () => {
 
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
+        // Explicitly call play to ensure video starts immediately
+        videoRef.current.play().catch(err => {
+          console.error("Error playing video stream:", err);
+        });
       }
 
       // Handle stream stop (e.g., user clicks "Stop sharing" in browser UI)
@@ -74,6 +78,7 @@ export const ScreenCapture: React.FC = () => {
           ref={videoRef}
           autoPlay
           playsInline
+          muted
           className={`w-full h-full object-contain relative z-10 ${isCapturing ? 'opacity-100' : 'opacity-0'}`}
         />
         
