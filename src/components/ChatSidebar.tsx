@@ -3,7 +3,7 @@ import { auth, db } from '../firebase';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, getDocFromServer, doc, deleteDoc, updateDoc, arrayUnion, arrayRemove, increment, where, writeBatch } from 'firebase/firestore';
 import { Message, Presentation } from '../types';
 import { useAuth } from './AuthProvider';
-import { Send, HelpCircle, MessageSquare, QrCode, Trash2, LogIn, LogOut, ThumbsUp, Download, Mail } from 'lucide-react';
+import { Send, HelpCircle, MessageSquare, QrCode, Trash2, LogIn, LogOut, ThumbsUp, Download, Mail, ToggleLeft, ToggleRight } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { QRCodeSVG } from 'qrcode.react';
@@ -88,7 +88,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [guestEmail, setGuestEmail] = useState(() => {
     return localStorage.getItem('activeDeckGuestEmail') || '';
   });
+  const [guestName, setGuestName] = useState(() => {
+    return localStorage.getItem('activeDeckGuestName') || '';
+  });
   const [joinEmailInput, setJoinEmailInput] = useState('');
+  const [joinNameInput, setJoinNameInput] = useState('');
+  const [isPostingAnonymously, setIsPostingAnonymously] = useState(false);
   const [shortUrl, setShortUrl] = useState('');
 
   // Construct chat-only URL for QR code
@@ -163,9 +168,13 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
     try {
       const emailToSave = user.isAnonymous ? guestEmail : user.email;
-      const userName = user.isAnonymous 
-        ? (guestEmail ? guestEmail.split('@')[0] : `Guest ${user.uid.slice(0, 4)}`) 
+      let userName = user.isAnonymous 
+        ? (guestName || (guestEmail ? guestEmail.split('@')[0] : `Guest ${user.uid.slice(0, 4)}`)) 
         : user.displayName || 'User';
+
+      if (isPostingAnonymously) {
+        userName = `Anonymous ${user.uid.slice(0, 4)}`;
+      }
 
       const messageData: any = {
         text: inputText,
@@ -191,11 +200,26 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const handleJoin = (e: React.FormEvent) => {
     e.preventDefault();
     setGuestEmail(joinEmailInput);
+    setGuestName(joinNameInput);
     setHasJoined(true);
     localStorage.setItem('activeDeckJoined', 'true');
     if (joinEmailInput) {
       localStorage.setItem('activeDeckGuestEmail', joinEmailInput);
     }
+    if (joinNameInput) {
+      localStorage.setItem('activeDeckGuestName', joinNameInput);
+    }
+  };
+
+  const handleLeave = () => {
+    setHasJoined(false);
+    setGuestEmail('');
+    setGuestName('');
+    setJoinEmailInput('');
+    setJoinNameInput('');
+    localStorage.removeItem('activeDeckJoined');
+    localStorage.removeItem('activeDeckGuestEmail');
+    localStorage.removeItem('activeDeckGuestName');
   };
 
   const handleDeleteMessage = async (id: string) => {
@@ -244,14 +268,16 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   };
 
   const handleDownloadWord = () => {
-    const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>Chat Log</title></head><body>";
+    const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>Chat Log</title></head><body style='font-family: sans-serif;'>";
     const footer = "</body></html>";
     const content = messages.map(m => {
-      const time = m.timestamp?.toDate().toLocaleString() || '';
+      const dateObj = m.timestamp?.toDate();
+      const dateStr = dateObj ? dateObj.toLocaleDateString() : '';
+      const timeStr = dateObj ? dateObj.toLocaleTimeString() : '';
       const type = m.isQuestion ? '<b>[QUESTION]</b> ' : '';
       const likes = m.likes ? ` (Likes: ${m.likes})` : '';
-      const email = m.userEmail ? ` &lt;${m.userEmail}&gt;` : '';
-      return `<p><i>${time}</i> <b>${m.userName}${email}</b>: ${type}${m.text}${likes}</p>`;
+      const email = m.userEmail ? `, <a href="mailto:${m.userEmail}">${m.userEmail}</a>` : '';
+      return `<p style="margin-bottom: 16px;">${dateStr}, ${timeStr}, <b>${m.userName}</b>${email}:<br>&nbsp;&nbsp;&nbsp;&nbsp;${type}${m.text}${likes}</p>`;
     }).join('');
     
     const html = header + "<h1>ActiveDeck Chat Log</h1>" + content + footer;
@@ -268,16 +294,29 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
   const handleEmailChat = () => {
     const content = messages.map(m => {
-      const time = m.timestamp?.toDate().toLocaleString() || '';
+      const dateObj = m.timestamp?.toDate();
+      const dateStr = dateObj ? dateObj.toLocaleDateString() : '';
+      const timeStr = dateObj ? dateObj.toLocaleTimeString() : '';
       const type = m.isQuestion ? '[QUESTION] ' : '';
       const likes = m.likes ? ` (Likes: ${m.likes})` : '';
-      const email = m.userEmail ? ` <${m.userEmail}>` : '';
-      return `[${time}] ${m.userName}${email}: ${type}${m.text}${likes}`;
+      const email = m.userEmail ? `, ${m.userEmail}` : '';
+      return `${dateStr}, ${timeStr}, ${m.userName}${email}:\n     ${type}${m.text}${likes}`;
     }).join('\n\n');
     
     const subject = encodeURIComponent('ActiveDeck Chat Log');
     const body = encodeURIComponent('Here is the chat log from your presentation:\n\n' + content);
     window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  };
+
+  const handleToggleAnonymousChat = async () => {
+    if (!presentation?.id || !canModerate) return;
+    try {
+      await updateDoc(doc(db, 'presentations', presentation.id), {
+        allowAnonymousChat: !presentation.allowAnonymousChat
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `presentations/${presentation.id}`);
+    }
   };
 
   return (
@@ -324,6 +363,21 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         <div className="flex items-center gap-1">
           {canModerate && (
             <>
+              <button 
+                onClick={handleToggleAnonymousChat}
+                className={cn(
+                  "px-2 py-1 rounded transition-colors flex items-center gap-1.5 text-xs font-medium",
+                  presentation?.allowAnonymousChat 
+                    ? "text-yellow-500 hover:bg-slate-800 hover:text-yellow-400" 
+                    : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                )}
+                title={presentation?.allowAnonymousChat ? "Anonymous Chat Allowed" : "Email Required for Chat"}
+              >
+                {presentation?.allowAnonymousChat ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+                <span className="hidden sm:inline">
+                  {presentation?.allowAnonymousChat ? "Anon Allowed" : "Email Required"}
+                </span>
+              </button>
               <button 
                 onClick={handleDownloadWord}
                 className="p-1 hover:bg-slate-800 rounded transition-colors text-slate-400 hover:text-white"
@@ -449,29 +503,71 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       {/* Input Area - Only visible for audience members (isChatOnly) */}
       {isChatOnly && (
         <div className="bg-white border-t border-slate-200 shrink-0 pb-[env(safe-area-inset-bottom)]">
-          {user?.isAnonymous && !hasJoined ? (
+          {user?.isAnonymous && (!hasJoined || (!presentation?.allowAnonymousChat && !guestEmail)) ? (
             <form onSubmit={handleJoin} className="p-4 flex flex-col gap-3">
               <div className="text-center mb-1">
                 <h3 className="text-sm font-bold text-slate-900">Join the Discussion</h3>
-                <p className="text-xs text-slate-500 mt-1">Enter your email for follow-ups, or join anonymously.</p>
+                <p className="text-xs text-slate-500 mt-1">
+                  {presentation?.allowAnonymousChat 
+                    ? "Enter your details, or join anonymously." 
+                    : "Enter your email to join the discussion."}
+                </p>
               </div>
               <input
+                type="text"
+                placeholder="Your Name (optional)"
+                value={joinNameInput}
+                onChange={(e) => setJoinNameInput(e.target.value)}
+                className="w-full px-3 py-2 text-base border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-osu-orange"
+              />
+              <input
                 type="email"
-                placeholder="Email address (optional)"
+                placeholder={presentation?.allowAnonymousChat ? "Email address (optional)" : "Email address (required)"}
                 value={joinEmailInput}
                 onChange={(e) => setJoinEmailInput(e.target.value)}
+                required={!presentation?.allowAnonymousChat}
                 className="w-full px-3 py-2 text-base border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-osu-orange"
               />
               <button
                 type="submit"
                 className="w-full bg-osu-orange text-white font-bold py-2 px-4 rounded-md hover:bg-[#c03900] transition-colors text-sm"
               >
-                {joinEmailInput ? 'Join with Email' : 'Join Anonymously'}
+                {!presentation?.allowAnonymousChat || joinEmailInput || joinNameInput ? 'Join Chat' : 'Join Anonymously'}
               </button>
             </form>
           ) : (
-            <form onSubmit={handleSendMessage} className="p-3">
-              <div className="flex gap-2">
+            <div className="p-3 flex flex-col gap-2">
+              {user?.isAnonymous && (
+                <div className="flex justify-between items-start px-1">
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-xs text-slate-500">
+                      Posting as: <span className="font-semibold text-slate-700">
+                        {isPostingAnonymously 
+                          ? `Anonymous ${user.uid.slice(0, 4)}` 
+                          : (guestName || (guestEmail ? guestEmail.split('@')[0] : `Guest ${user.uid.slice(0, 4)}`))}
+                      </span>
+                    </span>
+                    {(guestName || guestEmail) && (
+                      <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={isPostingAnonymously}
+                          onChange={(e) => setIsPostingAnonymously(e.target.checked)}
+                          className="rounded border-slate-300 text-osu-orange focus:ring-osu-orange"
+                        />
+                        Post Anonymously
+                      </label>
+                    )}
+                  </div>
+                  <button 
+                    onClick={handleLeave}
+                    className="text-xs text-osu-orange hover:underline mt-0.5"
+                  >
+                    Change
+                  </button>
+                </div>
+              )}
+              <form onSubmit={handleSendMessage} className="flex gap-2">
                 <input
                   type="text"
                   placeholder="Type a message..."
@@ -485,8 +581,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 >
                   <Send className="w-4 h-4" />
                 </button>
-              </div>
-            </form>
+              </form>
+            </div>
           )}
         </div>
       )}

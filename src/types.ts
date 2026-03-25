@@ -5,6 +5,7 @@ export interface Presentation {
   embedUrl: string;
   presenterId: string;
   createdAt: Timestamp;
+  allowAnonymousChat?: boolean;
 }
 
 export interface Message {

@@ -40,7 +40,8 @@ function AppContent() {
           const docRef = await addDoc(collection(db, 'presentations'), {
             presenterId: user.uid,
             embedUrl: '',
-            createdAt: serverTimestamp()
+            createdAt: serverTimestamp(),
+            allowAnonymousChat: false
           });
           
           // Update URL with the new ID without reloading the page
