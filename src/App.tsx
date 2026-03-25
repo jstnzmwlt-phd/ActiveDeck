@@ -88,14 +88,14 @@ function AppContent() {
     <div className="flex flex-col h-[100dvh] w-screen overflow-hidden bg-slate-100 font-sans antialiased">
       <Header />
       
-      <div className="flex flex-row flex-1 overflow-hidden">
+      <div className="flex flex-row flex-1 overflow-hidden p-4 gap-4 bg-slate-100">
         {/* Presenter View (Flexible, but takes most space) */}
-        <div className="flex-1 h-full min-w-0">
+        <div className="flex-1 h-full min-w-0 rounded-xl overflow-hidden shadow-sm border border-slate-300 bg-black">
           <PresenterArea presentation={presentation} />
         </div>
 
         {/* Audience Chat (Fixed width sidebar) */}
-        <div className="w-[350px] h-full flex-shrink-0">
+        <div className="w-[350px] h-full flex-shrink-0 rounded-xl overflow-hidden shadow-sm border border-slate-300 bg-white">
           <ChatSidebar presentation={presentation} />
         </div>
       </div>

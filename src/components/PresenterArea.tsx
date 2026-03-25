@@ -12,9 +12,9 @@ type ViewMode = 'embed' | 'capture';
 
 export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation }) => {
   return (
-    <div className="flex flex-col h-full bg-slate-50 border-r border-slate-200">
+    <div className="flex flex-col h-full bg-black">
       {/* Main Content Area */}
-      <div className="flex-1 relative bg-osu-black overflow-hidden flex items-center justify-center">
+      <div className="flex-1 relative bg-black overflow-hidden flex items-center justify-center">
         <ScreenCapture />
       </div>
     </div>

@@ -78,7 +78,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   console.log('ChatSidebar Render - User:', user?.email || 'Guest', 'isPresenter:', isPresenter, 'isMainViewModerator:', isMainViewModerator);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
-  const [isQuestion, setIsQuestion] = useState(false);
   const [showQR, setShowQR] = useState(!isChatOnly);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -90,10 +89,29 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     return localStorage.getItem('activeDeckGuestEmail') || '';
   });
   const [joinEmailInput, setJoinEmailInput] = useState('');
+  const [shortUrl, setShortUrl] = useState('');
 
   // Construct chat-only URL for QR code
   const baseUrl = window.location.origin + window.location.pathname;
   const chatOnlyUrl = presentation?.id ? `${baseUrl}?view=chat&id=${presentation.id}` : `${baseUrl}?view=chat`;
+
+  useEffect(() => {
+    if (!chatOnlyUrl) return;
+    
+    const fetchShortUrl = async () => {
+      try {
+        const response = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(chatOnlyUrl)}`);
+        if (response.ok) {
+          const text = await response.text();
+          setShortUrl(text);
+        }
+      } catch (error) {
+        console.error("Failed to generate short URL:", error);
+      }
+    };
+    
+    fetchShortUrl();
+  }, [chatOnlyUrl]);
 
   useEffect(() => {
     // Test connection
@@ -154,7 +172,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         userId: user.uid,
         userName: userName,
         timestamp: serverTimestamp(),
-        isQuestion: isQuestion,
+        isQuestion: true,
         presentationId: presentation?.id || 'default',
         presenterId: presentation?.presenterId || 'default',
       };
@@ -165,7 +183,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
       await addDoc(collection(db, 'messages'), messageData);
       setInputText('');
-      setIsQuestion(false);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'messages');
     }
@@ -264,7 +281,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   };
 
   return (
-    <div className="flex flex-col h-full max-h-full overflow-hidden bg-white shadow-xl border-l border-slate-200 relative">
+    <div className="flex flex-col h-full max-h-full overflow-hidden bg-white relative">
       {/* Clear Chat Confirmation Modal */}
       {showClearConfirm && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
@@ -350,8 +367,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               level="M"
             />
           </div>
-          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Scan to Join Chat</p>
-          <p className="text-[9px] text-slate-400 font-mono truncate w-full px-4">{chatOnlyUrl}</p>
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Scan or Visit Link</p>
+          <div className="bg-slate-200/50 rounded px-3 py-1.5 mt-1">
+            <p className="text-sm text-slate-700 font-mono font-bold select-all">
+              {shortUrl || chatOnlyUrl}
+            </p>
+          </div>
         </div>
       )}
 
@@ -381,24 +402,13 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           {messages.map((msg) => (
             <div 
               key={msg.id}
-              className={cn(
-                "p-3 rounded-lg border transition-all relative backdrop-blur-sm",
-                msg.isQuestion 
-                  ? "bg-orange-100/90 border-osu-orange/40 shadow-sm" 
-                  : "bg-orange-50/60 border-orange-100/50 shadow-sm"
-              )}
+              className="p-3 rounded-xl border border-orange-200 bg-orange-50 shadow-md transition-all relative"
             >
             <div className="flex items-start justify-between mb-1">
               <div className="flex flex-col">
                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
                   {msg.userName}
                 </span>
-                {msg.isQuestion && (
-                  <span className="flex items-center gap-1 text-[9px] font-black text-white uppercase bg-osu-orange px-1.5 py-0.5 rounded mt-1 self-start">
-                    <HelpCircle className="w-2.5 h-2.5" />
-                    Question
-                  </span>
-                )}
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -407,7 +417,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                     "flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold transition-colors border",
                     (msg.likes || 0) > 0 
                       ? "bg-yellow-400 text-slate-900 border-yellow-500 shadow-sm" 
-                      : "bg-slate-100 text-slate-400 border-transparent hover:bg-slate-200 hover:text-slate-600"
+                      : "bg-white/60 text-slate-500 border-transparent hover:bg-white hover:text-slate-700"
                   )}
                   title={msg.likedBy?.includes(user?.uid || '') ? "Unlike" : "Like"}
                 >
@@ -438,7 +448,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
       {/* Input Area - Only visible for audience members (isChatOnly) */}
       {isChatOnly && (
-        <div className="bg-white border-t border-slate-200">
+        <div className="bg-white border-t border-slate-200 shrink-0 pb-[env(safe-area-inset-bottom)]">
           {user?.isAnonymous && !hasJoined ? (
             <form onSubmit={handleJoin} className="p-4 flex flex-col gap-3">
               <div className="text-center mb-1">
@@ -450,7 +460,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 placeholder="Email address (optional)"
                 value={joinEmailInput}
                 onChange={(e) => setJoinEmailInput(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-osu-orange"
+                className="w-full px-3 py-2 text-base border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-osu-orange"
               />
               <button
                 type="submit"
@@ -461,32 +471,17 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
             </form>
           ) : (
             <form onSubmit={handleSendMessage} className="p-3">
-              <div className="flex items-center gap-2 mb-2">
-                <button
-                  type="button"
-                  onClick={() => setIsQuestion(!isQuestion)}
-                  className={cn(
-                    "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black uppercase transition-all border",
-                    isQuestion 
-                      ? "bg-osu-orange text-white border-osu-orange" 
-                      : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200"
-                  )}
-                >
-                  <HelpCircle className="w-2.5 h-2.5" />
-                  Flag Question
-                </button>
-              </div>
               <div className="flex gap-2">
                 <input
                   type="text"
                   placeholder="Type a message..."
-                  className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-osu-orange"
+                  className="flex-1 min-w-0 px-3 py-2 text-base border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-osu-orange"
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
                 />
                 <button
                   type="submit"
-                  className="p-2 bg-osu-black text-white rounded-md hover:bg-slate-800 transition-colors"
+                  className="shrink-0 p-2 bg-osu-black text-white rounded-md hover:bg-slate-800 transition-colors"
                 >
                   <Send className="w-4 h-4" />
                 </button>

@@ -20,6 +20,15 @@ export const ScreenCapture: React.FC = () => {
       setStream(mediaStream);
       setIsCapturing(true);
 
+      // Automatically go into full screen mode
+      try {
+        if (!document.fullscreenElement) {
+          await document.documentElement.requestFullscreen();
+        }
+      } catch (fullscreenErr) {
+        console.error("Error attempting to enable full-screen mode:", fullscreenErr);
+      }
+
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
         // Explicitly call play to ensure video starts immediately
