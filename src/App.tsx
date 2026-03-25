@@ -95,7 +95,7 @@ function AppContent() {
         </div>
 
         {/* Audience Chat (Fixed width sidebar) */}
-        <div className="w-[350px] h-full flex-shrink-0 rounded-xl overflow-hidden shadow-sm border border-slate-300 bg-white">
+        <div className="w-[350px] h-full flex-shrink-0 rounded-xl overflow-hidden shadow-sm border-2 border-osu-orange bg-white">
           <ChatSidebar presentation={presentation} />
         </div>
       </div>
