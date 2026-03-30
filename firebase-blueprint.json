@@ -17,6 +17,10 @@
           "type": "string",
           "format": "date-time",
           "description": "The time the presentation was created."
+        },
+        "allowAnonymousChat": {
+          "type": "boolean",
+          "description": "Whether anonymous chat is allowed."
         }
       },
       "required": ["embedUrl", "presenterId", "createdAt"]

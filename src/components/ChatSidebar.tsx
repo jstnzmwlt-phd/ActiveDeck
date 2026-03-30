@@ -413,19 +413,21 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
       {/* Embedded QR Code Section */}
       {showQR && (
-        <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-col items-center text-center animate-in slide-in-from-top duration-300">
-          <div className="bg-white p-2 rounded-lg border border-slate-200 shadow-sm mb-2">
+        <div className="p-3 bg-slate-50 border-b border-slate-200 flex flex-row items-start gap-3 animate-in slide-in-from-top duration-300">
+          <div className="bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm shrink-0">
             <QRCodeSVG 
               value={chatOnlyUrl} 
-              size={200}
+              size={80}
               level="M"
             />
           </div>
-          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Scan or Visit Link</p>
-          <div className="bg-slate-200/50 rounded px-3 py-1.5 mt-1">
-            <p className="text-sm text-slate-700 font-mono font-bold select-all">
-              {shortUrl || chatOnlyUrl}
-            </p>
+          <div className="flex flex-col justify-center min-w-0 py-1">
+            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Scan to Join Chat</p>
+            <div className="bg-slate-200/50 rounded px-2 py-1 truncate">
+              <p className="text-[11px] text-slate-700 font-mono font-bold select-all truncate">
+                {shortUrl || chatOnlyUrl}
+              </p>
+            </div>
           </div>
         </div>
       )}

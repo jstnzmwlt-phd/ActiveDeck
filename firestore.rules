@@ -12,7 +12,7 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() && 
-             (request.auth.token.email == "parajayzee@gmail.com");
+             (request.auth.token.email == "parajayzee@gmail.com" && request.auth.token.email_verified == true);
     }
 
     function isValidString(val, maxLen) {
@@ -23,8 +23,9 @@ service cloud.firestore {
     function isValidPresentation(data) {
       return data.keys().hasAll(['embedUrl', 'presenterId', 'createdAt']) &&
              data.embedUrl is string &&
-             data.presenterId == request.auth.uid &&
-             data.createdAt is timestamp;
+             data.presenterId is string &&
+             data.createdAt is timestamp &&
+             (!('allowAnonymousChat' in data) || data.allowAnonymousChat is bool);
     }
 
     function isRecent(time) {
@@ -57,9 +58,9 @@ service cloud.firestore {
     // Match Rules
     match /presentations/{presentationId} {
       allow read: if true; // Publicly readable for the audience
-      allow create: if isAuthenticated() && isValidPresentation(request.resource.data);
-      allow update: if isAuthenticated() && isOwner(resource.data.presenterId) && isValidPresentation(request.resource.data);
-      allow delete: if isAuthenticated() && isOwner(resource.data.presenterId);
+      allow create: if isAuthenticated() && isValidPresentation(request.resource.data) && request.resource.data.presenterId == request.auth.uid;
+      allow update: if isAuthenticated() && (isOwner(resource.data.presenterId) || isAdmin()) && isValidPresentation(request.resource.data);
+      allow delete: if isAuthenticated() && (isOwner(resource.data.presenterId) || isAdmin());
     }
 
     match /messages/{messageId} {
