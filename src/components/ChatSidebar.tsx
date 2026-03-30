@@ -73,7 +73,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const isPresenter = user?.uid === presentation?.presenterId;
   // Faculty/Moderators are guests in the main view (not isChatOnly)
   const isMainViewModerator = !isChatOnly;
-  const canModerate = isPresenter; // Only the presenter can moderate (delete any message, clear chat, etc.)
+  const canModerate = isPresenter || isMainViewModerator; // Presenter or anyone in the main view can moderate (delete any message, clear chat, etc.)
 
   console.log('ChatSidebar Render - User:', user?.email || 'Guest', 'isPresenter:', isPresenter, 'isMainViewModerator:', isMainViewModerator);
   const [messages, setMessages] = useState<Message[]>([]);
