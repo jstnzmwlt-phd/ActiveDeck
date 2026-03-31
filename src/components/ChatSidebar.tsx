@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { auth, db } from '../firebase';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, getDocFromServer, doc, deleteDoc, updateDoc, arrayUnion, arrayRemove, increment, where, writeBatch } from 'firebase/firestore';
-import { Message, Presentation } from '../types';
+import { Message, Presentation, Poll } from '../types';
 import { useAuth } from './AuthProvider';
-import { Send, HelpCircle, MessageSquare, QrCode, Trash2, LogIn, LogOut, ThumbsUp, Download, Mail, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Send, HelpCircle, MessageSquare, QrCode, Trash2, LogIn, LogOut, ThumbsUp, Download, Mail, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { QRCodeSVG } from 'qrcode.react';
@@ -77,6 +77,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
   console.log('ChatSidebar Render - User:', user?.email || 'Guest', 'isPresenter:', isPresenter, 'isMainViewModerator:', isMainViewModerator);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [polls, setPolls] = useState<Poll[]>([]);
   const [inputText, setInputText] = useState('');
   const [showQR, setShowQR] = useState(!isChatOnly);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -105,7 +106,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     
     const fetchShortUrl = async () => {
       try {
-        const response = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(chatOnlyUrl)}`);
+        const response = await fetch(`/api/shorten?url=${encodeURIComponent(chatOnlyUrl)}`);
         if (response.ok) {
           const text = await response.text();
           setShortUrl(text);
@@ -153,7 +154,26 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       handleFirestoreError(error, OperationType.GET, 'messages');
     });
 
-    return () => unsubscribe();
+    // Listen to polls
+    const pq = query(
+      collection(db, 'polls'), 
+      where('presentationId', '==', presentation?.id || 'default')
+    );
+    const pUnsubscribe = onSnapshot(pq, (snapshot) => {
+      const ps = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data({ serverTimestamps: 'estimate' })
+      })) as Poll[];
+      ps.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
+      setPolls(ps);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'polls');
+    });
+
+    return () => {
+      unsubscribe();
+      pUnsubscribe();
+    };
   }, [presentation?.id]);
 
   useEffect(() => {
@@ -319,6 +339,66 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     }
   };
 
+  const handleCreatePoll = async () => {
+    if (!presentation?.id || !canModerate) return;
+    try {
+      await addDoc(collection(db, 'polls'), {
+        presentationId: presentation.id,
+        options: ['A', 'B', 'C', 'D', 'E'],
+        votes: { 'A': 0, 'B': 0, 'C': 0, 'D': 0, 'E': 0 },
+        voters: {},
+        createdAt: serverTimestamp(),
+        active: true,
+        showResults: false
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'polls');
+    }
+  };
+
+  const handleVote = async (pollId: string, option: string) => {
+    if (!user) return;
+    const poll = polls.find(p => p.id === pollId);
+    if (!poll || !poll.active || poll.voters[user.uid]) return;
+
+    try {
+      const pollRef = doc(db, 'polls', pollId);
+      await updateDoc(pollRef, {
+        [`votes.${option}`]: increment(1),
+        [`voters.${user.uid}`]: option
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `polls/${pollId}`);
+    }
+  };
+
+  const handleToggleResults = async (pollId: string, currentShow: boolean) => {
+    if (!canModerate) return;
+    try {
+      await updateDoc(doc(db, 'polls', pollId), { showResults: !currentShow });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `polls/${pollId}`);
+    }
+  };
+
+  const handleClosePoll = async (pollId: string) => {
+    if (!canModerate) return;
+    try {
+      await updateDoc(doc(db, 'polls', pollId), { active: false });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `polls/${pollId}`);
+    }
+  };
+
+  const handleDeletePoll = async (pollId: string) => {
+    if (!canModerate) return;
+    try {
+      await deleteDoc(doc(db, 'polls', pollId));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `polls/${pollId}`);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full max-h-full overflow-hidden bg-white relative">
       {/* Clear Chat Confirmation Modal */}
@@ -423,11 +503,20 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           </div>
           <div className="flex flex-col justify-center min-w-0 py-1">
             <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Scan to Join Chat</p>
-            <div className="bg-slate-200/50 rounded px-2 py-1 truncate">
+            <div className="bg-slate-200/50 rounded px-2 py-1 truncate mb-2">
               <p className="text-[11px] text-slate-700 font-mono font-bold select-all truncate">
                 {shortUrl || chatOnlyUrl}
               </p>
             </div>
+            {canModerate && (
+              <button 
+                onClick={handleCreatePoll}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-osu-orange text-white rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-[#c03900] transition-all shadow-sm w-fit"
+              >
+                <BarChart2 className="w-3 h-3" />
+                Create New Poll
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -449,17 +538,123 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           ref={scrollRef}
           className="absolute inset-0 overflow-y-auto p-4 space-y-4 z-10"
         >
-          {messages.length === 0 && (
+          {messages.length === 0 && polls.length === 0 && (
             <div className="h-full flex flex-col items-center justify-center text-slate-300 opacity-50">
               <MessageSquare className="w-8 h-8 mb-2" />
               <p className="text-xs font-medium">No messages yet</p>
             </div>
           )}
-          {messages.map((msg) => (
-            <div 
-              key={msg.id}
-              className="p-3 rounded-xl border border-orange-200 bg-orange-50 shadow-md transition-all relative"
-            >
+
+          {/* Render Polls and Messages interleaved by time */}
+          {[...messages.map(m => ({ ...m, type: 'message' as const })), 
+            ...polls.map(p => ({ ...p, type: 'poll' as const }))]
+            .sort((a, b) => {
+              const timeA = ((a as any).timestamp || (a as any).createdAt)?.toMillis() || 0;
+              const timeB = ((b as any).timestamp || (b as any).createdAt)?.toMillis() || 0;
+              return timeA - timeB;
+            })
+            .map((item) => {
+              if (item.type === 'poll') {
+                const poll = item as Poll;
+                const totalVotes = Object.values(poll.votes).reduce((a, b) => a + b, 0);
+                const userVote = user ? poll.voters[user.uid] : null;
+
+                return (
+                  <div key={poll.id} className="p-4 rounded-xl border-2 border-osu-orange bg-white shadow-lg animate-in zoom-in-95 duration-200">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <BarChart2 className="w-4 h-4 text-osu-orange" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Multiple Choice Poll</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {canModerate && (
+                          <>
+                            <button 
+                              onClick={() => handleToggleResults(poll.id, !!poll.showResults)}
+                              className={cn(
+                                "flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold transition-colors border",
+                                poll.showResults 
+                                  ? "bg-osu-orange text-white border-osu-orange" 
+                                  : "bg-white text-slate-500 border-slate-200 hover:border-osu-orange hover:text-osu-orange"
+                              )}
+                              title={poll.showResults ? "Hide Results from Audience" : "Show Results to Audience"}
+                            >
+                              {poll.showResults ? <ToggleRight className="w-3 h-3" /> : <ToggleLeft className="w-3 h-3" />}
+                              {poll.showResults ? "Results Visible" : "Results Hidden"}
+                            </button>
+                            {poll.active ? (
+                              <button onClick={() => handleClosePoll(poll.id)} className="p-1 text-slate-400 hover:text-red-500" title="Close Poll">
+                                <XCircle className="w-4 h-4" />
+                              </button>
+                            ) : (
+                              <span className="text-[8px] font-bold text-red-500 uppercase">Closed</span>
+                            )}
+                            <button onClick={() => handleDeletePoll(poll.id)} className="p-1 text-slate-400 hover:text-red-500" title="Delete Poll">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      {poll.options.map(opt => {
+                        const count = poll.votes[opt] || 0;
+                        const percentage = totalVotes > 0 ? (count / totalVotes) * 100 : 0;
+                        const isSelected = userVote === opt;
+
+                        return (
+                          <div key={opt} className="relative">
+                            <button
+                              disabled={!poll.active || !!userVote || !isChatOnly}
+                              onClick={() => handleVote(poll.id, opt)}
+                              className={cn(
+                                "w-full relative overflow-hidden flex items-center justify-between px-4 py-2 rounded-lg border transition-all",
+                                isSelected ? "border-osu-orange bg-orange-50" : "border-slate-200 hover:border-osu-orange/50 bg-white",
+                                !poll.active && "opacity-80 cursor-default"
+                              )}
+                            >
+                              {/* Result Bar */}
+                              {poll.showResults && (
+                                <div 
+                                  className="absolute inset-y-0 left-0 bg-osu-orange/35 transition-all duration-700 z-0" 
+                                  style={{ width: `${percentage}%` }}
+                                />
+                              )}
+                              
+                              <div className="flex items-center gap-3 relative z-10">
+                                <span className={cn("w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold", isSelected ? "bg-osu-orange text-white" : "bg-slate-100 text-slate-600")}>
+                                  {opt}
+                                </span>
+                                {isSelected && <CheckCircle2 className="w-3 h-3 text-osu-orange" />}
+                              </div>
+                              
+                              {poll.showResults && (
+                                <div className="flex items-center gap-2 relative z-10">
+                                  <span className="text-[10px] font-bold text-slate-400">{Math.round(percentage)}%</span>
+                                  <span className="text-xs font-bold text-slate-700">{count}</span>
+                                </div>
+                              )}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    
+                    <div className="mt-3 pt-3 border-t border-slate-100 flex justify-between items-center">
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{totalVotes} Total Votes</span>
+                      {!poll.active && <span className="text-[9px] font-bold text-red-500 uppercase tracking-wider">Final Results</span>}
+                    </div>
+                  </div>
+                );
+              }
+
+              const msg = item as Message;
+              return (
+                <div 
+                  key={msg.id}
+                  className="p-3 rounded-xl border border-orange-200 bg-orange-50 shadow-md transition-all relative"
+                >
             <div className="flex items-start justify-between mb-1">
               <div className="flex flex-col">
                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
@@ -498,9 +693,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               {msg.timestamp?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </div>
           </div>
-        ))}
-      </div>
-      </div>
+        );
+      })}
+    </div>
+  </div>
 
       {/* Input Area - Only visible for audience members (isChatOnly) */}
       {isChatOnly && (

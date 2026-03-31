@@ -77,6 +77,40 @@
         }
       },
       "required": ["text", "userId", "userName", "timestamp", "isQuestion", "presentationId", "presenterId"]
+    },
+    "Poll": {
+      "title": "Poll",
+      "description": "A multiple choice poll for the audience.",
+      "type": "object",
+      "properties": {
+        "presentationId": {
+          "type": "string",
+          "description": "The ID of the presentation."
+        },
+        "options": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "The list of options (e.g., A, B, C, D, E)."
+        },
+        "votes": {
+          "type": "object",
+          "description": "A map of option to vote count."
+        },
+        "voters": {
+          "type": "object",
+          "description": "A map of userId to selected option."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The time the poll was created."
+        },
+        "active": {
+          "type": "boolean",
+          "description": "Whether the poll is currently active."
+        }
+      },
+      "required": ["presentationId", "options", "votes", "voters", "createdAt", "active"]
     }
   },
   "firestore": {
@@ -87,6 +121,10 @@
     "/messages/{messageId}": {
       "schema": "Message",
       "description": "Collection of chat messages."
+    },
+    "/polls/{pollId}": {
+      "schema": "Poll",
+      "description": "Collection of polls."
     }
   }
 }

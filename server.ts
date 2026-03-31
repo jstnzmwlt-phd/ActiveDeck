@@ -14,6 +14,25 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(express.json());
+  
+  app.get('/api/shorten', async (req, res) => {
+    const { url } = req.query;
+    if (!url) {
+      return res.status(400).send('URL is required');
+    }
+    try {
+      const response = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(url as string)}`);
+      if (response.ok) {
+        const text = await response.text();
+        res.send(text);
+      } else {
+        res.status(response.status).send('Failed to shorten URL');
+      }
+    } catch (error) {
+      console.error('Shorten error:', error);
+      res.status(500).send('Internal server error');
+    }
+  });
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {

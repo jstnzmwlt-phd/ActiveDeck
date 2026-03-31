@@ -20,6 +20,17 @@ export interface Message {
   likedBy?: string[];
 }
 
+export interface Poll {
+  id: string;
+  presentationId: string;
+  options: string[];
+  votes: Record<string, number>;
+  voters: Record<string, string>;
+  createdAt: Timestamp;
+  active: boolean;
+  showResults?: boolean;
+}
+
 declare global {
   interface Window {
     Office: any;
