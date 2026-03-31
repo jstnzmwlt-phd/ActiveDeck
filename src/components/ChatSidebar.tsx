@@ -290,17 +290,49 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const handleDownloadWord = () => {
     const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>Chat Log</title></head><body style='font-family: sans-serif;'>";
     const footer = "</body></html>";
-    const content = messages.map(m => {
-      const dateObj = m.timestamp?.toDate();
-      const dateStr = dateObj ? dateObj.toLocaleDateString() : '';
-      const timeStr = dateObj ? dateObj.toLocaleTimeString() : '';
-      const type = m.isQuestion ? '<b>[QUESTION]</b> ' : '';
-      const likes = m.likes ? ` (Likes: ${m.likes})` : '';
-      const email = m.userEmail ? `, <a href="mailto:${m.userEmail}">${m.userEmail}</a>` : '';
-      return `<p style="margin-bottom: 16px;">${dateStr}, ${timeStr}, <b>${m.userName}</b>${email}:<br>&nbsp;&nbsp;&nbsp;&nbsp;${type}${m.text}${likes}</p>`;
+    
+    const combinedItems = [
+      ...messages.map(m => ({ ...m, type: 'message' as const })),
+      ...polls.map(p => ({ ...p, type: 'poll' as const }))
+    ].sort((a, b) => {
+      const timeA = ((a as any).timestamp || (a as any).createdAt)?.toMillis() || 0;
+      const timeB = ((b as any).timestamp || (b as any).createdAt)?.toMillis() || 0;
+      return timeA - timeB;
+    });
+
+    const content = combinedItems.map(item => {
+      if (item.type === 'message') {
+        const m = item as Message;
+        const dateObj = m.timestamp?.toDate();
+        const dateStr = dateObj ? dateObj.toLocaleDateString() : '';
+        const timeStr = dateObj ? dateObj.toLocaleTimeString() : '';
+        const type = m.isQuestion ? '<b>[QUESTION]</b> ' : '';
+        const likes = m.likes ? ` (Likes: ${m.likes})` : '';
+        const email = m.userEmail ? `, <a href="mailto:${m.userEmail}">${m.userEmail}</a>` : '';
+        return `<p style="margin-bottom: 16px;">${dateStr}, ${timeStr}, <b>${m.userName}</b>${email}:<br>&nbsp;&nbsp;&nbsp;&nbsp;${type}${m.text}${likes}</p>`;
+      } else {
+        const p = item as Poll;
+        const dateObj = p.createdAt?.toDate();
+        const dateStr = dateObj ? dateObj.toLocaleDateString() : '';
+        const timeStr = dateObj ? dateObj.toLocaleTimeString() : '';
+        const totalVotes = Object.values(p.votes).reduce((a, b) => a + b, 0);
+        
+        let pollHtml = `<div style="margin-bottom: 24px; padding: 12px; border: 2px solid #ff3e00; background-color: #fff5f2; border-radius: 8px;">`;
+        pollHtml += `<p style="margin-top: 0;"><b>[POLL RESULTS]</b> ${dateStr}, ${timeStr}</p>`;
+        pollHtml += `<ul style="list-style-type: none; padding-left: 0;">`;
+        p.options.forEach(opt => {
+          const count = p.votes[opt] || 0;
+          const percentage = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
+          pollHtml += `<li style="margin-bottom: 4px;">Option ${opt}: <b>${count} votes</b> (${percentage}%)</li>`;
+        });
+        pollHtml += `</ul>`;
+        pollHtml += `<p style="margin-bottom: 0; font-size: 11px;">Total Votes: ${totalVotes}</p>`;
+        pollHtml += `</div>`;
+        return pollHtml;
+      }
     }).join('');
     
-    const html = header + "<h1>ActiveDeck Chat Log</h1>" + content + footer;
+    const html = header + "<h1>ActiveDeck Chat & Poll Log</h1>" + content + footer;
     const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -313,18 +345,45 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   };
 
   const handleEmailChat = () => {
-    const content = messages.map(m => {
-      const dateObj = m.timestamp?.toDate();
-      const dateStr = dateObj ? dateObj.toLocaleDateString() : '';
-      const timeStr = dateObj ? dateObj.toLocaleTimeString() : '';
-      const type = m.isQuestion ? '[QUESTION] ' : '';
-      const likes = m.likes ? ` (Likes: ${m.likes})` : '';
-      const email = m.userEmail ? `, ${m.userEmail}` : '';
-      return `${dateStr}, ${timeStr}, ${m.userName}${email}:\n     ${type}${m.text}${likes}`;
+    const combinedItems = [
+      ...messages.map(m => ({ ...m, type: 'message' as const })),
+      ...polls.map(p => ({ ...p, type: 'poll' as const }))
+    ].sort((a, b) => {
+      const timeA = ((a as any).timestamp || (a as any).createdAt)?.toMillis() || 0;
+      const timeB = ((b as any).timestamp || (b as any).createdAt)?.toMillis() || 0;
+      return timeA - timeB;
+    });
+
+    const content = combinedItems.map(item => {
+      if (item.type === 'message') {
+        const m = item as Message;
+        const dateObj = m.timestamp?.toDate();
+        const dateStr = dateObj ? dateObj.toLocaleDateString() : '';
+        const timeStr = dateObj ? dateObj.toLocaleTimeString() : '';
+        const type = m.isQuestion ? '[QUESTION] ' : '';
+        const likes = m.likes ? ` (Likes: ${m.likes})` : '';
+        const email = m.userEmail ? `, ${m.userEmail}` : '';
+        return `${dateStr}, ${timeStr}, ${m.userName}${email}:\n     ${type}${m.text}${likes}`;
+      } else {
+        const p = item as Poll;
+        const dateObj = p.createdAt?.toDate();
+        const dateStr = dateObj ? dateObj.toLocaleDateString() : '';
+        const timeStr = dateObj ? dateObj.toLocaleTimeString() : '';
+        const totalVotes = Object.values(p.votes).reduce((a, b) => a + b, 0);
+        
+        let pollText = `[POLL RESULTS] ${dateStr}, ${timeStr}\n`;
+        p.options.forEach(opt => {
+          const count = p.votes[opt] || 0;
+          const percentage = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
+          pollText += `  Option ${opt}: ${count} votes (${percentage}%)\n`;
+        });
+        pollText += `Total Votes: ${totalVotes}`;
+        return pollText;
+      }
     }).join('\n\n');
     
-    const subject = encodeURIComponent('ActiveDeck Chat Log');
-    const body = encodeURIComponent('Here is the chat log from your presentation:\n\n' + content);
+    const subject = encodeURIComponent('ActiveDeck Chat & Poll Log');
+    const body = encodeURIComponent('Here is the chat and poll log from your presentation:\n\n' + content);
     window.location.href = `mailto:?subject=${subject}&body=${body}`;
   };
 
