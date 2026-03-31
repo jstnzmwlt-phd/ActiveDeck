@@ -144,6 +144,54 @@ function AppContent() {
 
   console.log('AppContent - Rendering Main State. isChatOnly:', isChatOnly);
 
+  // Landing Screen (if no presentation and not chat-only)
+  if (!presentationId && !isChatOnly) {
+    return (
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-900 text-white p-6 relative overflow-hidden">
+        {/* Background Accents */}
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-osu-orange/10 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-osu-orange/5 rounded-full blur-[120px]" />
+
+        <div className="z-10 flex flex-col items-center max-w-md w-full text-center">
+          <div className="w-20 h-20 bg-osu-orange rounded-2xl flex items-center justify-center shadow-2xl shadow-orange-500/20 mb-8 rotate-3">
+            <PresentationIcon className="w-10 h-10 text-white" />
+          </div>
+          
+          <h1 className="text-4xl font-black uppercase tracking-tight mb-2">ActiveDeck</h1>
+          <p className="text-slate-400 mb-12 font-medium">Interactive presentations for the modern classroom.</p>
+
+          <div className="w-full space-y-4">
+            {!user ? (
+              <button 
+                onClick={signInWithGoogle}
+                className="w-full py-4 bg-white text-slate-900 font-black uppercase tracking-widest rounded-xl hover:bg-slate-100 transition-all flex items-center justify-center gap-3"
+              >
+                <LogIn className="w-5 h-5" />
+                Presenter Login
+              </button>
+            ) : (
+              <div className="text-slate-500 text-sm">
+                Logged in as <span className="text-white font-bold">{user.email}</span>
+                <br />
+                <button 
+                  onClick={() => window.location.reload()} 
+                  className="text-osu-orange hover:underline font-bold mt-2"
+                >
+                  Start New Presentation
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+        
+        {/* Footer */}
+        <div className="absolute bottom-8 text-[10px] font-black uppercase tracking-[0.3em] text-slate-600">
+          Powered by OSU Active Learning
+        </div>
+      </div>
+    );
+  }
+
   // Chat-only view for audience members who scanned the QR code
   if (isChatOnly) {
     return (
