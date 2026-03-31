@@ -6,35 +6,73 @@ import { Header } from './components/Header';
 import { Presentation } from './types';
 import { db } from './firebase';
 import { collection, query, orderBy, limit, onSnapshot, doc, addDoc, serverTimestamp } from 'firebase/firestore';
-import { LogIn, Presentation as PresentationIcon, Loader2 } from 'lucide-react';
+import { LogIn, Presentation as PresentationIcon, Loader2, AlertCircle } from 'lucide-react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
+console.log('App.tsx - Module loaded');
+
+// Global error handler for debugging
+window.onerror = (msg, url, lineNo, columnNo, error) => {
+  console.error('Global Error:', msg, 'at', url, ':', lineNo, ':', columnNo, error);
+  return false;
+};
+
 function AppContent() {
-  const { user, loading, signInWithGoogle } = useAuth();
+  const { user, loading: authLoading, signInWithGoogle } = useAuth();
   const [presentation, setPresentation] = useState<Presentation | null>(null);
+  const [appError, setAppError] = useState<string | null>(null);
+
+  // Global error handler update to show on screen
+  useEffect(() => {
+    const handleError = (msg: any, url: any, line: any, col: any, error: any) => {
+      setAppError(`Error: ${msg}\nAt: ${url}:${line}:${col}`);
+      return false;
+    };
+    window.onerror = handleError;
+    return () => { window.onerror = null; };
+  }, []);
 
   // Check for view parameter
   const urlParams = new URLSearchParams(window.location.search);
   const isChatOnly = urlParams.get('view') === 'chat';
   const presentationId = urlParams.get('id');
 
+  console.log('AppContent Render - AuthLoading:', authLoading, 'User:', user?.uid, 'PresentationId:', presentationId, 'isChatOnly:', isChatOnly);
+
   useEffect(() => {
-    if (loading) return;
+    // Hide static loader once React mounts
+    const loader = document.getElementById('static-loader');
+    if (loader) {
+      console.log('AppContent - Hiding static loader');
+      loader.style.display = 'none';
+    }
+  }, []);
+
+  useEffect(() => {
+    if (authLoading) {
+      console.log('AppContent - Still loading auth...');
+      return;
+    }
 
     let unsubscribe: () => void;
 
     const loadPresentation = async () => {
       if (presentationId) {
+        console.log('AppContent - Loading existing presentation:', presentationId);
         // Listen to specific presentation
         const docRef = doc(db, 'presentations', presentationId);
         unsubscribe = onSnapshot(docRef, (docSnap) => {
           if (docSnap.exists()) {
+            console.log('AppContent - Presentation data received:', docSnap.id);
             setPresentation({ id: docSnap.id, ...docSnap.data() } as Presentation);
+          } else {
+            console.warn('AppContent - Presentation not found:', presentationId);
           }
         }, (error) => {
-          console.error("Presentation snapshot error:", error);
+          console.error("AppContent - Presentation snapshot error:", error);
         });
       } else if (!isChatOnly && user) {
+        console.log('AppContent - Creating new presentation for user:', user.uid);
         // Presenter creating a new session
         try {
           const docRef = await addDoc(collection(db, 'presentations'), {
@@ -43,6 +81,8 @@ function AppContent() {
             createdAt: serverTimestamp(),
             allowAnonymousChat: false
           });
+          
+          console.log('AppContent - New presentation created:', docRef.id);
           
           // Update URL with the new ID without reloading the page
           const newUrl = new URL(window.location.href);
@@ -55,19 +95,45 @@ function AppContent() {
             }
           });
         } catch (error) {
-          console.error("Error creating presentation:", error);
+          console.error("AppContent - Error creating presentation:", error);
         }
+      } else {
+        console.log('AppContent - No presentation ID and not a presenter/chat-only');
       }
     };
 
     loadPresentation();
 
     return () => {
-      if (unsubscribe) unsubscribe();
+      if (unsubscribe) {
+        console.log('AppContent - Unsubscribing from presentation');
+        unsubscribe();
+      }
     };
-  }, [loading, user, presentationId, isChatOnly]);
+  }, [authLoading, user, presentationId, isChatOnly]);
 
-  if (loading) {
+  const isLoading = authLoading;
+
+  if (appError) {
+    return (
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-red-900 text-white p-8 text-center">
+        <AlertCircle className="w-12 h-12 mb-4" />
+        <h1 className="text-xl font-bold mb-2">Application Error</h1>
+        <pre className="text-xs bg-black/30 p-4 rounded-lg mb-6 max-w-full overflow-auto whitespace-pre-wrap">
+          {appError}
+        </pre>
+        <button 
+          onClick={() => window.location.reload()}
+          className="px-6 py-2 bg-white text-red-900 font-bold rounded-full"
+        >
+          Reload Application
+        </button>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    console.log('AppContent - Rendering Loading State. Auth:', authLoading);
     return (
       <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-900 text-white">
         <Loader2 className="w-12 h-12 text-osu-orange animate-spin mb-4" />
@@ -75,6 +141,8 @@ function AppContent() {
       </div>
     );
   }
+
+  console.log('AppContent - Rendering Main State. isChatOnly:', isChatOnly);
 
   // Chat-only view for audience members who scanned the QR code
   if (isChatOnly) {

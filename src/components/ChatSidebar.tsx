@@ -105,10 +105,16 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     
     const fetchShortUrl = async () => {
       try {
-        const response = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(chatOnlyUrl)}`);
+        const response = await fetch('/api/shorten', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ long_url: chatOnlyUrl })
+        });
         if (response.ok) {
-          const text = await response.text();
-          setShortUrl(text);
+          const data = await response.json();
+          setShortUrl(data.link);
         }
       } catch (error) {
         console.error("Failed to generate short URL:", error);

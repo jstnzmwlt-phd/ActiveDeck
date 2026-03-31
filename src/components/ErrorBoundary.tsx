@@ -23,12 +23,14 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Uncaught error:', error, errorInfo);
+    console.error('ErrorBoundary - Uncaught error:', error, errorInfo);
   }
 
   public render() {
     if (this.state.hasError) {
-      let errorMessage = "Something went wrong.";
+      console.log('ErrorBoundary - Rendering error fallback. Error:', this.state.error);
+      let errorMessage = this.state.error?.message || "Something went wrong.";
+      let errorStack = this.state.error?.stack || "";
       
       try {
         const parsedError = JSON.parse(this.state.error?.message || "");
@@ -40,15 +42,24 @@ export class ErrorBoundary extends Component<Props, State> {
       }
 
       return (
-        <div className="p-8 text-center bg-white rounded-xl shadow-lg border border-slate-200 m-4">
-          <h2 className="text-xl font-bold text-slate-900 mb-4">Application Error</h2>
-          <p className="text-slate-600 mb-6">{errorMessage}</p>
-          <button
-            className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition-colors"
-            onClick={() => window.location.reload()}
-          >
-            Reload App
-          </button>
+        <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-900 text-white p-8 text-center overflow-auto">
+          <div className="max-w-2xl w-full bg-slate-800 p-8 rounded-2xl shadow-2xl border border-slate-700">
+            <h2 className="text-2xl font-black text-osu-orange mb-4 uppercase tracking-tighter italic">Application Error</h2>
+            <p className="text-slate-300 mb-6 font-medium">{errorMessage}</p>
+            
+            {errorStack && (
+              <pre className="text-[10px] text-slate-500 bg-black/30 p-4 rounded-lg mb-8 text-left overflow-auto max-h-48 font-mono">
+                {errorStack}
+              </pre>
+            )}
+
+            <button
+              className="px-8 py-3 bg-osu-orange text-white rounded-full font-black uppercase tracking-widest hover:bg-orange-500 transition-all active:scale-95"
+              onClick={() => window.location.reload()}
+            >
+              Reload ActiveDeck
+            </button>
+          </div>
         </div>
       );
     }

@@ -19,3 +19,9 @@ export interface Message {
   likes?: number;
   likedBy?: string[];
 }
+
+declare global {
+  interface Window {
+    Office: any;
+  }
+}
