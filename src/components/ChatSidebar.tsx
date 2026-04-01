@@ -819,17 +819,15 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               <div className="flex items-center gap-2 mt-2">
                 <button 
                   onClick={handleCreatePoll}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-osu-orange text-white rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-[#c03900] transition-all shadow-sm w-fit"
+                  className="flex-1 flex items-center justify-center px-3 py-1.5 bg-osu-orange text-white rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-[#c03900] transition-all shadow-sm"
                 >
-                  <BarChart2 className="w-3 h-3" />
-                  Create New Poll
+                  New Poll
                 </button>
                 <button 
                   onClick={() => setShowWordCloudModal(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500 text-white rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-blue-600 transition-all shadow-sm w-fit"
+                  className="flex-1 flex items-center justify-center px-3 py-1.5 bg-blue-500 text-white rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-blue-600 transition-all shadow-sm"
                 >
-                  <Cloud className="w-3 h-3" />
-                  Create Word Cloud
+                  Word Cloud
                 </button>
               </div>
             )}
