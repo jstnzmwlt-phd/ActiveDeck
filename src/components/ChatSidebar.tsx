@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { auth, db } from '../firebase';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, getDocFromServer, doc, deleteDoc, updateDoc, arrayUnion, arrayRemove, increment, where, writeBatch } from 'firebase/firestore';
-import { Message, Presentation, Poll } from '../types';
+import { Message, Presentation, Poll, WordCloud } from '../types';
 import { useAuth } from './AuthProvider';
-import { Send, HelpCircle, MessageSquare, QrCode, Trash2, LogIn, LogOut, ThumbsUp, Download, Mail, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle } from 'lucide-react';
+import { Send, HelpCircle, MessageSquare, QrCode, Trash2, LogIn, LogOut, ThumbsUp, Download, Mail, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { QRCodeSVG } from 'qrcode.react';
@@ -63,6 +63,138 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   throw new Error(JSON.stringify(errInfo));
 }
 
+interface WordCloudCardProps {
+  cloud: WordCloud;
+  user: any;
+  isChatOnly: boolean;
+  canModerate: boolean;
+  onSubmit: (cloudId: string, word: string) => void;
+  onToggleResults: (cloudId: string, currentShow: boolean) => void;
+  onClose: (cloudId: string) => void;
+  onDelete: (cloudId: string) => void;
+}
+
+const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, canModerate, onSubmit, onToggleResults, onClose, onDelete }) => {
+  const [word, setWord] = useState('');
+  const hasParticipated = user && cloud.participants ? cloud.participants[user.uid] : false;
+  const totalWords = Object.values(cloud.words || {}).reduce((a, b) => a + b, 0);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!word.trim()) return;
+    onSubmit(cloud.id, word.trim().toLowerCase());
+    setWord('');
+  };
+
+  const maxCount = Math.max(...Object.values(cloud.words || { _: 0 }), 0);
+  const getFontSize = (count: number) => {
+    const minSize = 14;
+    const maxSize = 40;
+    if (maxCount <= 1) return minSize + (maxSize - minSize) / 2;
+    return minSize + ((count - 1) / (maxCount - 1)) * (maxSize - minSize);
+  };
+
+  const colors = ['#ff3e00', '#1e293b', '#334155', '#ea580c', '#c2410c', '#0f172a'];
+  const getWordColor = (wordStr: string) => {
+    let hash = 0;
+    for (let i = 0; i < wordStr.length; i++) {
+      hash = wordStr.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
+  };
+
+  return (
+    <div className="p-4 rounded-xl border-2 border-blue-500 bg-white shadow-lg animate-in zoom-in-95 duration-200">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <Cloud className="w-4 h-4 text-blue-500" />
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Word Cloud</span>
+        </div>
+        <div className="flex items-center gap-2">
+          {canModerate && (
+            <>
+              <button 
+                onClick={() => onToggleResults(cloud.id, !!cloud.showResults)}
+                className={cn(
+                  "flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold transition-colors border",
+                  cloud.showResults 
+                    ? "bg-blue-500 text-white border-blue-500" 
+                    : "bg-white text-slate-500 border-slate-200 hover:border-blue-500 hover:text-blue-500"
+                )}
+                title={cloud.showResults ? "Hide Results from Audience" : "Show Results to Audience"}
+              >
+                {cloud.showResults ? <ToggleRight className="w-3 h-3" /> : <ToggleLeft className="w-3 h-3" />}
+                {cloud.showResults ? "Results Visible" : "Results Hidden"}
+              </button>
+              {cloud.active ? (
+                <button onClick={() => onClose(cloud.id)} className="p-1 text-slate-400 hover:text-red-500" title="Close Word Cloud">
+                  <XCircle className="w-4 h-4" />
+                </button>
+              ) : (
+                <span className="text-[8px] font-bold text-red-500 uppercase">Closed</span>
+              )}
+              <button onClick={() => onDelete(cloud.id)} className="p-1 text-slate-400 hover:text-red-500" title="Delete Word Cloud">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="mb-4">
+        <h4 className="font-bold text-slate-800 text-lg">{cloud.prompt}</h4>
+      </div>
+
+      {cloud.active && !hasParticipated && isChatOnly && (
+        <form onSubmit={handleSubmit} className="flex gap-2 mb-2">
+          <input
+            type="text"
+            value={word}
+            onChange={e => setWord(e.target.value)}
+            placeholder="Enter a word or short phrase..."
+            className="flex-1 px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:border-blue-500"
+            maxLength={30}
+          />
+          <button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded-md text-sm font-bold hover:bg-blue-600">
+            Submit
+          </button>
+        </form>
+      )}
+
+      {hasParticipated && cloud.active && isChatOnly && (
+        <div className="text-xs text-slate-500 italic mb-2">You have submitted your response.</div>
+      )}
+
+      {cloud.showResults && (
+        <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-100 min-h-[150px] flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+          {Object.keys(cloud.words || {}).length === 0 ? (
+            <span className="text-sm text-slate-400">No words submitted yet.</span>
+          ) : (
+            Object.entries(cloud.words || {}).map(([w, count]) => (
+              <span 
+                key={w} 
+                style={{ 
+                  fontSize: `${getFontSize(count)}px`,
+                  color: getWordColor(w),
+                  opacity: 0.8 + (count / maxCount) * 0.2
+                }} 
+                className="font-bold leading-none text-center transition-all duration-500"
+              >
+                {w}
+              </span>
+            ))
+          )}
+        </div>
+      )}
+      
+      <div className="mt-3 pt-3 border-t border-slate-100 flex justify-between items-center">
+        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{totalWords} Total Submissions</span>
+        {!cloud.active && <span className="text-[9px] font-bold text-red-500 uppercase tracking-wider">Final Results</span>}
+      </div>
+    </div>
+  );
+};
+
 interface ChatSidebarProps {
   isChatOnly?: boolean;
   presentation?: Presentation | null;
@@ -78,9 +210,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   console.log('ChatSidebar Render - User:', user?.email || 'Guest', 'isPresenter:', isPresenter, 'isMainViewModerator:', isMainViewModerator);
   const [messages, setMessages] = useState<Message[]>([]);
   const [polls, setPolls] = useState<Poll[]>([]);
+  const [wordClouds, setWordClouds] = useState<WordCloud[]>([]);
   const [inputText, setInputText] = useState('');
   const [showQR, setShowQR] = useState(!isChatOnly);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showWordCloudModal, setShowWordCloudModal] = useState(false);
+  const [wordCloudPrompt, setWordCloudPrompt] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const [hasJoined, setHasJoined] = useState(() => {
@@ -170,9 +305,26 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       handleFirestoreError(error, OperationType.GET, 'polls');
     });
 
+    // Listen to word clouds
+    const wcq = query(
+      collection(db, 'wordClouds'), 
+      where('presentationId', '==', presentation?.id || 'default')
+    );
+    const wcUnsubscribe = onSnapshot(wcq, (snapshot) => {
+      const wcs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data({ serverTimestamps: 'estimate' })
+      })) as WordCloud[];
+      wcs.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
+      setWordClouds(wcs);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'wordClouds');
+    });
+
     return () => {
       unsubscribe();
       pUnsubscribe();
+      wcUnsubscribe();
     };
   }, [presentation?.id]);
 
@@ -293,7 +445,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     
     const combinedItems = [
       ...messages.map(m => ({ ...m, type: 'message' as const })),
-      ...polls.map(p => ({ ...p, type: 'poll' as const }))
+      ...polls.map(p => ({ ...p, type: 'poll' as const })),
+      ...wordClouds.map(w => ({ ...w, type: 'wordCloud' as const }))
     ].sort((a, b) => {
       const timeA = ((a as any).timestamp || (a as any).createdAt)?.toMillis() || 0;
       const timeB = ((b as any).timestamp || (b as any).createdAt)?.toMillis() || 0;
@@ -310,7 +463,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         const likes = m.likes ? ` (Likes: ${m.likes})` : '';
         const email = m.userEmail ? `, <a href="mailto:${m.userEmail}">${m.userEmail}</a>` : '';
         return `<p style="margin-bottom: 16px;">${dateStr}, ${timeStr}, <b>${m.userName}</b>${email}:<br>&nbsp;&nbsp;&nbsp;&nbsp;${type}${m.text}${likes}</p>`;
-      } else {
+      } else if (item.type === 'poll') {
         const p = item as Poll;
         const dateObj = p.createdAt?.toDate();
         const dateStr = dateObj ? dateObj.toLocaleDateString() : '';
@@ -329,6 +482,24 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         pollHtml += `<p style="margin-bottom: 0; font-size: 11px;">Total Votes: ${totalVotes}</p>`;
         pollHtml += `</div>`;
         return pollHtml;
+      } else {
+        const w = item as WordCloud;
+        const dateObj = w.createdAt?.toDate();
+        const dateStr = dateObj ? dateObj.toLocaleDateString() : '';
+        const timeStr = dateObj ? dateObj.toLocaleTimeString() : '';
+        const totalWords = Object.values(w.words || {}).reduce((a, b) => a + b, 0);
+        
+        let wcHtml = `<div style="margin-bottom: 24px; padding: 12px; border: 2px solid #3b82f6; background-color: #eff6ff; border-radius: 8px;">`;
+        wcHtml += `<p style="margin-top: 0;"><b>[WORD CLOUD]</b> ${dateStr}, ${timeStr}</p>`;
+        wcHtml += `<p style="margin-bottom: 8px;"><b>Prompt:</b> ${w.prompt}</p>`;
+        wcHtml += `<ul style="list-style-type: none; padding-left: 0;">`;
+        Object.entries(w.words || {}).forEach(([word, count]) => {
+          wcHtml += `<li style="margin-bottom: 4px;">${word}: <b>${count} submissions</b></li>`;
+        });
+        wcHtml += `</ul>`;
+        wcHtml += `<p style="margin-bottom: 0; font-size: 11px;">Total Submissions: ${totalWords}</p>`;
+        wcHtml += `</div>`;
+        return wcHtml;
       }
     }).join('');
     
@@ -347,7 +518,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const handleEmailChat = () => {
     const combinedItems = [
       ...messages.map(m => ({ ...m, type: 'message' as const })),
-      ...polls.map(p => ({ ...p, type: 'poll' as const }))
+      ...polls.map(p => ({ ...p, type: 'poll' as const })),
+      ...wordClouds.map(w => ({ ...w, type: 'wordCloud' as const }))
     ].sort((a, b) => {
       const timeA = ((a as any).timestamp || (a as any).createdAt)?.toMillis() || 0;
       const timeB = ((b as any).timestamp || (b as any).createdAt)?.toMillis() || 0;
@@ -364,7 +536,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         const likes = m.likes ? ` (Likes: ${m.likes})` : '';
         const email = m.userEmail ? `, ${m.userEmail}` : '';
         return `${dateStr}, ${timeStr}, ${m.userName}${email}:\n     ${type}${m.text}${likes}`;
-      } else {
+      } else if (item.type === 'poll') {
         const p = item as Poll;
         const dateObj = p.createdAt?.toDate();
         const dateStr = dateObj ? dateObj.toLocaleDateString() : '';
@@ -379,6 +551,20 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         });
         pollText += `Total Votes: ${totalVotes}`;
         return pollText;
+      } else {
+        const w = item as WordCloud;
+        const dateObj = w.createdAt?.toDate();
+        const dateStr = dateObj ? dateObj.toLocaleDateString() : '';
+        const timeStr = dateObj ? dateObj.toLocaleTimeString() : '';
+        const totalWords = Object.values(w.words || {}).reduce((a, b) => a + b, 0);
+        
+        let wcText = `[WORD CLOUD] ${dateStr}, ${timeStr}\n`;
+        wcText += `Prompt: ${w.prompt}\n`;
+        Object.entries(w.words || {}).forEach(([word, count]) => {
+          wcText += `  ${word}: ${count} submissions\n`;
+        });
+        wcText += `Total Submissions: ${totalWords}`;
+        return wcText;
       }
     }).join('\n\n');
     
@@ -395,6 +581,68 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `presentations/${presentation.id}`);
+    }
+  };
+
+  const handleCreateWordCloud = async () => {
+    if (!presentation?.id || !canModerate || !wordCloudPrompt.trim()) return;
+    try {
+      await addDoc(collection(db, 'wordClouds'), {
+        presentationId: presentation.id,
+        prompt: wordCloudPrompt.trim(),
+        words: {},
+        participants: {},
+        createdAt: serverTimestamp(),
+        active: true,
+        showResults: false
+      });
+      setShowWordCloudModal(false);
+      setWordCloudPrompt('');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'wordClouds');
+    }
+  };
+
+  const handleWordCloudSubmit = async (cloudId: string, word: string) => {
+    if (!user) return;
+    const cloud = wordClouds.find(c => c.id === cloudId);
+    if (!cloud || !cloud.active || (cloud.participants && cloud.participants[user.uid])) return;
+
+    try {
+      const cloudRef = doc(db, 'wordClouds', cloudId);
+      await updateDoc(cloudRef, {
+        [`words.${word}`]: increment(1),
+        [`participants.${user.uid}`]: true
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `wordClouds/${cloudId}`);
+    }
+  };
+
+  const handleToggleWordCloudResults = async (cloudId: string, currentShow: boolean) => {
+    if (!canModerate) return;
+    try {
+      await updateDoc(doc(db, 'wordClouds', cloudId), { showResults: !currentShow });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `wordClouds/${cloudId}`);
+    }
+  };
+
+  const handleCloseWordCloud = async (cloudId: string) => {
+    if (!canModerate) return;
+    try {
+      await updateDoc(doc(db, 'wordClouds', cloudId), { active: false });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `wordClouds/${cloudId}`);
+    }
+  };
+
+  const handleDeleteWordCloud = async (cloudId: string) => {
+    if (!canModerate) return;
+    try {
+      await deleteDoc(doc(db, 'wordClouds', cloudId));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `wordClouds/${cloudId}`);
     }
   };
 
@@ -568,13 +816,22 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               </p>
             </div>
             {canModerate && (
-              <button 
-                onClick={handleCreatePoll}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-osu-orange text-white rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-[#c03900] transition-all shadow-sm w-fit"
-              >
-                <BarChart2 className="w-3 h-3" />
-                Create New Poll
-              </button>
+              <div className="flex items-center gap-2 mt-2">
+                <button 
+                  onClick={handleCreatePoll}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-osu-orange text-white rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-[#c03900] transition-all shadow-sm w-fit"
+                >
+                  <BarChart2 className="w-3 h-3" />
+                  Create New Poll
+                </button>
+                <button 
+                  onClick={() => setShowWordCloudModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500 text-white rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-blue-600 transition-all shadow-sm w-fit"
+                >
+                  <Cloud className="w-3 h-3" />
+                  Create Word Cloud
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -597,16 +854,17 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           ref={scrollRef}
           className="absolute inset-0 overflow-y-auto p-4 space-y-4 z-10"
         >
-          {messages.length === 0 && polls.length === 0 && (
+          {messages.length === 0 && polls.length === 0 && wordClouds.length === 0 && (
             <div className="h-full flex flex-col items-center justify-center text-slate-300 opacity-50">
               <MessageSquare className="w-8 h-8 mb-2" />
               <p className="text-xs font-medium">No messages yet</p>
             </div>
           )}
 
-          {/* Render Polls and Messages interleaved by time */}
+          {/* Render Polls, Word Clouds, and Messages interleaved by time */}
           {[...messages.map(m => ({ ...m, type: 'message' as const })), 
-            ...polls.map(p => ({ ...p, type: 'poll' as const }))]
+            ...polls.map(p => ({ ...p, type: 'poll' as const })),
+            ...wordClouds.map(w => ({ ...w, type: 'wordCloud' as const }))]
             .sort((a, b) => {
               const timeA = ((a as any).timestamp || (a as any).createdAt)?.toMillis() || 0;
               const timeB = ((b as any).timestamp || (b as any).createdAt)?.toMillis() || 0;
@@ -705,6 +963,20 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                       {!poll.active && <span className="text-[9px] font-bold text-red-500 uppercase tracking-wider">Final Results</span>}
                     </div>
                   </div>
+                );
+              } else if (item.type === 'wordCloud') {
+                return (
+                  <WordCloudCard
+                    key={item.id}
+                    cloud={item as WordCloud}
+                    canModerate={canModerate}
+                    isChatOnly={isChatOnly}
+                    user={user}
+                    onToggleResults={handleToggleWordCloudResults}
+                    onClose={handleCloseWordCloud}
+                    onDelete={handleDeleteWordCloud}
+                    onSubmit={handleWordCloudSubmit}
+                  />
                 );
               }
 
@@ -841,6 +1113,47 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               </form>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Word Cloud Creation Modal */}
+      {showWordCloudModal && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full">
+            <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+              <Cloud className="w-5 h-5 text-blue-500" />
+              Create Word Cloud
+            </h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Prompt / Question</label>
+                <input
+                  type="text"
+                  value={wordCloudPrompt}
+                  onChange={(e) => setWordCloudPrompt(e.target.value)}
+                  placeholder="e.g., Describe this topic in one word"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setShowWordCloudModal(false)}
+                className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateWordCloud}
+                disabled={!wordCloudPrompt.trim()}
+                className="px-4 py-2 text-sm font-bold text-white bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+              >
+                Create Word Cloud
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

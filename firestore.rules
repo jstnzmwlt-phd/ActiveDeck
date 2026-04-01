@@ -76,5 +76,12 @@ service cloud.firestore {
       allow update: if isAuthenticated();
       allow delete: if isAuthenticated() && (isOwner(get(/databases/$(database)/documents/presentations/$(resource.data.presentationId)).data.presenterId) || isAdmin());
     }
+
+    match /wordClouds/{cloudId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated() && (isOwner(get(/databases/$(database)/documents/presentations/$(resource.data.presentationId)).data.presenterId) || isAdmin());
+    }
   }
 }

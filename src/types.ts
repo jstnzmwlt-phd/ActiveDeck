@@ -31,6 +31,17 @@ export interface Poll {
   showResults?: boolean;
 }
 
+export interface WordCloud {
+  id: string;
+  presentationId: string;
+  prompt: string;
+  words: Record<string, number>;
+  participants: Record<string, boolean>;
+  createdAt: Timestamp;
+  active: boolean;
+  showResults?: boolean;
+}
+
 declare global {
   interface Window {
     Office: any;
