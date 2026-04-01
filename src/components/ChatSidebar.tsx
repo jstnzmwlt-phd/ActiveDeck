@@ -418,7 +418,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const handleVote = async (pollId: string, option: string) => {
     if (!user) return;
     const poll = polls.find(p => p.id === pollId);
-    if (!poll || !poll.active || poll.voters[user.uid]) return;
+    if (!poll || !poll.active || (poll.voters && poll.voters[user.uid])) return;
 
     try {
       const pollRef = doc(db, 'polls', pollId);
@@ -615,8 +615,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
             .map((item) => {
               if (item.type === 'poll') {
                 const poll = item as Poll;
-                const totalVotes = Object.values(poll.votes).reduce((a, b) => a + b, 0);
-                const userVote = user ? poll.voters[user.uid] : null;
+                const totalVotes = Object.values(poll.votes || {}).reduce((a, b) => a + b, 0);
+                const userVote = user && poll.voters ? poll.voters[user.uid] : null;
 
                 return (
                   <div key={poll.id} className="p-4 rounded-xl border-2 border-osu-orange bg-white shadow-lg animate-in zoom-in-95 duration-200">
