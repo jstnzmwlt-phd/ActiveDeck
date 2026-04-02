@@ -1032,14 +1032,22 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       {/* Input Area - Only visible for audience members (isChatOnly) */}
       {isChatOnly && (
         <div className="bg-white border-t border-slate-200 shrink-0 pb-[env(safe-area-inset-bottom)]">
-          {user?.isAnonymous && (!hasJoined || (!presentation?.allowAnonymousChat && !guestEmail)) ? (
+          {!user ? (
+            <div className="p-4 text-center">
+              <p className="text-xs text-slate-500 mb-3">Connecting to chat...</p>
+              <button 
+                onClick={() => window.location.reload()}
+                className="text-xs text-osu-orange hover:underline font-bold"
+              >
+                Refresh Page
+              </button>
+            </div>
+          ) : user.isAnonymous && !hasJoined && !presentation?.allowAnonymousChat ? (
             <form onSubmit={handleJoin} className="p-4 flex flex-col gap-3">
               <div className="text-center mb-1">
                 <h3 className="text-sm font-bold text-slate-900">Join the Discussion</h3>
                 <p className="text-xs text-slate-500 mt-1">
-                  {presentation?.allowAnonymousChat 
-                    ? "Enter your details, or join anonymously." 
-                    : "Enter your email to join the discussion."}
+                  Enter your email to join the discussion.
                 </p>
               </div>
               <input
@@ -1051,22 +1059,22 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               />
               <input
                 type="email"
-                placeholder={presentation?.allowAnonymousChat ? "Email address (optional)" : "Email address (required)"}
+                placeholder="Email address (required)"
                 value={joinEmailInput}
                 onChange={(e) => setJoinEmailInput(e.target.value)}
-                required={!presentation?.allowAnonymousChat}
+                required
                 className="w-full px-3 py-2 text-base border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-osu-orange"
               />
               <button
                 type="submit"
                 className="w-full bg-osu-orange text-white font-bold py-2 px-4 rounded-md hover:bg-[#c03900] transition-colors text-sm"
               >
-                {!presentation?.allowAnonymousChat || joinEmailInput || joinNameInput ? 'Join Chat' : 'Join Anonymously'}
+                Join Chat
               </button>
             </form>
           ) : (
             <div className="p-3 flex flex-col gap-2">
-              {user?.isAnonymous && (
+              {user.isAnonymous && (
                 <div className="flex justify-between items-start px-1">
                   <div className="flex flex-col gap-1.5">
                     <span className="text-xs text-slate-500">
@@ -1076,7 +1084,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                           : (guestName || (guestEmail ? guestEmail.split('@')[0] : `Guest ${user.uid.slice(0, 4)}`))}
                       </span>
                     </span>
-                    {(guestName || guestEmail) && (
+                    {(guestName || guestEmail || presentation?.allowAnonymousChat) && (
                       <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
                         <input 
                           type="checkbox" 
@@ -1092,7 +1100,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                     onClick={handleLeave}
                     className="text-xs text-osu-orange hover:underline mt-0.5"
                   >
-                    Change
+                    {hasJoined ? "Change" : "Add Name"}
                   </button>
                 </div>
               )}

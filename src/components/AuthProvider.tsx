@@ -42,17 +42,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       clearTimeout(timeout);
-      console.log('AuthProvider - Auth state changed:', currentUser?.uid || 'No user');
+      console.log('AuthProvider - Auth state changed:', currentUser?.uid || 'No user', 'isAnonymous:', currentUser?.isAnonymous);
+      
       if (!currentUser) {
-        // Try anonymous auth, but don't block if it fails (likely disabled in console)
+        // Try anonymous auth
         try {
-          console.log('AuthProvider - Attempting anonymous sign-in');
-          await signInAnonymously(auth);
+          console.log('AuthProvider - No user found, attempting anonymous sign-in...');
+          const result = await signInAnonymously(auth);
+          console.log('AuthProvider - Anonymous sign-in successful:', result.user.uid);
+          // onAuthStateChanged will fire again, so we don't need to setUser here
         } catch (error: any) {
+          console.error("AuthProvider - Anonymous auth failed:", error.code, error.message);
           if (error.code === 'auth/admin-restricted-operation') {
-            console.warn("Anonymous auth is disabled in Firebase Console. Please enable it or use Google Sign-In.");
-          } else {
-            console.error("Anonymous auth failed:", error);
+            console.warn("AuthProvider - Anonymous auth is disabled in Firebase Console.");
           }
           setLoading(false);
         }
