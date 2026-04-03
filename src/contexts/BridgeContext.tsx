@@ -36,7 +36,8 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         };
 
         socket.onerror = (error) => {
-          console.error('ActiveDeck: WebSocket connection error. Ensure your bridge is running.');
+          // Use warn instead of error to reduce console noise when bridge isn't running
+          console.warn('ActiveDeck: WebSocket connection error. Ensure your bridge is running.');
         };
 
         wsRef.current = socket;

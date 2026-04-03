@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { auth, db } from '../firebase';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, getDocFromServer, doc, deleteDoc, updateDoc, arrayUnion, arrayRemove, increment, where, writeBatch, Timestamp } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, getDocFromServer, doc, deleteDoc, updateDoc, arrayUnion, arrayRemove, increment, where, writeBatch, Timestamp, setDoc } from 'firebase/firestore';
 import { Message, Presentation, Poll, WordCloud } from '../types';
 import { useAuth } from './AuthProvider';
-import { Send, HelpCircle, MessageSquare, Trash2, LogIn, LogOut, ThumbsUp, Download, Mail, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud, Eye, EyeOff, Timer } from 'lucide-react';
+import { Send, HelpCircle, MessageSquare, Trash2, LogIn, LogOut, ThumbsUp, Download, Mail, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud, Eye, EyeOff, Timer, Users } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { QRCodeSVG } from 'qrcode.react';
@@ -400,6 +400,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [showWordCloudModal, setShowWordCloudModal] = useState(false);
   const [wordCloudPrompt, setWordCloudPrompt] = useState('');
   const [pollDuration, setPollDuration] = useState(60); // Default 60 seconds
+  const [participantCount, setParticipantCount] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const [hasJoined, setHasJoined] = useState(() => {
@@ -505,12 +506,43 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       handleFirestoreError(error, OperationType.GET, 'wordClouds');
     });
 
+    // Listen to participant count
+    const pq_count = query(
+      collection(db, 'participants'),
+      where('presentationId', '==', presentation?.id || 'default')
+    );
+    const pCountUnsubscribe = onSnapshot(pq_count, (snapshot) => {
+      setParticipantCount(snapshot.size);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'participants');
+    });
+
     return () => {
       unsubscribe();
       pUnsubscribe();
       wcUnsubscribe();
+      pCountUnsubscribe();
     };
   }, [presentation?.id]);
+
+  // Register participant when joined
+  useEffect(() => {
+    if (hasJoined && user && presentation?.id) {
+      const registerParticipant = async () => {
+        try {
+          const participantId = `${presentation.id}_${user.uid}`;
+          await setDoc(doc(db, 'participants', participantId), {
+            presentationId: presentation.id,
+            userId: user.uid,
+            joinedAt: serverTimestamp()
+          });
+        } catch (error) {
+          console.error("Failed to register participant:", error);
+        }
+      };
+      registerParticipant();
+    }
+  }, [hasJoined, user, presentation?.id]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -1032,8 +1064,14 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               level="M"
             />
           </div>
-          <div className="flex flex-col justify-center min-w-0 py-1">
-            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Scan to Join Chat</p>
+          <div className="flex flex-col justify-center min-w-0 py-1 flex-1">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Scan to Join Chat</p>
+              <div className="flex items-center gap-1 px-1.5 py-0.5 bg-slate-200/50 rounded text-[10px] font-bold text-slate-600">
+                <Users className="w-3 h-3 text-osu-orange" />
+                <span>{participantCount}</span>
+              </div>
+            </div>
             <div className="bg-slate-200/50 rounded px-2 py-1 truncate mb-2">
               <p className="text-[11px] text-slate-700 font-mono font-bold select-all truncate">
                 {shortUrl || chatOnlyUrl}

@@ -115,6 +115,27 @@
         }
       },
       "required": ["presentationId", "options", "votes", "voters", "createdAt", "active"]
+    },
+    "Participant": {
+      "title": "Participant",
+      "description": "A student who has joined the chat.",
+      "type": "object",
+      "properties": {
+        "presentationId": {
+          "type": "string",
+          "description": "The ID of the presentation."
+        },
+        "userId": {
+          "type": "string",
+          "description": "The UID of the student."
+        },
+        "joinedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The time the student joined."
+        }
+      },
+      "required": ["presentationId", "userId", "joinedAt"]
     }
   },
   "firestore": {
@@ -129,6 +150,10 @@
     "/polls/{pollId}": {
       "schema": "Poll",
       "description": "Collection of polls."
+    },
+    "/participants/{participantId}": {
+      "schema": "Participant",
+      "description": "Collection of participants."
     }
   }
 }
