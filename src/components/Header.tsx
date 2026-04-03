@@ -7,6 +7,12 @@ export const Header: React.FC = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
 
+  const hours = currentTime.getHours();
+  const displayHours = (hours % 12 || 12).toString().padStart(2, '0');
+  const minutes = currentTime.getMinutes().toString().padStart(2, '0');
+  const seconds = currentTime.getSeconds().toString().padStart(2, '0');
+  const amPm = hours >= 12 ? 'PM' : 'AM';
+
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
@@ -61,9 +67,13 @@ export const Header: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-4 z-10">
-          <div className="flex items-center gap-2 text-base font-mono font-bold text-slate-800 bg-white px-3 py-1.5 rounded-lg border-2 border-osu-orange shadow-sm scale-90">
+          <div className="flex items-center gap-1.5 text-base font-mono font-bold text-slate-800 bg-white px-3 py-1.5 rounded-lg border-2 border-osu-orange shadow-sm scale-90">
             <Clock className="w-4 h-4 text-osu-orange" />
-            {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            <div className="flex items-baseline">
+              <span>{displayHours}:{minutes}</span>
+              <span className="text-[0.7em] opacity-60 ml-0.5">:{seconds}</span>
+              <span className="text-[0.8em] ml-1.5 font-sans font-black text-osu-orange">{amPm}</span>
+            </div>
           </div>
           <div className="flex items-center gap-1 border-l border-slate-200 pl-4">
             <button 

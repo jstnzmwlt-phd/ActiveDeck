@@ -28,6 +28,8 @@ export interface Poll {
   votes: Record<string, number>;
   voters: Record<string, string>;
   createdAt: Timestamp;
+  expiresAt?: Timestamp;
+  duration?: number;
   active: boolean;
   showResults?: boolean;
 }
