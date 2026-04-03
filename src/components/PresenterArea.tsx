@@ -74,26 +74,28 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation }) =>
         )}
       </div>
 
-      {/* Professional Remote Control Overlay */}
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 p-2 bg-slate-900/80 backdrop-blur-md rounded-2xl border border-slate-700/50 shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 translate-y-4 group-hover:translate-y-0 z-50">
-        <button
-          onClick={() => handleSlideMove('prev')}
-          className="flex items-center justify-center w-14 h-14 bg-slate-800 hover:bg-slate-700 text-white rounded-xl transition-all active:scale-95 border border-slate-700 group/btn"
-          title="Previous Slide"
-        >
-          <ChevronLeft className="w-8 h-8 group-hover/btn:-translate-x-0.5 transition-transform" />
-        </button>
-        
-        <div className="w-px h-8 bg-slate-700 mx-1" />
+      {/* Professional Remote Control Overlay - Only shown when bridge is connected */}
+      {isBridgeConnected && (
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 p-2 bg-slate-900/80 backdrop-blur-md rounded-2xl border border-slate-700/50 shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 translate-y-4 group-hover:translate-y-0 z-50">
+          <button
+            onClick={() => handleSlideMove('prev')}
+            className="flex items-center justify-center w-14 h-14 bg-slate-800 hover:bg-slate-700 text-white rounded-xl transition-all active:scale-95 border border-slate-700 group/btn"
+            title="Previous Slide"
+          >
+            <ChevronLeft className="w-8 h-8 group-hover/btn:-translate-x-0.5 transition-transform" />
+          </button>
+          
+          <div className="w-px h-8 bg-slate-700 mx-1" />
 
-        <button
-          onClick={() => handleSlideMove('next')}
-          className="flex items-center justify-center w-14 h-14 bg-osu-orange hover:bg-[#c03900] text-white rounded-xl transition-all active:scale-95 border border-orange-600 group/btn shadow-[0_0_15px_rgba(255,62,0,0.3)]"
-          title="Next Slide"
-        >
-          <ChevronRight className="w-8 h-8 group-hover/btn:translate-x-0.5 transition-transform" />
-        </button>
-      </div>
+          <button
+            onClick={() => handleSlideMove('next')}
+            className="flex items-center justify-center w-14 h-14 bg-osu-orange hover:bg-[#c03900] text-white rounded-xl transition-all active:scale-95 border border-orange-600 group/btn shadow-[0_0_15px_rgba(255,62,0,0.3)]"
+            title="Next Slide"
+          >
+            <ChevronRight className="w-8 h-8 group-hover/btn:translate-x-0.5 transition-transform" />
+          </button>
+        </div>
+      )}
     </div>
   );
 };
