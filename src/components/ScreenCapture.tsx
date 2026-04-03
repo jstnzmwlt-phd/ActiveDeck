@@ -126,7 +126,7 @@ export const ScreenCapture: React.FC = () => {
 
       {/* Controls Overlay - Only shown when capturing to allow stopping */}
       {isCapturing && (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 px-6 py-3 bg-slate-800/90 backdrop-blur-md border border-slate-700 rounded-full shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-50">
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 flex items-center gap-4 px-6 py-3 bg-slate-800/90 backdrop-blur-md border border-slate-700 rounded-full shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50">
           <button
             onClick={stopCapture}
             className="flex items-center gap-2 px-6 py-2.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-full transition-all active:scale-95 shadow-lg shadow-red-500/20"
@@ -139,8 +139,8 @@ export const ScreenCapture: React.FC = () => {
 
       {/* Status Badge */}
       {isCapturing && (
-        <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 bg-red-600/90 text-white text-[10px] font-black uppercase tracking-widest rounded-md animate-pulse z-50">
-          <div className="w-2 h-2 bg-white rounded-full" />
+        <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 bg-red-600/90 text-white text-[10px] font-black uppercase tracking-widest rounded-md z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300">
+          <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
           Live Presentation
         </div>
       )}
