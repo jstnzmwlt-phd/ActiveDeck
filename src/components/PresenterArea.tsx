@@ -9,7 +9,7 @@ interface PresenterAreaProps {
 }
 
 export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation }) => {
-  const { sendSlideCommand, isBridgeConnected } = useBridge();
+  const { sendSlideCommand, isBridgeConnected, useWithoutBridge, setUseWithoutBridge } = useBridge();
 
   const handleSlideMove = (direction: 'next' | 'prev') => {
     sendSlideCommand(direction);
@@ -21,8 +21,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation }) =>
       <div className="flex-1 relative bg-black overflow-hidden flex items-center justify-center">
         <ScreenCapture />
         
-        {/* Setup Bridge Card - Only shown when disconnected */}
-        {!isBridgeConnected && (
+        {/* Setup Bridge Card - Only shown when disconnected and not explicitly dismissed */}
+        {!isBridgeConnected && !useWithoutBridge && (
           <div className="absolute inset-0 z-[60] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-6">
             <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 p-8 max-w-md w-full text-center animate-in fade-in zoom-in duration-300">
               <div className="w-16 h-16 bg-osu-orange/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
@@ -36,11 +36,18 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation }) =>
                 href="https://github.com/jstnzmwlt-phd/ActiveDeck/releases/download/v1.0.0/activedeck_bridge.exe"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center gap-3 w-full py-4 bg-osu-orange hover:bg-[#c03900] text-white font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95 shadow-xl shadow-orange-500/20 mb-8"
+                className="flex items-center justify-center gap-3 w-full py-4 bg-osu-orange hover:bg-[#c03900] text-white font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95 shadow-xl shadow-orange-500/20 mb-4"
               >
                 <Download className="w-5 h-5" />
                 Download ActiveDeck Bridge
               </a>
+
+              <button
+                onClick={() => setUseWithoutBridge(true)}
+                className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs uppercase tracking-widest rounded-xl transition-all mb-8"
+              >
+                Use Without Bridge
+              </button>
               
               <div className="space-y-4 text-left">
                 <div className="flex gap-3">

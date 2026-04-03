@@ -2,6 +2,8 @@ import React, { createContext, useContext, useEffect, useRef, useState } from 'r
 
 interface BridgeContextType {
   isBridgeConnected: boolean;
+  useWithoutBridge: boolean;
+  setUseWithoutBridge: (value: boolean) => void;
   sendSlideCommand: (direction: 'next' | 'prev') => void;
 }
 
@@ -10,6 +12,7 @@ const BridgeContext = createContext<BridgeContextType | undefined>(undefined);
 export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const wsRef = useRef<WebSocket | null>(null);
   const [isBridgeConnected, setIsBridgeConnected] = useState(false);
+  const [useWithoutBridge, setUseWithoutBridge] = useState(false);
 
   useEffect(() => {
     let socket: WebSocket | null = null;
@@ -67,7 +70,12 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   return (
-    <BridgeContext.Provider value={{ isBridgeConnected, sendSlideCommand }}>
+    <BridgeContext.Provider value={{ 
+      isBridgeConnected, 
+      useWithoutBridge, 
+      setUseWithoutBridge, 
+      sendSlideCommand 
+    }}>
       {children}
     </BridgeContext.Provider>
   );
