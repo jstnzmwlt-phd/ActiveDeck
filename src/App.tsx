@@ -8,6 +8,7 @@ import { db } from './firebase';
 import { collection, query, orderBy, limit, onSnapshot, doc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { LogIn, Presentation as PresentationIcon, Loader2, AlertCircle } from 'lucide-react';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { BridgeProvider } from './contexts/BridgeContext';
 
 console.log('App.tsx - Module loaded');
 
@@ -176,7 +177,9 @@ export default function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <AppContent />
+        <BridgeProvider>
+          <AppContent />
+        </BridgeProvider>
       </AuthProvider>
     </ErrorBoundary>
   );

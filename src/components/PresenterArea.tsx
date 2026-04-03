@@ -1,69 +1,18 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React from 'react';
 import { Presentation } from '../types';
 import { ScreenCapture } from './ScreenCapture';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon } from 'lucide-react';
+import { useBridge } from '../contexts/BridgeContext';
 
 interface PresenterAreaProps {
   presentation: Presentation | null;
 }
 
 export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation }) => {
-  const wsRef = useRef<WebSocket | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
-
-  useEffect(() => {
-    let socket: WebSocket | null = null;
-    let reconnectTimeout: NodeJS.Timeout;
-
-    const connect = () => {
-      console.log('ActiveDeck: Connecting to local bridge via WebSocket (ws://127.0.0.1:5000/ws)...');
-      
-      try {
-        socket = new WebSocket('ws://127.0.0.1:5000/ws');
-
-        socket.onopen = () => {
-          console.log('ActiveDeck: WebSocket connection established.');
-          setIsConnected(true);
-        };
-
-        socket.onclose = () => {
-          console.log('ActiveDeck: WebSocket connection closed. Attempting to reconnect in 3s...');
-          setIsConnected(false);
-          reconnectTimeout = setTimeout(connect, 3000);
-        };
-
-        socket.onerror = (error) => {
-          console.error('ActiveDeck: WebSocket connection error. Ensure your bridge is running.');
-        };
-
-        wsRef.current = socket;
-      } catch (err) {
-        console.error('ActiveDeck: Failed to initialize WebSocket:', err);
-        reconnectTimeout = setTimeout(connect, 3000);
-      }
-    };
-
-    connect();
-
-    return () => {
-      if (socket) {
-        socket.onclose = null; // Prevent reconnection on unmount
-        socket.close();
-      }
-      clearTimeout(reconnectTimeout);
-    };
-  }, []);
+  const { sendSlideCommand, isBridgeConnected } = useBridge();
 
   const handleSlideMove = (direction: 'next' | 'prev') => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      console.log(`ActiveDeck: Sending '${direction}' command via WebSocket...`);
-      wsRef.current.send(direction);
-    } else {
-      console.warn(`ActiveDeck: WebSocket not connected. Falling back to background trigger for ${direction}...`);
-      // Fallback to Image trick if WebSocket is unavailable
-      const img = new Image();
-      img.src = `http://127.0.0.1:5000/${direction}?t=${new Date().getTime()}`;
-    }
+    sendSlideCommand(direction);
   };
 
   return (
@@ -71,6 +20,51 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation }) =>
       {/* Main Content Area */}
       <div className="flex-1 relative bg-black overflow-hidden flex items-center justify-center">
         <ScreenCapture />
+        
+        {/* Setup Bridge Card - Only shown when disconnected */}
+        {!isBridgeConnected && (
+          <div className="absolute inset-0 z-[60] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-6">
+            <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 p-8 max-w-md w-full text-center animate-in fade-in zoom-in duration-300">
+              <div className="w-16 h-16 bg-osu-orange/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <PresentationIcon className="w-8 h-8 text-osu-orange" />
+              </div>
+              
+              <h2 className="text-2xl font-black text-slate-900 mb-2">Ready to Present?</h2>
+              <p className="text-slate-500 mb-8">Connect your computer to the projector and start your bridge.</p>
+              
+              <a 
+                href="https://github.com/jstnzmwlt-phd/ActiveDeck/releases/download/v1.0.0/activedeck_bridge.exe"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-3 w-full py-4 bg-osu-orange hover:bg-[#c03900] text-white font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95 shadow-xl shadow-orange-500/20 mb-8"
+              >
+                <Download className="w-5 h-5" />
+                Download ActiveDeck Bridge
+              </a>
+              
+              <div className="space-y-4 text-left">
+                <div className="flex gap-3">
+                  <div className="flex-shrink-0 w-6 h-6 bg-slate-100 rounded-full flex items-center justify-center text-xs font-bold text-slate-600">1</div>
+                  <p className="text-sm text-slate-600 leading-relaxed">
+                    Download and run this app on the computer connected to the projector.
+                  </p>
+                </div>
+                
+                <div className="flex gap-3 p-3 bg-amber-50 rounded-xl border border-amber-100">
+                  <ShieldAlert className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-700 leading-relaxed">
+                    If Windows shows a protection warning, click <span className="font-bold">"More Info"</span> and then <span className="font-bold">"Run Anyway"</span>.
+                  </p>
+                </div>
+              </div>
+              
+              <div className="mt-8 pt-6 border-t border-slate-100 flex items-center justify-center gap-2 text-slate-400">
+                <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                <span className="text-[10px] font-bold uppercase tracking-widest">Waiting for bridge connection...</span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Professional Remote Control Overlay */}

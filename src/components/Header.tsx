@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Monitor, Clock, Maximize, Minimize } from 'lucide-react';
+import { Monitor, Clock, Maximize, Minimize, Link2, Link2Off } from 'lucide-react';
+import { useBridge } from '../contexts/BridgeContext';
 
 export const Header: React.FC = () => {
+  const { isBridgeConnected } = useBridge();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -40,6 +42,15 @@ export const Header: React.FC = () => {
             <Monitor className="w-4 h-4 text-osu-orange" />
             Screen Presentation
           </h2>
+          
+          <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[10px] font-bold uppercase tracking-wider transition-all duration-300 ${
+            isBridgeConnected 
+              ? 'bg-green-50 border-green-200 text-green-600' 
+              : 'bg-red-50 border-red-200 text-red-600'
+          }`}>
+            {isBridgeConnected ? <Link2 className="w-3 h-3" /> : <Link2Off className="w-3 h-3" />}
+            {isBridgeConnected ? 'Bridge Online' : 'Bridge Offline'}
+          </div>
         </div>
 
         {/* Centered ActiveDeck Logo */}
