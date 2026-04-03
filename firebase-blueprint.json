@@ -21,6 +21,10 @@
         "allowAnonymousChat": {
           "type": "boolean",
           "description": "Whether anonymous chat is allowed."
+        },
+        "hideComments": {
+          "type": "boolean",
+          "description": "Whether comments are hidden from the audience."
         }
       },
       "required": ["embedUrl", "presenterId", "createdAt"]

@@ -6,6 +6,7 @@ export interface Presentation {
   presenterId: string;
   createdAt: Timestamp;
   allowAnonymousChat?: boolean;
+  hideComments?: boolean;
 }
 
 export interface Message {

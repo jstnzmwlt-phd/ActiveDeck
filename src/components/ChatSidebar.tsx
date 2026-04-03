@@ -3,7 +3,7 @@ import { auth, db } from '../firebase';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, getDocFromServer, doc, deleteDoc, updateDoc, arrayUnion, arrayRemove, increment, where, writeBatch } from 'firebase/firestore';
 import { Message, Presentation, Poll, WordCloud } from '../types';
 import { useAuth } from './AuthProvider';
-import { Send, HelpCircle, MessageSquare, QrCode, Trash2, LogIn, LogOut, ThumbsUp, Download, Mail, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud } from 'lucide-react';
+import { Send, HelpCircle, MessageSquare, Trash2, LogIn, LogOut, ThumbsUp, Download, Mail, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud, Eye, EyeOff } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { QRCodeSVG } from 'qrcode.react';
@@ -212,7 +212,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [polls, setPolls] = useState<Poll[]>([]);
   const [wordClouds, setWordClouds] = useState<WordCloud[]>([]);
   const [inputText, setInputText] = useState('');
-  const [showQR, setShowQR] = useState(!isChatOnly);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showWordCloudModal, setShowWordCloudModal] = useState(false);
   const [wordCloudPrompt, setWordCloudPrompt] = useState('');
@@ -584,6 +583,17 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     }
   };
 
+  const handleToggleHideComments = async () => {
+    if (!presentation?.id || !canModerate) return;
+    try {
+      await updateDoc(doc(db, 'presentations', presentation.id), {
+        hideComments: !presentation.hideComments
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `presentations/${presentation.id}`);
+    }
+  };
+
   const handleCreateWordCloud = async () => {
     if (!presentation?.id || !canModerate || !wordCloudPrompt.trim()) return;
     try {
@@ -766,6 +776,18 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 </span>
               </button>
               <button 
+                onClick={handleToggleHideComments}
+                className={cn(
+                  "p-1 hover:bg-slate-800 rounded transition-colors",
+                  presentation?.hideComments 
+                    ? "text-red-500 hover:text-red-400" 
+                    : "text-slate-400 hover:text-white"
+                )}
+                title={presentation?.hideComments ? "Comments Hidden from Audience" : "Comments Visible to Audience"}
+              >
+                {presentation?.hideComments ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+              <button 
                 onClick={handleDownloadWord}
                 className="p-1 hover:bg-slate-800 rounded transition-colors text-slate-400 hover:text-white"
                 title="Download as Word"
@@ -788,19 +810,11 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               </button>
             </>
           )}
-          <button 
-            onClick={() => setShowQR(!showQR)}
-            className="p-1 hover:bg-slate-800 rounded transition-colors text-slate-400 hover:text-white"
-            title="Toggle QR Code"
-          >
-            <QrCode className="w-4 h-4" />
-          </button>
         </div>
       </div>
 
       {/* Embedded QR Code Section */}
-      {showQR && (
-        <div className="p-3 bg-slate-50 border-b border-slate-200 flex flex-row items-start gap-3 animate-in slide-in-from-top duration-300">
+      <div className="p-3 bg-slate-50 border-b border-slate-200 flex flex-row items-start gap-3 animate-in slide-in-from-top duration-300">
           <div className="bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm shrink-0">
             <QRCodeSVG 
               value={chatOnlyUrl} 
@@ -835,7 +849,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
             )}
           </div>
         </div>
-      )}
 
       {/* Messages Area Wrapper */}
       <div className="flex-1 relative overflow-hidden bg-white">
@@ -854,7 +867,20 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           ref={scrollRef}
           className="absolute inset-0 overflow-y-auto p-4 space-y-4 z-10"
         >
-          {messages.length === 0 && polls.length === 0 && wordClouds.length === 0 && (
+          {presentation?.hideComments && (
+            <div className="flex flex-col items-center justify-center p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-300 animate-in fade-in duration-500">
+              <EyeOff className="w-8 h-8 text-slate-400 mb-3" />
+              <h3 className="text-sm font-bold text-slate-700">
+                {canModerate ? "Comments Hidden from Audience" : "Comments are Hidden"}
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                {canModerate 
+                  ? `Currently collecting responses (${messages.length} received). Toggle the eye icon in the header to reveal them.`
+                  : "The presenter has hidden responses for now. They will be visible once the discussion begins."}
+              </p>
+            </div>
+          )}
+          {messages.length === 0 && polls.length === 0 && wordClouds.length === 0 && !presentation?.hideComments && (
             <div className="h-full flex flex-col items-center justify-center text-slate-300 opacity-50">
               <MessageSquare className="w-8 h-8 mb-2" />
               <p className="text-xs font-medium">No messages yet</p>
@@ -981,6 +1007,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               }
 
               const msg = item as Message;
+              
+              // Hide messages if hideComments is true
+              if (presentation?.hideComments) {
+                return null;
+              }
+
               return (
                 <div 
                   key={msg.id}
