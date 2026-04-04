@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Monitor, Clock, Maximize, Minimize, Link2, Link2Off } from 'lucide-react';
+import { Monitor, Clock, Maximize, Minimize, Link2, Link2Off, Sun, Moon } from 'lucide-react';
 import { useBridge } from '../contexts/BridgeContext';
 
 export const Header: React.FC = () => {
   const { isBridgeConnected, setUseWithoutBridge } = useBridge();
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isWakeLockActive, setIsWakeLockActive] = useState(false);
+  const [wakeLock, setWakeLock] = useState<any>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
 
   const hours = currentTime.getHours();
@@ -39,6 +41,50 @@ export const Header: React.FC = () => {
       }
     }
   };
+
+  const toggleWakeLock = async () => {
+    if ('wakeLock' in navigator) {
+      try {
+        if (!isWakeLockActive) {
+          const lock = await (navigator as any).wakeLock.request('screen');
+          setWakeLock(lock);
+          setIsWakeLockActive(true);
+          
+          lock.addEventListener('release', () => {
+            setIsWakeLockActive(false);
+            setWakeLock(null);
+          });
+        } else {
+          if (wakeLock) {
+            await wakeLock.release();
+            setWakeLock(null);
+            setIsWakeLockActive(false);
+          }
+        }
+      } catch (err) {
+        console.error("Wake Lock error:", err);
+      }
+    } else {
+      console.warn("Wake Lock API not supported in this browser.");
+    }
+  };
+
+  // Re-acquire wake lock if it was active and visibility changes
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (isWakeLockActive && document.visibilityState === 'visible' && 'wakeLock' in navigator) {
+        try {
+          const lock = await (navigator as any).wakeLock.request('screen');
+          setWakeLock(lock);
+        } catch (err) {
+          console.error("Re-acquiring Wake Lock error:", err);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isWakeLockActive]);
 
   return (
     <div className="p-4 bg-white border-b border-slate-200 h-12 py-1 relative z-50 w-full flex-shrink-0">
@@ -81,6 +127,17 @@ export const Header: React.FC = () => {
             </div>
           </div>
           <div className="flex items-center gap-1 border-l border-slate-200 pl-4">
+            <button 
+              onClick={toggleWakeLock}
+              className={`p-1.5 rounded-md transition-colors ${
+                isWakeLockActive 
+                  ? 'bg-amber-50 text-amber-600' 
+                  : 'hover:bg-slate-100 text-slate-600'
+              }`}
+              title={isWakeLockActive ? "Screen Wake Lock Active" : "Keep Screen Awake"}
+            >
+              {isWakeLockActive ? <Sun className="w-5 h-5 animate-pulse" /> : <Moon className="w-5 h-5" />}
+            </button>
             <button 
               onClick={toggleFullscreen}
               className="p-1.5 hover:bg-slate-100 rounded-md transition-colors text-slate-600"
