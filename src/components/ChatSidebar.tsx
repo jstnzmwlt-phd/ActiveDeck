@@ -3,7 +3,7 @@ import { auth, db } from '../firebase';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, getDocFromServer, doc, deleteDoc, updateDoc, arrayUnion, arrayRemove, increment, where, writeBatch, Timestamp, setDoc } from 'firebase/firestore';
 import { Message, Presentation, Poll, WordCloud } from '../types';
 import { useAuth } from './AuthProvider';
-import { Send, HelpCircle, MessageSquare, Trash2, LogIn, LogOut, ThumbsUp, Download, Mail, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud, Eye, EyeOff, Timer, Users } from 'lucide-react';
+import { Send, HelpCircle, MessageSquare, Trash2, LogIn, LogOut, ThumbsUp, Download, Mail, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud, Eye, EyeOff, Timer, Users, ChevronDown, ChevronUp } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { QRCodeSVG } from 'qrcode.react';
@@ -74,12 +74,18 @@ interface PollCardProps {
   onDelete: (pollId: string) => void;
   onStart: (pollId: string, duration: number) => void;
   onAdjustDuration: (pollId: string, newDuration: number) => void;
+  initialCollapsed?: boolean;
 }
 
-const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate, onVote, onToggleResults, onClose, onDelete, onStart, onAdjustDuration }) => {
+const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate, onVote, onToggleResults, onClose, onDelete, onStart, onAdjustDuration, initialCollapsed = false }) => {
   const totalVotes = Object.values(poll.votes || {}).reduce((a, b) => a + b, 0);
   const userVote = user && poll.voters ? poll.voters[user.uid] : null;
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  const [isCollapsed, setIsCollapsed] = useState(initialCollapsed);
+
+  useEffect(() => {
+    setIsCollapsed(initialCollapsed);
+  }, [initialCollapsed]);
 
   useEffect(() => {
     if (!poll.active || !poll.expiresAt) {
@@ -116,6 +122,12 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
     <div className="p-4 rounded-xl border-2 border-osu-orange bg-white shadow-lg animate-in zoom-in-95 duration-200">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
+          <button 
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="p-1 -ml-1 hover:bg-slate-100 rounded transition-colors text-slate-400 hover:text-osu-orange"
+          >
+            {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+          </button>
           <BarChart2 className="w-4 h-4 text-osu-orange" />
           <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Poll</span>
           {timeLeft !== null && (
@@ -163,86 +175,90 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
         </div>
       </div>
 
-      {isDraft && canModerate ? (
-        <div className="space-y-4 py-2">
-          <div className="flex flex-col items-center gap-3">
-            <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Set Duration</span>
-            <div className="flex items-center gap-4">
+      {!isCollapsed && (
+        <>
+          {isDraft && canModerate ? (
+            <div className="space-y-4 py-2">
+              <div className="flex flex-col items-center gap-3">
+                <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Set Duration</span>
+                <div className="flex items-center gap-4">
+                  <button 
+                    onClick={() => onAdjustDuration(poll.id, Math.max(15, (poll.duration || 60) - 15))}
+                    className="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-full text-slate-600 transition-colors"
+                  >
+                    -
+                  </button>
+                  <span className="text-2xl font-black text-slate-800 font-mono w-20 text-center">
+                    {formatTime(poll.duration || 60)}
+                  </span>
+                  <button 
+                    onClick={() => onAdjustDuration(poll.id, Math.min(180, (poll.duration || 60) + 15))}
+                    className="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-full text-slate-600 transition-colors"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
               <button 
-                onClick={() => onAdjustDuration(poll.id, Math.max(15, (poll.duration || 60) - 15))}
-                className="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-full text-slate-600 transition-colors"
+                onClick={() => onStart(poll.id, poll.duration || 60)}
+                className="w-full py-3 bg-osu-orange text-white font-black uppercase tracking-widest rounded-xl hover:bg-[#c03900] transition-all shadow-lg shadow-orange-500/20 active:scale-95"
               >
-                -
-              </button>
-              <span className="text-2xl font-black text-slate-800 font-mono w-20 text-center">
-                {formatTime(poll.duration || 60)}
-              </span>
-              <button 
-                onClick={() => onAdjustDuration(poll.id, Math.min(180, (poll.duration || 60) + 15))}
-                className="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-full text-slate-600 transition-colors"
-              >
-                +
+                Start Poll Now
               </button>
             </div>
-          </div>
-          <button 
-            onClick={() => onStart(poll.id, poll.duration || 60)}
-            className="w-full py-3 bg-osu-orange text-white font-black uppercase tracking-widest rounded-xl hover:bg-[#c03900] transition-all shadow-lg shadow-orange-500/20 active:scale-95"
-          >
-            Start Poll Now
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {poll.options.map(opt => {
-            const count = poll.votes[opt] || 0;
-            const percentage = totalVotes > 0 ? (count / totalVotes) * 100 : 0;
-            const isSelected = userVote === opt;
+          ) : (
+            <div className="space-y-3">
+              {poll.options.map(opt => {
+                const count = poll.votes[opt] || 0;
+                const percentage = totalVotes > 0 ? (count / totalVotes) * 100 : 0;
+                const isSelected = userVote === opt;
 
-            return (
-              <div key={opt} className="relative">
-                <button
-                  disabled={!poll.active || !!userVote || !isChatOnly}
-                  onClick={() => onVote(poll.id, opt)}
-                  className={cn(
-                    "w-full relative overflow-hidden flex items-center justify-between px-4 py-2 rounded-lg border transition-all",
-                    isSelected ? "border-osu-orange bg-orange-50" : "border-slate-200 hover:border-osu-orange/50 bg-white",
-                    !poll.active && "opacity-80 cursor-default"
-                  )}
-                >
-                  {/* Result Bar */}
-                  {poll.showResults && (
-                    <div 
-                      className="absolute inset-y-0 left-0 bg-osu-orange/35 transition-all duration-700 z-0" 
-                      style={{ width: `${percentage}%` }}
-                    />
-                  )}
-                  
-                  <div className="flex items-center gap-3 relative z-10">
-                    <span className={cn("w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold", isSelected ? "bg-osu-orange text-white" : "bg-slate-100 text-slate-600")}>
-                      {opt}
-                    </span>
-                    {isSelected && <CheckCircle2 className="w-3 h-3 text-osu-orange" />}
+                return (
+                  <div key={opt} className="relative">
+                    <button
+                      disabled={!poll.active || !!userVote || !isChatOnly}
+                      onClick={() => onVote(poll.id, opt)}
+                      className={cn(
+                        "w-full relative overflow-hidden flex items-center justify-between px-4 py-2 rounded-lg border transition-all",
+                        isSelected ? "border-osu-orange bg-orange-50" : "border-slate-200 hover:border-osu-orange/50 bg-white",
+                        !poll.active && "opacity-80 cursor-default"
+                      )}
+                    >
+                      {/* Result Bar */}
+                      {poll.showResults && (
+                        <div 
+                          className="absolute inset-y-0 left-0 bg-osu-orange/35 transition-all duration-700 z-0" 
+                          style={{ width: `${percentage}%` }}
+                        />
+                      )}
+                      
+                      <div className="flex items-center gap-3 relative z-10">
+                        <span className={cn("w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold", isSelected ? "bg-osu-orange text-white" : "bg-slate-100 text-slate-600")}>
+                          {opt}
+                        </span>
+                        {isSelected && <CheckCircle2 className="w-3 h-3 text-osu-orange" />}
+                      </div>
+                      
+                      {poll.showResults && (
+                        <div className="flex items-center gap-2 relative z-10">
+                          <span className="text-[10px] font-bold text-slate-400">{Math.round(percentage)}%</span>
+                          <span className="text-xs font-bold text-slate-700">{count}</span>
+                        </div>
+                      )}
+                    </button>
                   </div>
-                  
-                  {poll.showResults && (
-                    <div className="flex items-center gap-2 relative z-10">
-                      <span className="text-[10px] font-bold text-slate-400">{Math.round(percentage)}%</span>
-                      <span className="text-xs font-bold text-slate-700">{count}</span>
-                    </div>
-                  )}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      )}
-      
-      {!isDraft && (
-        <div className="mt-3 pt-3 border-t border-slate-100 flex justify-between items-center">
-          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{totalVotes} Total Votes</span>
-          {!poll.active && <span className="text-[9px] font-bold text-red-500 uppercase tracking-wider">Final Results</span>}
-        </div>
+                );
+              })}
+            </div>
+          )}
+          
+          {!isDraft && (
+            <div className="mt-3 pt-3 border-t border-slate-100 flex justify-between items-center">
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{totalVotes} Total Votes</span>
+              {!poll.active && <span className="text-[9px] font-bold text-red-500 uppercase tracking-wider">Final Results</span>}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -257,10 +273,16 @@ interface WordCloudCardProps {
   onToggleResults: (cloudId: string, currentShow: boolean) => void;
   onClose: (cloudId: string) => void;
   onDelete: (cloudId: string) => void;
+  initialCollapsed?: boolean;
 }
 
-const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, canModerate, onSubmit, onToggleResults, onClose, onDelete }) => {
+const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, canModerate, onSubmit, onToggleResults, onClose, onDelete, initialCollapsed = false }) => {
   const [word, setWord] = useState('');
+  const [isCollapsed, setIsCollapsed] = useState(initialCollapsed);
+
+  useEffect(() => {
+    setIsCollapsed(initialCollapsed);
+  }, [initialCollapsed]);
   const hasParticipated = user && cloud.participants ? cloud.participants[user.uid] : false;
   const totalWords = Object.values(cloud.words || {}).reduce((a, b) => a + b, 0);
 
@@ -292,6 +314,12 @@ const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, 
     <div className="p-4 rounded-xl border-2 border-blue-500 bg-white shadow-lg animate-in zoom-in-95 duration-200">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
+          <button 
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="p-1 -ml-1 hover:bg-slate-100 rounded transition-colors text-slate-400 hover:text-blue-500"
+          >
+            {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+          </button>
           <Cloud className="w-4 h-4 text-blue-500" />
           <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Word Cloud</span>
         </div>
@@ -325,56 +353,136 @@ const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, 
         </div>
       </div>
 
-      <div className="mb-4">
-        <h4 className="font-bold text-slate-800 text-lg">{cloud.prompt}</h4>
-      </div>
+      {!isCollapsed && (
+        <>
+          <div className="mb-4">
+            <h4 className="font-bold text-slate-800 text-lg">{cloud.prompt}</h4>
+          </div>
 
-      {cloud.active && !hasParticipated && isChatOnly && (
-        <form onSubmit={handleSubmit} className="flex gap-2 mb-2">
-          <input
-            type="text"
-            value={word}
-            onChange={e => setWord(e.target.value)}
-            placeholder="Enter a word or short phrase..."
-            className="flex-1 px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:border-blue-500"
-            maxLength={30}
-          />
-          <button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded-md text-sm font-bold hover:bg-blue-600">
-            Submit
+          {cloud.active && !hasParticipated && isChatOnly && (
+            <form onSubmit={handleSubmit} className="flex gap-2 mb-2">
+              <input
+                type="text"
+                value={word}
+                onChange={e => setWord(e.target.value)}
+                placeholder="Enter a word or short phrase..."
+                className="flex-1 px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:border-blue-500"
+                maxLength={30}
+              />
+              <button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded-md text-sm font-bold hover:bg-blue-600">
+                Submit
+              </button>
+            </form>
+          )}
+
+          {hasParticipated && cloud.active && isChatOnly && (
+            <div className="text-xs text-slate-500 italic mb-2">You have submitted your response.</div>
+          )}
+
+          {cloud.showResults && (
+            <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-100 min-h-[150px] flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+              {Object.keys(cloud.words || {}).length === 0 ? (
+                <span className="text-sm text-slate-400">No words submitted yet.</span>
+              ) : (
+                Object.entries(cloud.words || {}).map(([w, count]) => (
+                  <span 
+                    key={w} 
+                    style={{ 
+                      fontSize: `${getFontSize(count)}px`,
+                      color: getWordColor(w),
+                      opacity: 0.8 + (count / maxCount) * 0.2
+                    }} 
+                    className="font-bold leading-none text-center transition-all duration-500"
+                  >
+                    {w}
+                  </span>
+                ))
+              )}
+            </div>
+          )}
+          
+          <div className="mt-3 pt-3 border-t border-slate-100 flex justify-between items-center">
+            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{totalWords} Total Submissions</span>
+            {!cloud.active && <span className="text-[9px] font-bold text-red-500 uppercase tracking-wider">Final Results</span>}
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+interface MessageCardProps {
+  msg: Message;
+  user: any;
+  canModerate: boolean;
+  onLike: (msg: Message) => void;
+  onDelete: (msgId: string) => void;
+  initialCollapsed?: boolean;
+}
+
+const MessageCard: React.FC<MessageCardProps> = ({ msg, user, canModerate, onLike, onDelete, initialCollapsed = false }) => {
+  const [isCollapsed, setIsCollapsed] = useState(initialCollapsed);
+
+  useEffect(() => {
+    setIsCollapsed(initialCollapsed);
+  }, [initialCollapsed]);
+
+  return (
+    <div 
+      className={cn(
+        "p-3 rounded-xl border border-orange-200 bg-orange-50 shadow-md transition-all relative",
+        isCollapsed && "py-2"
+      )}
+    >
+      <div className="flex items-start justify-between mb-1">
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="p-1 -ml-1 hover:bg-orange-100 rounded transition-colors text-slate-400 hover:text-osu-orange"
+          >
+            {isCollapsed ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
           </button>
-        </form>
-      )}
-
-      {hasParticipated && cloud.active && isChatOnly && (
-        <div className="text-xs text-slate-500 italic mb-2">You have submitted your response.</div>
-      )}
-
-      {cloud.showResults && (
-        <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-100 min-h-[150px] flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
-          {Object.keys(cloud.words || {}).length === 0 ? (
-            <span className="text-sm text-slate-400">No words submitted yet.</span>
-          ) : (
-            Object.entries(cloud.words || {}).map(([w, count]) => (
-              <span 
-                key={w} 
-                style={{ 
-                  fontSize: `${getFontSize(count)}px`,
-                  color: getWordColor(w),
-                  opacity: 0.8 + (count / maxCount) * 0.2
-                }} 
-                className="font-bold leading-none text-center transition-all duration-500"
-              >
-                {w}
-              </span>
-            ))
+          <div className="flex flex-col">
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+              {msg.userName}
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => onLike(msg)}
+            className={cn(
+              "flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold transition-colors border",
+              (msg.likes || 0) > 0 
+                ? "bg-yellow-400 text-slate-900 border-yellow-500 shadow-sm" 
+                : "bg-white/60 text-slate-500 border-transparent hover:bg-white hover:text-slate-700"
+            )}
+            title={msg.likedBy?.includes(user?.uid || '') ? "Unlike" : "Like"}
+          >
+            <ThumbsUp className={cn("w-3 h-3", msg.likedBy?.includes(user?.uid || '') && "fill-current")} />
+            {msg.likes || 0}
+          </button>
+          {(user?.uid === msg.userId || canModerate) && (
+            <button
+              onClick={() => onDelete(msg.id)}
+              className="p-1 text-slate-300 hover:text-red-500 transition-colors flex-shrink-0"
+              title="Delete Message"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
           )}
         </div>
-      )}
-      
-      <div className="mt-3 pt-3 border-t border-slate-100 flex justify-between items-center">
-        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{totalWords} Total Submissions</span>
-        {!cloud.active && <span className="text-[9px] font-bold text-red-500 uppercase tracking-wider">Final Results</span>}
       </div>
+      {!isCollapsed && (
+        <>
+          <p className="text-sm text-slate-800 leading-relaxed">
+            {msg.text}
+          </p>
+          <div className="mt-2 text-[9px] text-slate-400 text-right">
+            {msg.timestamp?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </div>
+        </>
+      )}
     </div>
   );
 };
@@ -397,6 +505,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [wordClouds, setWordClouds] = useState<WordCloud[]>([]);
   const [inputText, setInputText] = useState('');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [isAllCollapsed, setIsAllCollapsed] = useState(false);
   const [showWordCloudModal, setShowWordCloudModal] = useState(false);
   const [wordCloudPrompt, setWordCloudPrompt] = useState('');
   const [pollDuration, setPollDuration] = useState(60); // Default 60 seconds
@@ -1060,7 +1169,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           <div className="bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm shrink-0">
             <QRCodeSVG 
               value={chatOnlyUrl} 
-              size={80}
+              size={120}
               level="M"
             />
           </div>
@@ -1095,6 +1204,18 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                     <span>Cloud</span>
                   </button>
                 </div>
+                <button 
+                  onClick={() => setIsAllCollapsed(!isAllCollapsed)}
+                  className={cn(
+                    "w-full flex items-center justify-center gap-2 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border shadow-sm",
+                    isAllCollapsed 
+                      ? "bg-slate-800 text-osu-orange border-slate-700" 
+                      : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200"
+                  )}
+                >
+                  {isAllCollapsed ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
+                  <span>{isAllCollapsed ? "Expand All Content" : "Collapse All Content"}</span>
+                </button>
               </div>
             )}
           </div>
@@ -1165,6 +1286,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                     onDelete={handleDeletePoll}
                     onStart={handleStartPoll}
                     onAdjustDuration={handleAdjustPollDuration}
+                    initialCollapsed={isAllCollapsed}
                   />
                 );
               } else if (item.type === 'wordCloud') {
@@ -1179,6 +1301,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                     onClose={handleCloseWordCloud}
                     onDelete={handleDeleteWordCloud}
                     onSubmit={handleWordCloudSubmit}
+                    initialCollapsed={isAllCollapsed}
                   />
                 );
               }
@@ -1191,50 +1314,17 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               }
 
               return (
-                <div 
+                <MessageCard
                   key={msg.id}
-                  className="p-3 rounded-xl border border-orange-200 bg-orange-50 shadow-md transition-all relative"
-                >
-            <div className="flex items-start justify-between mb-1">
-              <div className="flex flex-col">
-                <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
-                  {msg.userName}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handleLikeMessage(msg)}
-                  className={cn(
-                    "flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold transition-colors border",
-                    (msg.likes || 0) > 0 
-                      ? "bg-yellow-400 text-slate-900 border-yellow-500 shadow-sm" 
-                      : "bg-white/60 text-slate-500 border-transparent hover:bg-white hover:text-slate-700"
-                  )}
-                  title={msg.likedBy?.includes(user?.uid || '') ? "Unlike" : "Like"}
-                >
-                  <ThumbsUp className={cn("w-3 h-3", msg.likedBy?.includes(user?.uid || '') && "fill-current")} />
-                  {msg.likes || 0}
-                </button>
-                {(user?.uid === msg.userId || canModerate) && (
-                  <button
-                    onClick={() => handleDeleteMessage(msg.id)}
-                    className="p-1 text-slate-300 hover:text-red-500 transition-colors flex-shrink-0"
-                    title="Delete Message"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-            </div>
-            <p className="text-sm text-slate-800 leading-relaxed">
-              {msg.text}
-            </p>
-            <div className="mt-2 text-[9px] text-slate-400 text-right">
-              {msg.timestamp?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </div>
-          </div>
-        );
-      })}
+                  msg={msg}
+                  user={user}
+                  canModerate={canModerate}
+                  onLike={handleLikeMessage}
+                  onDelete={handleDeleteMessage}
+                  initialCollapsed={isAllCollapsed}
+                />
+              );
+            })}
     </div>
   </div>
 

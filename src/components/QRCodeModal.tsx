@@ -31,7 +31,7 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, url }
           <div className="bg-white p-4 rounded-xl border-2 border-slate-100 inline-block mb-6 shadow-sm">
             <QRCodeSVG 
               value={url} 
-              size={200}
+              size={300}
               level="H"
               includeMargin={false}
               className="mx-auto"
