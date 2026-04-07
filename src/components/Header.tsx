@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Monitor, Clock, Maximize, Minimize, Link2, Link2Off, Sun, Moon } from 'lucide-react';
+import { Monitor, Clock, Maximize, Minimize, Link2, Link2Off, Sun, Moon, Loader2, AlertCircle } from 'lucide-react';
 import { useBridge } from '../contexts/BridgeContext';
 
 export const Header: React.FC = () => {
   const { isBridgeConnected, setUseWithoutBridge } = useBridge();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isWakeLockActive, setIsWakeLockActive] = useState(false);
+  const [isWakeLockLoading, setIsWakeLockLoading] = useState(false);
+  const [wakeLockError, setWakeLockError] = useState<string | null>(null);
   const [wakeLock, setWakeLock] = useState<any>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -14,6 +16,11 @@ export const Header: React.FC = () => {
   const minutes = currentTime.getMinutes().toString().padStart(2, '0');
   const seconds = currentTime.getSeconds().toString().padStart(2, '0');
   const amPm = hours >= 12 ? 'PM' : 'AM';
+
+  useEffect(() => {
+    console.log('Header - Component mounted');
+    return () => console.log('Header - Component unmounted');
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -43,29 +50,54 @@ export const Header: React.FC = () => {
   };
 
   const toggleWakeLock = async () => {
-    if ('wakeLock' in navigator) {
-      try {
-        if (!isWakeLockActive) {
-          const lock = await (navigator as any).wakeLock.request('screen');
-          setWakeLock(lock);
-          setIsWakeLockActive(true);
-          
-          lock.addEventListener('release', () => {
-            setIsWakeLockActive(false);
-            setWakeLock(null);
-          });
-        } else {
-          if (wakeLock) {
-            await wakeLock.release();
-            setWakeLock(null);
-            setIsWakeLockActive(false);
-          }
-        }
-      } catch (err) {
-        console.error("Wake Lock error:", err);
-      }
-    } else {
+    if (!('wakeLock' in navigator)) {
       console.warn("Wake Lock API not supported in this browser.");
+      return;
+    }
+
+    if (isWakeLockLoading) return;
+    setWakeLockError(null);
+
+    try {
+      setIsWakeLockLoading(true);
+      if (!isWakeLockActive) {
+        console.log("Header - Attempting to acquire Wake Lock...");
+        const lock = await (navigator as any).wakeLock.request('screen');
+        console.log("Header - Wake Lock acquired successfully");
+        
+        setWakeLock(lock);
+        setIsWakeLockActive(true);
+        
+        lock.addEventListener('release', () => {
+          console.log("Header - Wake Lock was released by the system");
+          setIsWakeLockActive(false);
+          setWakeLock(null);
+        });
+      } else {
+        if (wakeLock) {
+          console.log("Header - Releasing Wake Lock manually...");
+          await wakeLock.release();
+          setWakeLock(null);
+          setIsWakeLockActive(false);
+        }
+      }
+    } catch (err: any) {
+      console.error("Header - Wake Lock error details:", {
+        name: err.name,
+        message: err.message,
+        stack: err.stack
+      });
+      
+      if (err.name === 'NotAllowedError') {
+        setWakeLockError("Blocked by browser policy. Try opening in a new tab.");
+      } else {
+        setWakeLockError("Failed to activate wake lock.");
+      }
+      
+      setIsWakeLockActive(false);
+      setWakeLock(null);
+    } finally {
+      setIsWakeLockLoading(false);
     }
   };
 
@@ -76,8 +108,12 @@ export const Header: React.FC = () => {
         try {
           const lock = await (navigator as any).wakeLock.request('screen');
           setWakeLock(lock);
-        } catch (err) {
-          console.error("Re-acquiring Wake Lock error:", err);
+        } catch (err: any) {
+          if (err.name !== 'NotAllowedError') {
+            console.error("Re-acquiring Wake Lock error:", err);
+          }
+          setIsWakeLockActive(false);
+          setWakeLock(null);
         }
       }
     };
@@ -126,17 +162,33 @@ export const Header: React.FC = () => {
               <span className="text-[0.8em] ml-1.5 font-sans font-black text-osu-orange">{amPm}</span>
             </div>
           </div>
-          <div className="flex items-center gap-1 border-l border-slate-200 pl-4">
+          <div className="flex items-center gap-1 border-l border-slate-200 pl-4 relative">
+            {wakeLockError && (
+              <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-red-600 text-white text-[10px] rounded shadow-lg animate-in fade-in slide-in-from-bottom-1">
+                {wakeLockError}
+              </div>
+            )}
             <button 
               onClick={toggleWakeLock}
+              disabled={isWakeLockLoading}
               className={`p-1.5 rounded-md transition-colors ${
                 isWakeLockActive 
                   ? 'bg-amber-50 text-amber-600' 
-                  : 'hover:bg-slate-100 text-slate-600'
-              }`}
-              title={isWakeLockActive ? "Screen Wake Lock Active" : "Keep Screen Awake"}
+                  : wakeLockError
+                    ? 'bg-red-50 text-red-600'
+                    : 'hover:bg-slate-100 text-slate-600'
+              } ${isWakeLockLoading ? 'opacity-50 cursor-wait' : ''}`}
+              title={isWakeLockActive ? "Screen Wake Lock Active" : wakeLockError || "Keep Screen Awake"}
             >
-              {isWakeLockActive ? <Sun className="w-5 h-5 animate-pulse" /> : <Moon className="w-5 h-5" />}
+              {isWakeLockLoading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : isWakeLockActive ? (
+                <Sun className="w-5 h-5 animate-pulse" />
+              ) : wakeLockError ? (
+                <AlertCircle className="w-5 h-5" />
+              ) : (
+                <Moon className="w-5 h-5" />
+              )}
             </button>
             <button 
               onClick={toggleFullscreen}
