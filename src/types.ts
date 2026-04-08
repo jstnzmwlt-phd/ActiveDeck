@@ -31,6 +31,7 @@ export interface Poll {
   expiresAt?: Timestamp;
   duration?: number;
   active: boolean;
+  started?: boolean;
   showResults?: boolean;
 }
 
@@ -42,6 +43,7 @@ export interface WordCloud {
   participants: Record<string, boolean>;
   createdAt: Timestamp;
   active: boolean;
+  started?: boolean;
   showResults?: boolean;
 }
 

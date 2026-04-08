@@ -115,8 +115,8 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const isDraft = !poll.active && !poll.expiresAt;
-  const isClosed = !poll.active && poll.expiresAt;
+  const isDraft = poll.started === false || (!poll.started && !poll.active && !poll.expiresAt);
+  const isClosed = !poll.active && (poll.expiresAt || poll.started);
 
   return (
     <div className="p-4 rounded-xl border-2 border-osu-orange bg-white shadow-lg animate-in zoom-in-95 duration-200">
@@ -167,9 +167,11 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
               ) : (
                 <span className="text-[8px] font-bold text-red-500 uppercase">Closed</span>
               )}
-              <button onClick={() => onDelete(poll.id)} className="p-1 text-slate-400 hover:text-red-500" title="Delete Poll">
-                <Trash2 className="w-4 h-4" />
-              </button>
+              {isDraft && (
+                <button onClick={() => onDelete(poll.id)} className="p-1 text-slate-400 hover:text-red-500" title="Delete Poll">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
             </>
           )}
         </div>
@@ -273,10 +275,11 @@ interface WordCloudCardProps {
   onToggleResults: (cloudId: string, currentShow: boolean) => void;
   onClose: (cloudId: string) => void;
   onDelete: (cloudId: string) => void;
+  onStart: (cloudId: string) => void;
   initialCollapsed?: boolean;
 }
 
-const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, canModerate, onSubmit, onToggleResults, onClose, onDelete, initialCollapsed = false }) => {
+const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, canModerate, onSubmit, onToggleResults, onClose, onDelete, onStart, initialCollapsed = false }) => {
   const [word, setWord] = useState('');
   const [isCollapsed, setIsCollapsed] = useState(initialCollapsed);
 
@@ -310,6 +313,8 @@ const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, 
     return colors[Math.abs(hash) % colors.length];
   };
 
+  const isDraft = cloud.started === false || (!cloud.started && !cloud.active && totalWords === 0);
+
   return (
     <div className="p-4 rounded-xl border-2 border-blue-500 bg-white shadow-lg animate-in zoom-in-95 duration-200">
       <div className="flex items-center justify-between mb-3">
@@ -342,12 +347,16 @@ const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, 
                 <button onClick={() => onClose(cloud.id)} className="p-1 text-slate-400 hover:text-red-500" title="Close Word Cloud">
                   <XCircle className="w-4 h-4" />
                 </button>
+              ) : isDraft ? (
+                <span className="text-[8px] font-bold text-blue-500 uppercase">Draft</span>
               ) : (
                 <span className="text-[8px] font-bold text-red-500 uppercase">Closed</span>
               )}
-              <button onClick={() => onDelete(cloud.id)} className="p-1 text-slate-400 hover:text-red-500" title="Delete Word Cloud">
-                <Trash2 className="w-4 h-4" />
-              </button>
+              {isDraft && (
+                <button onClick={() => onDelete(cloud.id)} className="p-1 text-slate-400 hover:text-red-500" title="Delete Word Cloud">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
             </>
           )}
         </div>
@@ -359,52 +368,67 @@ const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, 
             <h4 className="font-bold text-slate-800 text-lg">{cloud.prompt}</h4>
           </div>
 
-          {cloud.active && !hasParticipated && isChatOnly && (
-            <form onSubmit={handleSubmit} className="flex gap-2 mb-2">
-              <input
-                type="text"
-                value={word}
-                onChange={e => setWord(e.target.value)}
-                placeholder="Enter a word or short phrase..."
-                className="flex-1 px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:border-blue-500"
-                maxLength={30}
-              />
-              <button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded-md text-sm font-bold hover:bg-blue-600">
-                Submit
+          {isDraft && canModerate ? (
+            <div className="py-2">
+              <button 
+                onClick={() => onStart(cloud.id)}
+                className="w-full py-3 bg-blue-500 text-white font-black uppercase tracking-widest rounded-xl hover:bg-blue-600 transition-all shadow-lg shadow-blue-500/20 active:scale-95"
+              >
+                Start Word Cloud Now
               </button>
-            </form>
-          )}
-
-          {hasParticipated && cloud.active && isChatOnly && (
-            <div className="text-xs text-slate-500 italic mb-2">You have submitted your response.</div>
-          )}
-
-          {cloud.showResults && (
-            <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-100 min-h-[150px] flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
-              {Object.keys(cloud.words || {}).length === 0 ? (
-                <span className="text-sm text-slate-400">No words submitted yet.</span>
-              ) : (
-                Object.entries(cloud.words || {}).map(([w, count]) => (
-                  <span 
-                    key={w} 
-                    style={{ 
-                      fontSize: `${getFontSize(count)}px`,
-                      color: getWordColor(w),
-                      opacity: 0.8 + (count / maxCount) * 0.2
-                    }} 
-                    className="font-bold leading-none text-center transition-all duration-500"
-                  >
-                    {w}
-                  </span>
-                ))
-              )}
             </div>
+          ) : (
+            <>
+              {cloud.active && !hasParticipated && isChatOnly && (
+                <form onSubmit={handleSubmit} className="flex gap-2 mb-2">
+                  <input
+                    type="text"
+                    value={word}
+                    onChange={e => setWord(e.target.value)}
+                    placeholder="Enter a word or short phrase..."
+                    className="flex-1 px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:border-blue-500"
+                    maxLength={30}
+                  />
+                  <button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded-md text-sm font-bold hover:bg-blue-600">
+                    Submit
+                  </button>
+                </form>
+              )}
+
+              {hasParticipated && cloud.active && isChatOnly && (
+                <div className="text-xs text-slate-500 italic mb-2">You have submitted your response.</div>
+              )}
+
+              {cloud.showResults && (
+                <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-100 min-h-[150px] flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+                  {Object.keys(cloud.words || {}).length === 0 ? (
+                    <span className="text-sm text-slate-400">No words submitted yet.</span>
+                  ) : (
+                    Object.entries(cloud.words || {}).map(([w, count]) => (
+                      <span 
+                        key={w} 
+                        style={{ 
+                          fontSize: `${getFontSize(count)}px`,
+                          color: getWordColor(w),
+                          opacity: 0.8 + (count / maxCount) * 0.2
+                        }} 
+                        className="font-bold leading-none text-center transition-all duration-500"
+                      >
+                        {w}
+                      </span>
+                    ))
+                  )}
+                </div>
+              )}
+            </>
           )}
           
-          <div className="mt-3 pt-3 border-t border-slate-100 flex justify-between items-center">
-            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{totalWords} Total Submissions</span>
-            {!cloud.active && <span className="text-[9px] font-bold text-red-500 uppercase tracking-wider">Final Results</span>}
-          </div>
+          {!isDraft && (
+            <div className="mt-3 pt-3 border-t border-slate-100 flex justify-between items-center">
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{totalWords} Total Submissions</span>
+              {!cloud.active && <span className="text-[9px] font-bold text-red-500 uppercase tracking-wider">Final Results</span>}
+            </div>
+          )}
         </>
       )}
     </div>
@@ -929,13 +953,26 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         words: {},
         participants: {},
         createdAt: serverTimestamp(),
-        active: true,
+        active: false,
+        started: false,
         showResults: false
       });
       setShowWordCloudModal(false);
       setWordCloudPrompt('');
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'wordClouds');
+    }
+  };
+
+  const handleStartWordCloud = async (cloudId: string) => {
+    if (!canModerate) return;
+    try {
+      await updateDoc(doc(db, 'wordClouds', cloudId), {
+        active: true,
+        started: true
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `wordClouds/${cloudId}`);
     }
   };
 
@@ -993,6 +1030,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         createdAt: serverTimestamp(),
         duration: pollDuration,
         active: false,
+        started: false,
         showResults: false
       });
     } catch (error) {
@@ -1006,6 +1044,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       const expiresAt = new Date(Date.now() + duration * 1000);
       await updateDoc(doc(db, 'polls', pollId), {
         active: true,
+        started: true,
         expiresAt: Timestamp.fromDate(expiresAt)
       });
     } catch (error) {
@@ -1290,16 +1329,21 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                   />
                 );
               } else if (item.type === 'wordCloud') {
+                const cloud = item as WordCloud;
+                // Audience only sees active or closed word clouds, not drafts
+                if (isChatOnly && !cloud.active && !cloud.started) return null;
+
                 return (
                   <WordCloudCard
                     key={item.id}
-                    cloud={item as WordCloud}
+                    cloud={cloud}
                     canModerate={canModerate}
                     isChatOnly={isChatOnly}
                     user={user}
                     onToggleResults={handleToggleWordCloudResults}
                     onClose={handleCloseWordCloud}
                     onDelete={handleDeleteWordCloud}
+                    onStart={handleStartWordCloud}
                     onSubmit={handleWordCloudSubmit}
                     initialCollapsed={isAllCollapsed}
                   />
