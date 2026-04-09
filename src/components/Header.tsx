@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Monitor, Clock, Maximize, Minimize, Link2, Link2Off, Sun, Moon, Loader2, AlertCircle } from 'lucide-react';
+import { Monitor, Clock, Maximize, Minimize, Link2, Link2Off, Sun, Moon, Loader2, AlertCircle, ExternalLink } from 'lucide-react';
 import { useBridge } from '../contexts/BridgeContext';
 
 export const Header: React.FC = () => {
@@ -10,6 +10,11 @@ export const Header: React.FC = () => {
   const [wakeLockError, setWakeLockError] = useState<string | null>(null);
   const [wakeLock, setWakeLock] = useState<any>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [isInIframe, setIsInIframe] = useState(false);
+
+  useEffect(() => {
+    setIsInIframe(window.self !== window.top);
+  }, []);
 
   const hours = currentTime.getHours();
   const displayHours = (hours % 12 || 12).toString().padStart(2, '0');
@@ -144,6 +149,19 @@ export const Header: React.FC = () => {
             {isBridgeConnected ? <Link2 className="w-3 h-3" /> : <Link2Off className="w-3 h-3" />}
             {isBridgeConnected ? 'Bridge Online' : 'Bridge Offline'}
           </button>
+
+          {isInIframe && (
+            <a 
+              href={window.location.href} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-osu-orange bg-orange-50 text-osu-orange text-[10px] font-bold uppercase tracking-wider hover:bg-orange-100 transition-colors"
+              title="Open in a new tab to enable all features"
+            >
+              <ExternalLink className="w-3 h-3" />
+              Open in New Tab
+            </a>
+          )}
         </div>
 
         {/* Centered ActiveDeck Logo */}
@@ -154,7 +172,7 @@ export const Header: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-4 z-10">
-          <div className="flex items-center gap-1.5 text-base font-mono font-bold text-slate-800 bg-white px-3 py-1.5 rounded-lg border-2 border-osu-orange shadow-sm scale-90">
+          <div className="flex items-center gap-2 text-lg font-mono font-bold text-slate-800 bg-white px-3 py-1 rounded-lg border-2 border-osu-orange shadow-sm">
             <Clock className="w-4 h-4 text-osu-orange" />
             <div className="flex items-baseline">
               <span>{displayHours}:{minutes}</span>

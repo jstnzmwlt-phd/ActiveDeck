@@ -8,6 +8,7 @@ import { Send, HelpCircle, MessageSquare, Trash2, LogIn, LogOut, ThumbsUp, Downl
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { QRCodeSVG } from 'qrcode.react';
+import { motion } from 'motion/react';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -452,8 +453,30 @@ const MessageCard: React.FC<MessageCardProps> = ({ msg, user, canModerate, onLik
     setIsCollapsed(initialCollapsed);
   }, [initialCollapsed]);
 
+  // Determine if this is a "new" message (within last 10 seconds) to trigger pulsation
+  const isNew = !msg.timestamp || (Date.now() - msg.timestamp.toMillis() < 10000);
+
   return (
-    <div 
+    <motion.div 
+      initial={isNew ? { scale: 1, borderColor: "rgb(254, 215, 170)" } : false}
+      animate={isNew ? { 
+        scale: [1, 1.04, 1, 1.04, 1],
+        borderColor: [
+          "rgb(254, 215, 170)", 
+          "rgb(255, 62, 0)", 
+          "rgb(254, 215, 170)", 
+          "rgb(255, 62, 0)", 
+          "rgb(254, 215, 170)"
+        ],
+        boxShadow: [
+          "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+          "0 0 15px rgba(255, 62, 0, 0.4)",
+          "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+          "0 0 15px rgba(255, 62, 0, 0.4)",
+          "0 4px 6px -1px rgb(0 0 0 / 0.1)"
+        ]
+      } : false}
+      transition={{ duration: 2, ease: "easeInOut" }}
       className={cn(
         "p-3 rounded-xl border border-orange-200 bg-orange-50 shadow-md transition-all relative",
         isCollapsed && "py-2"
@@ -519,7 +542,7 @@ const MessageCard: React.FC<MessageCardProps> = ({ msg, user, canModerate, onLik
           </div>
         </>
       )}
-    </div>
+    </motion.div>
   );
 };
 
@@ -1202,13 +1225,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           <MessageSquare className="w-5 h-5 text-osu-orange" />
           <div className="flex flex-col">
             <h2 className="font-bold tracking-tight uppercase text-sm leading-none">ActiveDeck Chat</h2>
-            <div className="flex items-center gap-2 mt-1">
-              {canModerate && (
-                <span className="text-[8px] font-black text-osu-orange uppercase tracking-[0.2em]">
-                  Moderator Mode Active
-                </span>
-              )}
-            </div>
           </div>
         </div>
         <div className="flex items-center gap-1">
