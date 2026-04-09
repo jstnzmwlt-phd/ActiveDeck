@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Presentation } from '../types';
 import { ScreenCapture } from './ScreenCapture';
-import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2 } from 'lucide-react';
 import { useBridge } from '../contexts/BridgeContext';
 
 interface PresenterAreaProps {
@@ -10,6 +10,7 @@ interface PresenterAreaProps {
 
 export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation }) => {
   const { currentSlide, sendSlideCommand, isBridgeConnected, useWithoutBridge, setUseWithoutBridge } = useBridge();
+  const [activeTab, setActiveTab] = useState<'single' | 'dual' | 'manual'>('single');
 
   const handleSlideMove = (direction: 'next' | 'prev') => {
     sendSlideCommand(direction);
@@ -35,51 +36,176 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation }) =>
         
         {/* Setup Bridge Card - Only shown when disconnected and not explicitly dismissed */}
         {!isBridgeConnected && !useWithoutBridge && (
-          <div className="absolute inset-0 z-[60] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-6">
-            <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 p-8 max-w-md w-full text-center animate-in fade-in zoom-in duration-300">
-              <div className="w-16 h-16 bg-osu-orange/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                <PresentationIcon className="w-8 h-8 text-osu-orange" />
+          <div className="absolute inset-0 z-[60] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 p-6 max-w-lg w-full text-center animate-in fade-in zoom-in duration-300">
+              <div className="w-12 h-12 bg-osu-orange/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <PresentationIcon className="w-6 h-6 text-osu-orange" />
               </div>
               
-              <h2 className="text-2xl font-black text-slate-900 mb-2">Ready to Present?</h2>
-              <p className="text-slate-500 mb-8">Connect your computer to the projector and start your bridge.</p>
-              
-              <a 
-                href="https://github.com/jstnzmwlt-phd/ActiveDeck/releases/download/v1.0.0/activedeck_bridge.exe"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-3 w-full py-4 bg-osu-orange hover:bg-[#c03900] text-white font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95 shadow-xl shadow-orange-500/20 mb-4"
-              >
-                <Download className="w-5 h-5" />
-                Download ActiveDeck Bridge
-              </a>
+              <h2 className="text-xl font-black text-slate-900 mb-1">Ready to Present?</h2>
+              <p className="text-slate-500 text-sm mb-6">Choose your presentation type to get started.</p>
 
-              <button
-                onClick={() => setUseWithoutBridge(true)}
-                className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs uppercase tracking-widest rounded-xl transition-all mb-8"
-              >
-                Use Without Bridge
-              </button>
-              
-              <div className="space-y-4 text-left">
-                <div className="flex gap-3">
-                  <div className="flex-shrink-0 w-6 h-6 bg-slate-100 rounded-full flex items-center justify-center text-xs font-bold text-slate-600">1</div>
-                  <p className="text-sm text-slate-600 leading-relaxed">
-                    Download and run this app on the computer connected to the projector.
-                  </p>
-                </div>
-                
-                <div className="flex gap-3 p-3 bg-amber-50 rounded-xl border border-amber-100">
-                  <ShieldAlert className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-amber-700 leading-relaxed">
-                    If Windows shows a protection warning, click <span className="font-bold">"More Info"</span> and then <span className="font-bold">"Run Anyway"</span>.
-                  </p>
-                </div>
+              {/* Tabbed Interface */}
+              <div className="flex p-1 bg-slate-100 rounded-xl mb-6">
+                <button
+                  onClick={() => setActiveTab('single')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${
+                    activeTab === 'single' ? 'bg-white text-osu-orange shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <Monitor className="w-3.5 h-3.5" />
+                  Single Screen
+                </button>
+                <button
+                  onClick={() => setActiveTab('dual')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${
+                    activeTab === 'dual' ? 'bg-white text-osu-orange shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <MonitorPlay className="w-3.5 h-3.5" />
+                  Dual Screen
+                </button>
+                <button
+                  onClick={() => setActiveTab('manual')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${
+                    activeTab === 'manual' ? 'bg-white text-osu-orange shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <MousePointer2 className="w-3.5 h-3.5" />
+                  Manual Mode
+                </button>
+              </div>
+
+              <div className="text-left mb-6 min-h-[420px] flex flex-col">
+                {activeTab === 'single' && (
+                  <div className="flex-1 flex flex-col space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <div>
+                      <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider mb-3">Scenario 1: Control & Sync</h3>
+                      <div className="space-y-3">
+                        <div className="flex gap-3">
+                          <div className="flex-shrink-0 w-6 h-6 bg-osu-orange text-white rounded-full flex items-center justify-center text-xs font-bold">1</div>
+                          <p className="text-sm text-slate-600 leading-relaxed">Download and run <span className="font-bold">ActiveDeck Bridge (.exe)</span>.</p>
+                        </div>
+                        <div className="flex gap-3">
+                          <div className="flex-shrink-0 w-6 h-6 bg-osu-orange text-white rounded-full flex items-center justify-center text-xs font-bold">2</div>
+                          <p className="text-sm text-slate-600 leading-relaxed">Open PPT and start <span className="font-bold">Slide Show (F5)</span>.</p>
+                        </div>
+                        <div className="flex gap-3">
+                          <div className="flex-shrink-0 w-6 h-6 bg-osu-orange text-white rounded-full flex items-center justify-center text-xs font-bold">3</div>
+                          <p className="text-sm text-slate-600 leading-relaxed">Advance slides using the <span className="font-bold">Prev/Next button</span> in ActiveDeck, not the PPT.</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-auto space-y-4">
+                      <a 
+                        href="https://github.com/jstnzmwlt-phd/ActiveDeck/releases/download/v1.0.0/activedeck_bridge.exe"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-3 w-full py-4 bg-osu-orange hover:bg-[#c03900] text-white font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95 shadow-xl shadow-orange-500/20"
+                      >
+                        <Download className="w-5 h-5" />
+                        Download ActiveDeck Bridge
+                      </a>
+                      
+                      <div className="flex gap-3 p-3 bg-amber-50 rounded-xl border border-amber-100">
+                        <ShieldAlert className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                        <p className="text-[11px] text-amber-700 leading-relaxed">
+                          If Windows shows a protection warning, click <span className="font-bold">"More Info"</span> and then <span className="font-bold">"Run Anyway"</span>.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'dual' && (
+                  <div className="flex-1 flex flex-col space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <div>
+                      <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider mb-3">Scenario 2: Dual Screen Pro</h3>
+                      <div className="space-y-3">
+                        <div className="flex gap-3">
+                          <div className="flex-shrink-0 w-6 h-6 bg-osu-orange text-white rounded-full flex items-center justify-center text-xs font-bold">1</div>
+                          <p className="text-sm text-slate-600 leading-relaxed">Download and run <span className="font-bold">ActiveDeck Bridge (.exe)</span>.</p>
+                        </div>
+                        <div className="flex gap-3">
+                          <div className="flex-shrink-0 w-6 h-6 bg-osu-orange text-white rounded-full flex items-center justify-center text-xs font-bold">2</div>
+                          <p className="text-sm text-slate-600 leading-relaxed">Open PPT and start <span className="font-bold">Slide Show (F5)</span> on the projector.</p>
+                        </div>
+                        <div className="flex gap-3">
+                          <div className="flex-shrink-0 w-6 h-6 bg-osu-orange text-white rounded-full flex items-center justify-center text-xs font-bold">3</div>
+                          <p className="text-sm text-slate-600 leading-relaxed">Drag this browser to your <span className="font-bold">secondary monitor</span>.</p>
+                        </div>
+                        <div className="flex gap-3">
+                          <div className="flex-shrink-0 w-6 h-6 bg-osu-orange text-white rounded-full flex items-center justify-center text-xs font-bold">4</div>
+                          <p className="text-sm text-slate-600 leading-relaxed">Advance slides using the <span className="font-bold">Prev/Next button</span> in ActiveDeck, not the PPT.</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-auto space-y-4">
+                      <a 
+                        href="https://github.com/jstnzmwlt-phd/ActiveDeck/releases/download/v1.0.0/activedeck_bridge.exe"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-3 w-full py-4 bg-osu-orange hover:bg-[#c03900] text-white font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95 shadow-xl shadow-orange-500/20"
+                      >
+                        <Download className="w-5 h-5" />
+                        Download ActiveDeck Bridge
+                      </a>
+                      
+                      <div className="flex gap-3 p-3 bg-amber-50 rounded-xl border border-amber-100">
+                        <ShieldAlert className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                        <p className="text-[11px] text-amber-700 leading-relaxed">
+                          If Windows shows a protection warning, click <span className="font-bold">"More Info"</span> and then <span className="font-bold">"Run Anyway"</span>.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'manual' && (
+                  <div className="flex-1 flex flex-col space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <div>
+                      <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider mb-3">Scenario 3: Manual Mode</h3>
+                      <div className="space-y-3">
+                        <div className="flex gap-3">
+                          <div className="flex-shrink-0 w-6 h-6 bg-slate-200 text-slate-600 rounded-full flex items-center justify-center text-xs font-bold">1</div>
+                          <p className="text-sm text-slate-600 leading-relaxed">Click <span className="font-bold">'Use Without Bridge'</span> below.</p>
+                        </div>
+                        <div className="flex gap-3">
+                          <div className="flex-shrink-0 w-6 h-6 bg-slate-200 text-slate-600 rounded-full flex items-center justify-center text-xs font-bold">2</div>
+                          <p className="text-sm text-slate-600 leading-relaxed">Use your <span className="font-bold">clicker/keyboard</span> to move slides manually.</p>
+                        </div>
+                        <div className="flex gap-3">
+                          <div className="flex-shrink-0 w-6 h-6 bg-slate-200 text-slate-600 rounded-full flex items-center justify-center text-xs font-bold">3</div>
+                          <p className="text-sm text-slate-600 leading-relaxed">Use <span className="font-bold">ActiveDeck</span> on a secondary screen with your PPT on the main screen. Advance the main screen PPT.</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-auto space-y-4">
+                      <button
+                        onClick={() => setUseWithoutBridge(true)}
+                        className="w-full py-4 bg-slate-800 hover:bg-slate-900 text-white font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95 shadow-xl shadow-slate-900/20"
+                      >
+                        Use Without Bridge
+                      </button>
+                      <div className="flex gap-3 p-3 bg-blue-50 rounded-xl border border-blue-100">
+                        <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                        <p className="text-[11px] text-blue-700 leading-relaxed">
+                          <span className="font-bold">Note:</span> There will be no slide stamp on chat messages when not using the ActiveDeck Bridge.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
               
-              <div className="mt-8 pt-6 border-t border-slate-100 flex items-center justify-center gap-2 text-slate-400">
+              <div className="pt-4 border-t border-slate-100 flex items-center justify-center gap-2 text-slate-400">
                 <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                <span className="text-[10px] font-bold uppercase tracking-widest">Waiting for bridge connection...</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest">
+                  {activeTab === 'manual' ? 'Ready for manual presentation' : 'Waiting for bridge connection...'}
+                </span>
               </div>
             </div>
           </div>

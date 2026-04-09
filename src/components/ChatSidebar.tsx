@@ -4,7 +4,7 @@ import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, getDoc
 import { Message, Presentation, Poll, WordCloud } from '../types';
 import { useAuth } from './AuthProvider';
 import { useBridge } from '../contexts/BridgeContext';
-import { Send, HelpCircle, MessageSquare, Trash2, LogIn, LogOut, ThumbsUp, Download, Mail, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud, Eye, EyeOff, Timer, Users, ChevronDown, ChevronUp } from 'lucide-react';
+import { Send, HelpCircle, MessageSquare, Trash2, LogIn, LogOut, ThumbsUp, Download, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud, Eye, EyeOff, Timer, Users, ChevronDown, ChevronUp } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { QRCodeSVG } from 'qrcode.react';
@@ -919,65 +919,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     URL.revokeObjectURL(url);
   };
 
-  const handleEmailChat = () => {
-    const combinedItems = [
-      ...messages.map(m => ({ ...m, type: 'message' as const })),
-      ...polls.map(p => ({ ...p, type: 'poll' as const })),
-      ...wordClouds.map(w => ({ ...w, type: 'wordCloud' as const }))
-    ].sort((a, b) => {
-      const timeA = ((a as any).timestamp || (a as any).createdAt)?.toMillis() || 0;
-      const timeB = ((b as any).timestamp || (b as any).createdAt)?.toMillis() || 0;
-      return timeA - timeB;
-    });
-
-    const content = combinedItems.map(item => {
-      if (item.type === 'message') {
-        const m = item as Message;
-        const dateObj = m.timestamp?.toDate();
-        const dateStr = dateObj ? dateObj.toLocaleDateString() : '';
-        const timeStr = dateObj ? dateObj.toLocaleTimeString() : '';
-        const slideStr = m.slide !== undefined ? ` [Slide ${m.slide}]` : '';
-        const type = m.isQuestion ? '[QUESTION] ' : '';
-        const likes = m.likes ? ` (Likes: ${m.likes})` : '';
-        const email = m.userEmail ? `, ${m.userEmail}` : '';
-        return `${dateStr}, ${timeStr}${slideStr}, ${m.userName}${email}:\n     ${type}${m.text}${likes}`;
-      } else if (item.type === 'poll') {
-        const p = item as Poll;
-        const dateObj = p.createdAt?.toDate();
-        const dateStr = dateObj ? dateObj.toLocaleDateString() : '';
-        const timeStr = dateObj ? dateObj.toLocaleTimeString() : '';
-        const totalVotes = Object.values(p.votes).reduce((a, b) => a + b, 0);
-        
-        let pollText = `[POLL RESULTS] ${dateStr}, ${timeStr}\n`;
-        p.options.forEach(opt => {
-          const count = p.votes[opt] || 0;
-          const percentage = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
-          pollText += `  Option ${opt}: ${count} votes (${percentage}%)\n`;
-        });
-        pollText += `Total Votes: ${totalVotes}`;
-        return pollText;
-      } else {
-        const w = item as WordCloud;
-        const dateObj = w.createdAt?.toDate();
-        const dateStr = dateObj ? dateObj.toLocaleDateString() : '';
-        const timeStr = dateObj ? dateObj.toLocaleTimeString() : '';
-        const totalWords = Object.values(w.words || {}).reduce((a, b) => a + b, 0);
-        
-        let wcText = `[WORD CLOUD] ${dateStr}, ${timeStr}\n`;
-        wcText += `Prompt: ${w.prompt}\n`;
-        Object.entries(w.words || {}).forEach(([word, count]) => {
-          wcText += `  ${word}: ${count} submissions\n`;
-        });
-        wcText += `Total Submissions: ${totalWords}`;
-        return wcText;
-      }
-    }).join('\n\n');
-    
-    const subject = encodeURIComponent('ActiveDeck Chat & Poll Log');
-    const body = encodeURIComponent('Here is the chat and poll log from your presentation:\n\n' + content);
-    window.location.href = `mailto:?subject=${subject}&body=${body}`;
-  };
-
   const handleToggleAnonymousChat = async () => {
     if (!presentation?.id || !canModerate) {
       console.warn('ChatSidebar - Cannot toggle anonymous chat:', { hasId: !!presentation?.id, canModerate });
@@ -1263,13 +1204,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 title="Download as Word"
               >
                 <Download className="w-4 h-4" />
-              </button>
-              <button 
-                onClick={handleEmailChat}
-                className="p-1 hover:bg-slate-800 rounded transition-colors text-slate-400 hover:text-white"
-                title="Email Chat Log"
-              >
-                <Mail className="w-4 h-4" />
               </button>
               <button 
                 onClick={() => setShowClearConfirm(true)}
