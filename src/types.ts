@@ -7,6 +7,7 @@ export interface Presentation {
   createdAt: Timestamp;
   allowAnonymousChat?: boolean;
   hideComments?: boolean;
+  currentSlide?: number;
 }
 
 export interface Message {
@@ -19,6 +20,7 @@ export interface Message {
   isQuestion: boolean;
   likes?: number;
   likedBy?: string[];
+  slide?: number;
 }
 
 export interface Poll {

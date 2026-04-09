@@ -9,7 +9,7 @@ interface PresenterAreaProps {
 }
 
 export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation }) => {
-  const { sendSlideCommand, isBridgeConnected, useWithoutBridge, setUseWithoutBridge } = useBridge();
+  const { currentSlide, sendSlideCommand, isBridgeConnected, useWithoutBridge, setUseWithoutBridge } = useBridge();
 
   const handleSlideMove = (direction: 'next' | 'prev') => {
     sendSlideCommand(direction);
@@ -17,6 +17,18 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation }) =>
 
   return (
     <div className="flex flex-col h-full bg-black relative group">
+      {/* Slide Indicator - Matches Chat Badge Style (OSU Orange) */}
+      {(currentSlide !== null || presentation?.currentSlide !== undefined) && (
+        <div className="absolute top-4 right-4 z-[70] pointer-events-none">
+          <div className="bg-[#ff3e00] text-white px-3 py-1.5 rounded-full border-2 border-white shadow-[0_2px_8px_rgba(255,62,0,0.4)] flex items-center gap-1.5 animate-in fade-in slide-in-from-right-4 duration-500">
+            <span className="text-[11px] font-normal uppercase tracking-wider">Slide</span>
+            <span className="text-lg font-bold leading-none">
+              {currentSlide !== null ? currentSlide : presentation?.currentSlide}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Main Content Area */}
       <div className="flex-1 relative bg-black overflow-hidden flex items-center justify-center">
         <ScreenCapture />

@@ -3,6 +3,7 @@ import { auth, db } from '../firebase';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, getDocFromServer, doc, deleteDoc, updateDoc, arrayUnion, arrayRemove, increment, where, writeBatch, Timestamp, setDoc } from 'firebase/firestore';
 import { Message, Presentation, Poll, WordCloud } from '../types';
 import { useAuth } from './AuthProvider';
+import { useBridge } from '../contexts/BridgeContext';
 import { Send, HelpCircle, MessageSquare, Trash2, LogIn, LogOut, ThumbsUp, Download, Mail, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud, Eye, EyeOff, Timer, Users, ChevronDown, ChevronUp } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -500,7 +501,18 @@ const MessageCard: React.FC<MessageCardProps> = ({ msg, user, canModerate, onLik
       {!isCollapsed && (
         <>
           <p className="text-sm text-slate-800 leading-relaxed">
-            {msg.text}
+            <span className="font-bold">{msg.text}</span>
+            {(msg.slide !== undefined && msg.slide !== null) && (
+              <span className="inline-flex items-center ml-1.5 px-2.5 py-1 rounded-full bg-[#ff3e00] text-[11px] font-normal text-white border-2 border-white shadow-[0_2px_4px_rgba(255,62,0,0.3)] uppercase tracking-wider">
+                Slide {msg.slide}
+              </span>
+            )}
+            {/* Diagnostic for missing slide */}
+            {(msg.slide === undefined || msg.slide === null) && (
+              <span className="text-[8px] text-slate-400 ml-1 italic">
+                (No slide data)
+              </span>
+            )}
           </p>
           <div className="mt-2 text-[9px] text-slate-400 text-right">
             {msg.timestamp?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -518,12 +530,12 @@ interface ChatSidebarProps {
 
 export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, presentation = null }) => {
   const { user } = useAuth();
+  const { currentSlide } = useBridge();
   const isPresenter = user?.uid === presentation?.presenterId;
-  // Faculty/Moderators are guests in the main view (not isChatOnly)
-  const isMainViewModerator = !isChatOnly;
-  const canModerate = isPresenter || isMainViewModerator; // Presenter or anyone in the main view can moderate (delete any message, clear chat, etc.)
+  const canModerate = isPresenter; // Only the actual presenter can moderate presentation settings
+  const canModerateChat = isPresenter || !isChatOnly; // Presenter or anyone in the main view can moderate chat items (delete messages, etc.)
 
-  console.log('ChatSidebar Render - User:', user?.email || 'Guest', 'isPresenter:', isPresenter, 'isMainViewModerator:', isMainViewModerator);
+  console.log('ChatSidebar Render - User:', user?.email || 'Guest', 'isPresenter:', isPresenter);
   const [messages, setMessages] = useState<Message[]>([]);
   const [polls, setPolls] = useState<Poll[]>([]);
   const [wordClouds, setWordClouds] = useState<WordCloud[]>([]);
@@ -549,6 +561,16 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [joinNameInput, setJoinNameInput] = useState('');
   const [isPostingAnonymously, setIsPostingAnonymously] = useState(false);
   const [shortUrl, setShortUrl] = useState('');
+
+  // Sync bridge slide to Firestore if user is presenter
+  useEffect(() => {
+    if (isPresenter && presentation?.id && currentSlide !== null) {
+      console.log('ChatSidebar: Syncing bridge slide to Firestore:', currentSlide);
+      updateDoc(doc(db, 'presentations', presentation.id), {
+        currentSlide: currentSlide
+      }).catch(err => console.error('Failed to sync slide to Firestore:', err));
+    }
+  }, [currentSlide, isPresenter, presentation?.id]);
 
   // Construct chat-only URL for QR code
   const baseUrl = window.location.origin + window.location.pathname;
@@ -707,6 +729,15 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         presenterId: presentation?.presenterId || 'default',
       };
 
+      console.log('ChatSidebar: Preparing to send message. Bridge currentSlide:', currentSlide, 'Presentation currentSlide:', presentation?.currentSlide);
+
+      // Use bridge slide (presenter) or presentation slide (audience)
+      const slideToSend = currentSlide !== null ? currentSlide : presentation?.currentSlide;
+      
+      if (slideToSend !== undefined && slideToSend !== null) {
+        messageData.slide = slideToSend;
+      }
+
       if (emailToSave) {
         messageData.userEmail = emailToSave;
       }
@@ -808,10 +839,11 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         const dateObj = m.timestamp?.toDate();
         const dateStr = dateObj ? dateObj.toLocaleDateString() : '';
         const timeStr = dateObj ? dateObj.toLocaleTimeString() : '';
+        const slideStr = m.slide !== undefined ? ` [Slide ${m.slide}]` : '';
         const type = m.isQuestion ? '<b>[QUESTION]</b> ' : '';
         const likes = m.likes ? ` (Likes: ${m.likes})` : '';
         const email = m.userEmail ? `, <a href="mailto:${m.userEmail}">${m.userEmail}</a>` : '';
-        return `<p style="margin-bottom: 16px;">${dateStr}, ${timeStr}, <b>${m.userName}</b>${email}:<br>&nbsp;&nbsp;&nbsp;&nbsp;${type}${m.text}${likes}</p>`;
+        return `<p style="margin-bottom: 16px;">${dateStr}, ${timeStr}${slideStr}, <b>${m.userName}</b>${email}:<br>&nbsp;&nbsp;&nbsp;&nbsp;${type}${m.text}${likes}</p>`;
       } else if (item.type === 'poll') {
         const p = item as Poll;
         const dateObj = p.createdAt?.toDate();
@@ -881,10 +913,11 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         const dateObj = m.timestamp?.toDate();
         const dateStr = dateObj ? dateObj.toLocaleDateString() : '';
         const timeStr = dateObj ? dateObj.toLocaleTimeString() : '';
+        const slideStr = m.slide !== undefined ? ` [Slide ${m.slide}]` : '';
         const type = m.isQuestion ? '[QUESTION] ' : '';
         const likes = m.likes ? ` (Likes: ${m.likes})` : '';
         const email = m.userEmail ? `, ${m.userEmail}` : '';
-        return `${dateStr}, ${timeStr}, ${m.userName}${email}:\n     ${type}${m.text}${likes}`;
+        return `${dateStr}, ${timeStr}${slideStr}, ${m.userName}${email}:\n     ${type}${m.text}${likes}`;
       } else if (item.type === 'poll') {
         const p = item as Poll;
         const dateObj = p.createdAt?.toDate();
@@ -923,23 +956,35 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   };
 
   const handleToggleAnonymousChat = async () => {
-    if (!presentation?.id || !canModerate) return;
+    if (!presentation?.id || !canModerate) {
+      console.warn('ChatSidebar - Cannot toggle anonymous chat:', { hasId: !!presentation?.id, canModerate });
+      return;
+    }
+    const newValue = !presentation.allowAnonymousChat;
+    console.log('ChatSidebar - Toggling anonymous chat to:', newValue);
     try {
       await updateDoc(doc(db, 'presentations', presentation.id), {
-        allowAnonymousChat: !presentation.allowAnonymousChat
+        allowAnonymousChat: newValue
       });
     } catch (error) {
+      console.error('ChatSidebar - Error toggling anonymous chat:', error);
       handleFirestoreError(error, OperationType.UPDATE, `presentations/${presentation.id}`);
     }
   };
 
   const handleToggleHideComments = async () => {
-    if (!presentation?.id || !canModerate) return;
+    if (!presentation?.id || !canModerate) {
+      console.warn('ChatSidebar - Cannot toggle hide comments:', { hasId: !!presentation?.id, canModerate });
+      return;
+    }
+    const newValue = !presentation.hideComments;
+    console.log('ChatSidebar - Toggling hide comments to:', newValue);
     try {
       await updateDoc(doc(db, 'presentations', presentation.id), {
-        hideComments: !presentation.hideComments
+        hideComments: newValue
       });
     } catch (error) {
+      console.error('ChatSidebar - Error toggling hide comments:', error);
       handleFirestoreError(error, OperationType.UPDATE, `presentations/${presentation.id}`);
     }
   };
@@ -1134,17 +1179,36 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         </div>
       )}
 
+      {/* Join URL Bar - Only for Presenter/Main View */}
+      {!isChatOnly && (
+        <div className="bg-slate-900 text-white px-4 py-1.5 border-b border-slate-800">
+          <div className="flex flex-col">
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <div className="w-1 h-1 rounded-full bg-osu-orange animate-pulse" />
+              <span className="text-[9px] font-black text-osu-orange uppercase tracking-widest">
+                Join Session:
+              </span>
+            </div>
+            <div className="text-[15px] font-bold tracking-tight text-white break-all leading-tight">
+              {shortUrl || chatOnlyUrl}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Chat Header */}
       <div className="p-4 bg-osu-black text-white flex items-center justify-between">
         <div className="flex items-center gap-2">
           <MessageSquare className="w-5 h-5 text-osu-orange" />
           <div className="flex flex-col">
             <h2 className="font-bold tracking-tight uppercase text-sm leading-none">ActiveDeck Chat</h2>
-            {canModerate && (
-              <span className="text-[8px] font-black text-osu-orange uppercase tracking-[0.2em] mt-1">
-                Moderator Mode Active
-              </span>
-            )}
+            <div className="flex items-center gap-2 mt-1">
+              {canModerate && (
+                <span className="text-[8px] font-black text-osu-orange uppercase tracking-[0.2em]">
+                  Moderator Mode Active
+                </span>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-1">
@@ -1219,11 +1283,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 <Users className="w-3 h-3 text-osu-orange" />
                 <span>{participantCount}</span>
               </div>
-            </div>
-            <div className="bg-slate-200/50 rounded px-2 py-1 truncate mb-2">
-              <p className="text-[11px] text-slate-700 font-mono font-bold select-all truncate">
-                {shortUrl || chatOnlyUrl}
-              </p>
             </div>
             {canModerate && (
               <div className="flex flex-col gap-2 mt-2">
@@ -1318,7 +1377,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                     poll={poll}
                     user={user}
                     isChatOnly={isChatOnly}
-                    canModerate={canModerate}
+                    canModerate={canModerateChat}
                     onVote={handleVote}
                     onToggleResults={handleToggleResults}
                     onClose={handleClosePoll}
@@ -1337,7 +1396,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                   <WordCloudCard
                     key={item.id}
                     cloud={cloud}
-                    canModerate={canModerate}
+                    canModerate={canModerateChat}
                     isChatOnly={isChatOnly}
                     user={user}
                     onToggleResults={handleToggleWordCloudResults}
@@ -1362,7 +1421,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                   key={msg.id}
                   msg={msg}
                   user={user}
-                  canModerate={canModerate}
+                  canModerate={canModerateChat}
                   onLike={handleLikeMessage}
                   onDelete={handleDeleteMessage}
                   initialCollapsed={isAllCollapsed}

@@ -25,7 +25,8 @@ service cloud.firestore {
              data.embedUrl is string &&
              data.presenterId is string &&
              data.createdAt is timestamp &&
-             (!('allowAnonymousChat' in data) || data.allowAnonymousChat is bool);
+             (!('allowAnonymousChat' in data) || data.allowAnonymousChat is bool) &&
+             (!('hideComments' in data) || data.hideComments is bool);
     }
 
     function isRecent(time) {

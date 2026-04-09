@@ -5,6 +5,7 @@ interface BridgeContextType {
   useWithoutBridge: boolean;
   setUseWithoutBridge: (value: boolean) => void;
   sendSlideCommand: (direction: 'next' | 'prev') => void;
+  currentSlide: number | null;
 }
 
 const BridgeContext = createContext<BridgeContextType | undefined>(undefined);
@@ -13,6 +14,7 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const wsRef = useRef<WebSocket | null>(null);
   const [isBridgeConnected, setIsBridgeConnected] = useState(false);
   const [useWithoutBridge, setUseWithoutBridge] = useState(false);
+  const [currentSlide, setCurrentSlide] = useState<number | null>(null);
 
   useEffect(() => {
     let socket: WebSocket | null = null;
@@ -27,6 +29,33 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         socket.onopen = () => {
           console.log('ActiveDeck: WebSocket connection established.');
           setIsBridgeConnected(true);
+        };
+
+        socket.onmessage = (event) => {
+          const messageData = event.data;
+          console.log('ActiveDeck: WebSocket message received:', messageData, 'Type:', typeof messageData);
+          
+          // Handle string format 'SLIDE:X' (case-insensitive)
+          const upperMessage = typeof messageData === 'string' ? messageData.toUpperCase() : '';
+          if (upperMessage.startsWith('SLIDE:')) {
+            const slideNum = parseInt(upperMessage.split(':')[1], 10);
+            if (!isNaN(slideNum)) {
+              console.log('ActiveDeck: Parsed slide number:', slideNum);
+              setCurrentSlide(slideNum);
+              return;
+            }
+          }
+
+          // Fallback to JSON format if needed
+          try {
+            const data = JSON.parse(messageData);
+            if (data.type === 'SLIDE_UPDATE' && typeof data.slide === 'number') {
+              console.log('ActiveDeck: Slide update received (JSON):', data.slide);
+              setCurrentSlide(data.slide);
+            }
+          } catch (err) {
+            // Ignore non-JSON messages that aren't SLIDE: format
+          }
         };
 
         socket.onclose = () => {
@@ -75,7 +104,8 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       isBridgeConnected, 
       useWithoutBridge, 
       setUseWithoutBridge, 
-      sendSlideCommand 
+      sendSlideCommand,
+      currentSlide
     }}>
       {children}
     </BridgeContext.Provider>

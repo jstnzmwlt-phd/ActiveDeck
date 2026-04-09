@@ -80,7 +80,8 @@ function AppContent() {
             presenterId: user.uid,
             embedUrl: '',
             createdAt: serverTimestamp(),
-            allowAnonymousChat: false
+            allowAnonymousChat: false,
+            hideComments: false
           });
           
           console.log('AppContent - New presentation created:', docRef.id);
@@ -92,8 +93,12 @@ function AppContent() {
           
           unsubscribe = onSnapshot(docRef, (docSnap) => {
             if (docSnap.exists()) {
-              setPresentation({ id: docSnap.id, ...docSnap.data() } as Presentation);
+              const data = docSnap.data();
+              console.log('AppContent - New presentation snapshot received:', docSnap.id, data);
+              setPresentation({ id: docSnap.id, ...data } as Presentation);
             }
+          }, (error) => {
+            console.error("AppContent - New presentation snapshot error:", error);
           });
         } catch (error) {
           console.error("AppContent - Error creating presentation:", error);
