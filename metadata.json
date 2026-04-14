@@ -2,9 +2,9 @@
   "name": "ActiveDeck",
   "description": "A real-time interactive presentation platform with side-by-side PowerPoint viewing and audience chat.",
   "requestFramePermissions": [
-    "display-capture",
-    "screen-wake-lock",
-    "wake-lock",
-    "fullscreen"
+    "camera",
+    "microphone",
+    "geolocation",
+    "display-capture"
   ]
 }
