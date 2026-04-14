@@ -22,10 +22,19 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation }) =>
   const startCapture = () => {
     setError(null);
     navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
-      .then((mediaStream) => {
+      .then(async (mediaStream) => {
         setError(null);
         setStream(mediaStream);
         setIsCapturing(true);
+
+        // Automatically go into full screen mode
+        try {
+          if (!document.fullscreenElement) {
+            await document.documentElement.requestFullscreen();
+          }
+        } catch (fullscreenErr) {
+          console.error("ActiveDeck: Error attempting to enable full-screen mode:", fullscreenErr);
+        }
 
         mediaStream.getVideoTracks()[0].onended = () => {
           stopCapture();
@@ -64,10 +73,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation }) =>
     <div className="flex flex-col h-full bg-black relative group">
       {/* Slide Indicator - Matches Chat Badge Style (OSU Orange) */}
       {(currentSlide !== null || presentation?.currentSlide !== undefined) && (
-        <div className="absolute top-4 right-4 z-[70] pointer-events-none">
-          <div className="bg-[#ff3e00] text-white px-3 py-1.5 rounded-full border-2 border-white shadow-[0_2px_8px_rgba(255,62,0,0.4)] flex items-center gap-1.5 animate-in fade-in slide-in-from-right-4 duration-500">
-            <span className="text-[11px] font-normal uppercase tracking-wider">Slide</span>
-            <span className="text-lg font-bold leading-none">
+        <div className="absolute top-2 right-2 z-[70] pointer-events-none">
+          <div className="bg-[#ff3e00]/90 text-white px-2 py-1 rounded-lg border border-white/20 shadow-lg flex items-center gap-1 animate-in fade-in slide-in-from-right-2 duration-500">
+            <span className="text-[9px] font-black uppercase tracking-wider opacity-80">Slide</span>
+            <span className="text-sm font-black">
               {currentSlide !== null ? currentSlide : presentation?.currentSlide}
             </span>
           </div>
@@ -303,23 +312,23 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation }) =>
 
       {/* Professional Remote Control Overlay - Only shown when bridge is connected */}
       {isBridgeConnected && (
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 p-2 bg-slate-900/80 backdrop-blur-md rounded-2xl border border-slate-700/50 shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 translate-y-4 group-hover:translate-y-0 z-50">
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-2 p-1.5 bg-slate-900/60 backdrop-blur-md rounded-xl border border-slate-700/30 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 translate-y-2 group-hover:translate-y-0 z-50">
           <button
             onClick={() => handleSlideMove('prev')}
-            className="flex items-center justify-center w-14 h-14 bg-slate-800 hover:bg-slate-700 text-white rounded-xl transition-all active:scale-95 border border-slate-700 group/btn"
+            className="flex items-center justify-center w-10 h-10 bg-slate-800/80 hover:bg-slate-700 text-white rounded-lg transition-all active:scale-95 border border-slate-700/50 group/btn"
             title="Previous Slide"
           >
-            <ChevronLeft className="w-8 h-8 group-hover/btn:-translate-x-0.5 transition-transform" />
+            <ChevronLeft className="w-6 h-6 group-hover/btn:-translate-x-0.5 transition-transform" />
           </button>
           
-          <div className="w-px h-8 bg-slate-700 mx-1" />
+          <div className="w-px h-6 bg-slate-700/50 mx-0.5" />
 
           <button
             onClick={() => handleSlideMove('next')}
-            className="flex items-center justify-center w-14 h-14 bg-osu-orange hover:bg-[#c03900] text-white rounded-xl transition-all active:scale-95 border border-orange-600 group/btn shadow-[0_0_15px_rgba(255,62,0,0.3)]"
+            className="flex items-center justify-center w-10 h-10 bg-osu-orange/90 hover:bg-osu-orange text-white rounded-lg transition-all active:scale-95 border border-orange-600/50 group/btn shadow-lg"
             title="Next Slide"
           >
-            <ChevronRight className="w-8 h-8 group-hover/btn:translate-x-0.5 transition-transform" />
+            <ChevronRight className="w-6 h-6 group-hover/btn:translate-x-0.5 transition-transform" />
           </button>
         </div>
       )}
