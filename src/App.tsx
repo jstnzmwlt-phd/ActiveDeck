@@ -6,7 +6,7 @@ import { Header } from './components/Header';
 import { Presentation } from './types';
 import { db } from './firebase';
 import { collection, query, orderBy, limit, onSnapshot, doc, addDoc, serverTimestamp } from 'firebase/firestore';
-import { LogIn, Presentation as PresentationIcon, Loader2, AlertCircle } from 'lucide-react';
+import { Presentation as PresentationIcon, Loader2, AlertCircle } from 'lucide-react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { BridgeProvider } from './contexts/BridgeContext';
 
@@ -19,7 +19,7 @@ window.onerror = (msg, url, lineNo, columnNo, error) => {
 };
 
 function AppContent() {
-  const { user, loading: authLoading, signInWithGoogle } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [presentation, setPresentation] = useState<Presentation | null>(null);
   const [appError, setAppError] = useState<string | null>(null);
 

@@ -152,7 +152,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation }) =>
                       <div className="space-y-2">
                         <div className="flex gap-2.5">
                           <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">1</div>
-                          <p className="text-xs text-slate-600 leading-relaxed">Download and run <span className="font-bold">ActiveDeck Bridge (.exe)</span>.</p>
+                          <p className="text-xs text-slate-600 leading-relaxed">Download and run <span className="font-bold">ActiveDeck Bridge (.zip)</span>.</p>
                         </div>
                         <div className="flex gap-2.5">
                           <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">2</div>
@@ -169,7 +169,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation }) =>
                       {!isBridgeConnected ? (
                         <>
                           <a 
-                            href="https://github.com/jstnzmwlt-phd/ActiveDeck/releases/download/v1.0.0/activedeck_bridge.exe"
+                            href="https://github.com/jstnzmwlt-phd/ActiveDeck/releases/download/v1.0.0/ActiveBridge.Sync.zip"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center justify-center gap-2.5 w-full py-3 bg-osu-orange hover:bg-[#c03900] text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg shadow-orange-500/20 text-sm"
@@ -204,7 +204,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation }) =>
                       <div className="space-y-2">
                         <div className="flex gap-2.5">
                           <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">1</div>
-                          <p className="text-xs text-slate-600 leading-relaxed">Download and run <span className="font-bold">ActiveDeck Bridge (.exe)</span>.</p>
+                          <p className="text-xs text-slate-600 leading-relaxed">Download and run <span className="font-bold">ActiveDeck Bridge (.zip)</span>.</p>
                         </div>
                         <div className="flex gap-2.5">
                           <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">2</div>
@@ -225,7 +225,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation }) =>
                       {!isBridgeConnected ? (
                         <>
                           <a 
-                            href="https://github.com/jstnzmwlt-phd/ActiveDeck/releases/download/v1.0.0/activedeck_bridge.exe"
+                            href="https://github.com/jstnzmwlt-phd/ActiveDeck/releases/download/v1.0.0/ActiveBridge.Sync.zip"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center justify-center gap-2.5 w-full py-3 bg-osu-orange hover:bg-[#c03900] text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg shadow-orange-500/20 text-sm"

@@ -4,7 +4,7 @@ import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, getDoc
 import { Message, Presentation, Poll, WordCloud } from '../types';
 import { useAuth } from './AuthProvider';
 import { useBridge } from '../contexts/BridgeContext';
-import { Send, HelpCircle, MessageSquare, Trash2, LogIn, LogOut, ThumbsUp, Download, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud, Eye, EyeOff, Timer, Users, ChevronDown, ChevronUp } from 'lucide-react';
+import { Send, HelpCircle, MessageSquare, Trash2, ThumbsUp, Download, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud, Eye, EyeOff, Timer, Users, ChevronDown, ChevronUp } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { QRCodeSVG } from 'qrcode.react';
@@ -554,11 +554,10 @@ interface ChatSidebarProps {
 export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, presentation = null }) => {
   const { user } = useAuth();
   const { currentSlide } = useBridge();
-  const isPresenter = user?.uid === presentation?.presenterId;
-  const canModerate = isPresenter; // Only the actual presenter can moderate presentation settings
-  const canModerateChat = isPresenter || !isChatOnly; // Presenter or anyone in the main view can moderate chat items (delete messages, etc.)
+  const canModerate = !isChatOnly; // Only the person in the main view (presenter) can moderate
+  const canModerateChat = !isChatOnly; // Only the person in the main view can moderate chat
 
-  console.log('ChatSidebar Render - User:', user?.email || 'Guest', 'isPresenter:', isPresenter);
+  console.log('ChatSidebar Render - User:', user?.email || 'Guest');
   const [messages, setMessages] = useState<Message[]>([]);
   const [polls, setPolls] = useState<Poll[]>([]);
   const [wordClouds, setWordClouds] = useState<WordCloud[]>([]);
@@ -585,15 +584,15 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [isPostingAnonymously, setIsPostingAnonymously] = useState(false);
   const [shortUrl, setShortUrl] = useState('');
 
-  // Sync bridge slide to Firestore if user is presenter
-  useEffect(() => {
-    if (isPresenter && presentation?.id && currentSlide !== null) {
-      console.log('ChatSidebar: Syncing bridge slide to Firestore:', currentSlide);
-      updateDoc(doc(db, 'presentations', presentation.id), {
-        currentSlide: currentSlide
-      }).catch(err => console.error('Failed to sync slide to Firestore:', err));
-    }
-  }, [currentSlide, isPresenter, presentation?.id]);
+      // Sync bridge slide to Firestore (Only if in main view)
+      useEffect(() => {
+        if (!isChatOnly && presentation?.id && currentSlide !== null) {
+          console.log('ChatSidebar: Syncing bridge slide to Firestore:', currentSlide);
+          updateDoc(doc(db, 'presentations', presentation.id), {
+            currentSlide: currentSlide
+          }).catch(err => console.error('Failed to sync slide to Firestore:', err));
+        }
+      }, [currentSlide, presentation?.id, isChatOnly]);
 
   // Construct chat-only URL for QR code
   const baseUrl = window.location.origin + window.location.pathname;
