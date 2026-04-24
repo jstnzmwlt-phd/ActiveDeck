@@ -6,9 +6,10 @@ import { useBridge } from '../contexts/BridgeContext';
 
 interface PresenterAreaProps {
   presentation: Presentation | null;
+  logoUrl?: string;
 }
 
-export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation }) => {
+export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logoUrl }) => {
   const { currentSlide, sendSlideCommand, isBridgeConnected, useWithoutBridge, setUseWithoutBridge } = useBridge();
   const [activeTab, setActiveTab] = useState<'single' | 'dual' | 'manual'>('single');
   const [isCapturing, setIsCapturing] = useState(false);
@@ -91,6 +92,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation }) =>
           error={error} 
           onStart={startCapture} 
           onStop={stopCapture} 
+          logoUrl={logoUrl}
         />
         
         {/* Setup Bridge Card - Shown when not capturing and no error */}

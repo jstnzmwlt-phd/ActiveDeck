@@ -7,6 +7,7 @@ interface ScreenCaptureProps {
   error: string | null;
   onStart: () => void;
   onStop: () => void;
+  logoUrl?: string;
 }
 
 export const ScreenCapture: React.FC<ScreenCaptureProps> = ({ 
@@ -14,7 +15,8 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
   stream, 
   error, 
   onStart, 
-  onStop 
+  onStop,
+  logoUrl
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -37,8 +39,8 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
         {!isCapturing && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-10 z-0">
             <img 
-              src="https://a.espncdn.com/i/teamlogos/ncaa/500/197.png" 
-              alt="OSU Logo Watermark" 
+              src={logoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png"} 
+              alt="Logo Watermark" 
               className="w-2/3 max-w-2xl object-contain" 
               referrerPolicy="no-referrer" 
             />

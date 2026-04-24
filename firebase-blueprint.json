@@ -1,5 +1,32 @@
 {
   "entities": {
+    "Settings": {
+      "title": "Global Settings",
+      "description": "Global application settings including theme.",
+      "type": "object",
+      "properties": {
+        "theme": { "$ref": "Theme" }
+      }
+    },
+    "Theme": {
+      "title": "Theme",
+      "description": "Theme configuration.",
+      "type": "object",
+      "properties": {
+        "primaryColor": { "type": "string" },
+        "secondaryColor": { "type": "string" },
+        "logoUrl": { "type": "string" }
+      }
+    },
+    "SavedTheme": {
+      "title": "Saved Theme",
+      "description": "A saved theme configuration.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "theme": { "$ref": "Theme" }
+      }
+    },
     "Presentation": {
       "title": "Presentation",
       "description": "A presentation document with an embed URL.",
@@ -25,6 +52,15 @@
         "hideComments": {
           "type": "boolean",
           "description": "Whether comments are hidden from the audience."
+        },
+        "theme": {
+          "type": "object",
+          "properties": {
+            "primaryColor": { "type": "string" },
+            "secondaryColor": { "type": "string" },
+            "logoUrl": { "type": "string" }
+          },
+          "description": "Custom theme configuration for the presentation."
         }
       },
       "required": ["embedUrl", "presenterId", "createdAt"]
@@ -150,6 +186,14 @@
     "/polls/{pollId}": {
       "schema": "Poll",
       "description": "Collection of polls."
+    },
+    "/settings/global": {
+      "schema": "Settings",
+      "description": "Global settings document."
+    },
+    "/savedThemes/{themeId}": {
+      "schema": "SavedTheme",
+      "description": "Collection of saved themes."
     },
     "/participants/{participantId}": {
       "schema": "Participant",

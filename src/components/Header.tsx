@@ -147,10 +147,23 @@ export const Header: React.FC = () => {
         </div>
 
         {/* Centered ActiveDeck Logo */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <h1 className="text-xl font-black tracking-tight text-slate-800">
-            Active<span className="text-osu-orange">Deck</span>
-          </h1>
+        <div className="absolute inset-0 flex items-center justify-center">
+            <h1 
+              className="text-xl font-black tracking-tight text-slate-800 cursor-pointer hover:opacity-80 transition-opacity"
+              onClick={() => {
+                console.log('Header - Admin click');
+                const password = prompt('Enter Admin Password:');
+                if (password === '@dm1N') {
+                  console.log('Header - Password correct, setting hash');
+                  window.location.href = window.location.origin + window.location.pathname + '#admin';
+                  window.dispatchEvent(new Event('hashchange'));
+                } else if (password !== null) {
+                  alert('Invalid password');
+                }
+              }}
+            >
+              Active<span className="text-osu-orange">Deck</span>
+            </h1>
         </div>
 
         <div className="flex items-center gap-4 z-10">

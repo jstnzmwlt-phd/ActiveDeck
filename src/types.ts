@@ -1,5 +1,21 @@
 import { Timestamp } from 'firebase/firestore';
 
+export interface Theme {
+  primaryColor: string;
+  secondaryColor: string;
+  logoUrl: string;
+}
+
+export interface SavedTheme {
+  id: string;
+  name: string;
+  theme: Theme;
+}
+
+export interface GlobalSettings {
+  theme: Theme;
+}
+
 export interface Presentation {
   id: string;
   embedUrl: string;
@@ -8,6 +24,7 @@ export interface Presentation {
   allowAnonymousChat?: boolean;
   hideComments?: boolean;
   currentSlide?: number;
+  theme?: Theme;
 }
 
 export interface Message {

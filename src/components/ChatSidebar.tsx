@@ -549,9 +549,10 @@ const MessageCard: React.FC<MessageCardProps> = ({ msg, user, canModerate, onLik
 interface ChatSidebarProps {
   isChatOnly?: boolean;
   presentation?: Presentation | null;
+  logoUrl?: string;
 }
 
-export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, presentation = null }) => {
+export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, presentation = null, logoUrl }) => {
   const { user } = useAuth();
   const { currentSlide } = useBridge();
   const canModerate = !isChatOnly; // Only the person in the main view (presenter) can moderate
@@ -622,9 +623,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       try {
         await getDocFromServer(doc(db, 'test', 'connection'));
       } catch (error) {
-        if(error instanceof Error && error.message.includes('the client is offline')) {
-          console.error("Please check your Firebase configuration. ");
-        }
+        // Silently fail connection test
       }
     };
     testConnection();
@@ -1273,8 +1272,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         {/* OSU Logo Watermark */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-10 z-0">
           <img 
-            src="https://a.espncdn.com/i/teamlogos/ncaa/500/197.png" 
-            alt="OSU Logo Watermark" 
+            src={logoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png"} 
+            alt="Logo Watermark" 
             className="w-3/4 object-contain" 
             referrerPolicy="no-referrer" 
           />

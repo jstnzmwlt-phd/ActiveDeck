@@ -58,31 +58,45 @@ service cloud.firestore {
 
     // Match Rules
     match /presentations/{presentationId} {
-      allow read: if true; // Publicly readable for the audience
+      allow get, list: if true;
       allow create: if isAuthenticated() && isValidPresentation(request.resource.data) && request.resource.data.presenterId == request.auth.uid;
       allow update: if isAuthenticated() && (isOwner(resource.data.presenterId) || isAdmin()) && isValidPresentation(request.resource.data);
       allow delete: if isAuthenticated() && (isOwner(resource.data.presenterId) || isAdmin());
     }
 
     match /messages/{messageId} {
-      allow read: if true; // Publicly readable for the audience
+      allow get, list: if true;
       allow create: if isAuthenticated() && isValidMessage(request.resource.data);
       allow update: if isAuthenticated() && isValidLikeUpdate();
       allow delete: if isAuthenticated() && (request.auth.uid == resource.data.userId || request.auth.uid == resource.data.presenterId);
     }
 
     match /polls/{pollId} {
-      allow read: if true;
+      allow get, list: if true;
       allow create: if isAuthenticated();
       allow update: if isAuthenticated();
       allow delete: if isAuthenticated() && (isOwner(get(/databases/$(database)/documents/presentations/$(resource.data.presentationId)).data.presenterId) || isAdmin());
     }
 
     match /wordClouds/{cloudId} {
-      allow read: if true;
+      allow get, list: if true;
       allow create: if isAuthenticated();
       allow update: if isAuthenticated();
       allow delete: if isAuthenticated() && (isOwner(get(/databases/$(database)/documents/presentations/$(resource.data.presentationId)).data.presenterId) || isAdmin());
+    }
+
+    match /settings/{docId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /savedThemes/{docId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /test/{docId} {
+      allow read, write: if true;
     }
 
     match /questions/{questionId} {

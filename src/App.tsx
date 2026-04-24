@@ -3,12 +3,13 @@ import { AuthProvider, useAuth } from './components/AuthProvider';
 import { PresenterArea } from './components/PresenterArea';
 import { ChatSidebar } from './components/ChatSidebar';
 import { Header } from './components/Header';
-import { Presentation } from './types';
+import { Presentation, GlobalSettings } from './types';
 import { db } from './firebase';
 import { collection, query, orderBy, limit, onSnapshot, doc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { Presentation as PresentationIcon, Loader2, AlertCircle } from 'lucide-react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { BridgeProvider } from './contexts/BridgeContext';
+import { AdminPortal } from './components/AdminPortal';
 
 console.log('App.tsx - Module loaded');
 
@@ -22,6 +23,16 @@ function AppContent() {
   const { user, loading: authLoading } = useAuth();
   const [presentation, setPresentation] = useState<Presentation | null>(null);
   const [appError, setAppError] = useState<string | null>(null);
+  const [hash, setHash] = useState(window.location.hash);
+
+  useEffect(() => {
+    const onHashChange = () => {
+      console.log('AppContent - Hash changed to:', window.location.hash);
+      setHash(window.location.hash);
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
 
   // Global error handler update to show on screen
   useEffect(() => {
@@ -31,6 +42,20 @@ function AppContent() {
     };
     window.onerror = handleError;
     return () => { window.onerror = null; };
+  }, []);
+
+  const [settings, setSettings] = useState<GlobalSettings | null>(null);
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'settings', 'global'), (docSnap) => {
+        if (docSnap.exists()) {
+           const settingsData = docSnap.data() as GlobalSettings;
+           setSettings(settingsData);
+           document.documentElement.style.setProperty('--color-osu-orange', settingsData.theme.primaryColor);
+           document.documentElement.style.setProperty('--color-osu-black', settingsData.theme.secondaryColor);
+        }
+    });
+    return () => unsub();
   }, []);
 
   // Check for view parameter
@@ -148,6 +173,10 @@ function AppContent() {
     );
   }
 
+  if (hash === '#admin') {
+    return <AdminPortal />;
+  }
+
   console.log('AppContent - Rendering Main State. isChatOnly:', isChatOnly);
 
   // Chat-only view for audience members who scanned the QR code
@@ -166,12 +195,12 @@ function AppContent() {
       <div className="flex flex-row flex-1 p-6 gap-6 bg-slate-100">
         {/* Presenter View (Flexible, but takes most space) */}
         <div className="flex-1 h-full min-w-0 rounded-xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.24)] border border-slate-300 bg-black">
-          <PresenterArea presentation={presentation} />
+          <PresenterArea presentation={presentation} logoUrl={settings?.theme.logoUrl} />
         </div>
 
         {/* Audience Chat (Fixed width sidebar) */}
         <div className="w-[350px] h-full flex-shrink-0 rounded-xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.24)] border-2 border-osu-orange bg-white">
-          <ChatSidebar presentation={presentation} />
+          <ChatSidebar presentation={presentation} logoUrl={settings?.theme.logoUrl} />
         </div>
       </div>
     </div>
