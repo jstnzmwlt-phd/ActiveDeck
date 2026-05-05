@@ -84,9 +84,9 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
   const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : initialCollapsed);
   const responsesData = q.responses || {};
   const isDraft = q.started === false || (!q.started && !q.active && Object.values(q.responses || {}).length === 0);
-  const showComments = canModerate || !!q.showResults;
+  const showResults = !!q.showResults;
   const myResponse = user ? responsesData[user.uid] : null;
-  const responsesToRender = showComments ? Object.values(responsesData) : (myResponse ? [myResponse] : []);
+  const totalResponses = Object.values(responsesData).length;
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
 
   useEffect(() => {
@@ -118,8 +118,6 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
     onSubmit(q.id, response.trim());
     setResponse('');
   };
-
-
 
   return (
     <div className="p-4 rounded-xl border-2 border-green-500 bg-white shadow-lg animate-in zoom-in-95 duration-200">
@@ -156,6 +154,7 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
                 <button 
                   onClick={() => onToggleResults(q.id, !!q.showResults)}                
                   className={`p-1 ${q.showResults ? 'text-green-500' : 'text-slate-400'} hover:text-green-500`}
+                  title={q.showResults ? "Hide Results from Audience" : "Show Results to Audience"}
                 >
                   {q.showResults ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                 </button>
@@ -221,19 +220,26 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
                 </form>
               ) : null}
               
-              {showComments ? (
+              {showResults ? (
                 <div className="mt-4 space-y-2">
-                  {responsesToRender.map((r, i) => (
+                  {Object.values(responsesData).map((r, i) => (
                     <div key={i} className="p-2 bg-slate-50 text-sm rounded shadow-sm text-slate-700">
                       {r}
                     </div>
                   ))}
-                  {responsesToRender.length === 0 && <span className="text-xs text-slate-400 italic">No responses yet.</span>}
+                  {totalResponses === 0 && <span className="text-xs text-slate-400 italic">No responses yet.</span>}
                 </div>
               ) : (
-                  <div className="mt-4 p-2 bg-slate-100 text-slate-500 text-xs rounded text-center italic">
-                      Responses are hidden
+                <div className="mt-4 space-y-3">
+                  {myResponse && !canModerate && (
+                    <div className="p-2 bg-green-50 border border-green-100 text-sm rounded shadow-sm text-slate-700">
+                      <span className="font-bold text-green-600">Your response:</span> {myResponse}
+                    </div>
+                  )}
+                  <div className="p-3 bg-slate-100 text-slate-500 text-xs rounded-lg text-center italic border border-slate-200">
+                      {canModerate ? `Responses are currently hidden from audience (${totalResponses} received)` : "Results will be revealed by the presenter"}
                   </div>
+                </div>
               )}
             </>
           )}
