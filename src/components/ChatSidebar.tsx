@@ -77,9 +77,10 @@ interface OpenEndedQuestionCardProps {
   onAdjustDuration: (id: string, duration: number) => void;
   initialCollapsed?: boolean;
   isInitiallyNew?: boolean;
+  secondaryColor?: string;
 }
 
-const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, canModerate, onClose, onDelete, onStart, onSubmit, onToggleResults, onAdjustDuration, initialCollapsed = false, isInitiallyNew = false }) => {
+const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, canModerate, onClose, onDelete, onStart, onSubmit, onToggleResults, onAdjustDuration, initialCollapsed = false, isInitiallyNew = false, secondaryColor }) => {
   const [response, setResponse] = useState('');
   const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : initialCollapsed);
   const responsesData = q.responses || {};
@@ -237,7 +238,11 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
                     </div>
                   )}
                   <div className="p-3 bg-slate-100 text-slate-500 text-xs rounded-lg text-center italic border border-slate-200">
-                      {canModerate ? `Responses are currently hidden from audience (${totalResponses} received)` : "Results will be revealed by the presenter"}
+                      {canModerate ? (
+                        <>
+                          Responses are currently hidden from audience (<span style={{ color: secondaryColor }} className="font-black transition-colors duration-300">{totalResponses}</span> received)
+                        </>
+                      ) : "Results will be revealed by the presenter"}
                   </div>
                 </div>
               )}
@@ -262,9 +267,10 @@ interface PollCardProps {
   onAdjustDuration: (pollId: string, newDuration: number) => void;
   initialCollapsed?: boolean;
   isInitiallyNew?: boolean;
+  secondaryColor?: string;
 }
 
-const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate, onVote, onToggleResults, onClose, onDelete, onStart, onAdjustDuration, initialCollapsed = false, isInitiallyNew = false }) => {
+const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate, onVote, onToggleResults, onClose, onDelete, onStart, onAdjustDuration, initialCollapsed = false, isInitiallyNew = false, secondaryColor }) => {
   const totalVotes = Object.values(poll.votes || {}).reduce((a, b) => a + b, 0);
   const userVote = user && poll.voters ? poll.voters[user.uid] : null;
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
@@ -445,7 +451,9 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
           
           {!isDraft && (
             <div className="mt-3 pt-3 border-t border-slate-100 flex justify-between items-center">
-              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{totalVotes} Total Votes</span>
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                <span style={{ color: secondaryColor }} className="transition-colors duration-300">{totalVotes}</span> Total Votes
+              </span>
               {!poll.active && <span className="text-[9px] font-bold text-red-500 uppercase tracking-wider">Final Results</span>}
             </div>
           )}
@@ -467,9 +475,10 @@ interface WordCloudCardProps {
   onStart: (cloudId: string) => void;
   initialCollapsed?: boolean;
   isInitiallyNew?: boolean;
+  secondaryColor?: string;
 }
 
-const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, canModerate, onSubmit, onToggleResults, onClose, onDelete, onStart, initialCollapsed = false, isInitiallyNew = false }) => {
+const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, canModerate, onSubmit, onToggleResults, onClose, onDelete, onStart, initialCollapsed = false, isInitiallyNew = false, secondaryColor }) => {
   const [word, setWord] = useState('');
   const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : initialCollapsed);
 
@@ -617,7 +626,9 @@ const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, 
           
           {!isDraft && (
             <div className="mt-3 pt-3 border-t border-slate-100 flex justify-between items-center">
-              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{totalWords} Total Submissions</span>
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                <span style={{ color: secondaryColor }} className="transition-colors duration-300">{totalWords}</span> Total Submissions
+              </span>
               {!cloud.active && <span className="text-[9px] font-bold text-red-500 uppercase tracking-wider">Final Results</span>}
             </div>
           )}
@@ -747,6 +758,7 @@ interface ChatSidebarProps {
 
 export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, presentation = null, logoUrl }) => {
   const [internalLogoUrl, setInternalLogoUrl] = useState<string | undefined | null>(null);
+  const [secondaryColor, setSecondaryColor] = useState<string>('#ff3e00');
 
   useEffect(() => {
     if (logoUrl !== undefined) {
@@ -756,6 +768,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         if (docSnap.exists()) {
           const data = docSnap.data() as GlobalSettings;
           setInternalLogoUrl(data.theme.logoUrl);
+          if (data.theme.secondaryColor) {
+            setSecondaryColor(data.theme.secondaryColor);
+          }
         } else {
           setInternalLogoUrl(undefined);
         }
@@ -799,6 +814,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         showResults: false,
         active: false,
         createdAt: serverTimestamp(),
+        slide: currentSlide !== null ? currentSlide : (presentation.currentSlide || 0)
       });
       setShowOpenEndedQuestionModal(false);
       setOpenEndedQuestionPrompt('');
@@ -1100,7 +1116,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     const combinedItems = [
       ...messages.map(m => ({ ...m, type: 'message' as const })),
       ...polls.map(p => ({ ...p, type: 'poll' as const })),
-      ...wordClouds.map(w => ({ ...w, type: 'wordCloud' as const }))
+      ...wordClouds.map(w => ({ ...w, type: 'wordCloud' as const })),
+      ...openEndedQuestions.map(q => ({ ...q, type: 'openEnded' as const }))
     ].sort((a, b) => {
       const timeA = ((a as any).timestamp || (a as any).createdAt)?.toMillis() || 0;
       const timeB = ((b as any).timestamp || (b as any).createdAt)?.toMillis() || 0;
@@ -1123,10 +1140,11 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         const dateObj = p.createdAt?.toDate();
         const dateStr = dateObj ? dateObj.toLocaleDateString() : '';
         const timeStr = dateObj ? dateObj.toLocaleTimeString() : '';
+        const slideStr = p.slide !== undefined ? ` [Slide ${p.slide}]` : '';
         const totalVotes = Object.values(p.votes).reduce((a, b) => a + b, 0);
         
         let pollHtml = `<div style="margin-bottom: 24px; padding: 12px; border: 2px solid #ff3e00; background-color: #fff5f2; border-radius: 8px;">`;
-        pollHtml += `<p style="margin-top: 0;"><b>[POLL RESULTS]</b> ${dateStr}, ${timeStr}</p>`;
+        pollHtml += `<p style="margin-top: 0;"><b>[MCQ RESULTS]</b> ${dateStr}, ${timeStr}${slideStr}</p>`;
         pollHtml += `<ul style="list-style-type: none; padding-left: 0;">`;
         p.options.forEach(opt => {
           const count = p.votes[opt] || 0;
@@ -1137,15 +1155,16 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         pollHtml += `<p style="margin-bottom: 0; font-size: 11px;">Total Votes: ${totalVotes}</p>`;
         pollHtml += `</div>`;
         return pollHtml;
-      } else {
+      } else if (item.type === 'wordCloud') {
         const w = item as WordCloud;
         const dateObj = w.createdAt?.toDate();
         const dateStr = dateObj ? dateObj.toLocaleDateString() : '';
         const timeStr = dateObj ? dateObj.toLocaleTimeString() : '';
+        const slideStr = w.slide !== undefined ? ` [Slide ${w.slide}]` : '';
         const totalWords = Object.values(w.words || {}).reduce((a, b) => a + b, 0);
         
         let wcHtml = `<div style="margin-bottom: 24px; padding: 12px; border: 2px solid #3b82f6; background-color: #eff6ff; border-radius: 8px;">`;
-        wcHtml += `<p style="margin-top: 0;"><b>[WORD CLOUD]</b> ${dateStr}, ${timeStr}</p>`;
+        wcHtml += `<p style="margin-top: 0;"><b>[WORD CLOUD]</b> ${dateStr}, ${timeStr}${slideStr}</p>`;
         wcHtml += `<p style="margin-bottom: 8px;"><b>Prompt:</b> ${w.prompt}</p>`;
         wcHtml += `<ul style="list-style-type: none; padding-left: 0;">`;
         Object.entries(w.words || {}).forEach(([word, count]) => {
@@ -1155,6 +1174,25 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         wcHtml += `<p style="margin-bottom: 0; font-size: 11px;">Total Submissions: ${totalWords}</p>`;
         wcHtml += `</div>`;
         return wcHtml;
+      } else {
+        const q = item as OpenEndedQuestion;
+        const dateObj = q.createdAt?.toDate();
+        const dateStr = dateObj ? dateObj.toLocaleDateString() : '';
+        const timeStr = dateObj ? dateObj.toLocaleTimeString() : '';
+        const slideStr = q.slide !== undefined ? ` [Slide ${q.slide}]` : '';
+        const totalResponses = Object.values(q.responses || {}).length;
+        
+        let qHtml = `<div style="margin-bottom: 24px; padding: 12px; border: 2px solid #10b981; background-color: #f0fdf4; border-radius: 8px;">`;
+        qHtml += `<p style="margin-top: 0;"><b>[OPEN ? RESULTS]</b> ${dateStr}, ${timeStr}${slideStr}</p>`;
+        qHtml += `<p style="margin-bottom: 8px;"><b>Question:</b> ${q.prompt}</p>`;
+        qHtml += `<ul style="list-style-type: none; padding-left: 0;">`;
+        Object.values(q.responses || {}).forEach(response => {
+          qHtml += `<li style="margin-bottom: 8px; font-style: italic;">"${response}"</li>`;
+        });
+        qHtml += `</ul>`;
+        qHtml += `<p style="margin-bottom: 0; font-size: 11px;">Total Responses: ${totalResponses}</p>`;
+        qHtml += `</div>`;
+        return qHtml;
       }
     }).join('');
     
@@ -1216,7 +1254,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         createdAt: serverTimestamp(),
         active: false,
         started: false,
-        showResults: false
+        showResults: false,
+        slide: currentSlide !== null ? currentSlide : (presentation.currentSlide || 0)
       });
       setShowWordCloudModal(false);
       setWordCloudPrompt('');
@@ -1354,7 +1393,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         duration: pollDuration,
         active: false,
         started: false,
-        showResults: false
+        showResults: false,
+        slide: currentSlide !== null ? currentSlide : (presentation.currentSlide || 0)
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'polls');
@@ -1665,6 +1705,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                     onAdjustDuration={handleAdjustPollDuration}
                     initialCollapsed={isAllCollapsed}
                     isInitiallyNew={isInitiallyNew}
+                    secondaryColor={secondaryColor}
                   />
                 );
               } else if (item.type === 'wordCloud') {
@@ -1686,6 +1727,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                     onSubmit={handleWordCloudSubmit}
                     initialCollapsed={isAllCollapsed}
                     isInitiallyNew={isInitiallyNew}
+                    secondaryColor={secondaryColor}
                   />
                 );
               } else if (item.type === 'openEndedQuestion') {
@@ -1707,6 +1749,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                     onAdjustDuration={handleAdjustOpenEndedDuration}
                     initialCollapsed={isAllCollapsed}
                     isInitiallyNew={isInitiallyNew}
+                    secondaryColor={secondaryColor}
                   />
                 );
               }

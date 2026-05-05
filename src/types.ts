@@ -52,6 +52,7 @@ export interface Poll {
   active: boolean;
   started?: boolean;
   showResults?: boolean;
+  slide?: number;
 }
 
 export interface OpenEndedQuestion {
@@ -65,6 +66,7 @@ export interface OpenEndedQuestion {
   showResults?: boolean;
   expiresAt?: Timestamp;
   duration?: number;
+  slide?: number;
 }
 
 export interface WordCloud {
@@ -77,6 +79,7 @@ export interface WordCloud {
   active: boolean;
   started?: boolean;
   showResults?: boolean;
+  slide?: number;
 }
 
 declare global {
