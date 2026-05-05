@@ -85,6 +85,13 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && (isOwner(get(/databases/$(database)/documents/presentations/$(resource.data.presentationId)).data.presenterId) || isAdmin());
     }
 
+    match /openEndedQuestions/{questionId} {
+      allow get, list: if true;
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated() && (isOwner(get(/databases/$(database)/documents/presentations/$(resource.data.presentationId)).data.presenterId) || isAdmin());
+    }
+
     match /settings/{docId} {
       allow read: if true;
       allow write: if isAuthenticated();

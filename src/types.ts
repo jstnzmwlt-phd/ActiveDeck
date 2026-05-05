@@ -54,6 +54,19 @@ export interface Poll {
   showResults?: boolean;
 }
 
+export interface OpenEndedQuestion {
+  id: string;
+  presentationId: string;
+  prompt: string;
+  responses: Record<string, string>;
+  createdAt: Timestamp;
+  active: boolean;
+  started?: boolean;
+  showResults?: boolean;
+  expiresAt?: Timestamp;
+  duration?: number;
+}
+
 export interface WordCloud {
   id: string;
   presentationId: string;

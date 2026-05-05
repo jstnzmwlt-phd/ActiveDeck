@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { auth, db } from '../firebase';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, getDocFromServer, doc, deleteDoc, updateDoc, arrayUnion, arrayRemove, increment, where, writeBatch, Timestamp, setDoc } from 'firebase/firestore';
-import { Message, Presentation, Poll, WordCloud, GlobalSettings } from '../types';
+import { Message, Presentation, Poll, WordCloud, OpenEndedQuestion, GlobalSettings } from '../types';
 import { useAuth } from './AuthProvider';
 import { useBridge } from '../contexts/BridgeContext';
 import { Send, HelpCircle, MessageSquare, Trash2, ThumbsUp, Download, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud, Eye, EyeOff, Timer, Users, ChevronDown, ChevronUp } from 'lucide-react';
@@ -64,6 +64,184 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   console.error('Firestore Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }
+
+interface OpenEndedQuestionCardProps {
+  q: OpenEndedQuestion;
+  user: any;
+  canModerate: boolean;
+  onClose: (id: string) => void;
+  onDelete: (id: string) => void;
+  onStart: (id: string, duration: number) => void;
+  onSubmit: (id: string, response: string) => void;
+  onToggleResults: (id: string, visible: boolean) => void;
+  onAdjustDuration: (id: string, duration: number) => void;
+  initialCollapsed?: boolean;
+  isInitiallyNew?: boolean;
+}
+
+const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, canModerate, onClose, onDelete, onStart, onSubmit, onToggleResults, onAdjustDuration, initialCollapsed = false, isInitiallyNew = false }) => {
+  const [response, setResponse] = useState('');
+  const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : initialCollapsed);
+  const responsesData = q.responses || {};
+  const isDraft = q.started === false || (!q.started && !q.active && Object.values(q.responses || {}).length === 0);
+  const showComments = canModerate || !!q.showResults;
+  const myResponse = user ? responsesData[user.uid] : null;
+  const responsesToRender = showComments ? Object.values(responsesData) : (myResponse ? [myResponse] : []);
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (q.active && q.expiresAt) {
+      const interval = setInterval(() => {
+        const now = Timestamp.now().seconds;
+        const expiry = q.expiresAt!.seconds;
+        const remaining = expiry - now;
+        if (remaining <= 0) {
+          setTimeLeft(0);
+          clearInterval(interval);
+        } else {
+          setTimeLeft(remaining);
+        }
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [q.active, q.expiresAt]);
+
+  useEffect(() => {
+    if (!isInitiallyNew) {
+      setIsCollapsed(initialCollapsed);
+    }
+  }, [initialCollapsed, isInitiallyNew]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!response.trim()) return;
+    onSubmit(q.id, response.trim());
+    setResponse('');
+  };
+
+
+
+  return (
+    <div className="p-4 rounded-xl border-2 border-green-500 bg-white shadow-lg animate-in zoom-in-95 duration-200">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="p-1 -ml-1 hover:bg-slate-100 rounded transition-colors text-slate-400 hover:text-green-500"
+          >
+            {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+          </button>
+          <MessageSquare className="w-4 h-4 text-green-500" />
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Open Question</span>
+        </div>
+        <div className="flex items-center gap-2">
+          {q.active && timeLeft !== null && (
+            <div className={`flex items-center gap-1 text-xs font-mono font-bold ${timeLeft > 10 ? 'text-slate-500' : 'text-red-500'}`}>
+              <Timer className="w-3 h-3" />
+              <span>Time Left: </span>
+              {Math.floor(timeLeft / 60)}:{Math.floor(timeLeft % 60).toString().padStart(2, '0')}
+            </div>
+          )}
+          {canModerate && (
+            <>
+              {q.active ? (
+                <button onClick={() => onClose(q.id)} className="p-1 text-slate-400 hover:text-red-500" title="Close Question">
+                  <XCircle className="w-4 h-4" />
+                </button>
+              ) : isDraft ? (
+                <span className="text-[8px] font-bold text-green-500 uppercase">Draft</span>
+              ) : (
+                <span className="text-[8px] font-bold text-red-500 uppercase">Closed</span>
+              )}
+                <button 
+                  onClick={() => onToggleResults(q.id, !!q.showResults)}                
+                  className={`p-1 ${q.showResults ? 'text-green-500' : 'text-slate-400'} hover:text-green-500`}
+                >
+                  {q.showResults ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                </button>
+              {isDraft && (
+                <button onClick={() => onDelete(q.id)} className="p-1 text-slate-400 hover:text-red-500" title="Delete Question">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {!isCollapsed && (
+        <>
+          <div className="mb-4">
+            <h4 className="font-bold text-slate-800 text-lg">{q.prompt}</h4>
+          </div>
+
+          {isDraft && canModerate ? (
+            <div className="space-y-4 py-2">
+              <div className="flex flex-col items-center gap-3">
+                <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Set Duration</span>
+                <div className="flex items-center gap-4">
+                  <button 
+                    onClick={() => onAdjustDuration(q.id, Math.max(15, (q.duration || 60) - 15))}
+                    className="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-full text-slate-600 transition-colors"
+                  >
+                    -
+                  </button>
+                  <span className="text-2xl font-black text-slate-800 font-mono w-20 text-center">
+                    {Math.floor((q.duration || 60) / 60)}:{((q.duration || 60) % 60).toString().padStart(2, '0')}
+                  </span>
+                  <button 
+                    onClick={() => onAdjustDuration(q.id, Math.min(180, (q.duration || 60) + 15))}
+                    className="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-full text-slate-600 transition-colors"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+              <button 
+                onClick={() => onStart(q.id, q.duration || 60)}
+                className="w-full py-3 bg-green-500 text-white font-black uppercase tracking-widest rounded-xl hover:bg-green-600 transition-all shadow-lg shadow-green-500/20 active:scale-95"
+              >
+                Start Question Now
+              </button>
+            </div>
+          ) : (
+            <>
+              {q.active && !canModerate ? (
+                <form onSubmit={handleSubmit} className="flex gap-2 mb-2">
+                  <input
+                    type="text"
+                    value={response}
+                    onChange={e => setResponse(e.target.value)}
+                    placeholder="Type your response..."
+                    className="flex-1 px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:border-green-500"
+                  />
+                  <button type="submit" className="px-4 py-2 bg-green-500 text-white rounded-md text-sm font-bold hover:bg-green-600">
+                    Submit
+                  </button>
+                </form>
+              ) : null}
+              
+              {showComments ? (
+                <div className="mt-4 space-y-2">
+                  {responsesToRender.map((r, i) => (
+                    <div key={i} className="p-2 bg-slate-50 text-sm rounded shadow-sm text-slate-700">
+                      {r}
+                    </div>
+                  ))}
+                  {responsesToRender.length === 0 && <span className="text-xs text-slate-400 italic">No responses yet.</span>}
+                </div>
+              ) : (
+                  <div className="mt-4 p-2 bg-slate-100 text-slate-500 text-xs rounded text-center italic">
+                      Responses are hidden
+                  </div>
+              )}
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
 
 interface PollCardProps {
   poll: Poll;
@@ -590,14 +768,38 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [messages, setMessages] = useState<Message[]>([]);
   const [polls, setPolls] = useState<Poll[]>([]);
   const [wordClouds, setWordClouds] = useState<WordCloud[]>([]);
+  const [openEndedQuestions, setOpenEndedQuestions] = useState<OpenEndedQuestion[]>([]);
   const [inputText, setInputText] = useState('');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isAllCollapsed, setIsAllCollapsed] = useState(false);
   const [showWordCloudModal, setShowWordCloudModal] = useState(false);
+  const [showOpenEndedQuestionModal, setShowOpenEndedQuestionModal] = useState(false);
   const [wordCloudPrompt, setWordCloudPrompt] = useState('');
+  const [openEndedQuestionPrompt, setOpenEndedQuestionPrompt] = useState('');
   const [pollDuration, setPollDuration] = useState(60); // Default 60 seconds
   const [participantCount, setParticipantCount] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // ... (some code)
+
+  const handleCreateOpenEndedQuestion = async (customPrompt?: string) => {
+    const promptToUse = customPrompt || openEndedQuestionPrompt.trim();
+    if (!presentation?.id || !canModerate || !promptToUse) return;
+    try {
+      await addDoc(collection(db, 'openEndedQuestions'), {
+        presentationId: presentation.id,
+        prompt: promptToUse,
+        responses: {},
+        showResults: false,
+        active: false,
+        createdAt: serverTimestamp(),
+      });
+      setShowOpenEndedQuestionModal(false);
+      setOpenEndedQuestionPrompt('');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'openEndedQuestions');
+    }
+  };
 
   const [hasJoined, setHasJoined] = useState(() => {
     return localStorage.getItem('activeDeckJoined') === 'true';
@@ -710,6 +912,22 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       handleFirestoreError(error, OperationType.GET, 'wordClouds');
     });
 
+    // Listen to open-ended questions
+    const oeqq = query(
+      collection(db, 'openEndedQuestions'), 
+      where('presentationId', '==', presentation?.id || 'default')
+    );
+    const oeqUnsubscribe = onSnapshot(oeqq, (snapshot) => {
+      const oeqs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data({ serverTimestamps: 'estimate' })
+      })) as OpenEndedQuestion[];
+      oeqs.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
+      setOpenEndedQuestions(oeqs);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'openEndedQuestions');
+    });
+
     // Listen to participant count
     const pq_count = query(
       collection(db, 'participants'),
@@ -725,6 +943,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       unsubscribe();
       pUnsubscribe();
       wcUnsubscribe();
+      oeqUnsubscribe();
       pCountUnsubscribe();
     };
   }, [presentation?.id]);
@@ -1055,6 +1274,68 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     }
   };
 
+  const handleStartOpenEndedQuestion = async (id: string, duration: number) => {
+    if (!canModerate) return;
+    try {
+      const expiresAt = new Date(Date.now() + duration * 1000);
+      await updateDoc(doc(db, 'openEndedQuestions', id), { 
+        active: true, 
+        started: true,
+        expiresAt: Timestamp.fromDate(expiresAt)
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `openEndedQuestions/${id}`);
+    }
+  };
+
+  const handleCloseOpenEndedQuestion = async (id: string) => {
+    if (!canModerate) return;
+    try {
+      await updateDoc(doc(db, 'openEndedQuestions', id), { active: false });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `openEndedQuestions/${id}`);
+    }
+  };
+
+  const handleDeleteOpenEndedQuestion = async (id: string) => {
+    if (!canModerate) return;
+    try {
+      await deleteDoc(doc(db, 'openEndedQuestions', id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `openEndedQuestions/${id}`);
+    }
+  };
+
+  const handleOpenEndedQuestionSubmit = async (id: string, response: string) => {
+    if (!user) return;
+    try {
+      await updateDoc(doc(db, 'openEndedQuestions', id), {
+        [`responses.${user.uid}`]: response
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `openEndedQuestions/${id}`);
+    }
+  };
+
+  const handleAdjustOpenEndedDuration = async (id: string, newDuration: number) => {
+    if (!canModerate) return;
+    try {
+      await updateDoc(doc(db, 'openEndedQuestions', id), { duration: newDuration });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `openEndedQuestions/${id}`);
+    }
+  };
+
+  const handleToggleOpenEndedResults = async (questionId: string, currentShow: boolean) => {
+    if (!canModerate) return;
+    try {
+      await updateDoc(doc(db, 'openEndedQuestions', questionId), { showResults: !currentShow });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `openEndedQuestions/${questionId}`);
+    }
+  };
+
+
   const handleCreatePoll = async () => {
     if (!presentation?.id || !canModerate) return;
     try {
@@ -1267,17 +1548,24 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 <div className="flex items-stretch gap-2">
                   <button 
                     onClick={handleCreatePoll}
-                    className="flex-1 flex flex-col items-center justify-center px-3 py-2 bg-osu-orange text-white rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-[#c03900] transition-all shadow-sm leading-tight"
+                    className="flex-1 flex flex-col items-center justify-center px-1 py-2 bg-osu-orange text-white rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-[#c03900] transition-all shadow-sm leading-tight"
                   >
-                    <span>New</span>
-                    <span>Poll</span>
+                    <BarChart2 className="w-4 h-4 mb-0.5" />
+                    <span>MCQ</span>
                   </button>
                   <button 
                     onClick={() => handleCreateWordCloud('Word Cloud')}
-                    className="flex-1 flex flex-col items-center justify-center px-3 py-2 bg-blue-500 text-white rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-blue-600 transition-all shadow-sm leading-tight"
+                    className="flex-1 flex flex-col items-center justify-center px-1 py-2 bg-blue-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-blue-600 transition-all shadow-sm leading-tight"
                   >
+                    <Cloud className="w-4 h-4 mb-0.5" />
                     <span>Word</span>
-                    <span>Cloud</span>
+                  </button>
+                  <button                
+                      onClick={() => handleCreateOpenEndedQuestion('Open question')}
+                      className="flex-1 flex flex-col items-center justify-center px-1 py-2 bg-green-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-green-600 transition-all shadow-sm leading-tight"
+                  >                
+                    <MessageSquare className="w-4 h-4 mb-0.5" />
+                    <span>Open ?</span>
                   </button>
                 </div>
                 <button 
@@ -1330,7 +1618,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               </p>
             </div>
           )}
-          {messages.length === 0 && polls.length === 0 && wordClouds.length === 0 && !presentation?.hideComments && (
+          {messages.length === 0 && polls.length === 0 && wordClouds.length === 0 && openEndedQuestions.length === 0 && !presentation?.hideComments && (
             <div className="h-full flex flex-col items-center justify-center text-slate-300 opacity-50">
               <MessageSquare className="w-8 h-8 mb-2" />
               <p className="text-xs font-medium">No messages yet</p>
@@ -1340,7 +1628,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           {/* Render Polls, Word Clouds, and Messages interleaved by time */}
           {[...messages.map(m => ({ ...m, type: 'message' as const })), 
             ...polls.map(p => ({ ...p, type: 'poll' as const })),
-            ...wordClouds.map(w => ({ ...w, type: 'wordCloud' as const }))]
+            ...wordClouds.map(w => ({ ...w, type: 'wordCloud' as const })),
+            ...openEndedQuestions.map(q => ({ ...q, type: 'openEndedQuestion' as const }))]
             .sort((a, b) => {
               const timeA = ((a as any).timestamp || (a as any).createdAt)?.toMillis() || 0;
               const timeB = ((b as any).timestamp || (b as any).createdAt)?.toMillis() || 0;
@@ -1389,6 +1678,27 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                     onDelete={handleDeleteWordCloud}
                     onStart={handleStartWordCloud}
                     onSubmit={handleWordCloudSubmit}
+                    initialCollapsed={isAllCollapsed}
+                    isInitiallyNew={isInitiallyNew}
+                  />
+                );
+              } else if (item.type === 'openEndedQuestion') {
+                const q = item as OpenEndedQuestion;
+                // Audience only sees active or closed questions, not drafts
+                if (isChatOnly && !q.active && !q.started) return null;
+
+                return (
+                  <OpenEndedQuestionCard
+                    key={item.id}
+                    q={q}
+                    user={user}
+                    canModerate={canModerateChat}
+                    onClose={handleCloseOpenEndedQuestion}
+                    onDelete={handleDeleteOpenEndedQuestion}
+                    onStart={handleStartOpenEndedQuestion}
+                    onSubmit={handleOpenEndedQuestionSubmit}
+                    onToggleResults={handleToggleOpenEndedResults}
+                    onAdjustDuration={handleAdjustOpenEndedDuration}
                     initialCollapsed={isAllCollapsed}
                     isInitiallyNew={isInitiallyNew}
                   />
@@ -1548,6 +1858,47 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 className="px-4 py-2 text-sm font-bold text-white bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
               >
                 Create Word Cloud
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Open-Ended Question Creation Modal */}
+      {showOpenEndedQuestionModal && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full">
+            <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+              <MessageSquare className="w-5 h-5 text-green-500" />
+              Create Open-Ended Question
+            </h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Prompt / Question</label>
+                <input
+                  type="text"
+                  value={openEndedQuestionPrompt}
+                  onChange={(e) => setOpenEndedQuestionPrompt(e.target.value)}
+                  placeholder="e.g., What are your thoughts on this?"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setShowOpenEndedQuestionModal(false)}
+                className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleCreateOpenEndedQuestion()}
+                disabled={!openEndedQuestionPrompt.trim()}
+                className="px-4 py-2 text-sm font-bold text-white bg-green-500 hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+              >
+                Create Question
               </button>
             </div>
           </div>
