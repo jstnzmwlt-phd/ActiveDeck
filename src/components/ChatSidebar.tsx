@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { auth, db } from '../firebase';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, getDocFromServer, doc, deleteDoc, updateDoc, arrayUnion, arrayRemove, increment, where, writeBatch, Timestamp, setDoc } from 'firebase/firestore';
-import { Message, Presentation, Poll, WordCloud } from '../types';
+import { Message, Presentation, Poll, WordCloud, GlobalSettings } from '../types';
 import { useAuth } from './AuthProvider';
 import { useBridge } from '../contexts/BridgeContext';
 import { Send, HelpCircle, MessageSquare, Trash2, ThumbsUp, Download, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud, Eye, EyeOff, Timer, Users, ChevronDown, ChevronUp } from 'lucide-react';
@@ -77,17 +77,20 @@ interface PollCardProps {
   onStart: (pollId: string, duration: number) => void;
   onAdjustDuration: (pollId: string, newDuration: number) => void;
   initialCollapsed?: boolean;
+  isInitiallyNew?: boolean;
 }
 
-const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate, onVote, onToggleResults, onClose, onDelete, onStart, onAdjustDuration, initialCollapsed = false }) => {
+const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate, onVote, onToggleResults, onClose, onDelete, onStart, onAdjustDuration, initialCollapsed = false, isInitiallyNew = false }) => {
   const totalVotes = Object.values(poll.votes || {}).reduce((a, b) => a + b, 0);
   const userVote = user && poll.voters ? poll.voters[user.uid] : null;
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
-  const [isCollapsed, setIsCollapsed] = useState(initialCollapsed);
+  const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : initialCollapsed);
 
   useEffect(() => {
-    setIsCollapsed(initialCollapsed);
-  }, [initialCollapsed]);
+    if (!isInitiallyNew) {
+      setIsCollapsed(initialCollapsed);
+    }
+  }, [initialCollapsed, isInitiallyNew]);
 
   useEffect(() => {
     if (!poll.active || !poll.expiresAt) {
@@ -279,15 +282,18 @@ interface WordCloudCardProps {
   onDelete: (cloudId: string) => void;
   onStart: (cloudId: string) => void;
   initialCollapsed?: boolean;
+  isInitiallyNew?: boolean;
 }
 
-const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, canModerate, onSubmit, onToggleResults, onClose, onDelete, onStart, initialCollapsed = false }) => {
+const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, canModerate, onSubmit, onToggleResults, onClose, onDelete, onStart, initialCollapsed = false, isInitiallyNew = false }) => {
   const [word, setWord] = useState('');
-  const [isCollapsed, setIsCollapsed] = useState(initialCollapsed);
+  const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : initialCollapsed);
 
   useEffect(() => {
-    setIsCollapsed(initialCollapsed);
-  }, [initialCollapsed]);
+    if (!isInitiallyNew) {
+      setIsCollapsed(initialCollapsed);
+    }
+  }, [initialCollapsed, isInitiallyNew]);
   const hasParticipated = user && cloud.participants ? cloud.participants[user.uid] : false;
   const totalWords = Object.values(cloud.words || {}).reduce((a, b) => a + b, 0);
 
@@ -444,22 +450,25 @@ interface MessageCardProps {
   onLike: (msg: Message) => void;
   onDelete: (msgId: string) => void;
   initialCollapsed?: boolean;
+  isInitiallyNew?: boolean;
 }
 
-const MessageCard: React.FC<MessageCardProps> = ({ msg, user, canModerate, onLike, onDelete, initialCollapsed = false }) => {
-  const [isCollapsed, setIsCollapsed] = useState(initialCollapsed);
+const MessageCard: React.FC<MessageCardProps> = ({ msg, user, canModerate, onLike, onDelete, initialCollapsed = false, isInitiallyNew = false }) => {
+  const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : initialCollapsed);
 
   useEffect(() => {
-    setIsCollapsed(initialCollapsed);
-  }, [initialCollapsed]);
+    if (!isInitiallyNew) {
+      setIsCollapsed(initialCollapsed);
+    }
+  }, [initialCollapsed, isInitiallyNew]);
 
   // Determine if this is a "new" message (within last 10 seconds) to trigger pulsation
-  const isNew = !msg.timestamp || (Date.now() - msg.timestamp.toMillis() < 10000);
+  const isPulsingNew = !msg.timestamp || (Date.now() - msg.timestamp.toMillis() < 10000);
 
   return (
     <motion.div 
-      initial={isNew ? { scale: 1, borderColor: "rgb(254, 215, 170)" } : false}
-      animate={isNew ? { 
+      initial={isPulsingNew ? { scale: 1, borderColor: "rgb(254, 215, 170)" } : false}
+      animate={isPulsingNew ? { 
         scale: [1, 1.04, 1, 1.04, 1],
         borderColor: [
           "rgb(254, 215, 170)", 
@@ -553,6 +562,25 @@ interface ChatSidebarProps {
 }
 
 export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, presentation = null, logoUrl }) => {
+  const [internalLogoUrl, setInternalLogoUrl] = useState<string | undefined | null>(null);
+
+  useEffect(() => {
+    if (logoUrl !== undefined) {
+      setInternalLogoUrl(logoUrl);
+    } else {
+      const unsub = onSnapshot(doc(db, 'settings', 'global'), (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data() as GlobalSettings;
+          setInternalLogoUrl(data.theme.logoUrl);
+        } else {
+          setInternalLogoUrl(undefined);
+        }
+      });
+
+      return () => unsub();
+    }
+  }, [logoUrl]);
+
   const { user } = useAuth();
   const { currentSlide } = useBridge();
   const canModerate = !isChatOnly; // Only the person in the main view (presenter) can moderate
@@ -951,12 +979,13 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     }
   };
 
-  const handleCreateWordCloud = async () => {
-    if (!presentation?.id || !canModerate || !wordCloudPrompt.trim()) return;
+  const handleCreateWordCloud = async (customPrompt?: string) => {
+    const promptToUse = customPrompt || wordCloudPrompt.trim();
+    if (!presentation?.id || !canModerate || !promptToUse) return;
     try {
       await addDoc(collection(db, 'wordClouds'), {
         presentationId: presentation.id,
-        prompt: wordCloudPrompt.trim(),
+        prompt: promptToUse,
         words: {},
         participants: {},
         createdAt: serverTimestamp(),
@@ -1216,7 +1245,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       </div>
 
       {/* Embedded QR Code Section */}
-      <div className="p-3 bg-slate-50 border-b border-slate-200 flex flex-row items-start gap-3 animate-in slide-in-from-top duration-300">
+      {!isChatOnly && (
+        <div className="p-3 bg-slate-50 border-b border-slate-200 flex flex-row items-start gap-3 animate-in slide-in-from-top duration-300">
           <div className="bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm shrink-0">
             <QRCodeSVG 
               value={chatOnlyUrl} 
@@ -1243,7 +1273,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                     <span>Poll</span>
                   </button>
                   <button 
-                    onClick={() => setShowWordCloudModal(true)}
+                    onClick={() => handleCreateWordCloud('Word Cloud')}
                     className="flex-1 flex flex-col items-center justify-center px-3 py-2 bg-blue-500 text-white rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-blue-600 transition-all shadow-sm leading-tight"
                   >
                     <span>Word</span>
@@ -1266,18 +1296,21 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
             )}
           </div>
         </div>
+      )}
 
       {/* Messages Area Wrapper */}
       <div className="flex-1 relative overflow-hidden bg-white">
         {/* OSU Logo Watermark */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-10 z-0">
-          <img 
-            src={logoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png"} 
-            alt="Logo Watermark" 
-            className="w-3/4 object-contain" 
-            referrerPolicy="no-referrer" 
-          />
-        </div>
+        {internalLogoUrl !== null && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-10 z-0">
+            <img 
+              src={internalLogoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png"} 
+              alt="Logo Watermark" 
+              className="w-3/4 object-contain" 
+              referrerPolicy="no-referrer" 
+            />
+          </div>
+        )}
 
         {/* Messages Area */}
         <div 
@@ -1314,6 +1347,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               return timeA - timeB;
             })
             .map((item) => {
+              const createdAt = (item as any).timestamp || (item as any).createdAt;
+              const isInitiallyNew = createdAt && (Date.now() - createdAt.toMillis() < 5000);
+
               if (item.type === 'poll') {
                 const poll = item as Poll;
                 // Audience only sees active or closed polls, not drafts
@@ -1333,6 +1369,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                     onStart={handleStartPoll}
                     onAdjustDuration={handleAdjustPollDuration}
                     initialCollapsed={isAllCollapsed}
+                    isInitiallyNew={isInitiallyNew}
                   />
                 );
               } else if (item.type === 'wordCloud') {
@@ -1353,6 +1390,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                     onStart={handleStartWordCloud}
                     onSubmit={handleWordCloudSubmit}
                     initialCollapsed={isAllCollapsed}
+                    isInitiallyNew={isInitiallyNew}
                   />
                 );
               }
@@ -1373,6 +1411,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                   onLike={handleLikeMessage}
                   onDelete={handleDeleteMessage}
                   initialCollapsed={isAllCollapsed}
+                  isInitiallyNew={isInitiallyNew}
                 />
               );
             })}
@@ -1504,7 +1543,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 Cancel
               </button>
               <button
-                onClick={handleCreateWordCloud}
+                onClick={() => handleCreateWordCloud()}
                 disabled={!wordCloudPrompt.trim()}
                 className="px-4 py-2 text-sm font-bold text-white bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
               >

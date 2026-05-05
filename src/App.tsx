@@ -183,7 +183,7 @@ function AppContent() {
   if (isChatOnly) {
     return (
       <div className="h-[100dvh] w-screen bg-white font-sans antialiased overflow-hidden">
-        <ChatSidebar isChatOnly={true} presentation={presentation} />
+        <ChatSidebar isChatOnly={true} presentation={presentation} logoUrl={settings?.theme.logoUrl} />
       </div>
     );
   }
