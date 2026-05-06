@@ -279,12 +279,13 @@ interface PollCardProps {
   onDelete: (pollId: string) => void;
   onStart: (pollId: string, duration: number) => void;
   onAdjustDuration: (pollId: string, newDuration: number) => void;
+  onMarkCorrect: (pollId: string, option: string) => void;
   initialCollapsed?: boolean;
   isInitiallyNew?: boolean;
   secondaryColor?: string;
 }
 
-const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate, onVote, onToggleResults, onClose, onDelete, onStart, onAdjustDuration, initialCollapsed = false, isInitiallyNew = false, secondaryColor }) => {
+const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate, onVote, onToggleResults, onClose, onDelete, onStart, onAdjustDuration, onMarkCorrect, initialCollapsed = false, isInitiallyNew = false, secondaryColor }) => {
   const totalVotes = Object.values(poll.votes || {}).reduce((a, b) => a + b, 0);
   const userVote = user && poll.voters ? poll.voters[user.uid] : null;
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
@@ -437,16 +438,28 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
                 const count = poll.votes[opt] || 0;
                 const percentage = totalVotes > 0 ? (count / totalVotes) * 100 : 0;
                 const isSelected = userVote === opt;
+                const isCorrect = poll.correctAnswer === opt;
+                const hasCorrectAnswer = !!poll.correctAnswer;
+                const canMarkCorrect = canModerate && !poll.active && poll.showResults;
 
                 return (
                   <div key={opt} className="relative">
                     <button
-                      disabled={!poll.active || !!userVote || !isChatOnly}
-                      onClick={() => onVote(poll.id, opt)}
+                      disabled={(!poll.active && !canMarkCorrect) || (poll.active && (!!userVote || !isChatOnly))}
+                      onClick={() => {
+                        if (canMarkCorrect) {
+                          onMarkCorrect(poll.id, opt);
+                        } else {
+                          onVote(poll.id, opt);
+                        }
+                      }}
                       className={cn(
                         "w-full relative overflow-hidden flex items-center justify-between px-4 py-2 rounded-lg border transition-all",
                         isSelected ? "border-osu-orange bg-orange-50" : "border-slate-200 hover:border-osu-orange/50 bg-white",
-                        !poll.active && "opacity-80 cursor-default"
+                        !poll.active && !canMarkCorrect && "opacity-80 cursor-default",
+                        hasCorrectAnswer && isCorrect && "border-green-500 bg-green-50/30 ring-2 ring-green-500/20",
+                        hasCorrectAnswer && !isCorrect && "border-red-500/50 grayscale-[0.5] opacity-70",
+                        canMarkCorrect && !hasCorrectAnswer && "hover:border-green-500 cursor-pointer"
                       )}
                     >
                       {/* Result Bar */}
@@ -458,10 +471,16 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
                       )}
                       
                       <div className="flex items-center gap-3 relative z-10">
-                        <span className={cn("w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold", isSelected ? "bg-osu-orange text-white" : "bg-slate-100 text-slate-600")}>
+                        <span className={cn(
+                          "w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold transition-colors", 
+                          isSelected ? "bg-osu-orange text-white" : "bg-slate-100 text-slate-600",
+                          hasCorrectAnswer && isCorrect && "bg-green-500 text-white",
+                          hasCorrectAnswer && !isCorrect && "bg-slate-100 text-slate-400"
+                        )}>
                           {opt}
                         </span>
                         {isSelected && <CheckCircle2 className="w-3 h-3 text-osu-orange" />}
+                        {hasCorrectAnswer && isCorrect && <CheckCircle2 className="w-3 h-3 text-green-600 ml-1" />}
                       </div>
                       
                       {poll.showResults && (
@@ -482,7 +501,11 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                 <span style={{ color: secondaryColor }} className="text-sm font-black transition-colors duration-300">{totalVotes}</span> Total Votes
               </span>
-              {!poll.active && <span className="text-[9px] font-bold text-red-500 uppercase tracking-wider">Final Results</span>}
+              {!poll.active && (
+                <span className="text-[9px] font-bold text-red-500 uppercase tracking-wider">
+                  {poll.correctAnswer ? "Correct Answer Set" : "Final Results"}
+                </span>
+              )}
             </div>
           )}
         </>
@@ -1182,7 +1205,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         p.options.forEach(opt => {
           const count = p.votes[opt] || 0;
           const percentage = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
-          pollHtml += `<li style="margin-bottom: 4px;">Option ${opt}: <b>${count} votes</b> (${percentage}%)</li>`;
+          pollHtml += `<li style="margin-bottom: 4px;">Option ${opt}: <b>${count} votes</b> (${percentage}%)${p.correctAnswer === opt ? ' <span style="color: #10b981; font-weight: bold;">[CORRECT ANSWER]</span>' : ''}</li>`;
         });
         pollHtml += `</ul>`;
         pollHtml += `<p style="margin-bottom: 0; font-size: 11px;">Total Votes: ${totalVotes}</p>`;
@@ -1475,6 +1498,17 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     }
   };
 
+  const handleMarkCorrect = async (pollId: string, option: string) => {
+    if (!canModerate) return;
+    try {
+      await updateDoc(doc(db, 'polls', pollId), {
+        correctAnswer: option
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `polls/${pollId}`);
+    }
+  };
+
   const handleToggleResults = async (pollId: string, currentShow: boolean) => {
     if (!canModerate) return;
     try {
@@ -1731,6 +1765,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                     isChatOnly={isChatOnly}
                     canModerate={canModerateChat}
                     onVote={handleVote}
+                    onMarkCorrect={handleMarkCorrect}
                     onToggleResults={handleToggleResults}
                     onClose={handleClosePoll}
                     onDelete={handleDeletePoll}

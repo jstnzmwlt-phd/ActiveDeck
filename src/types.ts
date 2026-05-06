@@ -53,6 +53,7 @@ export interface Poll {
   started?: boolean;
   showResults?: boolean;
   slide?: number;
+  correctAnswer?: string;
 }
 
 export interface OpenEndedQuestion {
