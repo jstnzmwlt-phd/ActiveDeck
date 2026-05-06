@@ -146,40 +146,53 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 </button>
               </div>
 
-              <div className="text-left mb-4 min-h-[340px] flex flex-col">
+              <div className="text-left mb-4 min-h-[380px] flex flex-col">
                 {activeTab === 'single' && (
-                  <div className="flex-1 flex flex-col space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div className="flex-1 flex flex-col space-y-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
                     <div>
                       <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider mb-2">Scenario 1: Control & Sync</h3>
-                      <div className="space-y-2">
+                      <div className="space-y-1.5">
                         <div className="flex gap-2.5">
                           <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">1</div>
-                          <p className="text-xs text-slate-600 leading-relaxed">Download and run <span className="font-bold">ActiveDeck Bridge (.zip)</span>.</p>
+                          <p className="text-xs text-slate-600 leading-relaxed">Download <span className="font-bold">ActiveDeck Bridge (.zip)</span> below to computer.</p>
                         </div>
                         <div className="flex gap-2.5">
                           <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">2</div>
-                          <p className="text-xs text-slate-600 leading-relaxed">Open PPT and start <span className="font-bold">Slide Show (F5)</span>.</p>
+                          <p className="text-xs text-slate-600 leading-relaxed">Unzip file (right click and <span className="font-bold">"Extract All"</span>).</p>
                         </div>
                         <div className="flex gap-2.5">
                           <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">3</div>
-                          <p className="text-xs text-slate-600 leading-relaxed">Advance slides using the <span className="font-bold">Prev/Next button</span> in ActiveDeck, not the PPT.</p>
+                          <p className="text-xs text-slate-600 leading-relaxed">Install file (<span className="font-bold">activedeck_bridge.exe</span>).</p>
+                        </div>
+                        <div className="flex gap-2.5">
+                          <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">4</div>
+                          <p className="text-xs text-slate-600 leading-relaxed">Open PowerPoint and <span className="font-bold">start show (F5)</span>.</p>
+                        </div>
+                        <div className="flex gap-2.5">
+                          <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">5</div>
+                          <p className="text-xs text-slate-600 leading-relaxed">Press <span className="font-bold">Windows key</span> on keyboard and select browser.</p>
+                        </div>
+                        <div className="mt-1.5 p-2 bg-slate-50 border border-slate-100 rounded-lg">
+                          <p className="text-[10px] text-slate-500 italic text-center leading-normal">
+                            Advance slides using the <span className="font-bold">Prev/Next</span> button in ActiveDeck, not the PowerPoint.
+                          </p>
                         </div>
                       </div>
                     </div>
                     
-                    <div className="mt-auto space-y-3">
+                    <div className="mt-auto space-y-2">
                       {!isBridgeConnected ? (
                         <>
                           <a 
                             href="https://github.com/jstnzmwlt-phd/ActiveDeck/releases/download/v1.0.0/ActiveBridge.Sync.zip"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center justify-center gap-2.5 w-full py-3 bg-osu-orange hover:bg-[#c03900] text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg shadow-orange-500/20 text-sm"
+                            className="flex items-center justify-center gap-2.5 w-full py-2.5 bg-osu-orange hover:bg-[#c03900] text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg shadow-orange-500/20 text-sm"
                           >
                             <Download className="w-4 h-4" />
                             Download ActiveDeck Bridge
                           </a>
-                          <div className="flex gap-2.5 p-2.5 bg-amber-50 rounded-xl border border-amber-100">
+                          <div className="flex gap-2.5 p-2 bg-amber-50 rounded-xl border border-amber-100">
                             <ShieldAlert className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
                             <p className="text-[10px] text-amber-700 leading-relaxed">
                               If Windows shows a protection warning, click <span className="font-bold">"More Info"</span> and then <span className="font-bold">"Run Anyway"</span>.
@@ -189,7 +202,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                       ) : (
                         <button
                           onClick={startCapture}
-                          className="flex items-center justify-center gap-2.5 w-full py-4 bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-xl shadow-green-500/30 text-base"
+                          className="flex items-center justify-center gap-2.5 w-full py-3 bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-xl shadow-green-500/30 text-base"
                         >
                           <Play className="w-5 h-5 fill-current" />
                           Start Your Presentation
@@ -200,42 +213,51 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 )}
 
                 {activeTab === 'dual' && (
-                  <div className="flex-1 flex flex-col space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div className="flex-1 flex flex-col space-y-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
                     <div>
                       <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider mb-2">Scenario 2: Dual Screen Pro</h3>
-                      <div className="space-y-2">
+                      <div className="space-y-1.5">
                         <div className="flex gap-2.5">
                           <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">1</div>
-                          <p className="text-xs text-slate-600 leading-relaxed">Download and run <span className="font-bold">ActiveDeck Bridge (.zip)</span>.</p>
+                          <p className="text-xs text-slate-600 leading-relaxed">Download <span className="font-bold">ActiveDeck Bridge (.zip)</span> below to computer.</p>
                         </div>
                         <div className="flex gap-2.5">
                           <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">2</div>
-                          <p className="text-xs text-slate-600 leading-relaxed">Open PPT and start <span className="font-bold">Slide Show (F5)</span> on the projector.</p>
+                          <p className="text-xs text-slate-600 leading-relaxed">Unzip file (right click and <span className="font-bold">"Extract All"</span>).</p>
                         </div>
                         <div className="flex gap-2.5">
                           <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">3</div>
-                          <p className="text-xs text-slate-600 leading-relaxed">Drag this browser to your <span className="font-bold">secondary monitor</span>.</p>
+                          <p className="text-xs text-slate-600 leading-relaxed">Install file (<span className="font-bold">activedeck_bridge.exe</span>).</p>
                         </div>
                         <div className="flex gap-2.5">
                           <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">4</div>
-                          <p className="text-xs text-slate-600 leading-relaxed">Advance slides using the <span className="font-bold">Prev/Next button</span> in ActiveDeck, not the PPT.</p>
+                          <p className="text-xs text-slate-600 leading-relaxed">Open PPT and start <span className="font-bold">Slide Show (F5)</span> on projector.</p>
+                        </div>
+                        <div className="flex gap-2.5">
+                          <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">5</div>
+                          <p className="text-xs text-slate-600 leading-relaxed">Drag this browser to your <span className="font-bold">secondary monitor</span>.</p>
+                        </div>
+                        <div className="mt-1.5 p-2 bg-slate-50 border border-slate-100 rounded-lg">
+                          <p className="text-[10px] text-slate-500 italic text-center leading-normal">
+                            Advance slides using the <span className="font-bold">Prev/Next</span> button in ActiveDeck, not the PowerPoint.
+                          </p>
                         </div>
                       </div>
                     </div>
                     
-                    <div className="mt-auto space-y-3">
+                    <div className="mt-auto space-y-2">
                       {!isBridgeConnected ? (
                         <>
                           <a 
                             href="https://github.com/jstnzmwlt-phd/ActiveDeck/releases/download/v1.0.0/ActiveBridge.Sync.zip"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center justify-center gap-2.5 w-full py-3 bg-osu-orange hover:bg-[#c03900] text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg shadow-orange-500/20 text-sm"
+                            className="flex items-center justify-center gap-2.5 w-full py-2.5 bg-osu-orange hover:bg-[#c03900] text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg shadow-orange-500/20 text-sm"
                           >
                             <Download className="w-4 h-4" />
                             Download ActiveDeck Bridge
                           </a>
-                          <div className="flex gap-2.5 p-2.5 bg-amber-50 rounded-xl border border-amber-100">
+                          <div className="flex gap-2.5 p-2 bg-amber-50 rounded-xl border border-amber-100">
                             <ShieldAlert className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
                             <p className="text-[10px] text-amber-700 leading-relaxed">
                               If Windows shows a protection warning, click <span className="font-bold">"More Info"</span> and then <span className="font-bold">"Run Anyway"</span>.
@@ -245,7 +267,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                       ) : (
                         <button
                           onClick={startCapture}
-                          className="flex items-center justify-center gap-2.5 w-full py-4 bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-xl shadow-green-500/30 text-base"
+                          className="flex items-center justify-center gap-2.5 w-full py-3 bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-xl shadow-green-500/30 text-base"
                         >
                           <Play className="w-5 h-5 fill-current" />
                           Start Your Presentation
@@ -256,10 +278,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 )}
 
                 {activeTab === 'manual' && (
-                  <div className="flex-1 flex flex-col space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div className="flex-1 flex flex-col space-y-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
                     <div>
                       <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider mb-2">Scenario 3: Manual Mode</h3>
-                      <div className="space-y-2">
+                      <div className="space-y-1.5">
                         <div className="flex gap-2.5">
                           <div className="flex-shrink-0 w-5 h-5 bg-slate-200 text-slate-600 rounded-full flex items-center justify-center text-[10px] font-bold">1</div>
                           <p className="text-xs text-slate-600 leading-relaxed">Click <span className="font-bold">'Start Presentation'</span> below.</p>
@@ -275,18 +297,18 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                       </div>
                     </div>
                     
-                    <div className="mt-auto space-y-3">
+                    <div className="mt-auto space-y-2">
                       <button
                         onClick={() => {
                           setUseWithoutBridge(true);
                           startCapture();
                         }}
-                        className="flex items-center justify-center gap-2.5 w-full py-4 bg-slate-800 hover:bg-slate-900 text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-xl shadow-slate-900/30 text-base"
+                        className="flex items-center justify-center gap-2.5 w-full py-3 bg-slate-800 hover:bg-slate-900 text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-xl shadow-slate-900/30 text-base"
                       >
                         <Play className="w-5 h-5 fill-current" />
                         Start Presentation
                       </button>
-                      <div className="flex gap-2.5 p-2.5 bg-blue-50 rounded-xl border border-blue-100">
+                      <div className="flex gap-2.5 p-2 bg-blue-50 rounded-xl border border-blue-100">
                         <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
                         <p className="text-[10px] text-blue-700 leading-relaxed">
                           <span className="font-bold">Note:</span> There will be no slide stamp on chat messages when not using the ActiveDeck Bridge.

@@ -196,6 +196,20 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
                     +
                   </button>
                 </div>
+                <div className="flex gap-2 mt-1">
+                  <button 
+                    onClick={() => onAdjustDuration(q.id, 120)}
+                    className="px-2 py-1 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 rounded text-slate-600 transition-colors border border-slate-200"
+                  >
+                    2:00
+                  </button>
+                  <button 
+                    onClick={() => onAdjustDuration(q.id, 180)}
+                    className="px-2 py-1 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 rounded text-slate-600 transition-colors border border-slate-200"
+                  >
+                    3:00
+                  </button>
+                </div>
               </div>
               <button 
                 onClick={() => onStart(q.id, q.duration || 60)}
@@ -240,7 +254,7 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
                   <div className="p-3 bg-slate-100 text-slate-500 text-xs rounded-lg text-center italic border border-slate-200">
                       {canModerate ? (
                         <>
-                          Responses are currently hidden from audience (<span style={{ color: secondaryColor }} className="font-black transition-colors duration-300">{totalResponses}</span> received)
+                          Responses are currently hidden from audience (<span style={{ color: secondaryColor }} className="text-sm font-black transition-colors duration-300">{totalResponses}</span> received)
                         </>
                       ) : "Results will be revealed by the presenter"}
                   </div>
@@ -395,6 +409,20 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
                     +
                   </button>
                 </div>
+                <div className="flex gap-2 mt-1">
+                  <button 
+                    onClick={() => onAdjustDuration(poll.id, 120)}
+                    className="px-2 py-1 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 rounded text-slate-600 transition-colors border border-slate-200"
+                  >
+                    2:00
+                  </button>
+                  <button 
+                    onClick={() => onAdjustDuration(poll.id, 180)}
+                    className="px-2 py-1 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 rounded text-slate-600 transition-colors border border-slate-200"
+                  >
+                    3:00
+                  </button>
+                </div>
               </div>
               <button 
                 onClick={() => onStart(poll.id, poll.duration || 60)}
@@ -451,8 +479,8 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
           
           {!isDraft && (
             <div className="mt-3 pt-3 border-t border-slate-100 flex justify-between items-center">
-              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                <span style={{ color: secondaryColor }} className="transition-colors duration-300">{totalVotes}</span> Total Votes
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                <span style={{ color: secondaryColor }} className="text-sm font-black transition-colors duration-300">{totalVotes}</span> Total Votes
               </span>
               {!poll.active && <span className="text-[9px] font-bold text-red-500 uppercase tracking-wider">Final Results</span>}
             </div>
@@ -626,8 +654,8 @@ const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, 
           
           {!isDraft && (
             <div className="mt-3 pt-3 border-t border-slate-100 flex justify-between items-center">
-              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                <span style={{ color: secondaryColor }} className="transition-colors duration-300">{totalWords}</span> Total Submissions
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                <span style={{ color: secondaryColor }} className="text-sm font-black transition-colors duration-300">{totalWords}</span> Total Submissions
               </span>
               {!cloud.active && <span className="text-[9px] font-bold text-red-500 uppercase tracking-wider">Final Results</span>}
             </div>
@@ -800,6 +828,11 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [pollDuration, setPollDuration] = useState(60); // Default 60 seconds
   const [participantCount, setParticipantCount] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const hasActiveInteractive = 
+    openEndedQuestions.some(q => q.active) || 
+    polls.some(p => p.active) || 
+    wordClouds.some(w => w.active);
 
   // ... (some code)
 
@@ -1584,8 +1617,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           <div className="flex flex-col justify-center min-w-0 py-1 flex-1">
             <div className="flex items-center justify-between mb-1">
               <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Scan to Join Chat</p>
-              <div className="flex items-center gap-1 px-1.5 py-0.5 bg-slate-200/50 rounded text-[10px] font-bold text-slate-600">
-                <Users className="w-3 h-3 text-osu-orange" />
+              <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-200/50 rounded-lg text-xs font-black text-slate-700 shadow-sm transition-all animate-in zoom-in-50 duration-500">
+                <Users className="w-4 h-4 text-osu-orange" />
                 <span>{participantCount}</span>
               </div>
             </div>
@@ -1852,17 +1885,33 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                   </button>
                 </div>
               )}
+              {hasActiveInteractive && (
+                <div className="mb-2 px-1 py-1.5 bg-blue-50 border border-blue-100 rounded-lg flex items-center gap-2 animate-in slide-in-from-bottom-2 duration-300">
+                  <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
+                  <p className="text-[10px] font-bold text-blue-700 uppercase tracking-tight">Active Activity: Chat Paused</p>
+                </div>
+              )}
               <form onSubmit={handleSendMessage} className="flex gap-2">
                 <input
                   type="text"
-                  placeholder="Type a message..."
-                  className="flex-1 min-w-0 px-3 py-2 text-base border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-osu-orange"
+                  placeholder={hasActiveInteractive ? "Chat paused for active activity..." : "Type a message..."}
+                  disabled={hasActiveInteractive}
+                  className={`flex-1 min-w-0 px-3 py-2 text-base border rounded-md focus:outline-none focus:ring-2 focus:ring-osu-orange transition-all ${
+                    hasActiveInteractive 
+                      ? "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed italic" 
+                      : "border-slate-300 bg-white"
+                  }`}
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
                 />
                 <button
                   type="submit"
-                  className="shrink-0 p-2 bg-osu-black text-white rounded-md hover:bg-slate-800 transition-colors"
+                  disabled={hasActiveInteractive || !inputText.trim()}
+                  className={`shrink-0 p-2 rounded-md transition-colors ${
+                    hasActiveInteractive || !inputText.trim()
+                      ? "bg-slate-200 text-slate-400 cursor-not-allowed" 
+                      : "bg-osu-black text-white hover:bg-slate-800 shadow-sm"
+                  }`}
                 >
                   <Send className="w-4 h-4" />
                 </button>
