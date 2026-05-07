@@ -3,6 +3,8 @@ import { Presentation } from '../types';
 import { ScreenCapture } from './ScreenCapture';
 import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play } from 'lucide-react';
 import { useBridge } from '../contexts/BridgeContext';
+import { auth, db } from '../firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 interface PresenterAreaProps {
   presentation: Presentation | null;
@@ -12,9 +14,23 @@ interface PresenterAreaProps {
 export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logoUrl }) => {
   const { currentSlide, sendSlideCommand, isBridgeConnected, useWithoutBridge, setUseWithoutBridge } = useBridge();
   const [activeTab, setActiveTab] = useState<'single' | 'dual' | 'manual'>('single');
+  const [secondaryColor, setSecondaryColor] = useState<string>('#ff3e00');
   const [isCapturing, setIsCapturing] = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchTheme = async () => {
+      const docSnap = await getDoc(doc(db, 'settings', 'global'));
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.theme?.secondaryColor) {
+          setSecondaryColor(data.theme.secondaryColor);
+        }
+      }
+    };
+    fetchTheme();
+  }, []);
 
   const handleSlideMove = (direction: 'next' | 'prev') => {
     sendSlideCommand(direction);
@@ -172,7 +188,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                           <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">5</div>
                           <p className="text-xs text-slate-600 leading-relaxed">Press <span className="font-bold">Windows key</span> on keyboard and select browser.</p>
                         </div>
-                        <div className="mt-1.5 p-2 bg-slate-50 border border-slate-100 rounded-lg">
+                        <div 
+                          className="mt-1.5 p-2 bg-slate-50 rounded-lg border-2" 
+                          style={{ borderColor: secondaryColor }}
+                        >
                           <p className="text-[10px] text-slate-500 italic text-center leading-normal">
                             Advance slides using the <span className="font-bold">Prev/Next</span> button in ActiveDeck, not the PowerPoint.
                           </p>
@@ -237,7 +256,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                           <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">5</div>
                           <p className="text-xs text-slate-600 leading-relaxed">Drag this browser to your <span className="font-bold">secondary monitor</span>.</p>
                         </div>
-                        <div className="mt-1.5 p-2 bg-slate-50 border border-slate-100 rounded-lg">
+                        <div 
+                          className="mt-1.5 p-2 bg-slate-50 rounded-lg border-2" 
+                          style={{ borderColor: secondaryColor }}
+                        >
                           <p className="text-[10px] text-slate-500 italic text-center leading-normal">
                             Advance slides using the <span className="font-bold">Prev/Next</span> button in ActiveDeck, not the PowerPoint.
                           </p>
