@@ -16,12 +16,12 @@ COPY . .
 # Compile the frontend React/Vite assets and run lint/type check
 RUN npm run build
 
-# Expose port 3000 (standard port for the Express server)
-EXPOSE 3000
+# Expose port 8080 (standard port for Google Cloud Run)
+EXPOSE 8080
 
 # Set environment variables for production
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=8080
 
 # Start the Express server using tsx
 CMD ["npx", "tsx", "server.ts"]
