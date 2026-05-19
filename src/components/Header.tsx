@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Monitor, Clock, Maximize, Minimize, Link2, Link2Off, Sun, Moon, Loader2, AlertCircle } from 'lucide-react';
+import { Monitor, Clock, Maximize, Minimize, Link2, Link2Off, Sun, Moon, Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { useBridge } from '../contexts/BridgeContext';
 
 export const Header: React.FC = () => {
@@ -11,11 +11,40 @@ export const Header: React.FC = () => {
   const [wakeLock, setWakeLock] = useState<any>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
 
+  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+  const [adminPassword, setAdminPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+
   const hours = currentTime.getHours();
   const displayHours = (hours % 12 || 12).toString().padStart(2, '0');
   const minutes = currentTime.getMinutes().toString().padStart(2, '0');
   const seconds = currentTime.getSeconds().toString().padStart(2, '0');
   const amPm = hours >= 12 ? 'PM' : 'AM';
+
+  // Centralized state cleanup and default-to-hidden behavior when modal is closed
+  useEffect(() => {
+    if (!isAdminModalOpen) {
+      setAdminPassword('');
+      setShowPassword(false);
+      setPasswordError(null);
+    }
+  }, [isAdminModalOpen]);
+
+  // Handle closing modal via Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsAdminModalOpen(false);
+      }
+    };
+    if (isAdminModalOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isAdminModalOpen]);
 
   useEffect(() => {
     console.log('Header - Component mounted');
@@ -152,14 +181,7 @@ export const Header: React.FC = () => {
               className="text-xl font-black tracking-tight text-slate-800 cursor-pointer hover:opacity-80 transition-opacity"
               onClick={() => {
                 console.log('Header - Admin click');
-                const password = prompt('Enter Admin Password:');
-                if (password === '@dm1N') {
-                  console.log('Header - Password correct, setting hash');
-                  window.location.href = window.location.origin + window.location.pathname + '#admin';
-                  window.dispatchEvent(new Event('hashchange'));
-                } else if (password !== null) {
-                  alert('Invalid password');
-                }
+                setIsAdminModalOpen(true);
               }}
             >
               Active<span className="text-osu-orange">Deck</span>
@@ -213,6 +235,81 @@ export const Header: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Admin Password Modal */}
+      {isAdminModalOpen && (
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+          onClick={() => setIsAdminModalOpen(false)}
+        >
+          <div 
+            className="bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-6 max-w-sm w-full text-slate-100 animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold text-white mb-2">Admin Portal Access</h3>
+            <p className="text-xs text-slate-400 mb-4">Please enter the administrator password to access the portal.</p>
+            
+            <form 
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (adminPassword === '@dm1N') {
+                  console.log('Header - Password correct, setting hash');
+                  setIsAdminModalOpen(false);
+                  window.location.href = window.location.origin + window.location.pathname + '#admin';
+                  window.dispatchEvent(new Event('hashchange'));
+                } else {
+                  setPasswordError('Invalid password');
+                }
+              }} 
+              className="space-y-4"
+            >
+              <div className="space-y-1 relative">
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Password</label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={adminPassword}
+                    onChange={(e) => {
+                      setAdminPassword(e.target.value);
+                      if (passwordError) setPasswordError(null);
+                    }}
+                    placeholder="••••••••"
+                    required
+                    autoFocus
+                    className="w-full h-10 rounded px-3 pr-10 text-sm text-white bg-slate-800 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-osu-orange"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-white transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                {passwordError && (
+                  <p className="text-xs text-red-500 font-bold mt-1 animate-in slide-in-from-top-1 duration-200">{passwordError}</p>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsAdminModalOpen(false)}
+                  className="px-4 py-2 text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 text-sm font-bold text-white bg-osu-orange hover:bg-[#c03900] rounded-lg transition-colors shadow-lg shadow-orange-500/15"
+                >
+                  Submit
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
