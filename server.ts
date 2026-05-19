@@ -15,15 +15,22 @@ async function startServer() {
 
   app.use(express.json());
 
-  app.get('/env.js', (req, res) => {
+  // Serve a self-unregistering service worker to force client browser updates
+  app.get(['/service-worker.js', '/service_worker.js'], (req, res) => {
     res.setHeader('Content-Type', 'application/javascript');
     res.send(`
-      window.VITE_FIREBASE_PROJECT_ID = ${JSON.stringify(process.env.VITE_FIREBASE_PROJECT_ID)};
-      window.VITE_FIREBASE_APP_ID = ${JSON.stringify(process.env.VITE_FIREBASE_APP_ID)};
-      window.VITE_FIREBASE_API_KEY = ${JSON.stringify(process.env.VITE_FIREBASE_API_KEY)};
-      window.VITE_FIREBASE_AUTH_DOMAIN = ${JSON.stringify(process.env.VITE_FIREBASE_AUTH_DOMAIN)};
-      window.VITE_FIREBASE_STORAGE_BUCKET = ${JSON.stringify(process.env.VITE_FIREBASE_STORAGE_BUCKET)};
-      window.VITE_FIREBASE_MESSAGING_SENDER_ID = ${JSON.stringify(process.env.VITE_FIREBASE_MESSAGING_SENDER_ID)};
+      self.addEventListener('install', function(e) {
+        self.skipWaiting();
+      });
+      self.addEventListener('activate', function(e) {
+        self.registration.unregister()
+          .then(function() {
+            return self.clients.matchAll();
+          })
+          .then(function(clients) {
+            clients.forEach(client => client.navigate(client.url));
+          });
+      });
     `);
   });
   
@@ -55,9 +62,33 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*all', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+    // Disable default serving of index.html from static middleware
+    app.use(express.static(distPath, { index: false }));
+    
+    // Catch-all route to serve dynamically hydrated index.html
+    app.get('*', async (req, res) => {
+      try {
+        const fs = await import('fs/promises');
+        let html = await fs.readFile(path.join(distPath, 'index.html'), 'utf-8');
+        
+        // Dynamically inject active environment variables directly into index.html
+        const configScript = `
+    <script id="firebase-env-config">
+      window.VITE_FIREBASE_PROJECT_ID = ${JSON.stringify(process.env.VITE_FIREBASE_PROJECT_ID)};
+      window.VITE_FIREBASE_APP_ID = ${JSON.stringify(process.env.VITE_FIREBASE_APP_ID)};
+      window.VITE_FIREBASE_API_KEY = ${JSON.stringify(process.env.VITE_FIREBASE_API_KEY)};
+      window.VITE_FIREBASE_AUTH_DOMAIN = ${JSON.stringify(process.env.VITE_FIREBASE_AUTH_DOMAIN)};
+      window.VITE_FIREBASE_STORAGE_BUCKET = ${JSON.stringify(process.env.VITE_FIREBASE_STORAGE_BUCKET)};
+      window.VITE_FIREBASE_MESSAGING_SENDER_ID = ${JSON.stringify(process.env.VITE_FIREBASE_MESSAGING_SENDER_ID)};
+    </script>
+        `;
+        
+        html = html.replace('</head>', `${configScript}\n</head>`);
+        res.send(html);
+      } catch (err) {
+        console.error('Error serving index.html:', err);
+        res.status(500).send('Internal Server Error');
+      }
     });
   }
 
