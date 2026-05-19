@@ -38,6 +38,7 @@ export interface Message {
   likes?: number;
   likedBy?: string[];
   slide?: number;
+  isPinned?: boolean;
 }
 
 export interface Poll {

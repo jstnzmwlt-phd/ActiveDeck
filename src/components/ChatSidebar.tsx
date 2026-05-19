@@ -4,7 +4,7 @@ import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, getDoc
 import { Message, Presentation, Poll, WordCloud, OpenEndedQuestion, GlobalSettings } from '../types';
 import { useAuth } from './AuthProvider';
 import { useBridge } from '../contexts/BridgeContext';
-import { Send, HelpCircle, MessageSquare, Trash2, ThumbsUp, Download, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud, Eye, EyeOff, Timer, Users, ChevronDown, ChevronUp } from 'lucide-react';
+import { Send, HelpCircle, MessageSquare, Trash2, ThumbsUp, Download, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud, Eye, EyeOff, Timer, Users, ChevronDown, ChevronUp, Pin } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { QRCodeSVG } from 'qrcode.react';
@@ -695,11 +695,12 @@ interface MessageCardProps {
   canModerate: boolean;
   onLike: (msg: Message) => void;
   onDelete: (msgId: string) => void;
+  onTogglePin?: (msg: Message) => void;
   initialCollapsed?: boolean;
   isInitiallyNew?: boolean;
 }
 
-const MessageCard: React.FC<MessageCardProps> = ({ msg, user, canModerate, onLike, onDelete, initialCollapsed = false, isInitiallyNew = false }) => {
+const MessageCard: React.FC<MessageCardProps> = ({ msg, user, canModerate, onLike, onDelete, onTogglePin, initialCollapsed = false, isInitiallyNew = false }) => {
   const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : initialCollapsed);
 
   useEffect(() => {
@@ -733,7 +734,9 @@ const MessageCard: React.FC<MessageCardProps> = ({ msg, user, canModerate, onLik
       } : false}
       transition={{ duration: 2, ease: "easeInOut" }}
       className={cn(
-        "p-3 rounded-xl border border-orange-200 bg-orange-50 shadow-md transition-all relative",
+        msg.isPinned 
+          ? "p-3 rounded-xl border-2 border-amber-500 bg-amber-50 shadow-lg transition-all relative"
+          : "p-3 rounded-xl border border-orange-200 bg-orange-50 shadow-md transition-all relative",
         isCollapsed && "py-2"
       )}
     >
@@ -746,8 +749,13 @@ const MessageCard: React.FC<MessageCardProps> = ({ msg, user, canModerate, onLik
             {isCollapsed ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
           </button>
           <div className="flex flex-col">
-            <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
               {msg.userName}
+              {msg.isPinned && (
+                <span className="inline-flex items-center gap-0.5 bg-amber-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+                  <Pin className="w-2 h-2 fill-current rotate-45" /> Pinned
+                </span>
+              )}
             </span>
           </div>
         </div>
@@ -765,6 +773,20 @@ const MessageCard: React.FC<MessageCardProps> = ({ msg, user, canModerate, onLik
             <ThumbsUp className={cn("w-3 h-3", msg.likedBy?.includes(user?.uid || '') && "fill-current")} />
             {msg.likes || 0}
           </button>
+          {canModerate && (
+            <button
+              onClick={() => onTogglePin?.(msg)}
+              className={cn(
+                "p-1 transition-colors flex-shrink-0",
+                msg.isPinned 
+                  ? "text-amber-500 hover:text-amber-600" 
+                  : "text-slate-300 hover:text-slate-500"
+              )}
+              title={msg.isPinned ? "Unpin Message" : "Pin Message"}
+            >
+              <Pin className={cn("w-3.5 h-3.5", msg.isPinned && "fill-current")} />
+            </button>
+          )}
           {(user?.uid === msg.userId || canModerate) && (
             <button
               onClick={() => onDelete(msg.id)}
@@ -1061,7 +1083,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         ? (guestName || (guestEmail ? guestEmail.split('@')[0] : `Guest ${user.uid.slice(0, 4)}`)) 
         : user.displayName || 'User';
 
-      if (isPostingAnonymously) {
+      if (!isChatOnly) {
+        userName = user.displayName ? `${user.displayName} (Presenter)` : 'Presenter';
+      } else if (isPostingAnonymously) {
         userName = `Anonymous ${user.uid.slice(0, 4)}`;
       }
 
@@ -1160,6 +1184,21 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           likedBy: arrayUnion(user.uid)
         });
       }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `messages/${msg.id}`);
+    }
+  };
+
+  const handleTogglePinMessage = async (msg: Message) => {
+    if (!user || !canModerateChat) return;
+
+    const messageRef = doc(db, 'messages', msg.id);
+    const isPinned = msg.isPinned || false;
+
+    try {
+      await updateDoc(messageRef, {
+        isPinned: !isPinned
+      });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `messages/${msg.id}`);
     }
@@ -1738,12 +1777,17 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
             </div>
           )}
 
-          {/* Render Polls, Word Clouds, and Messages interleaved by time */}
+          {/* Render Polls, Word Clouds, and Messages interleaved by time (pinned messages on top) */}
           {[...messages.map(m => ({ ...m, type: 'message' as const })), 
             ...polls.map(p => ({ ...p, type: 'poll' as const })),
             ...wordClouds.map(w => ({ ...w, type: 'wordCloud' as const })),
             ...openEndedQuestions.map(q => ({ ...q, type: 'openEndedQuestion' as const }))]
             .sort((a, b) => {
+              const isPinnedA = a.type === 'message' && (a as any).isPinned;
+              const isPinnedB = b.type === 'message' && (b as any).isPinned;
+              if (isPinnedA && !isPinnedB) return -1;
+              if (!isPinnedA && isPinnedB) return 1;
+
               const timeA = ((a as any).timestamp || (a as any).createdAt)?.toMillis() || 0;
               const timeB = ((b as any).timestamp || (b as any).createdAt)?.toMillis() || 0;
               return timeA - timeB;
@@ -1837,6 +1881,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                   canModerate={canModerateChat}
                   onLike={handleLikeMessage}
                   onDelete={handleDeleteMessage}
+                  onTogglePin={handleTogglePinMessage}
                   initialCollapsed={isAllCollapsed}
                   isInitiallyNew={isInitiallyNew}
                 />
@@ -1953,6 +1998,32 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               </form>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Presenter-only Bottom Chat Input Area */}
+      {!isChatOnly && user && (
+        <div className="bg-white border-t border-slate-200 shrink-0 p-3 pb-[env(safe-area-inset-bottom)]">
+          <form onSubmit={handleSendMessage} className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Post as presenter..."
+              className="flex-1 min-w-0 px-3 py-1.5 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-osu-orange bg-white text-slate-800"
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+            />
+            <button
+              type="submit"
+              disabled={!inputText.trim()}
+              className={`shrink-0 p-1.5 rounded-md transition-colors ${
+                !inputText.trim() 
+                  ? "bg-slate-200 text-slate-400 cursor-not-allowed" 
+                  : "bg-osu-black text-white hover:bg-slate-800 shadow-sm"
+              }`}
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          </form>
         </div>
       )}
 
