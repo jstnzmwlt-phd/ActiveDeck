@@ -14,6 +14,18 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(express.json());
+
+  app.get('/env.js', (req, res) => {
+    res.setHeader('Content-Type', 'application/javascript');
+    res.send(`
+      window.VITE_FIREBASE_PROJECT_ID = ${JSON.stringify(process.env.VITE_FIREBASE_PROJECT_ID)};
+      window.VITE_FIREBASE_APP_ID = ${JSON.stringify(process.env.VITE_FIREBASE_APP_ID)};
+      window.VITE_FIREBASE_API_KEY = ${JSON.stringify(process.env.VITE_FIREBASE_API_KEY)};
+      window.VITE_FIREBASE_AUTH_DOMAIN = ${JSON.stringify(process.env.VITE_FIREBASE_AUTH_DOMAIN)};
+      window.VITE_FIREBASE_STORAGE_BUCKET = ${JSON.stringify(process.env.VITE_FIREBASE_STORAGE_BUCKET)};
+      window.VITE_FIREBASE_MESSAGING_SENDER_ID = ${JSON.stringify(process.env.VITE_FIREBASE_MESSAGING_SENDER_ID)};
+    `);
+  });
   
   app.get('/api/shorten', async (req, res) => {
     const { url } = req.query;
