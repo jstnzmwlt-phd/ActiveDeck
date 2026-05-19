@@ -192,7 +192,7 @@ function AppContent() {
     <div className="flex flex-col h-[100dvh] w-screen overflow-hidden bg-slate-100 font-sans antialiased">
       <Header />
       
-      <div className="flex flex-row flex-1 p-6 gap-6 bg-slate-100">
+      <div className="flex flex-row flex-1 p-6 gap-6 bg-slate-100 min-h-0 overflow-hidden">
         {/* Presenter View (Flexible, but takes most space) */}
         <div className="flex-1 h-full min-w-0 rounded-xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.24)] border border-slate-300 bg-black">
           <PresenterArea presentation={presentation} logoUrl={settings?.theme.logoUrl} />
