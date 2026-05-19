@@ -1,62 +1,9 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper Functions
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-    
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
-    }
-
-    function isAdmin() {
-      return isAuthenticated() && 
-             (request.auth.token.email == "parajayzee@gmail.com" && request.auth.token.email_verified == true);
-    }
-
-    function isValidString(val, maxLen) {
-      return val is string && val.size() > 0 && val.size() <= maxLen;
-    }
-
-    // Presentation Validation
-    function isValidPresentation(data) {
-      return data.keys().hasAll(['embedUrl', 'presenterId', 'createdAt']) &&
-             data.embedUrl is string &&
-             data.presenterId is string &&
-             data.createdAt is timestamp &&
-             (!('allowAnonymousChat' in data) || data.allowAnonymousChat is bool) &&
-             (!('hideComments' in data) || data.hideComments is bool);
-    }
-
-    function isRecent(time) {
-      return time > request.time - duration.value(5, 'm') &&
-             time < request.time + duration.value(5, 'm');
-    }
-
-    // Message Validation
-    function isValidMessage(data) {
-      return data.keys().hasAll(['text', 'userId', 'userName', 'timestamp', 'isQuestion', 'presentationId', 'presenterId']) &&
-             isValidString(data.text, 500) &&
-             data.userId == request.auth.uid &&
-             isValidString(data.userName, 50) &&
-             (!('userEmail' in data) || isValidString(data.userEmail, 100)) &&
-             data.timestamp is timestamp &&
-             isRecent(data.timestamp) &&
-             data.isQuestion is bool &&
-             isValidString(data.presentationId, 100) &&
-             isValidString(data.presenterId, 100);
-    }
-
-    function isValidLikeUpdate() {
-      let diff = request.resource.data.diff(resource.data);
-      return diff.affectedKeys().hasOnly(['likes', 'likedBy']) &&
-             request.resource.data.likes is number &&
-             request.resource.data.likedBy is list &&
-             math.abs(request.resource.data.likes - (('likes' in resource.data) ? resource.data.likes : 0)) == 1;
-    }
-
-    // Match Rules
+    // ==========================================
+    // ACTIVEDECK SECURITY RULES
+    // ==========================================
     match /presentations/{presentationId} {
       allow read, write: if true;
     }
