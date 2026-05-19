@@ -66,7 +66,7 @@ async function startServer() {
     app.use(express.static(distPath, { index: false }));
     
     // Catch-all route to serve dynamically hydrated index.html
-    app.get('*', async (req, res) => {
+    app.get('/{*splat}', async (req, res) => {
       try {
         const fs = await import('fs/promises');
         let html = await fs.readFile(path.join(distPath, 'index.html'), 'utf-8');
