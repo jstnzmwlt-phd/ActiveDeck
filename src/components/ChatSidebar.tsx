@@ -1198,9 +1198,19 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     const isPinned = msg.isPinned || false;
 
     try {
-      await updateDoc(messageRef, {
-        isPinned: !isPinned
-      });
+      if (isPinned) {
+        // Unpinning the message. Update its timestamp to current server time
+        // so it reappears as a new message at the bottom of the active chat.
+        await updateDoc(messageRef, {
+          isPinned: false,
+          timestamp: serverTimestamp()
+        });
+      } else {
+        // Pinning the message.
+        await updateDoc(messageRef, {
+          isPinned: true
+        });
+      }
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `messages/${msg.id}`);
     }
@@ -1802,8 +1812,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
             </div>
           )}
 
-          {/* Render Polls, Word Clouds, and Messages interleaved chronologically by time */}
-          {[...messages.map(m => ({ ...m, type: 'message' as const })), 
+          {/* Render Polls, Word Clouds, and Messages interleaved chronologically by time (pinned messages are excluded from the main feed) */}
+          {[...messages.filter(m => !m.isPinned).map(m => ({ ...m, type: 'message' as const })), 
             ...polls.map(p => ({ ...p, type: 'poll' as const })),
             ...wordClouds.map(w => ({ ...w, type: 'wordCloud' as const })),
             ...openEndedQuestions.map(q => ({ ...q, type: 'openEndedQuestion' as const }))]
