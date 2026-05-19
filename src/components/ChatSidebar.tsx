@@ -879,6 +879,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     polls.some(p => p.active) || 
     wordClouds.some(w => w.active);
 
+  const pinnedMessages = messages.filter(m => m.isPinned);
+
   // ... (some code)
 
   const handleCreateOpenEndedQuestion = async (customPrompt?: string) => {
@@ -1739,7 +1741,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       )}
 
       {/* Messages Area Wrapper */}
-      <div className="flex-1 relative overflow-hidden bg-white">
+      <div className="flex-1 flex flex-col relative overflow-hidden bg-white">
         {/* OSU Logo Watermark */}
         {internalLogoUrl !== null && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-10 z-0">
@@ -1752,10 +1754,33 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           </div>
         )}
 
+        {/* Sticky Pinned Messages Banner */}
+        {pinnedMessages.length > 0 && !presentation?.hideComments && (
+          <div className="bg-amber-50/90 border-b border-amber-200 p-2.5 space-y-2 shrink-0 z-20 shadow-sm relative max-h-[160px] overflow-y-auto">
+            <div className="flex items-center gap-1.5 px-1 mb-1">
+              <Pin className="w-3 h-3 text-amber-600 fill-current rotate-45" />
+              <span className="text-[9px] font-black uppercase tracking-wider text-amber-700">Pinned Messages</span>
+            </div>
+            {pinnedMessages.map((msg) => (
+              <MessageCard
+                key={`pinned-${msg.id}`}
+                msg={msg}
+                user={user}
+                canModerate={canModerateChat}
+                onLike={handleLikeMessage}
+                onDelete={handleDeleteMessage}
+                onTogglePin={handleTogglePinMessage}
+                initialCollapsed={isAllCollapsed}
+                isInitiallyNew={false}
+              />
+            ))}
+          </div>
+        )}
+
         {/* Messages Area */}
         <div 
           ref={scrollRef}
-          className="absolute inset-0 overflow-y-auto p-4 space-y-4 z-10"
+          className="flex-1 overflow-y-auto p-4 space-y-4 z-10"
         >
           {presentation?.hideComments && (
             <div className="flex flex-col items-center justify-center p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-300 animate-in fade-in duration-500">
@@ -1777,17 +1802,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
             </div>
           )}
 
-          {/* Render Polls, Word Clouds, and Messages interleaved by time (pinned messages on top) */}
+          {/* Render Polls, Word Clouds, and Messages interleaved chronologically by time */}
           {[...messages.map(m => ({ ...m, type: 'message' as const })), 
             ...polls.map(p => ({ ...p, type: 'poll' as const })),
             ...wordClouds.map(w => ({ ...w, type: 'wordCloud' as const })),
             ...openEndedQuestions.map(q => ({ ...q, type: 'openEndedQuestion' as const }))]
             .sort((a, b) => {
-              const isPinnedA = a.type === 'message' && (a as any).isPinned;
-              const isPinnedB = b.type === 'message' && (b as any).isPinned;
-              if (isPinnedA && !isPinnedB) return -1;
-              if (!isPinnedA && isPinnedB) return 1;
-
               const timeA = ((a as any).timestamp || (a as any).createdAt)?.toMillis() || 0;
               const timeB = ((b as any).timestamp || (b as any).createdAt)?.toMillis() || 0;
               return timeA - timeB;
