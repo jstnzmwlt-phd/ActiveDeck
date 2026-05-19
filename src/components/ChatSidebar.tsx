@@ -1766,10 +1766,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
         {/* Sticky Pinned Messages Banner */}
         {pinnedMessages.length > 0 && !presentation?.hideComments && (
-          <div className="bg-blue-50/80 border-b border-blue-100 p-2.5 space-y-2 shrink-0 z-20 shadow-sm relative max-h-[160px] overflow-y-auto">
+          <div className="bg-blue-100/80 border-b border-blue-200 p-2.5 space-y-2 shrink-0 z-20 shadow-sm relative max-h-[160px] overflow-y-auto">
             <div className="flex items-center gap-1.5 px-1 mb-1">
-              <Pin className="w-3 h-3 text-blue-500 fill-current rotate-45" />
-              <span className="text-[9px] font-black uppercase tracking-wider text-blue-700">Pinned Messages</span>
+              <Pin className="w-3 h-3 text-blue-600 fill-current rotate-45" />
+              <span className="text-[9px] font-black uppercase tracking-wider text-blue-800">Pinned Messages</span>
             </div>
             {pinnedMessages.map((msg) => (
               <MessageCard
