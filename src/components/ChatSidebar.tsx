@@ -1128,7 +1128,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
       if (remaining <= 0) {
         setIsTokenValid(false);
-        setAttendanceStatus('expired');
+        setAttendanceStatus(prev => prev === 'success' ? 'success' : 'expired');
         clearInterval(interval);
       }
     }, 1000);
