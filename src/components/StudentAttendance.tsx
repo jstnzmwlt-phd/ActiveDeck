@@ -118,13 +118,34 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
       // Format email to lower case and trim to ensure clean ID
       const studentEmail = email.trim().toLowerCase();
 
+      // Fetch active institution details from settings/global
+      let activeInstitutionId = 'custom';
+      let activeInstitutionName = 'Custom / Active Theme';
+      try {
+        const globalRef = doc(db, 'settings', 'global');
+        const globalSnap = await getDoc(globalRef);
+        if (globalSnap.exists()) {
+          const globalData = globalSnap.data();
+          if (globalData.activeInstitutionId) {
+            activeInstitutionId = globalData.activeInstitutionId;
+          }
+          if (globalData.activeInstitutionName) {
+            activeInstitutionName = globalData.activeInstitutionName;
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching global settings for institution info:', err);
+      }
+
       // Write check-in directly to Firestore subcollection using the email as document ID
       const attendanceRef = doc(db, 'presentations', presentationId, 'attendance', studentEmail);
       await setDoc(attendanceRef, {
         name: name.trim(),
         email: studentEmail,
         checkedInAt: serverTimestamp(),
-        scannedToken: token
+        scannedToken: token,
+        institutionId: activeInstitutionId,
+        institutionName: activeInstitutionName
       });
 
       setSubmitSuccess(true);

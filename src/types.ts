@@ -14,6 +14,8 @@ export interface SavedTheme {
 
 export interface GlobalSettings {
   theme: Theme;
+  activeInstitutionId?: string;
+  activeInstitutionName?: string;
 }
 
 export interface Presentation {

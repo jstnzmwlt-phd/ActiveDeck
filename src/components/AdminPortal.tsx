@@ -14,6 +14,8 @@ interface StudentAttendanceRecord {
   email: string;
   checkedInAt: Timestamp | null;
   scannedToken: string;
+  institutionId?: string;
+  institutionName?: string;
 }
 
 interface RecentPresentationRecord {
@@ -27,9 +29,12 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
   const [primaryColor, setPrimaryColor] = useState('#FF6600');
   const [secondaryColor, setSecondaryColor] = useState('#000000');
   const [logoUrl, setLogoUrl] = useState('');
-  const [loadingTheme, setLoadingTheme] = useState(true);
-  const [savedThemes, setSavedThemes] = useState<SavedTheme[]>([]);
-  const [newThemeName, setNewThemeName] = useState('');
+  const [loadingInstitution, setLoadingInstitution] = useState(true);
+  const [savedInstitutions, setSavedInstitutions] = useState<SavedTheme[]>([]);
+  const [newInstitutionName, setNewInstitutionName] = useState('');
+  const [activeInstitutionId, setActiveInstitutionId] = useState<string>('custom');
+  const [activeInstitutionName, setActiveInstitutionName] = useState<string>('Custom / Active Theme');
+  const [attendanceFilter, setAttendanceFilter] = useState<string>('all');
 
   // Attendance Tracker States
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(presentationId || null);
@@ -46,6 +51,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
       setSelectedSessionId(presentationId);
     }
   }, [presentationId]);
+
+  // Default attendance filter to active institution once it loads
+  useEffect(() => {
+    if (activeInstitutionId) {
+      setAttendanceFilter(activeInstitutionId);
+    }
+  }, [activeInstitutionId]);
 
   // Derived session info for the selected session in history
   const selectedSession = recentSessions.find(s => s.id === selectedSessionId);
@@ -66,23 +78,26 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
       ? 'Current Active Session'
       : 'Retrieving Date...';
 
-  // Fetch Global Theme and Saved Themes (Initial Load)
+  // Fetch Global Settings (Institution colors/logo) and Saved Institutions (Initial Load)
   useEffect(() => {
     const fetchSettings = async () => {
       const docRef = doc(db, 'settings', 'global');
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
-        const data = docSnap.data().theme as Theme;
-        setPrimaryColor(data.primaryColor);
-        setSecondaryColor(data.secondaryColor);
-        setLogoUrl(data.logoUrl);
+        const data = docSnap.data();
+        const theme = data.theme as Theme;
+        setPrimaryColor(theme.primaryColor);
+        setSecondaryColor(theme.secondaryColor);
+        setLogoUrl(theme.logoUrl);
+        setActiveInstitutionId(data.activeInstitutionId || 'custom');
+        setActiveInstitutionName(data.activeInstitutionName || 'Custom / Active Theme');
       }
-      setLoadingTheme(false);
+      setLoadingInstitution(false);
     };
     
     const unsub = onSnapshot(collection(db, 'savedThemes'), (snapshot) => {
       const themes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as SavedTheme[];
-      setSavedThemes(themes);
+      setSavedInstitutions(themes);
     });
     
     fetchSettings();
@@ -139,7 +154,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
         name: doc.data().name || '',
         email: doc.data().email || '',
         checkedInAt: doc.data().checkedInAt || null,
-        scannedToken: doc.data().scannedToken || ''
+        scannedToken: doc.data().scannedToken || '',
+        institutionId: doc.data().institutionId || 'custom',
+        institutionName: doc.data().institutionName || 'Custom / Active Theme'
       })) as StudentAttendanceRecord[];
       setAttendanceList(list);
       setLoadingAttendance(false);
@@ -151,40 +168,52 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
     return () => unsubAttendance();
   }, [selectedSessionId, activeTab]);
 
-  // Handle saving the global active theme or a custom user theme
-  const handleSaveTheme = async (isNew: boolean = false) => {
+  // Handle saving the global active institution or a custom user institution
+  const handleSaveInstitution = async (isNew: boolean = false) => {
     const themeData = { primaryColor, secondaryColor, logoUrl };
     
     try {
       if (isNew) {
-        if (!newThemeName.trim()) return alert('Theme Name is required');
-        await addDoc(collection(db, 'savedThemes'), { name: newThemeName.trim(), theme: themeData });
-        setNewThemeName(''); 
-        alert('Theme saved!');
+        if (!newInstitutionName.trim()) return alert('Institution Name is required');
+        const docRef = await addDoc(collection(db, 'savedThemes'), { name: newInstitutionName.trim(), theme: themeData });
+        setNewInstitutionName(''); 
+        alert('Institution saved!');
+        setActiveInstitutionId(docRef.id);
+        setActiveInstitutionName(newInstitutionName.trim());
       } else {
-        await setDoc(doc(db, 'settings', 'global'), { theme: themeData }, { merge: true });
-        alert('Active Theme successfully updated!');
+        await setDoc(doc(db, 'settings', 'global'), { 
+          theme: themeData,
+          activeInstitutionId,
+          activeInstitutionName
+        }, { merge: true });
+        alert('Active Institution successfully updated!');
         window.location.reload();
       }
     } catch (e) {
-      console.error("Error saving theme:", e);
-      alert("Error saving theme: " + e);
+      console.error("Error saving institution:", e);
+      alert("Error saving institution: " + e);
     }
   };
 
-  const loadTheme = async (theme: Theme) => {
+  const loadInstitution = async (theme: Theme, name: string, id: string) => {
     setPrimaryColor(theme.primaryColor);
     setSecondaryColor(theme.secondaryColor);
     setLogoUrl(theme.logoUrl);
+    setActiveInstitutionId(id);
+    setActiveInstitutionName(name);
   };
 
-  const handleDeleteTheme = async (themeId: string) => {
-    if (!confirm('Are you sure you want to delete this theme?')) return;
+  const handleDeleteInstitution = async (themeId: string) => {
+    if (!confirm('Are you sure you want to delete this institution?')) return;
     try {
       await deleteDoc(doc(db, 'savedThemes', themeId));
+      if (activeInstitutionId === themeId) {
+        setActiveInstitutionId('custom');
+        setActiveInstitutionName('Custom / Active Theme');
+      }
     } catch (e) {
-      console.error("Error deleting theme:", e);
-      alert("Error deleting theme: " + e);
+      console.error("Error deleting institution:", e);
+      alert("Error deleting institution: " + e);
     }
   };
 
@@ -280,12 +309,41 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
     }
   };
 
+  // Derived state to filter attendance records by selected institution
+  const filteredAttendance = attendanceList.filter(record => {
+    if (attendanceFilter === 'all') return true;
+    return record.institutionId === attendanceFilter;
+  });
+
+  // Generate unique options for filter dropdown
+  const filterOptions = [
+    { id: 'all', name: 'All Check-Ins' }
+  ];
+  if (activeInstitutionId && activeInstitutionId !== 'custom') {
+    filterOptions.push({
+      id: activeInstitutionId,
+      name: `Active: ${activeInstitutionName}`
+    });
+  }
+  savedInstitutions.forEach(inst => {
+    if (inst.id !== activeInstitutionId) {
+      filterOptions.push({
+        id: inst.id,
+        name: inst.name
+      });
+    }
+  });
+  filterOptions.push({
+    id: 'custom',
+    name: 'Custom / Other Themes'
+  });
+
   // CSV Exporter for attendance sheet
   const handleDownloadCSV = () => {
-    if (attendanceList.length === 0 || !selectedSessionId) return;
+    if (filteredAttendance.length === 0 || !selectedSessionId) return;
 
-    const headers = ["Student Name", "Email Address", "Check-In Timestamp", "Scanned Token ID"];
-    const rows = attendanceList.map(record => {
+    const headers = ["Student Name", "Email Address", "Check-In Timestamp", "Institution Name", "Scanned Token ID"];
+    const rows = filteredAttendance.map(record => {
       const timestampString = record.checkedInAt 
         ? new Date(record.checkedInAt.seconds * 1000).toLocaleString() 
         : 'Pending Server Timestamp...';
@@ -293,6 +351,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
         `"${record.name.replace(/"/g, '""')}"`,
         `"${record.email.replace(/"/g, '""')}"`,
         `"${timestampString}"`,
+        `"${(record.institutionName || 'Custom / Active Theme').replace(/"/g, '""')}"`,
         `"${record.scannedToken}"`
       ];
     });
@@ -309,7 +368,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
     document.body.removeChild(link);
   };
 
-  if (loadingTheme) {
+  if (loadingInstitution) {
     return (
       <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-950 text-white">
         <Loader2 className="w-10 h-10 text-osu-orange animate-spin mb-4" />
@@ -339,7 +398,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
             }`}
           >
             <Palette className="w-4 h-4" />
-            Theme Builder
+            Institutions
           </button>
           <button
             onClick={() => setActiveTab('attendance')}
@@ -372,7 +431,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
         <div className="w-full max-w-4xl">
 
           {/* ========================================================
-              TAB 1: THEME BUILDER WORKSPACE
+              TAB 1: INSTITUTIONS WORKSPACE
               ======================================================== */}
           {activeTab === 'theme' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in duration-300">
@@ -391,13 +450,21 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                       <input 
                         type="color" 
                         value={primaryColor} 
-                        onChange={(e) => setPrimaryColor(e.target.value)} 
+                        onChange={(e) => {
+                          setPrimaryColor(e.target.value);
+                          setActiveInstitutionId('custom');
+                          setActiveInstitutionName('Custom / Active Theme');
+                        }} 
                         className="w-14 h-11 rounded-xl bg-slate-950 border border-slate-800 cursor-pointer p-1" 
                       />
                       <input 
                         type="text" 
                         value={primaryColor} 
-                        onChange={(e) => setPrimaryColor(e.target.value)} 
+                        onChange={(e) => {
+                          setPrimaryColor(e.target.value);
+                          setActiveInstitutionId('custom');
+                          setActiveInstitutionName('Custom / Active Theme');
+                        }} 
                         className="flex-1 h-11 rounded-xl bg-slate-950 border border-slate-800 text-sm px-4 uppercase font-mono text-white" 
                       />
                     </div>
@@ -409,13 +476,21 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                       <input 
                         type="color" 
                         value={secondaryColor} 
-                        onChange={(e) => setSecondaryColor(e.target.value)} 
+                        onChange={(e) => {
+                          setSecondaryColor(e.target.value);
+                          setActiveInstitutionId('custom');
+                          setActiveInstitutionName('Custom / Active Theme');
+                        }} 
                         className="w-14 h-11 rounded-xl bg-slate-950 border border-slate-800 cursor-pointer p-1" 
                       />
                       <input 
                         type="text" 
                         value={secondaryColor} 
-                        onChange={(e) => setSecondaryColor(e.target.value)} 
+                        onChange={(e) => {
+                          setSecondaryColor(e.target.value);
+                          setActiveInstitutionId('custom');
+                          setActiveInstitutionName('Custom / Active Theme');
+                        }} 
                         className="flex-1 h-11 rounded-xl bg-slate-950 border border-slate-800 text-sm px-4 uppercase font-mono text-white" 
                       />
                     </div>
@@ -426,49 +501,46 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                     <input 
                       type="text" 
                       value={logoUrl} 
-                      onChange={(e) => setLogoUrl(e.target.value)} 
+                      onChange={(e) => {
+                        setLogoUrl(e.target.value);
+                        setActiveInstitutionId('custom');
+                        setActiveInstitutionName('Custom / Active Theme');
+                      }} 
                       placeholder="https://example.com/logo.png"
                       className="w-full h-11 rounded-xl bg-slate-950 border border-slate-800 text-sm px-4 text-white placeholder-slate-600" 
                     />
                   </div>
                 </div>
-
-                <button 
-                  onClick={() => handleSaveTheme(false)} 
-                  className="w-full h-11 bg-osu-orange text-white font-black uppercase tracking-widest rounded-xl hover:bg-[#c03900] shadow-lg shadow-orange-500/10 transition-colors"
-                >
-                  Apply Active Global Theme
-                </button>
               </div>
 
               {/* Right Column: Preset Themes list */}
               <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 flex flex-col justify-between">
                 <div>
                   <h2 className="text-lg font-black uppercase tracking-wider border-b border-slate-800 pb-3 text-white mb-6">
-                    Saved Themes & Presets
+                    Saved Institutions
                   </h2>
 
                   <div className="flex gap-3 mb-6">
                     <input 
                       type="text" 
-                      value={newThemeName} 
-                      onChange={(e) => setNewThemeName(e.target.value)} 
-                      placeholder="Custom Preset Name" 
+                      value={newInstitutionName} 
+                      onChange={(e) => setNewInstitutionName(e.target.value)} 
+                      placeholder="Custom Institution Name" 
                       className="flex-1 h-11 rounded-xl bg-slate-950 border border-slate-800 text-sm px-4 text-white placeholder-slate-600 focus:outline-none focus:border-osu-orange" 
                     />
                     <button 
-                      onClick={() => handleSaveTheme(true)} 
+                      onClick={() => handleSaveInstitution(true)} 
                       className="px-6 h-11 bg-slate-800 hover:bg-slate-750 text-slate-100 font-bold text-xs uppercase tracking-wider rounded-xl transition-colors border border-slate-700/50"
                     >
-                      Save Preset
+                      Save Institution
                     </button>
                   </div>
 
                   <div className="space-y-2.5 max-h-[220px] overflow-y-auto pr-1">
-                    {savedThemes.length === 0 ? (
-                      <p className="text-xs text-slate-500 italic text-center py-8">No custom presets saved yet.</p>
+                    {savedInstitutions.length === 0 ? (
+                      <p className="text-xs text-slate-500 italic text-center py-8">No custom institutions saved yet.</p>
                     ) : (
-                      savedThemes.map(t => (
+                      savedInstitutions.map(t => (
                         <div key={t.id} className="flex justify-between items-center bg-slate-950/80 border border-slate-800/80 p-3 rounded-2xl">
                           <div className="flex items-center gap-3">
                             <div className="flex gap-1">
@@ -479,13 +551,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                           </div>
                           <div className="flex gap-2">
                             <button 
-                              onClick={() => loadTheme(t.theme)} 
+                              onClick={() => loadInstitution(t.theme, t.name, t.id)} 
                               className="px-3.5 py-1.5 bg-osu-orange hover:bg-[#c03900] text-[10px] font-black uppercase tracking-wider text-white rounded-lg transition-colors"
                             >
                               Load
                             </button>
                             <button 
-                              onClick={() => handleDeleteTheme(t.id)} 
+                              onClick={() => handleDeleteInstitution(t.id)} 
                               className="px-3.5 py-1.5 bg-red-950/20 hover:bg-red-900 border border-red-500/25 hover:border-red-500/50 text-[10px] font-black uppercase tracking-wider text-red-400 hover:text-white rounded-lg transition-colors"
                             >
                               Delete
@@ -496,8 +568,18 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                     )}
                   </div>
                 </div>
+
+                <div className="pt-4 border-t border-slate-800 mt-4">
+                  <button 
+                    onClick={() => handleSaveInstitution(false)} 
+                    className="w-full h-11 bg-osu-orange text-white font-black uppercase tracking-widest rounded-xl hover:bg-[#c03900] shadow-lg shadow-orange-500/10 transition-colors"
+                  >
+                    Apply Institution
+                  </button>
+                </div>
+
                 <div className="pt-6 border-t border-slate-800 mt-6 text-[10px] text-slate-500 text-center leading-relaxed">
-                  Saving a Theme updates the dynamic layout variables of all active presentation interfaces in real-time.
+                  Saving or applying an Institution updates the dynamic layout variables of all active presentation interfaces in real-time.
                 </div>
               </div>
             </div>
@@ -676,15 +758,26 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                         <div className="text-xs text-slate-400 flex flex-wrap items-center gap-x-3 gap-y-1">
                           <span className="text-slate-300 font-bold">{formattedSelectedDate}</span>
                           <span className="text-slate-600">|</span>
-                          <span>Total Check-Ins: <span className="text-white font-bold text-xs bg-slate-950 px-2.5 py-0.5 rounded-lg border border-slate-800">{attendanceList.length} students</span></span>
+                          <span>Total Check-Ins: <span className="text-white font-bold text-xs bg-slate-950 px-2.5 py-0.5 rounded-lg border border-slate-800">{filteredAttendance.length} students</span></span>
                         </div>
                       </div>
 
                       {/* Dashboard controls */}
                       <div className="flex flex-wrap items-center gap-2.5">
+                        <select
+                          value={attendanceFilter}
+                          onChange={(e) => setAttendanceFilter(e.target.value)}
+                          className="h-11 px-4 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-slate-200 focus:outline-none focus:border-osu-orange cursor-pointer"
+                        >
+                          {filterOptions.map(option => (
+                            <option key={option.id} value={option.id} className="bg-slate-900 text-slate-200">
+                              {option.name}
+                            </option>
+                          ))}
+                        </select>
                         <button
                           onClick={handleDownloadCSV}
-                          disabled={attendanceList.length === 0}
+                          disabled={filteredAttendance.length === 0}
                           className="flex items-center gap-2 h-11 px-5 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-orange-500/10 cursor-pointer"
                         >
                           <Download className="w-4 h-4" />
@@ -708,27 +801,30 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                                 <th className="py-3 px-4">Student Name</th>
                                 <th className="py-3 px-4">Email Address</th>
                                 <th className="py-3 px-4">Checked-In Timestamp</th>
+                                <th className="py-3 px-4">Institution</th>
                                 <th className="py-3 px-4 text-right">Verification Status</th>
                               </tr>
                             </thead>
                             <tbody>
                               {loadingAttendance ? (
                                 <tr>
-                                  <td colSpan={4} className="py-16 text-center">
+                                  <td colSpan={5} className="py-16 text-center">
                                     <Loader2 className="w-8 h-8 text-osu-orange animate-spin mx-auto mb-2" />
                                     <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500">Retrieving check-ins...</span>
                                   </td>
                                 </tr>
-                              ) : attendanceList.length === 0 ? (
+                              ) : filteredAttendance.length === 0 ? (
                                 <tr>
-                                  <td colSpan={4} className="py-16 text-center text-slate-500 text-xs italic">
-                                    {selectedSessionId === presentationId 
-                                      ? 'No students have scanned in yet. Ask your class to scan the QR code to check in.' 
-                                      : 'No check-in records were logged for this presentation session.'}
+                                  <td colSpan={5} className="py-16 text-center text-slate-500 text-xs italic">
+                                    {attendanceList.length === 0
+                                      ? (selectedSessionId === presentationId 
+                                          ? 'No students have scanned in yet. Ask your class to scan the QR code to check in.' 
+                                          : 'No check-in records were logged for this presentation session.')
+                                      : 'No check-in records matched the selected institution filter.'}
                                   </td>
                                 </tr>
                               ) : (
-                                attendanceList.map((record) => (
+                                filteredAttendance.map((record) => (
                                   <tr key={record.id} className="border-b border-slate-800/50 last:border-0 hover:bg-slate-900/40 text-sm transition-colors">
                                     <td className="py-3.5 px-4 font-bold text-white">{record.name}</td>
                                     <td className="py-3.5 px-4 text-slate-300 font-medium">{record.email}</td>
@@ -736,6 +832,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                                       {record.checkedInAt 
                                         ? new Date(record.checkedInAt.seconds * 1000).toLocaleString() 
                                         : 'Registering on server...'}
+                                    </td>
+                                    <td className="py-3.5 px-4 text-slate-300 font-medium">
+                                      {record.institutionName || 'Custom / Active Theme'}
                                     </td>
                                     <td className="py-3.5 px-4 text-right">
                                       <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wide text-green-400 bg-green-500/10 px-2.5 py-1 rounded border border-green-500/20">
