@@ -1146,6 +1146,25 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     }
   }, [isChatOnly, hasJoined, isTokenValid, attendanceStatus, guestEmail, guestName, presentation?.id, urlToken]);
 
+  // Check if session ID changed and log out if it does not match
+  useEffect(() => {
+    if (isChatOnly && presentation?.id) {
+      const savedPresId = localStorage.getItem('activeDeckJoinedPresentationId');
+      const savedJoined = localStorage.getItem('activeDeckJoined') === 'true';
+      if (savedJoined && savedPresId !== presentation.id) {
+        setHasJoined(false);
+        setGuestEmail('');
+        setGuestName('');
+        setJoinEmailInput('');
+        setJoinNameInput('');
+        localStorage.removeItem('activeDeckJoined');
+        localStorage.removeItem('activeDeckGuestEmail');
+        localStorage.removeItem('activeDeckGuestName');
+        localStorage.removeItem('activeDeckJoinedPresentationId');
+      }
+    }
+  }, [presentation?.id, isChatOnly]);
+
   // Construct chat-only URL for QR code
   const baseUrl = window.location.origin + window.location.pathname;
   const chatOnlyUrl = presentation?.id ? `${baseUrl}?view=chat&id=${presentation.id}` : `${baseUrl}?view=chat`;
@@ -1355,6 +1374,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     localStorage.setItem('activeDeckJoined', 'true');
     localStorage.setItem('activeDeckGuestEmail', emailToSave);
     localStorage.setItem('activeDeckGuestName', nameToSave);
+    if (presentation?.id) {
+      localStorage.setItem('activeDeckJoinedPresentationId', presentation.id);
+    }
 
     if (urlToken && presentation?.id) {
       setIsValidatingToken(true);
@@ -1428,6 +1450,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     localStorage.removeItem('activeDeckJoined');
     localStorage.removeItem('activeDeckGuestEmail');
     localStorage.removeItem('activeDeckGuestName');
+    localStorage.removeItem('activeDeckJoinedPresentationId');
   };
 
   const handleDeleteMessage = async (id: string) => {
@@ -2296,11 +2319,17 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 <h3 className="text-sm font-bold text-slate-900">
                   {urlToken ? "Join & Check-In" : "Join the Discussion"}
                 </h3>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-slate-500 mt-1 mb-2">
                   {urlToken 
                     ? "Enter your name and email to register attendance and join the chat." 
                     : "Enter your name and email to join the discussion."}
                 </p>
+                {urlToken && tokenTimeLeft !== null && isTokenValid && (
+                  <div className="mt-2 py-1 px-3 bg-orange-50 border border-orange-100 rounded-lg inline-flex items-center gap-1.5 text-xs font-bold text-osu-orange animate-pulse">
+                    <Timer className="w-3.5 h-3.5" />
+                    <span>Time left to check-in: {tokenTimeLeft}s</span>
+                  </div>
+                )}
               </div>
               <input
                 type="text"
