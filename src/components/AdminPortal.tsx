@@ -39,6 +39,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
   const [loadingAttendance, setLoadingAttendance] = useState(false);
   const [customSessionInput, setCustomSessionInput] = useState('');
 
+  // Sync selected session with active presentation prop
+  useEffect(() => {
+    if (presentationId) {
+      setSelectedSessionId(presentationId);
+    }
+  }, [presentationId]);
+
   // Fetch Global Theme and Saved Themes (Initial Load)
   useEffect(() => {
     const fetchSettings = async () => {
@@ -81,6 +88,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
       })) as RecentPresentationRecord[];
       setRecentSessions(sessions);
       setLoadingSessions(false);
+
+      // Automatically select the most recent session if none is selected yet
+      if (sessions.length > 0 && !selectedSessionId) {
+        setSelectedSessionId(sessions[0].id);
+      }
     }, (error) => {
       console.error("Error loading recent sessions:", error);
       setLoadingSessions(false);

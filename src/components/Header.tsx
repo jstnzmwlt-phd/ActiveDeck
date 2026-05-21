@@ -255,7 +255,7 @@ export const Header: React.FC = () => {
                 if (adminPassword === '@dm1N') {
                   console.log('Header - Password correct, setting hash');
                   setIsAdminModalOpen(false);
-                  window.location.href = window.location.origin + window.location.pathname + '#admin';
+                  window.location.hash = '#admin';
                   window.dispatchEvent(new Event('hashchange'));
                 } else {
                   setPasswordError('Invalid password');

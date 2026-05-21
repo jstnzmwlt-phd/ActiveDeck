@@ -175,7 +175,7 @@ function AppContent() {
   }
 
   if (hash === '#admin') {
-    return <AdminPortal />;
+    return <AdminPortal presentationId={presentationId} />;
   }
 
   // Handle SPA path routing for Student Attendance
