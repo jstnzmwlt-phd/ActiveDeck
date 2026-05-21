@@ -1114,7 +1114,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
   // Student countdown timer for valid token
   useEffect(() => {
-    if (!isTokenValid || tokenTimeLeft === null || !verifiedTokenData) return;
+    if (!isTokenValid || tokenTimeLeft === null || !verifiedTokenData || attendanceStatus === 'success') return;
 
     const interval = setInterval(() => {
       const createdAt = verifiedTokenData.createdAt as Timestamp;
@@ -1134,7 +1134,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isTokenValid, tokenTimeLeft, verifiedTokenData]);
+  }, [isTokenValid, tokenTimeLeft, verifiedTokenData, attendanceStatus]);
 
   // Student background auto-check-in when already joined
   useEffect(() => {
@@ -2066,12 +2066,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               <div className="flex-1 min-w-0">
                 <p className="font-bold">Attendance Checked-In!</p>
                 <p className="opacity-80">Checked in as <span className="font-semibold">{guestName || joinNameInput}</span> ({guestEmail || joinEmailInput})</p>
-                {urlToken && tokenTimeLeft !== null && isTokenValid && (
-                  <p className="text-[10px] text-green-700 font-bold mt-1 flex items-center gap-1 animate-pulse">
-                    <Timer className="w-3.5 h-3.5 text-green-600" />
-                    <span>Check-in token expires in: {tokenTimeLeft}s</span>
-                  </p>
-                )}
               </div>
             </>
           )}
