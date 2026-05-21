@@ -45,6 +45,25 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
     }
   }, [presentationId]);
 
+  // Derived session info for the selected session in history
+  const selectedSession = recentSessions.find(s => s.id === selectedSessionId);
+  const selectedSessionDate = selectedSession?.createdAt 
+    ? new Date(selectedSession.createdAt.seconds * 1000) 
+    : null;
+  const formattedSelectedDate = selectedSessionDate 
+    ? selectedSessionDate.toLocaleString(undefined, { 
+        weekday: 'short', 
+        month: 'short', 
+        day: 'numeric', 
+        year: 'numeric', 
+        hour: '2-digit', 
+        minute: '2-digit', 
+        second: '2-digit' 
+      })
+    : selectedSessionId === presentationId
+      ? 'Current Active Session'
+      : 'Retrieving Date...';
+
   // Fetch Global Theme and Saved Themes (Initial Load)
   useEffect(() => {
     const fetchSettings = async () => {
@@ -68,15 +87,15 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
     return () => unsub();
   }, []);
 
-  // Attendance Tracker: Fetch recent presentation sessions if no active presentation is bound
+  // Attendance Tracker: Fetch recent presentation sessions chronologically
   useEffect(() => {
-    if (activeTab !== 'attendance' || selectedSessionId) return;
+    if (activeTab !== 'attendance') return;
 
     setLoadingSessions(true);
     const qSessions = query(
       collection(db, 'presentations'),
       orderBy('createdAt', 'desc'),
-      limit(10)
+      limit(50)
     );
 
     const unsubSessions = onSnapshot(qSessions, (snapshot) => {
@@ -89,16 +108,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
       setLoadingSessions(false);
 
       // Automatically select the most recent session if none is selected yet
-      if (sessions.length > 0 && !selectedSessionId) {
-        setSelectedSessionId(sessions[0].id);
-      }
+      setSelectedSessionId(current => {
+        if (current) return current;
+        return sessions.length > 0 ? sessions[0].id : null;
+      });
     }, (error) => {
       console.error("Error loading recent sessions:", error);
       setLoadingSessions(false);
     });
 
     return () => unsubSessions();
-  }, [activeTab, selectedSessionId]);
+  }, [activeTab]);
 
   // Attendance Tracker: Subscribe to real-time check-ins for the active presentation session
   useEffect(() => {
@@ -393,115 +413,177 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
               TAB 2: ATTENDANCE TRACKER WORKSPACE
               ======================================================== */}
           {activeTab === 'attendance' && (
-            <div className="space-y-6 animate-in fade-in duration-300">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in duration-300">
               
-              {/* CASE A: No presentation selected - Render Loading or Empty State */}
-              {!selectedSessionId ? (
-                loadingSessions ? (
-                  <div className="flex flex-col items-center justify-center py-24">
-                    <Loader2 className="w-10 h-10 text-osu-orange animate-spin mb-4" />
-                    <span className="text-xs font-black uppercase tracking-widest text-slate-400">Loading Active Attendance Session...</span>
-                  </div>
-                ) : (
-                  <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 max-w-xl mx-auto text-center space-y-4">
-                    <div className="w-12 h-12 bg-red-500/10 border border-red-500/20 text-red-500 rounded-2xl flex items-center justify-center mx-auto">
-                      <AlertCircle className="w-6 h-6" />
-                    </div>
-                    <h2 className="text-xl font-black text-white">No Active Session Found</h2>
-                    <p className="text-xs text-slate-400">
-                      Please open a presentation in ActiveDeck first to initialize a session, then return to the admin portal to monitor attendance.
-                    </p>
-                  </div>
-                )
-              ) : (
+              {/* Left Column: Chronological Session Logs */}
+              <div className="lg:col-span-4 flex flex-col gap-6">
+                <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 flex flex-col h-[650px] overflow-hidden">
+                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2 pb-3 border-b border-slate-800 flex-shrink-0">
+                    <Calendar className="w-4 h-4 text-osu-orange" />
+                    Session Attendance Logs
+                  </h3>
 
-                // CASE B: Presentation selected - Monitor Live Attendance
-                <div className="space-y-6">
-                  
-                  {/* Dashboard header card */}
-                  <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse" />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Monitoring Session</span>
+                  <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                    {loadingSessions && recentSessions.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-24">
+                        <Loader2 className="w-8 h-8 text-osu-orange animate-spin mb-3" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Loading sessions...</span>
                       </div>
-                      <h2 className="text-lg font-black text-white font-mono break-all">{selectedSessionId}</h2>
-                      <div className="text-xs text-slate-400 flex items-center gap-2">
-                        <span>Total Scanned:</span>
-                        <span className="text-white font-bold text-sm bg-slate-950 px-2.5 py-0.5 rounded-lg border border-slate-800">{attendanceList.length} students</span>
+                    ) : recentSessions.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-24 text-center px-4">
+                        <AlertCircle className="w-8 h-8 text-slate-600 mb-3" />
+                        <p className="text-xs text-slate-500 italic">No presentation sessions found.</p>
                       </div>
-                    </div>
+                    ) : (
+                      recentSessions.map((session) => {
+                        const isSelected = selectedSessionId === session.id;
+                        const sessionDate = session.createdAt 
+                          ? new Date(session.createdAt.seconds * 1000) 
+                          : null;
+                        const formattedDate = sessionDate 
+                          ? sessionDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+                          : 'Unknown Date';
+                        const formattedTime = sessionDate
+                          ? sessionDate.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                          : 'Unknown Time';
 
-                    {/* Dashboard controls */}
-                    <div className="flex flex-wrap items-center gap-2.5">
-                      <button
-                        onClick={handleDownloadCSV}
-                        disabled={attendanceList.length === 0}
-                        className="flex items-center gap-2 h-11 px-5 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-orange-500/10"
-                      >
-                        <Download className="w-4 h-4" />
-                        Export CSV Sheet
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Real-Time Live Roster Table Card */}
-                  <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 overflow-hidden">
-                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
-                      <UserCheck className="w-4 h-4 text-green-500" />
-                      Live Attendance Roster
-                    </h3>
-
-                    <div className="border border-slate-800/80 rounded-2xl overflow-hidden bg-slate-950/40">
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                          <thead>
-                            <tr className="bg-slate-950 border-b border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-400">
-                              <th className="py-3 px-4">Student Name</th>
-                              <th className="py-3 px-4">Email Address</th>
-                              <th className="py-3 px-4">Checked-In Timestamp</th>
-                              <th className="py-3 px-4 text-right">Verification Status</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {loadingAttendance ? (
-                              <tr>
-                                <td colSpan={4} className="py-16 text-center">
-                                  <Loader2 className="w-8 h-8 text-osu-orange animate-spin mx-auto mb-2" />
-                                  <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500">Retrieving check-ins...</span>
-                                </td>
-                              </tr>
-                            ) : attendanceList.length === 0 ? (
-                              <tr>
-                                <td colSpan={4} className="py-16 text-center text-slate-500 text-xs italic">
-                                  No students have scanned in yet. Ask your class to scan the QR code to check in.
-                                </td>
-                              </tr>
-                            ) : (
-                              attendanceList.map((record) => (
-                                <tr key={record.id} className="border-b border-slate-800/50 last:border-0 hover:bg-slate-900/40 text-sm transition-colors">
-                                  <td className="py-3.5 px-4 font-bold text-white">{record.name}</td>
-                                  <td className="py-3.5 px-4 text-slate-300 font-medium">{record.email}</td>
-                                  <td className="py-3.5 px-4 text-slate-400 font-mono text-xs">
-                                    {record.checkedInAt 
-                                      ? new Date(record.checkedInAt.seconds * 1000).toLocaleString() 
-                                      : 'Registering on server...'}
-                                  </td>
-                                  <td className="py-3.5 px-4 text-right">
-                                    <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wide text-green-400 bg-green-500/10 px-2.5 py-1 rounded border border-green-500/20">
-                                      Verified Check-In
-                                    </span>
-                                  </td>
-                                </tr>
-                              ))
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
+                        return (
+                          <button
+                            key={session.id}
+                            onClick={() => setSelectedSessionId(session.id)}
+                            className={`w-full text-left p-3.5 rounded-2xl border transition-all flex flex-col gap-1 cursor-pointer group relative overflow-hidden ${
+                              isSelected 
+                                ? 'bg-osu-orange/15 border-osu-orange text-white shadow-md shadow-orange-500/5' 
+                                : 'bg-slate-950/40 border-slate-800/80 hover:border-slate-700/80 text-slate-300 hover:text-white'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between w-full">
+                              <span className={`text-xs font-black ${isSelected ? 'text-osu-orange' : 'text-slate-400 group-hover:text-slate-200'}`}>
+                                {formattedDate}
+                              </span>
+                              <span className="text-[10px] font-mono opacity-60">
+                                {formattedTime}
+                              </span>
+                            </div>
+                            <div className="text-[10px] font-mono opacity-80 break-all mt-1 flex items-center justify-between">
+                              <span>ID: {session.id.substring(0, 10)}...</span>
+                              {session.id === presentationId && (
+                                <span className="text-[8px] font-black uppercase bg-osu-orange text-white px-1.5 py-0.5 rounded">Active</span>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })
+                    )}
                   </div>
                 </div>
-              )}
+              </div>
+
+              {/* Right Column: Attendance Monitor */}
+              <div className="lg:col-span-8">
+                {!selectedSessionId ? (
+                  <div className="bg-slate-900 border border-slate-800 rounded-3xl p-12 text-center flex flex-col items-center justify-center h-[650px]">
+                    <div className="w-12 h-12 bg-osu-orange/10 border border-osu-orange/20 text-osu-orange rounded-2xl flex items-center justify-center mb-4">
+                      <UserCheck className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-lg font-black text-white uppercase tracking-wide">Select a Session Log</h3>
+                    <p className="text-xs text-slate-400 max-w-sm mt-2 leading-relaxed">
+                      Choose an attendance session from the historical logs on the left to review checked-in students and export the roster.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* Dashboard header card */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className={`w-2 h-2 rounded-full ${selectedSessionId === presentationId ? 'bg-green-500 animate-pulse' : 'bg-slate-500'}`} />
+                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            {selectedSessionId === presentationId ? 'Monitoring Live Session' : 'Reviewing Closed Session'}
+                          </span>
+                        </div>
+                        <h2 className="text-base font-black text-white font-mono break-all">{selectedSessionId}</h2>
+                        <div className="text-xs text-slate-400 flex flex-wrap items-center gap-x-3 gap-y-1">
+                          <span className="text-slate-300 font-bold">{formattedSelectedDate}</span>
+                          <span className="text-slate-600">|</span>
+                          <span>Total Check-Ins: <span className="text-white font-bold text-xs bg-slate-950 px-2.5 py-0.5 rounded-lg border border-slate-800">{attendanceList.length} students</span></span>
+                        </div>
+                      </div>
+
+                      {/* Dashboard controls */}
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        <button
+                          onClick={handleDownloadCSV}
+                          disabled={attendanceList.length === 0}
+                          className="flex items-center gap-2 h-11 px-5 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-orange-500/10 cursor-pointer"
+                        >
+                          <Download className="w-4 h-4" />
+                          Export CSV Sheet
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Real-Time Live Roster Table Card */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 overflow-hidden">
+                      <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
+                        <UserCheck className="w-4 h-4 text-green-500" />
+                        {selectedSessionId === presentationId ? 'Live Attendance Roster' : 'Attendance Roster Log'}
+                      </h3>
+
+                      <div className="border border-slate-800/80 rounded-2xl overflow-hidden bg-slate-950/40">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse">
+                            <thead>
+                              <tr className="bg-slate-950 border-b border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                <th className="py-3 px-4">Student Name</th>
+                                <th className="py-3 px-4">Email Address</th>
+                                <th className="py-3 px-4">Checked-In Timestamp</th>
+                                <th className="py-3 px-4 text-right">Verification Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {loadingAttendance ? (
+                                <tr>
+                                  <td colSpan={4} className="py-16 text-center">
+                                    <Loader2 className="w-8 h-8 text-osu-orange animate-spin mx-auto mb-2" />
+                                    <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500">Retrieving check-ins...</span>
+                                  </td>
+                                </tr>
+                              ) : attendanceList.length === 0 ? (
+                                <tr>
+                                  <td colSpan={4} className="py-16 text-center text-slate-500 text-xs italic">
+                                    {selectedSessionId === presentationId 
+                                      ? 'No students have scanned in yet. Ask your class to scan the QR code to check in.' 
+                                      : 'No check-in records were logged for this presentation session.'}
+                                  </td>
+                                </tr>
+                              ) : (
+                                attendanceList.map((record) => (
+                                  <tr key={record.id} className="border-b border-slate-800/50 last:border-0 hover:bg-slate-900/40 text-sm transition-colors">
+                                    <td className="py-3.5 px-4 font-bold text-white">{record.name}</td>
+                                    <td className="py-3.5 px-4 text-slate-300 font-medium">{record.email}</td>
+                                    <td className="py-3.5 px-4 text-slate-400 font-mono text-xs">
+                                      {record.checkedInAt 
+                                        ? new Date(record.checkedInAt.seconds * 1000).toLocaleString() 
+                                        : 'Registering on server...'}
+                                    </td>
+                                    <td className="py-3.5 px-4 text-right">
+                                      <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wide text-green-400 bg-green-500/10 px-2.5 py-1 rounded border border-green-500/20">
+                                        Verified Check-In
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
             </div>
           )}
         </div>
