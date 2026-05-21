@@ -23,6 +23,7 @@ window.onerror = (msg, url, lineNo, columnNo, error) => {
 function AppContent() {
   const { user, loading: authLoading } = useAuth();
   const [presentation, setPresentation] = useState<Presentation | null>(null);
+  const [presentationLoaded, setPresentationLoaded] = useState(false);
   const [appError, setAppError] = useState<string | null>(null);
   const [hash, setHash] = useState(window.location.hash);
 
@@ -89,14 +90,17 @@ function AppContent() {
         // Listen to specific presentation
         const docRef = doc(db, 'presentations', presentationId);
         unsubscribe = onSnapshot(docRef, (docSnap) => {
+          setPresentationLoaded(true);
           if (docSnap.exists()) {
             console.log('AppContent - Presentation data received:', docSnap.id);
             setPresentation({ id: docSnap.id, ...docSnap.data() } as Presentation);
           } else {
             console.warn('AppContent - Presentation not found:', presentationId);
+            setPresentation(null);
           }
         }, (error) => {
           console.error("AppContent - Presentation snapshot error:", error);
+          setPresentationLoaded(true);
         });
       } else if (!isChatOnly && user) {
         console.log('AppContent - Creating new presentation for user:', user.uid);
@@ -118,19 +122,24 @@ function AppContent() {
           window.history.replaceState({}, '', newUrl.toString());
           
           unsubscribe = onSnapshot(docRef, (docSnap) => {
+            setPresentationLoaded(true);
             if (docSnap.exists()) {
               const data = docSnap.data();
               console.log('AppContent - New presentation snapshot received:', docSnap.id, data);
               setPresentation({ id: docSnap.id, ...data } as Presentation);
+            } else {
+              setPresentation(null);
             }
           }, (error) => {
             console.error("AppContent - New presentation snapshot error:", error);
+            setPresentationLoaded(true);
           });
         } catch (error) {
           console.error("AppContent - Error creating presentation:", error);
         }
       } else {
         console.log('AppContent - No presentation ID and not a presenter/chat-only');
+        setPresentationLoaded(true);
       }
     };
 
@@ -198,7 +207,12 @@ function AppContent() {
   if (isChatOnly) {
     return (
       <div className="h-[100dvh] w-screen bg-white font-sans antialiased overflow-hidden">
-        <ChatSidebar isChatOnly={true} presentation={presentation} logoUrl={settings?.theme.logoUrl} />
+        <ChatSidebar 
+          isChatOnly={true} 
+          presentation={presentation} 
+          logoUrl={settings?.theme.logoUrl} 
+          presentationLoaded={presentationLoaded} 
+        />
       </div>
     );
   }
@@ -215,7 +229,11 @@ function AppContent() {
 
         {/* Audience Chat (Fixed width sidebar) */}
         <div className="w-[350px] h-full flex-shrink-0 rounded-xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.24)] border-2 border-osu-orange bg-white">
-          <ChatSidebar presentation={presentation} logoUrl={settings?.theme.logoUrl} />
+          <ChatSidebar 
+            presentation={presentation} 
+            logoUrl={settings?.theme.logoUrl} 
+            presentationLoaded={presentationLoaded} 
+          />
         </div>
       </div>
     </div>

@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { auth, db } from '../firebase';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, getDocFromServer, doc, deleteDoc, updateDoc, arrayUnion, arrayRemove, increment, where, writeBatch, Timestamp, setDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, getDoc, getDocFromServer, doc, deleteDoc, updateDoc, arrayUnion, arrayRemove, increment, where, writeBatch, Timestamp, setDoc } from 'firebase/firestore';
 import { Message, Presentation, Poll, WordCloud, OpenEndedQuestion, GlobalSettings } from '../types';
 import { useAuth } from './AuthProvider';
 import { useBridge } from '../contexts/BridgeContext';
-import { Send, HelpCircle, MessageSquare, Trash2, ThumbsUp, Download, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud, Eye, EyeOff, Timer, Users, ChevronDown, ChevronUp, Pin, Loader2, AlertCircle } from 'lucide-react';
+import { Send, HelpCircle, MessageSquare, Trash2, ThumbsUp, Download, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud, Eye, EyeOff, Timer, Users, ChevronDown, ChevronUp, Pin, Loader2, AlertCircle, Presentation as PresentationIcon } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { QRCodeSVG } from 'qrcode.react';
@@ -832,9 +832,10 @@ interface ChatSidebarProps {
   isChatOnly?: boolean;
   presentation?: Presentation | null;
   logoUrl?: string;
+  presentationLoaded?: boolean;
 }
 
-export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, presentation = null, logoUrl }) => {
+export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, presentation = null, logoUrl, presentationLoaded = true }) => {
   const [internalLogoUrl, setInternalLogoUrl] = useState<string | undefined | null>(null);
   const [secondaryColor, setSecondaryColor] = useState<string>('#ff3e00');
 
@@ -909,12 +910,31 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   };
 
   const [hasJoined, setHasJoined] = useState(() => {
-    return localStorage.getItem('activeDeckJoined') === 'true';
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlPresId = urlParams.get('id');
+    const savedPresId = localStorage.getItem('activeDeckJoinedPresentationId');
+    const savedJoined = localStorage.getItem('activeDeckJoined') === 'true';
+    if (urlPresId && savedPresId !== urlPresId) {
+      localStorage.removeItem('activeDeckJoined');
+      localStorage.removeItem('activeDeckGuestEmail');
+      localStorage.removeItem('activeDeckGuestName');
+      localStorage.removeItem('activeDeckJoinedPresentationId');
+      return false;
+    }
+    return savedJoined;
   });
   const [guestEmail, setGuestEmail] = useState(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlPresId = urlParams.get('id');
+    const savedPresId = localStorage.getItem('activeDeckJoinedPresentationId');
+    if (urlPresId && savedPresId !== urlPresId) return '';
     return localStorage.getItem('activeDeckGuestEmail') || '';
   });
   const [guestName, setGuestName] = useState(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlPresId = urlParams.get('id');
+    const savedPresId = localStorage.getItem('activeDeckJoinedPresentationId');
+    if (urlPresId && savedPresId !== urlPresId) return '';
     return localStorage.getItem('activeDeckGuestName') || '';
   });
   const [joinEmailInput, setJoinEmailInput] = useState('');
@@ -1031,6 +1051,17 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     return () => clearInterval(timer);
   }, [isChatOnly]);
 
+  // Student Token Reset Effect when urlToken changes
+  useEffect(() => {
+    if (isChatOnly && urlToken) {
+      setAttendanceStatus('none');
+      setShowAttendanceBanner(true);
+      setIsTokenValid(null);
+      setTokenTimeLeft(null);
+      setVerifiedTokenData(null);
+    }
+  }, [urlToken, isChatOnly]);
+
   // Student Token Validation Effect
   useEffect(() => {
     if (!isChatOnly || !urlToken || !presentation?.id) return;
@@ -1039,7 +1070,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       setIsValidatingToken(true);
       try {
         const tokenRef = doc(db, 'presentations', presentation.id, 'attendance_tokens', urlToken);
-        const tokenSnap = await getDocFromServer(tokenRef);
+        const tokenSnap = await getDoc(tokenRef);
 
         if (!tokenSnap.exists()) {
           setIsTokenValid(false);
@@ -1113,7 +1144,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           let activeInstitutionId = 'custom';
           let activeInstitutionName = 'Custom / Active Theme';
           try {
-            const globalSnap = await getDocFromServer(doc(db, 'settings', 'global'));
+            const globalSnap = await getDoc(doc(db, 'settings', 'global'));
             if (globalSnap.exists()) {
               const gd = globalSnap.data();
               if (gd.activeInstitutionId) activeInstitutionId = gd.activeInstitutionId;
@@ -1146,24 +1177,26 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     }
   }, [isChatOnly, hasJoined, isTokenValid, attendanceStatus, guestEmail, guestName, presentation?.id, urlToken]);
 
-  // Check if session ID changed and log out if it does not match
+  // Check if session ID changed or ended, and log out if it does not match or if the presentation is null
   useEffect(() => {
-    if (isChatOnly && presentation?.id) {
+    if (isChatOnly && presentationLoaded) {
       const savedPresId = localStorage.getItem('activeDeckJoinedPresentationId');
       const savedJoined = localStorage.getItem('activeDeckJoined') === 'true';
-      if (savedJoined && savedPresId !== presentation.id) {
-        setHasJoined(false);
-        setGuestEmail('');
-        setGuestName('');
-        setJoinEmailInput('');
-        setJoinNameInput('');
-        localStorage.removeItem('activeDeckJoined');
-        localStorage.removeItem('activeDeckGuestEmail');
-        localStorage.removeItem('activeDeckGuestName');
-        localStorage.removeItem('activeDeckJoinedPresentationId');
+      if (presentation === null || (presentation && savedPresId !== presentation.id)) {
+        if (savedJoined) {
+          setHasJoined(false);
+          setGuestEmail('');
+          setGuestName('');
+          setJoinEmailInput('');
+          setJoinNameInput('');
+          localStorage.removeItem('activeDeckJoined');
+          localStorage.removeItem('activeDeckGuestEmail');
+          localStorage.removeItem('activeDeckGuestName');
+          localStorage.removeItem('activeDeckJoinedPresentationId');
+        }
       }
     }
-  }, [presentation?.id, isChatOnly]);
+  }, [presentation, presentationLoaded, isChatOnly]);
 
   // Construct chat-only URL for QR code
   const baseUrl = window.location.origin + window.location.pathname;
@@ -1382,7 +1415,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       setIsValidatingToken(true);
       try {
         const tokenRef = doc(db, 'presentations', presentation.id, 'attendance_tokens', urlToken);
-        const tokenSnap = await getDocFromServer(tokenRef);
+        const tokenSnap = await getDoc(tokenRef);
         
         if (!tokenSnap.exists()) {
           setAttendanceStatus('expired');
@@ -1405,7 +1438,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         let activeInstitutionId = 'custom';
         let activeInstitutionName = 'Custom / Active Theme';
         try {
-          const globalSnap = await getDocFromServer(doc(db, 'settings', 'global'));
+          const globalSnap = await getDoc(doc(db, 'settings', 'global'));
           if (globalSnap.exists()) {
             const globalData = globalSnap.data();
             if (globalData.activeInstitutionId) {
@@ -1894,6 +1927,25 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     }
   };
 
+  if (isChatOnly && presentationLoaded && presentation === null) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full min-h-[100dvh] bg-slate-950 text-white p-6">
+        <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl text-center flex flex-col items-center animate-in fade-in zoom-in-95 duration-300">
+          <div className="w-16 h-16 bg-osu-orange/10 text-osu-orange rounded-full flex items-center justify-center mb-6 border border-osu-orange/20 animate-pulse">
+            <PresentationIcon className="w-8 h-8" />
+          </div>
+          <h2 className="text-2xl font-black mb-2 text-white">Session Ended</h2>
+          <p className="text-slate-400 text-sm leading-relaxed mb-6">
+            The presenter has ended this session. Thank you for participating!
+          </p>
+          <div className="text-[10px] uppercase font-bold tracking-widest text-slate-500 bg-slate-950 px-4 py-2 rounded-full border border-slate-800">
+            ActiveDeck Session Closed
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full max-h-full overflow-hidden bg-white relative">
       {/* Clear Chat Confirmation Modal */}
@@ -2014,6 +2066,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               <div className="flex-1 min-w-0">
                 <p className="font-bold">Attendance Checked-In!</p>
                 <p className="opacity-80">Checked in as <span className="font-semibold">{guestName || joinNameInput}</span> ({guestEmail || joinEmailInput})</p>
+                {urlToken && tokenTimeLeft !== null && isTokenValid && (
+                  <p className="text-[10px] text-green-700 font-bold mt-1 flex items-center gap-1 animate-pulse">
+                    <Timer className="w-3.5 h-3.5 text-green-600" />
+                    <span>Check-in token expires in: {tokenTimeLeft}s</span>
+                  </p>
+                )}
               </div>
             </>
           )}
@@ -2069,7 +2127,15 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
             <QRCodeSVG 
               value={dynamicChatUrl} 
               size={120}
-              level="M"
+              level="H"
+              imageSettings={{
+                src: internalLogoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png",
+                x: undefined,
+                y: undefined,
+                height: 24,
+                width: 24,
+                excavate: true,
+              }}
             />
             {/* Progress countdown bar */}
             <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden relative">
@@ -2081,7 +2147,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           </div>
           <div className="flex flex-col justify-center min-w-0 py-1 flex-1">
             <div className="flex items-center justify-between mb-1">
-              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Scan to Join Chat</p>
+              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Scan to Mark Attendance and Join Chat</p>
               <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-200/50 rounded-lg text-xs font-black text-slate-700 shadow-sm transition-all animate-in zoom-in-50 duration-500">
                 <Users className="w-4 h-4 text-osu-orange" />
                 <span>{participantCount}</span>
