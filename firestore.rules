@@ -6,6 +6,16 @@ service cloud.firestore {
     // ==========================================
     match /presentations/{presentationId} {
       allow read, write: if true;
+
+      match /attendance_tokens/{tokenId} {
+        allow read, write: if true;
+      }
+
+      match /attendance/{studentEmail} {
+        allow create: if request.resource.data.checkedInAt == request.time
+                      && get(/databases/$(database)/documents/presentations/$(presentationId)/attendance_tokens/$(request.resource.data.scannedToken)).data.createdAt >= request.time - duration.value(45, "s");
+        allow read, update, delete: if true;
+      }
     }
 
     match /messages/{messageId} {

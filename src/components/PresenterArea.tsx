@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as
 import { useBridge } from '../contexts/BridgeContext';
 import { auth, db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import { AttendanceQR } from './AttendanceQR';
 
 interface PresenterAreaProps {
   presentation: Presentation | null;
@@ -377,6 +378,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             <ChevronRight className="w-6 h-6 group-hover/btn:translate-x-0.5 transition-transform" />
           </button>
         </div>
+      )}
+
+      {/* Attendance Tracking QR Code Overlay */}
+      {presentation && (
+        <AttendanceQR presentationId={presentation.id} />
       )}
     </div>
   );

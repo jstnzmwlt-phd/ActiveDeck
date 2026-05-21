@@ -10,6 +10,7 @@ import { Presentation as PresentationIcon, Loader2, AlertCircle } from 'lucide-r
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { BridgeProvider } from './contexts/BridgeContext';
 import { AdminPortal } from './components/AdminPortal';
+import { StudentAttendance } from './components/StudentAttendance';
 
 console.log('App.tsx - Module loaded');
 
@@ -175,6 +176,20 @@ function AppContent() {
 
   if (hash === '#admin') {
     return <AdminPortal />;
+  }
+
+  // Handle SPA path routing for Student Attendance
+  const pathname = window.location.pathname;
+  const attendanceMatch = pathname.match(/^\/attendance\/([^\/]+)/);
+  if (attendanceMatch) {
+    const attendancePresentationId = attendanceMatch[1];
+    const attendanceToken = urlParams.get('token');
+    return (
+      <StudentAttendance 
+        presentationId={attendancePresentationId} 
+        token={attendanceToken} 
+      />
+    );
   }
 
   console.log('AppContent - Rendering Main State. isChatOnly:', isChatOnly);
