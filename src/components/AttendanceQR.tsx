@@ -7,6 +7,7 @@ import { QrCode, Users, ChevronDown, ChevronUp, Loader2, RefreshCw } from 'lucid
 interface AttendanceQRProps {
   presentationId: string;
   logoUrl?: string;
+  isSharingScreen?: boolean;
 }
 
 interface LocalTokenTracker {
@@ -14,7 +15,7 @@ interface LocalTokenTracker {
   createdAt: number;
 }
 
-export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logoUrl }) => {
+export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logoUrl, isSharingScreen = false }) => {
   const [activeToken, setActiveToken] = useState<string | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [timeLeft, setTimeLeft] = useState(10); // 10s countdown for token refresh
@@ -116,6 +117,17 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
 
     return () => clearInterval(timer);
   }, []);
+
+  // Auto-minimize after 20 minutes (1200000ms) of screen sharing
+  useEffect(() => {
+    if (!isSharingScreen) return;
+
+    const autoMinimizeTimer = setTimeout(() => {
+      setIsCollapsed(true);
+    }, 20 * 60 * 1000); // 20 minutes
+
+    return () => clearTimeout(autoMinimizeTimer);
+  }, [isSharingScreen]);
 
   if (!presentationId) return null;
 

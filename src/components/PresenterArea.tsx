@@ -382,7 +382,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
       {/* Attendance Tracking QR Code Overlay */}
       {presentation && (
-        <AttendanceQR presentationId={presentation.id} logoUrl={logoUrl} />
+        <AttendanceQR 
+          presentationId={presentation.id} 
+          logoUrl={logoUrl} 
+          isSharingScreen={isCapturing} 
+        />
       )}
     </div>
   );
