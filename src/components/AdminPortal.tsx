@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc, addDoc, collection, onSnapshot, deleteDoc, query, orderBy, limit, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Theme, SavedTheme } from '../types';
-import { Palette, UserCheck, Download, ArrowLeft, Loader2, Calendar, Database, Search } from 'lucide-react';
+import { Palette, UserCheck, Download, ArrowLeft, Loader2, Calendar, Database, AlertCircle } from 'lucide-react';
 
 interface AdminPortalProps {
   presentationId?: string | null;
@@ -37,7 +37,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [attendanceList, setAttendanceList] = useState<StudentAttendanceRecord[]>([]);
   const [loadingAttendance, setLoadingAttendance] = useState(false);
-  const [customSessionInput, setCustomSessionInput] = useState('');
 
   // Sync selected session with active presentation prop
   useEffect(() => {
@@ -396,91 +395,24 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
           {activeTab === 'attendance' && (
             <div className="space-y-6 animate-in fade-in duration-300">
               
-              {/* CASE A: No presentation selected - Render Presentation Selector */}
+              {/* CASE A: No presentation selected - Render Loading or Empty State */}
               {!selectedSessionId ? (
-                <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 max-w-xl mx-auto space-y-6">
-                  <div className="text-center space-y-2">
-                    <div className="w-12 h-12 bg-osu-orange/10 border border-osu-orange/20 text-osu-orange rounded-2xl flex items-center justify-center mx-auto mb-2">
-                      <UserCheck className="w-6 h-6" />
+                loadingSessions ? (
+                  <div className="flex flex-col items-center justify-center py-24">
+                    <Loader2 className="w-10 h-10 text-osu-orange animate-spin mb-4" />
+                    <span className="text-xs font-black uppercase tracking-widest text-slate-400">Loading Active Attendance Session...</span>
+                  </div>
+                ) : (
+                  <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 max-w-xl mx-auto text-center space-y-4">
+                    <div className="w-12 h-12 bg-red-500/10 border border-red-500/20 text-red-500 rounded-2xl flex items-center justify-center mx-auto">
+                      <AlertCircle className="w-6 h-6" />
                     </div>
-                    <h2 className="text-xl font-black text-white">Select a Presentation Session</h2>
-                    <p className="text-xs text-slate-400">Choose a session to display live check-ins and export the attendance list.</p>
+                    <h2 className="text-xl font-black text-white">No Active Session Found</h2>
+                    <p className="text-xs text-slate-400">
+                      Please open a presentation in ActiveDeck first to initialize a session, then return to the admin portal to monitor attendance.
+                    </p>
                   </div>
-
-                  {/* Manual Session ID input */}
-                  <div className="space-y-2">
-                    <label className="block text-xs font-black uppercase tracking-wider text-slate-400">Search Session ID Manually</label>
-                    <div className="flex gap-3">
-                      <div className="relative flex-1">
-                        <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-500">
-                          <Search className="w-4 h-4" />
-                        </span>
-                        <input 
-                          type="text" 
-                          value={customSessionInput} 
-                          onChange={(e) => setCustomSessionInput(e.target.value)} 
-                          placeholder="Paste Presentation Session ID..." 
-                          className="w-full h-11 bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-osu-orange transition-colors" 
-                        />
-                      </div>
-                      <button 
-                        onClick={() => {
-                          if (customSessionInput.trim()) {
-                            setSelectedSessionId(customSessionInput.trim());
-                          }
-                        }}
-                        className="px-6 h-11 bg-osu-orange hover:bg-[#c03900] text-white text-xs font-black uppercase tracking-wider rounded-xl transition-colors"
-                      >
-                        Monitor
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="relative flex py-2 items-center">
-                    <div className="flex-grow border-t border-slate-800"></div>
-                    <span className="flex-shrink mx-4 text-[10px] uppercase font-bold tracking-widest text-slate-600 bg-slate-900 px-1">Or Choose Recent</span>
-                    <div className="flex-grow border-t border-slate-800"></div>
-                  </div>
-
-                  {/* List of Recent Presentations */}
-                  <div className="space-y-2.5">
-                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Recent Sessions</h3>
-                    
-                    {loadingSessions ? (
-                      <div className="flex flex-col items-center justify-center py-12">
-                        <Loader2 className="w-6 h-6 text-osu-orange animate-spin mb-2" />
-                        <span className="text-[10px] text-slate-500 uppercase tracking-widest">Fetching active sessions...</span>
-                      </div>
-                    ) : recentSessions.length === 0 ? (
-                      <p className="text-xs text-slate-500 italic text-center py-8">No recent presentations found. Create one by clicking "Back to App".</p>
-                    ) : (
-                      <div className="space-y-2 max-h-[250px] overflow-y-auto pr-1">
-                        {recentSessions.map(session => (
-                          <button
-                            key={session.id}
-                            onClick={() => setSelectedSessionId(session.id)}
-                            className="w-full flex items-center justify-between p-3.5 bg-slate-950/80 hover:bg-slate-950 border border-slate-800/80 hover:border-osu-orange/40 rounded-2xl text-left transition-all"
-                          >
-                            <div className="space-y-1">
-                              <div className="text-sm font-black text-white font-mono">{session.id}</div>
-                              <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
-                                <Calendar className="w-3 h-3" />
-                                <span>
-                                  {session.createdAt 
-                                    ? new Date(session.createdAt.seconds * 1000).toLocaleString() 
-                                    : 'N/A'}
-                                </span>
-                              </div>
-                            </div>
-                            <span className="text-[10px] font-black uppercase tracking-wider text-osu-orange bg-osu-orange/10 px-3 py-1.5 rounded-lg border border-osu-orange/20">
-                              View Sheet
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
+                )
               ) : (
 
                 // CASE B: Presentation selected - Monitor Live Attendance
@@ -509,13 +441,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                       >
                         <Download className="w-4 h-4" />
                         Export CSV Sheet
-                      </button>
-                      
-                      <button
-                        onClick={() => setSelectedSessionId(null)}
-                        className="flex items-center gap-1.5 h-11 px-4 bg-slate-950 hover:bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200 text-xs font-bold rounded-xl transition-colors"
-                      >
-                        Change Session
                       </button>
                     </div>
                   </div>
