@@ -6,6 +6,7 @@ import { QrCode, Users, ChevronDown, ChevronUp, Loader2, RefreshCw } from 'lucid
 
 interface AttendanceQRProps {
   presentationId: string;
+  logoUrl?: string;
 }
 
 interface LocalTokenTracker {
@@ -13,7 +14,7 @@ interface LocalTokenTracker {
   createdAt: number;
 }
 
-export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId }) => {
+export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logoUrl }) => {
   const [activeToken, setActiveToken] = useState<string | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [timeLeft, setTimeLeft] = useState(10); // 10s countdown for token refresh
@@ -188,7 +189,7 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId }) =>
                   fgColor="#0f172a" // Slate 900
                   bgColor="#ffffff"
                   imageSettings={{
-                    src: "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png", // Subtle central OSU logo badge
+                    src: logoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png",
                     x: undefined,
                     y: undefined,
                     height: 24,
