@@ -1,8 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Monitor, Clock, Maximize, Minimize, Link2, Link2Off, Sun, Moon, Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { Monitor, Clock, Maximize, Minimize, Link2, Link2Off, Sun, Moon, Loader2, AlertCircle, Eye, EyeOff, Download } from 'lucide-react';
 import { useBridge } from '../contexts/BridgeContext';
+import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { db } from '../firebase';
 
-export const Header: React.FC = () => {
+interface HeaderProps {
+  presentationId?: string | null;
+}
+
+export const Header: React.FC<HeaderProps> = ({ presentationId }) => {
   const { isBridgeConnected, setUseWithoutBridge } = useBridge();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isWakeLockActive, setIsWakeLockActive] = useState(false);
@@ -10,6 +16,58 @@ export const Header: React.FC = () => {
   const [wakeLockError, setWakeLockError] = useState<string | null>(null);
   const [wakeLock, setWakeLock] = useState<any>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const handleDownloadAttendance = async () => {
+    if (!presentationId) return;
+
+    setIsDownloading(true);
+    try {
+      const attendanceRef = collection(db, 'presentations', presentationId, 'attendance');
+      const qAttendance = query(attendanceRef, orderBy('checkedInAt', 'desc'));
+      const querySnapshot = await getDocs(qAttendance);
+
+      const records = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as any[];
+
+      if (records.length === 0) {
+        alert("No students have checked in yet for this session.");
+        setIsDownloading(false);
+        return;
+      }
+
+      const headers = ["Student Name", "Email Address", "Check-In Timestamp", "Scanned Token ID"];
+      const rows = records.map(record => {
+        const timestampString = record.checkedInAt 
+          ? new Date(record.checkedInAt.seconds * 1000).toLocaleString() 
+          : 'Pending Server Timestamp...';
+        return [
+          `"${(record.name || '').replace(/"/g, '""')}"`,
+          `"${(record.email || '').replace(/"/g, '""')}"`,
+          `"${timestampString}"`,
+          `"${record.scannedToken || ''}"`
+        ];
+      });
+
+      const csvContent = "data:text/csv;charset=utf-8," 
+        + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+      
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `activedeck_attendance_session_${presentationId.substring(0, 8)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err: any) {
+      console.error("Error downloading attendance CSV:", err);
+      alert("Failed to download attendance: " + (err?.message || err));
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
@@ -189,6 +247,22 @@ export const Header: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-4 z-10">
+          {presentationId && (
+            <button
+              onClick={handleDownloadAttendance}
+              disabled={isDownloading}
+              className="flex items-center gap-2 px-3 py-1.5 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-orange-500/10 active:scale-95 cursor-pointer"
+              title="Download Student Attendance CSV"
+            >
+              {isDownloading ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Download className="w-3.5 h-3.5" />
+              )}
+              <span>Download Attendance</span>
+            </button>
+          )}
+
           <div className="flex items-center gap-2 text-lg font-mono font-bold text-slate-800 bg-white px-3 py-1 rounded-lg border-2 border-osu-orange shadow-sm">
             <Clock className="w-4 h-4 text-osu-orange" />
             <div className="flex items-baseline">

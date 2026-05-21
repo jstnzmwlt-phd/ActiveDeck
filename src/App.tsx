@@ -205,7 +205,7 @@ function AppContent() {
 
   return (
     <div className="flex flex-col h-[100dvh] w-screen overflow-hidden bg-slate-100 font-sans antialiased">
-      <Header />
+      <Header presentationId={presentation?.id || presentationId} />
       
       <div className="flex flex-row flex-1 p-6 gap-6 bg-slate-100 min-h-0 overflow-hidden">
         {/* Presenter View (Flexible, but takes most space) */}
