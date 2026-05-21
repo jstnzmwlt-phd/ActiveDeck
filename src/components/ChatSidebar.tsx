@@ -4,7 +4,7 @@ import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, getDoc
 import { Message, Presentation, Poll, WordCloud, OpenEndedQuestion, GlobalSettings } from '../types';
 import { useAuth } from './AuthProvider';
 import { useBridge } from '../contexts/BridgeContext';
-import { Send, HelpCircle, MessageSquare, Trash2, ThumbsUp, Download, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud, Eye, EyeOff, Timer, Users, ChevronDown, ChevronUp, Pin } from 'lucide-react';
+import { Send, HelpCircle, MessageSquare, Trash2, ThumbsUp, Download, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud, Eye, EyeOff, Timer, Users, ChevronDown, ChevronUp, Pin, Loader2, AlertCircle } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { QRCodeSVG } from 'qrcode.react';
@@ -63,6 +63,11 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   }
   console.error('Firestore Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
+}
+
+interface LocalTokenTracker {
+  id: string;
+  createdAt: number;
 }
 
 interface OpenEndedQuestionCardProps {
@@ -917,6 +922,24 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [isPostingAnonymously, setIsPostingAnonymously] = useState(false);
   const [shortUrl, setShortUrl] = useState('');
 
+  // Presenter states for token rotation
+  const [activeToken, setActiveToken] = useState<string | null>(null);
+  const [timeLeft, setTimeLeft] = useState(10);
+  const [loadingToken, setLoadingToken] = useState(true);
+
+  // Student states for token validation & check-in
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlToken = urlParams.get('token');
+  const [isValidatingToken, setIsValidatingToken] = useState(false);
+  const [isTokenValid, setIsTokenValid] = useState<boolean | null>(null);
+  const [tokenTimeLeft, setTokenTimeLeft] = useState<number | null>(null);
+  const [attendanceStatus, setAttendanceStatus] = useState<'none' | 'success' | 'expired' | 'error'>('none');
+  const [verifiedTokenData, setVerifiedTokenData] = useState<any>(null);
+  const [showAttendanceBanner, setShowAttendanceBanner] = useState(true);
+
+  // Ref for tracking tokens to clean up
+  const generatedTokensRef = useRef<LocalTokenTracker[]>([]);
+
       // Sync bridge slide to Firestore (Only if in main view)
       useEffect(() => {
         if (!isChatOnly && presentation?.id && currentSlide !== null) {
@@ -927,9 +950,208 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         }
       }, [currentSlide, presentation?.id, isChatOnly]);
 
+  // Presenter Token Generation & Rotation Logic
+  const generateUUID = () => {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+      const r = (Math.random() * 16) | 0;
+      const v = c === 'x' ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    });
+  };
+
+  const cleanExpiredTokens = async (currentTime: number) => {
+    if (!presentation?.id) return;
+    const tokensToClean = generatedTokensRef.current.filter(t => currentTime - t.createdAt >= 50000);
+    
+    for (const token of tokensToClean) {
+      try {
+        const expiredTokenRef = doc(db, 'presentations', presentation.id, 'attendance_tokens', token.id);
+        await deleteDoc(expiredTokenRef);
+        generatedTokensRef.current = generatedTokensRef.current.filter(t => t.id !== token.id);
+      } catch (err) {
+        console.error(`Failed to clean up expired token ${token.id}:`, err);
+      }
+    }
+  };
+
+  const generateNewToken = async () => {
+    if (!presentation?.id) return;
+
+    try {
+      const newTokenId = generateUUID();
+      const now = Date.now();
+
+      const tokenRef = doc(db, 'presentations', presentation.id, 'attendance_tokens', newTokenId);
+      await setDoc(tokenRef, {
+        createdAt: serverTimestamp()
+      });
+
+      setActiveToken(newTokenId);
+      setLoadingToken(false);
+
+      generatedTokensRef.current.push({ id: newTokenId, createdAt: now });
+      cleanExpiredTokens(now);
+    } catch (err) {
+      console.error('Error generating attendance token in ChatSidebar:', err);
+      setLoadingToken(false);
+    }
+  };
+
+  // Presenter Token Rotation effect (every 10s)
+  useEffect(() => {
+    if (isChatOnly || !presentation?.id) return;
+
+    generateNewToken();
+
+    const rotationInterval = setInterval(() => {
+      setTimeLeft(10);
+      generateNewToken();
+    }, 10000);
+
+    return () => {
+      clearInterval(rotationInterval);
+      const now = Date.now();
+      cleanExpiredTokens(now + 100000);
+    };
+  }, [presentation?.id, isChatOnly]);
+
+  // Presenter countdown progress bar ticks (every 100ms)
+  useEffect(() => {
+    if (isChatOnly) return;
+    const timer = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 0.1) return 10;
+        return Number((prev - 0.1).toFixed(1));
+      });
+    }, 100);
+
+    return () => clearInterval(timer);
+  }, [isChatOnly]);
+
+  // Student Token Validation Effect
+  useEffect(() => {
+    if (!isChatOnly || !urlToken || !presentation?.id) return;
+
+    const validateUrlToken = async () => {
+      setIsValidatingToken(true);
+      try {
+        const tokenRef = doc(db, 'presentations', presentation.id, 'attendance_tokens', urlToken);
+        const tokenSnap = await getDocFromServer(tokenRef);
+
+        if (!tokenSnap.exists()) {
+          setIsTokenValid(false);
+          setAttendanceStatus('expired');
+          setIsValidatingToken(false);
+          return;
+        }
+
+        const data = tokenSnap.data();
+        const createdAt = data.createdAt as Timestamp;
+
+        if (!createdAt) {
+          setIsTokenValid(true);
+          setVerifiedTokenData({ createdAt: Timestamp.now() });
+          setTokenTimeLeft(45);
+          setIsValidatingToken(false);
+          return;
+        }
+
+        const tokenTime = createdAt.toMillis();
+        const elapsed = (Date.now() - tokenTime) / 1000;
+
+        if (elapsed >= 45) {
+          setIsTokenValid(false);
+          setAttendanceStatus('expired');
+        } else {
+          setIsTokenValid(true);
+          setVerifiedTokenData(data);
+          setTokenTimeLeft(Math.max(0, Math.ceil(45 - elapsed)));
+        }
+      } catch (err) {
+        console.error('Error validating token in ChatSidebar:', err);
+        setIsTokenValid(false);
+      } finally {
+        setIsValidatingToken(false);
+      }
+    };
+
+    validateUrlToken();
+  }, [isChatOnly, urlToken, presentation?.id]);
+
+  // Student countdown timer for valid token
+  useEffect(() => {
+    if (!isTokenValid || tokenTimeLeft === null || !verifiedTokenData) return;
+
+    const interval = setInterval(() => {
+      const createdAt = verifiedTokenData.createdAt as Timestamp;
+      if (!createdAt) return;
+
+      const tokenTime = createdAt.toMillis();
+      const elapsed = (Date.now() - tokenTime) / 1000;
+      const remaining = Math.max(0, Math.ceil(45 - elapsed));
+
+      setTokenTimeLeft(remaining);
+
+      if (remaining <= 0) {
+        setIsTokenValid(false);
+        setAttendanceStatus('expired');
+        clearInterval(interval);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isTokenValid, tokenTimeLeft, verifiedTokenData]);
+
+  // Student background auto-check-in when already joined
+  useEffect(() => {
+    if (isChatOnly && hasJoined && isTokenValid && attendanceStatus === 'none' && guestEmail && presentation?.id) {
+      const autoCheckIn = async () => {
+        try {
+          let activeInstitutionId = 'custom';
+          let activeInstitutionName = 'Custom / Active Theme';
+          try {
+            const globalSnap = await getDocFromServer(doc(db, 'settings', 'global'));
+            if (globalSnap.exists()) {
+              const gd = globalSnap.data();
+              if (gd.activeInstitutionId) activeInstitutionId = gd.activeInstitutionId;
+              if (gd.activeInstitutionName) activeInstitutionName = gd.activeInstitutionName;
+            }
+          } catch (err) {
+            console.error(err);
+          }
+
+          const studentEmail = guestEmail.trim().toLowerCase();
+          const attendanceRef = doc(db, 'presentations', presentation.id, 'attendance', studentEmail);
+          await setDoc(attendanceRef, {
+            name: guestName.trim(),
+            email: studentEmail,
+            checkedInAt: serverTimestamp(),
+            scannedToken: urlToken,
+            institutionId: activeInstitutionId,
+            institutionName: activeInstitutionName
+          });
+
+          setAttendanceStatus('success');
+          setShowAttendanceBanner(true);
+        } catch (err) {
+          console.error('Auto check-in error:', err);
+          setAttendanceStatus('error');
+        }
+      };
+
+      autoCheckIn();
+    }
+  }, [isChatOnly, hasJoined, isTokenValid, attendanceStatus, guestEmail, guestName, presentation?.id, urlToken]);
+
   // Construct chat-only URL for QR code
   const baseUrl = window.location.origin + window.location.pathname;
   const chatOnlyUrl = presentation?.id ? `${baseUrl}?view=chat&id=${presentation.id}` : `${baseUrl}?view=chat`;
+  const dynamicChatUrl = presentation?.id && activeToken
+    ? `${window.location.origin}${window.location.pathname}?view=chat&id=${presentation.id}&token=${activeToken}`
+    : chatOnlyUrl;
 
   useEffect(() => {
     if (!chatOnlyUrl) return;
@@ -1121,17 +1343,79 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     }
   };
 
-  const handleJoin = (e: React.FormEvent) => {
+  const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setGuestEmail(joinEmailInput);
-    setGuestName(joinNameInput);
+    
+    const emailToSave = joinEmailInput.trim().toLowerCase();
+    const nameToSave = joinNameInput.trim();
+
+    setGuestEmail(emailToSave);
+    setGuestName(nameToSave);
     setHasJoined(true);
     localStorage.setItem('activeDeckJoined', 'true');
-    if (joinEmailInput) {
-      localStorage.setItem('activeDeckGuestEmail', joinEmailInput);
-    }
-    if (joinNameInput) {
-      localStorage.setItem('activeDeckGuestName', joinNameInput);
+    localStorage.setItem('activeDeckGuestEmail', emailToSave);
+    localStorage.setItem('activeDeckGuestName', nameToSave);
+
+    if (urlToken && presentation?.id) {
+      setIsValidatingToken(true);
+      try {
+        const tokenRef = doc(db, 'presentations', presentation.id, 'attendance_tokens', urlToken);
+        const tokenSnap = await getDocFromServer(tokenRef);
+        
+        if (!tokenSnap.exists()) {
+          setAttendanceStatus('expired');
+          setShowAttendanceBanner(true);
+          return;
+        }
+
+        const data = tokenSnap.data();
+        const createdAt = data.createdAt as Timestamp;
+
+        const tokenTime = createdAt ? createdAt.toMillis() : Date.now();
+        const elapsed = (Date.now() - tokenTime) / 1000;
+
+        if (elapsed >= 45) {
+          setAttendanceStatus('expired');
+          setShowAttendanceBanner(true);
+          return;
+        }
+
+        let activeInstitutionId = 'custom';
+        let activeInstitutionName = 'Custom / Active Theme';
+        try {
+          const globalSnap = await getDocFromServer(doc(db, 'settings', 'global'));
+          if (globalSnap.exists()) {
+            const globalData = globalSnap.data();
+            if (globalData.activeInstitutionId) {
+              activeInstitutionId = globalData.activeInstitutionId;
+            }
+            if (globalData.activeInstitutionName) {
+              activeInstitutionName = globalData.activeInstitutionName;
+            }
+          }
+        } catch (err) {
+          console.error('Error fetching global settings for institution info:', err);
+        }
+
+        const attendanceRef = doc(db, 'presentations', presentation.id, 'attendance', emailToSave);
+        await setDoc(attendanceRef, {
+          name: nameToSave,
+          email: emailToSave,
+          checkedInAt: serverTimestamp(),
+          scannedToken: urlToken,
+          institutionId: activeInstitutionId,
+          institutionName: activeInstitutionName
+        });
+
+        setAttendanceStatus('success');
+        setShowAttendanceBanner(true);
+      } catch (err) {
+        console.error('Error recording attendance on join:', err);
+        setAttendanceStatus('error');
+        setShowAttendanceBanner(true);
+      } finally {
+        setIsValidatingToken(false);
+      }
     }
   };
 
@@ -1628,6 +1912,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
             <div className="text-[15px] font-bold tracking-tight text-white break-all leading-tight">
               {shortUrl || chatOnlyUrl}
             </div>
+            <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-1">
+              (No attendance checked if typed manually)
+            </div>
           </div>
         </div>
       )}
@@ -1689,15 +1976,85 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         </div>
       </div>
 
+      {/* Attendance Status Banner for Student/Audience view */}
+      {isChatOnly && urlToken && showAttendanceBanner && (
+        <div className={cn(
+          "px-4 py-2 border-b text-xs flex items-start gap-2.5 transition-all duration-300 animate-in slide-in-from-top z-40",
+          attendanceStatus === 'success' && "bg-green-50 text-green-800 border-green-200",
+          attendanceStatus === 'expired' && "bg-amber-50 text-amber-800 border-amber-200",
+          attendanceStatus === 'error' && "bg-red-50 text-red-800 border-red-200",
+          attendanceStatus === 'none' && isValidatingToken && "bg-slate-50 text-slate-700 border-slate-200"
+        )}>
+          {attendanceStatus === 'success' && (
+            <>
+              <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="font-bold">Attendance Checked-In!</p>
+                <p className="opacity-80">Checked in as <span className="font-semibold">{guestName || joinNameInput}</span> ({guestEmail || joinEmailInput})</p>
+              </div>
+            </>
+          )}
+          {attendanceStatus === 'expired' && (
+            <>
+              <XCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="font-bold">Attendance QR Expired</p>
+                <p className="opacity-80">You're in chat, but checking in failed (45s limit expired). Scan the latest QR code on presenter's screen to check-in.</p>
+              </div>
+            </>
+          )}
+          {attendanceStatus === 'error' && (
+            <>
+              <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="font-bold">Check-In Error</p>
+                <p className="opacity-80">Failed to register attendance. Please try scanning again or contact the presenter.</p>
+              </div>
+            </>
+          )}
+          {attendanceStatus === 'none' && isValidatingToken && (
+            <>
+              <Loader2 className="w-4 h-4 text-osu-orange shrink-0 mt-0.5 animate-spin" />
+              <div className="flex-1 min-w-0">
+                <p className="font-bold">Verifying Attendance Ticket...</p>
+              </div>
+            </>
+          )}
+          {attendanceStatus === 'none' && !isValidatingToken && !isTokenValid && (
+            <>
+              <XCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="font-bold">Invalid Attendance Token</p>
+                <p className="opacity-80">The scanned token is invalid. Please scan the current code from the presenter's screen.</p>
+              </div>
+            </>
+          )}
+          <button 
+            onClick={() => setShowAttendanceBanner(false)}
+            className="text-slate-400 hover:text-slate-600 font-bold px-1 rounded transition-colors shrink-0"
+            title="Dismiss"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Embedded QR Code Section */}
       {!isChatOnly && (
         <div className="p-3 bg-slate-50 border-b border-slate-200 flex flex-row items-start gap-3 animate-in slide-in-from-top duration-300">
-          <div className="bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm shrink-0">
+          <div className="bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm shrink-0 flex flex-col items-center gap-1.5">
             <QRCodeSVG 
-              value={chatOnlyUrl} 
+              value={dynamicChatUrl} 
               size={120}
               level="M"
             />
+            {/* Progress countdown bar */}
+            <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden relative">
+              <div 
+                className="h-full bg-osu-orange transition-all duration-100 ease-linear"
+                style={{ width: `${(timeLeft / 10) * 100}%` }}
+              />
+            </div>
           </div>
           <div className="flex flex-col justify-center min-w-0 py-1 flex-1">
             <div className="flex items-center justify-between mb-1">
@@ -1933,19 +2290,24 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 Refresh Page
               </button>
             </div>
-          ) : user.isAnonymous && !hasJoined && !presentation?.allowAnonymousChat ? (
+          ) : user.isAnonymous && !hasJoined && (!presentation?.allowAnonymousChat || urlToken) ? (
             <form onSubmit={handleJoin} className="p-4 flex flex-col gap-3">
               <div className="text-center mb-1">
-                <h3 className="text-sm font-bold text-slate-900">Join the Discussion</h3>
+                <h3 className="text-sm font-bold text-slate-900">
+                  {urlToken ? "Join & Check-In" : "Join the Discussion"}
+                </h3>
                 <p className="text-xs text-slate-500 mt-1">
-                  Enter your email to join the discussion.
+                  {urlToken 
+                    ? "Enter your name and email to register attendance and join the chat." 
+                    : "Enter your name and email to join the discussion."}
                 </p>
               </div>
               <input
                 type="text"
-                placeholder="Your Name (optional)"
+                placeholder={urlToken ? "Your Name (required)" : "Your Name (optional)"}
                 value={joinNameInput}
                 onChange={(e) => setJoinNameInput(e.target.value)}
+                required={!!urlToken}
                 className="w-full px-3 py-2 text-base border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-osu-orange"
               />
               <input
@@ -1958,9 +2320,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               />
               <button
                 type="submit"
-                className="w-full bg-osu-orange text-white font-bold py-2 px-4 rounded-md hover:bg-[#c03900] transition-colors text-sm"
+                className="w-full bg-osu-orange text-white font-bold py-2 px-4 rounded-md hover:bg-[#c03900] transition-colors text-sm flex items-center justify-center gap-1.5"
               >
-                Join Chat
+                {urlToken ? "Join Chat & Check-In" : "Join Chat"}
               </button>
             </form>
           ) : (
