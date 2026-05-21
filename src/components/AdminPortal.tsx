@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { doc, getDoc, setDoc, addDoc, collection, onSnapshot, deleteDoc, query, orderBy, limit, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, addDoc, collection, onSnapshot, deleteDoc, query, orderBy, limit, Timestamp, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Theme, SavedTheme } from '../types';
-import { Palette, UserCheck, Download, ArrowLeft, Loader2, Calendar, Database, AlertCircle } from 'lucide-react';
+import { Palette, UserCheck, Download, ArrowLeft, Loader2, Calendar, Database, AlertCircle, Trash2 } from 'lucide-react';
 
 interface AdminPortalProps {
   presentationId?: string | null;
@@ -37,6 +37,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [attendanceList, setAttendanceList] = useState<StudentAttendanceRecord[]>([]);
   const [loadingAttendance, setLoadingAttendance] = useState(false);
+  const [selectedSessionIdsForBulk, setSelectedSessionIdsForBulk] = useState<string[]>([]);
+  const [isDeletingSessions, setIsDeletingSessions] = useState(false);
 
   // Sync selected session with active presentation prop
   useEffect(() => {
@@ -183,6 +185,98 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
     } catch (e) {
       console.error("Error deleting theme:", e);
       alert("Error deleting theme: " + e);
+    }
+  };
+
+  // Helper to delete session and all its subcollection documents
+  const deleteSessionDoc = async (sessionId: string) => {
+    // 1. Delete all attendance check-ins under the session
+    const attendanceRef = collection(db, 'presentations', sessionId, 'attendance');
+    const attendanceSnap = await getDocs(attendanceRef);
+    const attendanceDeletes = attendanceSnap.docs.map(doc => deleteDoc(doc.ref));
+
+    // 2. Delete all attendance tokens under the session
+    const tokensRef = collection(db, 'presentations', sessionId, 'attendance_tokens');
+    const tokensSnap = await getDocs(tokensRef);
+    const tokensDeletes = tokensSnap.docs.map(doc => deleteDoc(doc.ref));
+
+    // Run subcollection deletions in parallel
+    await Promise.all([...attendanceDeletes, ...tokensDeletes]);
+
+    // 3. Delete the parent presentation document
+    await deleteDoc(doc(db, 'presentations', sessionId));
+  };
+
+  const handleDeleteSession = async (sessionId: string) => {
+    if (sessionId === presentationId) {
+      alert("This is the active live presentation session and cannot be deleted.");
+      return;
+    }
+
+    if (!confirm('Are you sure you want to delete this session? This will permanently erase the session and all its student attendance check-ins.')) {
+      return;
+    }
+
+    setIsDeletingSessions(true);
+    try {
+      await deleteSessionDoc(sessionId);
+
+      // Clean up selection state
+      setSelectedSessionIdsForBulk(prev => prev.filter(id => id !== sessionId));
+
+      // If we deleted the currently viewed session, switch to another remaining one
+      if (selectedSessionId === sessionId) {
+        const remaining = recentSessions.filter(s => s.id !== sessionId);
+        if (remaining.length > 0) {
+          setSelectedSessionId(remaining[0].id);
+        } else {
+          setSelectedSessionId(null);
+        }
+      }
+      alert('Session successfully deleted.');
+    } catch (e) {
+      console.error("Error deleting session:", e);
+      alert("Error deleting session: " + e);
+    } finally {
+      setIsDeletingSessions(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    // Exclude the active presentation ID just to be absolutely safe
+    const safeSelectedIds = selectedSessionIdsForBulk.filter(id => id !== presentationId);
+
+    if (safeSelectedIds.length === 0) {
+      alert("No eligible sessions selected for deletion. Note: The active live presentation session cannot be deleted.");
+      return;
+    }
+
+    const confirmMessage = `Are you sure you want to delete the ${safeSelectedIds.length} selected session(s)? This will permanently erase all selected sessions and their student attendance check-ins.`;
+    if (!confirm(confirmMessage)) return;
+
+    setIsDeletingSessions(true);
+    try {
+      // Delete all in parallel
+      await Promise.all(safeSelectedIds.map(id => deleteSessionDoc(id)));
+
+      // If the currently viewed session was deleted, switch to a remaining one
+      if (selectedSessionId && safeSelectedIds.includes(selectedSessionId)) {
+        const remaining = recentSessions.filter(s => !safeSelectedIds.includes(s.id));
+        if (remaining.length > 0) {
+          setSelectedSessionId(remaining[0].id);
+        } else {
+          setSelectedSessionId(null);
+        }
+      }
+
+      // Clear selection states
+      setSelectedSessionIdsForBulk([]);
+      alert(`Successfully deleted ${safeSelectedIds.length} session(s).`);
+    } catch (e) {
+      console.error("Error performing bulk deletion:", e);
+      alert("Error performing bulk deletion: " + e);
+    } finally {
+      setIsDeletingSessions(false);
     }
   };
 
@@ -418,10 +512,52 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
               {/* Left Column: Chronological Session Logs */}
               <div className="lg:col-span-4 flex flex-col gap-6">
                 <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 flex flex-col h-[650px] overflow-hidden">
-                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2 pb-3 border-b border-slate-800 flex-shrink-0">
-                    <Calendar className="w-4 h-4 text-osu-orange" />
-                    Session Attendance Logs
-                  </h3>
+                  
+                  {/* Sidebar Header with Bulk Actions */}
+                  <div className="border-b border-slate-800 pb-3 mb-4 flex-shrink-0 flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      {recentSessions.filter(s => s.id !== presentationId).length > 0 && (
+                        <input
+                          type="checkbox"
+                          checked={
+                            recentSessions.filter(s => s.id !== presentationId).length > 0 &&
+                            recentSessions.filter(s => s.id !== presentationId).every(s => selectedSessionIdsForBulk.includes(s.id))
+                          }
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              const eligibleIds = recentSessions
+                                .filter(s => s.id !== presentationId)
+                                .map(s => s.id);
+                              setSelectedSessionIdsForBulk(eligibleIds);
+                            } else {
+                              setSelectedSessionIdsForBulk([]);
+                            }
+                          }}
+                          className="w-4 h-4 rounded border-slate-700 text-osu-orange focus:ring-osu-orange/20 bg-slate-950 cursor-pointer"
+                          title="Select / Deselect All Eligible Sessions"
+                        />
+                      )}
+                      <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                        <Calendar className="w-4 h-4 text-osu-orange" />
+                        Session Logs
+                      </h3>
+                    </div>
+
+                    {selectedSessionIdsForBulk.length > 0 && (
+                      <button
+                        onClick={handleBulkDelete}
+                        disabled={isDeletingSessions}
+                        className="flex items-center gap-1 px-2.5 py-1 bg-red-950/40 hover:bg-red-900 border border-red-500/30 text-[10px] font-black uppercase tracking-wider text-red-400 hover:text-white rounded-lg transition-all"
+                      >
+                        {isDeletingSessions ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-3 h-3" />
+                        )}
+                        Delete ({selectedSessionIdsForBulk.length})
+                      </button>
+                    )}
+                  </div>
 
                   <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
                     {loadingSessions && recentSessions.length === 0 ? (
@@ -448,30 +584,64 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                           : 'Unknown Time';
 
                         return (
-                          <button
+                          <div
                             key={session.id}
                             onClick={() => setSelectedSessionId(session.id)}
-                            className={`w-full text-left p-3.5 rounded-2xl border transition-all flex flex-col gap-1 cursor-pointer group relative overflow-hidden ${
+                            className={`w-full p-3 rounded-2xl border transition-all flex items-center gap-3 cursor-pointer group relative overflow-hidden ${
                               isSelected 
                                 ? 'bg-osu-orange/15 border-osu-orange text-white shadow-md shadow-orange-500/5' 
                                 : 'bg-slate-950/40 border-slate-800/80 hover:border-slate-700/80 text-slate-300 hover:text-white'
                             }`}
                           >
-                            <div className="flex items-center justify-between w-full">
-                              <span className={`text-xs font-black ${isSelected ? 'text-osu-orange' : 'text-slate-400 group-hover:text-slate-200'}`}>
-                                {formattedDate}
-                              </span>
-                              <span className="text-[10px] font-mono opacity-60">
-                                {formattedTime}
-                              </span>
+                            {/* Checkbox for bulk select */}
+                            <input
+                              type="checkbox"
+                              checked={selectedSessionIdsForBulk.includes(session.id)}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                if (e.target.checked) {
+                                  setSelectedSessionIdsForBulk(prev => [...prev, session.id]);
+                                } else {
+                                  setSelectedSessionIdsForBulk(prev => prev.filter(id => id !== session.id));
+                                }
+                              }}
+                              disabled={session.id === presentationId}
+                              className="w-4 h-4 rounded border-slate-750 text-osu-orange focus:ring-osu-orange/20 bg-slate-950 cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed"
+                            />
+
+                            {/* Session details */}
+                            <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                              <div className="flex items-center justify-between w-full">
+                                <span className={`text-[11px] font-black tracking-wide ${isSelected ? 'text-osu-orange' : 'text-slate-400 group-hover:text-slate-200'}`}>
+                                  {formattedDate}
+                                </span>
+                                <span className="text-[9px] font-mono opacity-50">
+                                  {formattedTime}
+                                </span>
+                              </div>
+                              <div className="text-[9px] font-mono opacity-70 break-all flex items-center justify-between mt-0.5">
+                                <span>ID: {session.id.substring(0, 10)}...</span>
+                                {session.id === presentationId && (
+                                  <span className="text-[8px] font-black uppercase bg-osu-orange text-white px-1.5 py-0.5 rounded scale-90 origin-right">Active</span>
+                                )}
+                              </div>
                             </div>
-                            <div className="text-[10px] font-mono opacity-80 break-all mt-1 flex items-center justify-between">
-                              <span>ID: {session.id.substring(0, 10)}...</span>
-                              {session.id === presentationId && (
-                                <span className="text-[8px] font-black uppercase bg-osu-orange text-white px-1.5 py-0.5 rounded">Active</span>
-                              )}
-                            </div>
-                          </button>
+
+                            {/* Individual Delete Button on Hover */}
+                            {session.id !== presentationId && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteSession(session.id);
+                                }}
+                                disabled={isDeletingSessions}
+                                className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 disabled:opacity-0 transition-all duration-200 cursor-pointer flex-shrink-0"
+                                title="Delete Session"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
                         );
                       })
                     )}
