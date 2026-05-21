@@ -17,7 +17,7 @@ interface LocalTokenTracker {
 
 export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logoUrl, isSharingScreen = false }) => {
   const [activeToken, setActiveToken] = useState<string | null>(null);
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true);
   const [timeLeft, setTimeLeft] = useState(10); // 10s countdown for token refresh
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -118,16 +118,23 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
     return () => clearInterval(timer);
   }, []);
 
-  // Auto-minimize after 20 minutes (1200000ms) of screen sharing
+  // Maximize when screen sharing starts
   useEffect(() => {
-    if (!isSharingScreen) return;
+    if (isSharingScreen) {
+      setIsCollapsed(false);
+    }
+  }, [isSharingScreen]);
+
+  // Auto-minimize after 20 minutes (1200000ms) when maximized
+  useEffect(() => {
+    if (isCollapsed) return;
 
     const autoMinimizeTimer = setTimeout(() => {
       setIsCollapsed(true);
     }, 20 * 60 * 1000); // 20 minutes
 
     return () => clearTimeout(autoMinimizeTimer);
-  }, [isSharingScreen]);
+  }, [isCollapsed]);
 
   if (!presentationId) return null;
 
