@@ -703,9 +703,20 @@ interface MessageCardProps {
   onTogglePin?: (msg: Message) => void;
   initialCollapsed?: boolean;
   isInitiallyNew?: boolean;
+  isPresenter?: boolean;
 }
 
-const MessageCard: React.FC<MessageCardProps> = ({ msg, user, canModerate, onLike, onDelete, onTogglePin, initialCollapsed = false, isInitiallyNew = false }) => {
+const MessageCard: React.FC<MessageCardProps> = ({ 
+  msg, 
+  user, 
+  canModerate, 
+  onLike, 
+  onDelete, 
+  onTogglePin, 
+  initialCollapsed = false, 
+  isInitiallyNew = false,
+  isPresenter = false
+}) => {
   const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : initialCollapsed);
 
   useEffect(() => {
@@ -719,29 +730,49 @@ const MessageCard: React.FC<MessageCardProps> = ({ msg, user, canModerate, onLik
 
   return (
     <motion.div 
-      initial={isPulsingNew ? { scale: 1, borderColor: "rgb(254, 215, 170)" } : false}
+      initial={isPulsingNew ? { scale: 1, borderColor: isPresenter ? "rgb(199, 210, 254)" : "rgb(254, 215, 170)" } : false}
       animate={isPulsingNew ? { 
         scale: [1, 1.04, 1, 1.04, 1],
-        borderColor: [
-          "rgb(254, 215, 170)", 
-          "rgb(255, 62, 0)", 
-          "rgb(254, 215, 170)", 
-          "rgb(255, 62, 0)", 
-          "rgb(254, 215, 170)"
-        ],
-        boxShadow: [
-          "0 4px 6px -1px rgb(0 0 0 / 0.1)",
-          "0 0 15px rgba(255, 62, 0, 0.4)",
-          "0 4px 6px -1px rgb(0 0 0 / 0.1)",
-          "0 0 15px rgba(255, 62, 0, 0.4)",
-          "0 4px 6px -1px rgb(0 0 0 / 0.1)"
-        ]
+        borderColor: isPresenter 
+          ? [
+              "rgb(199, 210, 254)", 
+              "rgb(79, 70, 229)", 
+              "rgb(199, 210, 254)", 
+              "rgb(79, 70, 229)", 
+              "rgb(199, 210, 254)"
+            ]
+          : [
+              "rgb(254, 215, 170)", 
+              "rgb(255, 62, 0)", 
+              "rgb(254, 215, 170)", 
+              "rgb(255, 62, 0)", 
+              "rgb(254, 215, 170)"
+            ],
+        boxShadow: isPresenter
+          ? [
+              "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+              "0 0 15px rgba(79, 70, 229, 0.4)",
+              "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+              "0 0 15px rgba(79, 70, 229, 0.4)",
+              "0 4px 6px -1px rgb(0 0 0 / 0.1)"
+            ]
+          : [
+              "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+              "0 0 15px rgba(255, 62, 0, 0.4)",
+              "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+              "0 0 15px rgba(255, 62, 0, 0.4)",
+              "0 4px 6px -1px rgb(0 0 0 / 0.1)"
+            ]
       } : false}
       transition={{ duration: 2, ease: "easeInOut" }}
       className={cn(
-        msg.isPinned 
-          ? "p-3 rounded-xl border-2 border-amber-500 bg-amber-50 shadow-lg transition-all relative"
-          : "p-3 rounded-xl border border-orange-200 bg-orange-50 shadow-md transition-all relative",
+        isPresenter
+          ? msg.isPinned
+            ? "p-3 rounded-xl border-2 border-indigo-600 bg-indigo-50/95 shadow-lg transition-all relative"
+            : "p-3 rounded-xl border-2 border-indigo-500 bg-indigo-50 shadow-md transition-all relative"
+          : msg.isPinned 
+            ? "p-3 rounded-xl border-2 border-amber-500 bg-amber-50 shadow-lg transition-all relative"
+            : "p-3 rounded-xl border border-orange-200 bg-orange-50 shadow-md transition-all relative",
         isCollapsed && "py-2"
       )}
     >
@@ -749,13 +780,26 @@ const MessageCard: React.FC<MessageCardProps> = ({ msg, user, canModerate, onLik
         <div className="flex items-center gap-2">
           <button 
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="p-1 -ml-1 hover:bg-orange-100 rounded transition-colors text-slate-400 hover:text-osu-orange"
+            className={cn(
+              "p-1 -ml-1 rounded transition-colors text-slate-400",
+              isPresenter 
+                ? "hover:bg-indigo-100 hover:text-indigo-600" 
+                : "hover:bg-orange-100 hover:text-osu-orange"
+            )}
           >
             {isCollapsed ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
           </button>
           <div className="flex flex-col">
-            <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+            <span className={cn(
+              "text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5",
+              isPresenter ? "text-indigo-700" : "text-slate-500"
+            )}>
               {msg.userName}
+              {isPresenter && (
+                <span className="inline-flex items-center gap-0.5 bg-indigo-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+                  Presenter
+                </span>
+              )}
               {msg.isPinned && (
                 <span className="inline-flex items-center gap-0.5 bg-amber-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider">
                   <Pin className="w-2 h-2 fill-current rotate-45" /> Pinned
@@ -808,7 +852,12 @@ const MessageCard: React.FC<MessageCardProps> = ({ msg, user, canModerate, onLik
           <p className="text-sm text-slate-800 leading-relaxed">
             <span className="font-bold">{msg.text}</span>
             {(msg.slide !== undefined && msg.slide !== null) && (
-              <span className="inline-flex items-center ml-1.5 px-2.5 py-1 rounded-full bg-[#ff3e00] text-[11px] font-normal text-white border-2 border-white shadow-[0_2px_4px_rgba(255,62,0,0.3)] uppercase tracking-wider">
+              <span className={cn(
+                "inline-flex items-center ml-1.5 px-2.5 py-1 rounded-full text-[11px] font-normal text-white border-2 border-white uppercase tracking-wider",
+                isPresenter 
+                  ? "bg-indigo-600 shadow-[0_2px_4px_rgba(79,70,229,0.3)]"
+                  : "bg-[#ff3e00] shadow-[0_2px_4px_rgba(255,62,0,0.3)]"
+              )}>
                 Slide {msg.slide}
               </span>
             )}
@@ -2229,6 +2278,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 onTogglePin={handleTogglePinMessage}
                 initialCollapsed={isAllCollapsed}
                 isInitiallyNew={false}
+                isPresenter={msg.userId === presentation?.presenterId}
               />
             ))}
           </div>
@@ -2361,6 +2411,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                   onTogglePin={handleTogglePinMessage}
                   initialCollapsed={isAllCollapsed}
                   isInitiallyNew={isInitiallyNew}
+                  isPresenter={msg.userId === presentation?.presenterId}
                 />
               );
             })}
