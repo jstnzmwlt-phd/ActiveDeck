@@ -1364,7 +1364,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
       if (!isChatOnly) {
         userName = user.displayName ? `${user.displayName} (Presenter)` : 'Presenter';
-      } else if (isPostingAnonymously) {
+      } else if (isPostingAnonymously && !presentation?.disableAttendance) {
         userName = `Anonymous ${user.uid.slice(0, 4)}`;
       }
 
@@ -1414,7 +1414,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       localStorage.setItem('activeDeckJoinedPresentationId', presentation.id);
     }
 
-    if (urlToken && presentation?.id) {
+    if (urlToken && presentation?.id && !presentation?.disableAttendance) {
       setIsValidatingToken(true);
       try {
         const tokenRef = doc(db, 'presentations', presentation.id, 'attendance_tokens', urlToken);
@@ -2380,7 +2380,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 Refresh Page
               </button>
             </div>
-          ) : user.isAnonymous && !hasJoined && (!presentation?.allowAnonymousChat || urlToken) ? (
+          ) : user.isAnonymous && !hasJoined && (presentation?.disableAttendance || !presentation?.allowAnonymousChat || urlToken) ? (
             <form onSubmit={handleJoin} className="p-4 flex flex-col gap-3">
               <div className="text-center mb-1">
                 <h3 className="text-sm font-bold text-slate-900">
@@ -2400,18 +2400,18 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               </div>
               <input
                 type="text"
-                placeholder={urlToken ? "Your Name (required)" : "Your Name (optional)"}
+                placeholder={(presentation?.disableAttendance || urlToken) ? "Your Name (required)" : "Your Name (optional)"}
                 value={joinNameInput}
                 onChange={(e) => setJoinNameInput(e.target.value)}
-                required={!!urlToken}
+                required={presentation?.disableAttendance || !!urlToken}
                 className="w-full px-3 py-2 text-base border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-osu-orange"
               />
               <input
                 type="email"
-                placeholder="Email address (required)"
+                placeholder={presentation?.disableAttendance ? "Email address (optional)" : "Email address (required)"}
                 value={joinEmailInput}
                 onChange={(e) => setJoinEmailInput(e.target.value)}
-                required
+                required={!presentation?.disableAttendance}
                 className="w-full px-3 py-2 text-base border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-osu-orange"
               />
               <button
@@ -2428,12 +2428,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                   <div className="flex flex-col gap-1.5">
                     <span className="text-xs text-slate-500">
                       Posting as: <span className="font-semibold text-slate-700">
-                        {isPostingAnonymously 
+                        {isPostingAnonymously && !presentation?.disableAttendance
                           ? `Anonymous ${user.uid.slice(0, 4)}` 
                           : (guestName || (guestEmail ? guestEmail.split('@')[0] : `Guest ${user.uid.slice(0, 4)}`))}
                       </span>
                     </span>
-                    {(guestName || guestEmail || presentation?.allowAnonymousChat) && (
+                    {!presentation?.disableAttendance && (guestName || guestEmail || presentation?.allowAnonymousChat) && (
                       <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
                         <input 
                           type="checkbox" 
