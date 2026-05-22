@@ -1022,7 +1022,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
   // Presenter Token Rotation effect (every 10s)
   useEffect(() => {
-    if (isChatOnly || !presentation?.id) return;
+    if (isChatOnly || !presentation?.id || presentation?.disableAttendance) {
+      setActiveToken(null);
+      return;
+    }
 
     generateNewToken();
 
@@ -1036,7 +1039,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       const now = Date.now();
       cleanExpiredTokens(now + 100000);
     };
-  }, [presentation?.id, isChatOnly]);
+  }, [presentation?.id, isChatOnly, presentation?.disableAttendance]);
 
   // Presenter countdown progress bar ticks (every 100ms)
   useEffect(() => {
@@ -1201,7 +1204,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   // Construct chat-only URL for QR code
   const baseUrl = window.location.origin + window.location.pathname;
   const chatOnlyUrl = presentation?.id ? `${baseUrl}?view=chat&id=${presentation.id}` : `${baseUrl}?view=chat`;
-  const dynamicChatUrl = presentation?.id && activeToken
+  const dynamicChatUrl = presentation?.id && activeToken && !presentation?.disableAttendance
     ? `${window.location.origin}${window.location.pathname}?view=chat&id=${presentation.id}&token=${activeToken}`
     : chatOnlyUrl;
 
@@ -1655,19 +1658,19 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     URL.revokeObjectURL(url);
   };
 
-  const handleToggleAnonymousChat = async () => {
+  const handleToggleDisableAttendance = async () => {
     if (!presentation?.id || !canModerate) {
-      console.warn('ChatSidebar - Cannot toggle anonymous chat:', { hasId: !!presentation?.id, canModerate });
+      console.warn('ChatSidebar - Cannot toggle disable attendance:', { hasId: !!presentation?.id, canModerate });
       return;
     }
-    const newValue = !presentation.allowAnonymousChat;
-    console.log('ChatSidebar - Toggling anonymous chat to:', newValue);
+    const newValue = !presentation.disableAttendance;
+    console.log('ChatSidebar - Toggling disable attendance to:', newValue);
     try {
       await updateDoc(doc(db, 'presentations', presentation.id), {
-        allowAnonymousChat: newValue
+        disableAttendance: newValue
       });
     } catch (error) {
-      console.error('ChatSidebar - Error toggling anonymous chat:', error);
+      console.error('ChatSidebar - Error toggling disable attendance:', error);
       handleFirestoreError(error, OperationType.UPDATE, `presentations/${presentation.id}`);
     }
   };
@@ -2006,18 +2009,18 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           {canModerate && (
             <>
               <button 
-                onClick={handleToggleAnonymousChat}
+                onClick={handleToggleDisableAttendance}
                 className={cn(
                   "px-2 py-1 rounded transition-colors flex items-center gap-1.5 text-xs font-medium",
-                  presentation?.allowAnonymousChat 
-                    ? "text-yellow-500 hover:bg-slate-800 hover:text-yellow-400" 
+                  presentation?.disableAttendance 
+                    ? "text-red-400 hover:bg-slate-800 hover:text-red-300" 
                     : "text-slate-400 hover:bg-slate-800 hover:text-white"
                 )}
-                title={presentation?.allowAnonymousChat ? "Anonymous Chat Allowed" : "Email Required for Chat"}
+                title={presentation?.disableAttendance ? "Attendance Disabled (QR displays static join link)" : "Attendance Enabled (QR rotates dynamic tokens)"}
               >
-                {presentation?.allowAnonymousChat ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+                {presentation?.disableAttendance ? <ToggleRight className="w-4 h-4 text-red-400" /> : <ToggleLeft className="w-4 h-4" />}
                 <span className="hidden sm:inline">
-                  {presentation?.allowAnonymousChat ? "Anon Allowed" : "Email Required"}
+                  {presentation?.disableAttendance ? "Attendance Off" : "Attendance On"}
                 </span>
               </button>
               <button 
@@ -2132,16 +2135,20 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               }}
             />
             {/* Progress countdown bar */}
-            <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden relative">
-              <div 
-                className="h-full bg-osu-orange transition-all duration-100 ease-linear"
-                style={{ width: `${(timeLeft / 10) * 100}%` }}
-              />
-            </div>
+            {!presentation?.disableAttendance && (
+              <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden relative">
+                <div 
+                  className="h-full bg-osu-orange transition-all duration-100 ease-linear"
+                  style={{ width: `${(timeLeft / 10) * 100}%` }}
+                />
+              </div>
+            )}
           </div>
           <div className="flex flex-col justify-center min-w-0 py-1 flex-1">
             <div className="flex items-center justify-between mb-1">
-              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Scan to Mark Attendance and Join Chat</p>
+              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                {presentation?.disableAttendance ? "Scan to Join Chat" : "Scan to Mark Attendance and Join Chat"}
+              </p>
               <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-200/50 rounded-lg text-xs font-black text-slate-700 shadow-sm transition-all animate-in zoom-in-50 duration-500">
                 <Users className="w-4 h-4 text-osu-orange" />
                 <span>{participantCount}</span>

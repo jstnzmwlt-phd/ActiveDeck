@@ -24,6 +24,7 @@ export interface Presentation {
   presenterId: string;
   createdAt: Timestamp;
   allowAnonymousChat?: boolean;
+  disableAttendance?: boolean;
   hideComments?: boolean;
   currentSlide?: number;
   theme?: Theme;

@@ -111,6 +111,7 @@ function AppContent() {
             embedUrl: '',
             createdAt: serverTimestamp(),
             allowAnonymousChat: false,
+            disableAttendance: false,
             hideComments: false
           });
           
