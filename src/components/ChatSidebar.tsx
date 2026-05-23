@@ -93,24 +93,51 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
   const showResults = !!q.showResults;
   const myResponse = user ? responsesData[user.uid] : null;
   const totalResponses = Object.values(responsesData).length;
-  const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  const [timeLeft, setTimeLeft] = useState<number | null>(() => {
+    if (!q.active || !q.expiresAt) return null;
+    const now = Date.now();
+    let expiresMs = 0;
+    const exp = q.expiresAt;
+    if (typeof exp.toMillis === 'function') {
+      expiresMs = exp.toMillis();
+    } else if (typeof exp.toDate === 'function') {
+      expiresMs = exp.toDate().getTime();
+    } else if (exp.seconds !== undefined) {
+      expiresMs = exp.seconds * 1000;
+    } else {
+      expiresMs = new Date(exp as any).getTime();
+    }
+    return Math.max(0, Math.floor((expiresMs - now) / 1000));
+  });
 
   useEffect(() => {
-    if (q.active && q.expiresAt) {
-      const interval = setInterval(() => {
-        const now = Timestamp.now().seconds;
-        const expiry = q.expiresAt!.seconds;
-        const remaining = expiry - now;
-        if (remaining <= 0) {
-          setTimeLeft(0);
-          clearInterval(interval);
-        } else {
-          setTimeLeft(remaining);
-        }
-      }, 1000);
-      return () => clearInterval(interval);
+    if (!q.active || !q.expiresAt) {
+      setTimeLeft(null);
+      return;
     }
-  }, [q.active, q.expiresAt]);
+
+    const updateTimer = () => {
+      const now = Date.now();
+      let expiresMs = 0;
+      const exp = q.expiresAt!;
+      if (typeof exp.toMillis === 'function') {
+        expiresMs = exp.toMillis();
+      } else if (typeof exp.toDate === 'function') {
+        expiresMs = exp.toDate().getTime();
+      } else if (exp.seconds !== undefined) {
+        expiresMs = exp.seconds * 1000;
+      } else {
+        expiresMs = new Date(exp as any).getTime();
+      }
+      const remaining = Math.max(0, Math.floor((expiresMs - now) / 1000));
+      setTimeLeft(remaining);
+    };
+
+    updateTimer();
+
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [q.active, q.expiresAt, q.id, canModerate]);
 
   useEffect(() => {
     if (!isInitiallyNew) {
@@ -309,7 +336,22 @@ interface PollCardProps {
 const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate, onVote, onToggleResults, onClose, onDelete, onStart, onAdjustDuration, onMarkCorrect, initialCollapsed = false, isInitiallyNew = false, secondaryColor }) => {
   const totalVotes = Object.values(poll.votes || {}).reduce((a, b) => a + b, 0);
   const userVote = user && poll.voters ? poll.voters[user.uid] : null;
-  const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  const [timeLeft, setTimeLeft] = useState<number | null>(() => {
+    if (!poll.active || !poll.expiresAt) return null;
+    const now = Date.now();
+    let expiresMs = 0;
+    const exp = poll.expiresAt;
+    if (typeof exp.toMillis === 'function') {
+      expiresMs = exp.toMillis();
+    } else if (typeof exp.toDate === 'function') {
+      expiresMs = exp.toDate().getTime();
+    } else if (exp.seconds !== undefined) {
+      expiresMs = exp.seconds * 1000;
+    } else {
+      expiresMs = new Date(exp as any).getTime();
+    }
+    return Math.max(0, Math.floor((expiresMs - now) / 1000));
+  });
   const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : initialCollapsed);
 
   useEffect(() => {
@@ -324,19 +366,30 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
       return;
     }
 
-    const interval = setInterval(() => {
+    const updateTimer = () => {
       const now = Date.now();
-      const expires = poll.expiresAt!.toMillis();
-      const remaining = Math.max(0, Math.floor((expires - now) / 1000));
-      
+      let expiresMs = 0;
+      const exp = poll.expiresAt!;
+      if (typeof exp.toMillis === 'function') {
+        expiresMs = exp.toMillis();
+      } else if (typeof exp.toDate === 'function') {
+        expiresMs = exp.toDate().getTime();
+      } else if (exp.seconds !== undefined) {
+        expiresMs = exp.seconds * 1000;
+      } else {
+        expiresMs = new Date(exp as any).getTime();
+      }
+      const remaining = Math.max(0, Math.floor((expiresMs - now) / 1000));
       setTimeLeft(remaining);
 
       if (remaining === 0 && poll.active && canModerate) {
         onClose(poll.id);
-        clearInterval(interval);
       }
-    }, 1000);
+    };
 
+    updateTimer();
+
+    const interval = setInterval(updateTimer, 1000);
     return () => clearInterval(interval);
   }, [poll.active, poll.expiresAt, poll.id, canModerate, onClose]);
 
