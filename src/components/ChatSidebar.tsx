@@ -140,8 +140,8 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
         </div>
         <div className="flex items-center gap-2">
           {q.active && timeLeft !== null && (
-            <div className={`flex items-center gap-1 text-xs font-mono font-bold ${timeLeft > 10 ? 'text-slate-500' : 'text-red-500'}`}>
-              <Timer className="w-3 h-3" />
+            <div className={`flex items-center gap-1.5 px-2 py-1 bg-red-50 border border-red-100 rounded-lg text-xs font-mono font-black ${timeLeft > 10 ? 'text-slate-700' : 'text-red-500 animate-pulse'}`}>
+              <Timer className="w-3.5 h-3.5" />
               <span>Time Left: </span>
               {Math.floor(timeLeft / 60)}:{Math.floor(timeLeft % 60).toString().padStart(2, '0')}
             </div>
@@ -179,6 +179,16 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
           <div className="mb-4">
             <h4 className="font-bold text-slate-800 text-lg">{q.prompt}</h4>
           </div>
+
+          {q.active && timeLeft !== null && (
+            <div className="mb-4 flex items-center justify-center gap-2.5 py-3 px-4 bg-green-50 border border-green-200/40 rounded-2xl shadow-sm animate-pulse">
+              <Timer className={`w-6 h-6 ${timeLeft > 10 ? 'text-green-600' : 'text-red-500 animate-spin'}`} />
+              <span className="text-xs uppercase font-black tracking-widest text-slate-500">Time Remaining:</span>
+              <span className={`text-2xl font-black font-mono tracking-wider ${timeLeft > 10 ? 'text-slate-800' : 'text-red-600'}`}>
+                {Math.floor(timeLeft / 60)}:{Math.floor(timeLeft % 60).toString().padStart(2, '0')}
+              </span>
+            </div>
+          )}
 
           {isDraft && canModerate ? (
             <div className="space-y-4 py-2">
@@ -352,8 +362,8 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
           <BarChart2 className="w-4 h-4 text-osu-orange" />
           <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Poll</span>
           {timeLeft !== null && (
-            <div className="flex items-center gap-1 ml-2 px-1.5 py-0.5 bg-slate-100 rounded text-[10px] font-bold text-slate-600">
-              <Timer className="w-3 h-3" />
+            <div className="flex items-center gap-1.5 ml-2 px-2 py-1 bg-red-50 border border-red-100 rounded-lg text-xs font-mono font-black text-red-600">
+              <Timer className="w-3.5 h-3.5" />
               {formatTime(timeLeft)}
             </div>
           )}
@@ -451,6 +461,15 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
             </div>
           ) : (
             <div className="space-y-3">
+              {poll.active && timeLeft !== null && (
+                <div className="flex items-center justify-center gap-2.5 py-3 px-4 bg-orange-50 border border-orange-200/40 rounded-2xl shadow-sm animate-pulse">
+                  <Timer className={`w-6 h-6 ${timeLeft > 10 ? 'text-osu-orange' : 'text-red-500 animate-spin'}`} />
+                  <span className="text-xs uppercase font-black tracking-widest text-slate-500">Time Remaining:</span>
+                  <span className={`text-2xl font-black font-mono tracking-wider ${timeLeft > 10 ? 'text-slate-800' : 'text-red-600'}`}>
+                    {formatTime(timeLeft)}
+                  </span>
+                </div>
+              )}
               {poll.options.map(opt => {
                 const count = poll.votes[opt] || 0;
                 const percentage = totalVotes > 0 ? (count / totalVotes) * 100 : 0;
