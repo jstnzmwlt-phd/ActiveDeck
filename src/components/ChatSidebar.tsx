@@ -88,6 +88,7 @@ interface OpenEndedQuestionCardProps {
 const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, canModerate, onClose, onDelete, onStart, onSubmit, onToggleResults, onAdjustDuration, initialCollapsed = false, isInitiallyNew = false, secondaryColor }) => {
   const [response, setResponse] = useState('');
   const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : initialCollapsed);
+  const prevInitialCollapsedRef = useRef(initialCollapsed);
   const responsesData = q.responses || {};
   const isDraft = q.started === false || (!q.started && !q.active && Object.values(q.responses || {}).length === 0);
   const showResults = !!q.showResults;
@@ -140,10 +141,11 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
   }, [q.active, q.expiresAt, q.id, canModerate]);
 
   useEffect(() => {
-    if (!isInitiallyNew) {
+    if (prevInitialCollapsedRef.current !== initialCollapsed) {
       setIsCollapsed(initialCollapsed);
+      prevInitialCollapsedRef.current = initialCollapsed;
     }
-  }, [initialCollapsed, isInitiallyNew]);
+  }, [initialCollapsed]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -353,12 +355,14 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
     return Math.max(0, Math.floor((expiresMs - now) / 1000));
   });
   const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : initialCollapsed);
+  const prevInitialCollapsedRef = useRef(initialCollapsed);
 
   useEffect(() => {
-    if (!isInitiallyNew) {
+    if (prevInitialCollapsedRef.current !== initialCollapsed) {
       setIsCollapsed(initialCollapsed);
+      prevInitialCollapsedRef.current = initialCollapsed;
     }
-  }, [initialCollapsed, isInitiallyNew]);
+  }, [initialCollapsed]);
 
   useEffect(() => {
     if (!poll.active || !poll.expiresAt) {
@@ -621,12 +625,14 @@ interface WordCloudCardProps {
 const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, canModerate, onSubmit, onToggleResults, onClose, onDelete, onStart, initialCollapsed = false, isInitiallyNew = false, secondaryColor }) => {
   const [word, setWord] = useState('');
   const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : initialCollapsed);
+  const prevInitialCollapsedRef = useRef(initialCollapsed);
 
   useEffect(() => {
-    if (!isInitiallyNew) {
+    if (prevInitialCollapsedRef.current !== initialCollapsed) {
       setIsCollapsed(initialCollapsed);
+      prevInitialCollapsedRef.current = initialCollapsed;
     }
-  }, [initialCollapsed, isInitiallyNew]);
+  }, [initialCollapsed]);
   const hasParticipated = user && cloud.participants ? cloud.participants[user.uid] : false;
   const totalWords = Object.values(cloud.words || {}).reduce((a, b) => a + b, 0);
 
@@ -802,12 +808,14 @@ const MessageCard: React.FC<MessageCardProps> = ({
   isPresenter = false
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : initialCollapsed);
+  const prevInitialCollapsedRef = useRef(initialCollapsed);
 
   useEffect(() => {
-    if (!isInitiallyNew) {
+    if (prevInitialCollapsedRef.current !== initialCollapsed) {
       setIsCollapsed(initialCollapsed);
+      prevInitialCollapsedRef.current = initialCollapsed;
     }
-  }, [initialCollapsed, isInitiallyNew]);
+  }, [initialCollapsed]);
 
   // Determine if this is a "new" message (within last 10 seconds) to trigger pulsation
   const isPulsingNew = !msg.timestamp || (Date.now() - msg.timestamp.toMillis() < 10000);
