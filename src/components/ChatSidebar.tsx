@@ -203,6 +203,12 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
                 </div>
                 <div className="flex gap-2 mt-1">
                   <button 
+                    onClick={() => onAdjustDuration(q.id, 60)}
+                    className="px-2 py-1 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 rounded text-slate-600 transition-colors border border-slate-200"
+                  >
+                    1:00
+                  </button>
+                  <button 
                     onClick={() => onAdjustDuration(q.id, 120)}
                     className="px-2 py-1 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 rounded text-slate-600 transition-colors border border-slate-200"
                   >
@@ -416,6 +422,12 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
                   </button>
                 </div>
                 <div className="flex gap-2 mt-1">
+                  <button 
+                    onClick={() => onAdjustDuration(poll.id, 60)}
+                    className="px-2 py-1 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 rounded text-slate-600 transition-colors border border-slate-200"
+                  >
+                    1:00
+                  </button>
                   <button 
                     onClick={() => onAdjustDuration(poll.id, 120)}
                     className="px-2 py-1 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 rounded text-slate-600 transition-colors border border-slate-200"
