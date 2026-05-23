@@ -166,7 +166,7 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
           <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Open Question</span>
         </div>
         <div className="flex items-center gap-2">
-          {q.active && timeLeft !== null && (
+          {isCollapsed && q.active && timeLeft !== null && (
             <div className={`flex items-center gap-1.5 px-2 py-1 bg-red-50 border border-red-100 rounded-lg text-xs font-mono font-black ${timeLeft > 10 ? 'text-slate-700' : 'text-red-500 animate-pulse'}`}>
               <Timer className="w-3.5 h-3.5" />
               <span>Time Left: </span>
@@ -414,7 +414,7 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
           </button>
           <BarChart2 className="w-4 h-4 text-osu-orange" />
           <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Poll</span>
-          {timeLeft !== null && (
+          {isCollapsed && timeLeft !== null && (
             <div className="flex items-center gap-1.5 ml-2 px-2 py-1 bg-red-50 border border-red-100 rounded-lg text-xs font-mono font-black text-red-600">
               <Timer className="w-3.5 h-3.5" />
               {formatTime(timeLeft)}
