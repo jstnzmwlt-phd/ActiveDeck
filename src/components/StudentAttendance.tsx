@@ -151,14 +151,20 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
     if (currentVal) {
       const grid = generateIconGrid(currentVal, prevVal);
       setIconGrid(grid);
+    }
+  }, [presentation?.currentIcon, presentation?.previousIcon]);
 
-      // Only reset the student's selected icon if it has become completely invalid
-      // (meaning it matches neither the active current icon nor the grace-period previous icon)
-      if (selectedIcon && selectedIcon !== currentVal && selectedIcon !== prevVal) {
+  // Reset student selected icon if it becomes completely invalid on icon rotation
+  useEffect(() => {
+    const currentVal = presentation?.currentIcon;
+    const prevVal = presentation?.previousIcon;
+
+    if (currentVal && selectedIcon) {
+      if (selectedIcon !== currentVal && selectedIcon !== prevVal) {
         setSelectedIcon(null);
       }
     }
-  }, [presentation?.currentIcon, presentation?.previousIcon]);
+  }, [presentation?.currentIcon, presentation?.previousIcon, selectedIcon]);
 
   // Student manual check-in heartbeat removed to allow unconditional 10s rotation
 

@@ -1171,39 +1171,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
 
 
-  // Presenter Token Rotation effect (every 10s)
-  useEffect(() => {
-    if (isChatOnly || !presentation?.id || presentation?.disableAttendance) {
-      setActiveToken(null);
-      return;
-    }
 
-    generateNewToken();
-
-    const rotationInterval = setInterval(() => {
-      setTimeLeft(10);
-      generateNewToken();
-    }, 10000);
-
-    return () => {
-      clearInterval(rotationInterval);
-      const now = Date.now();
-      cleanExpiredTokens(now + 100000);
-    };
-  }, [presentation?.id, isChatOnly, presentation?.disableAttendance]);
-
-  // Presenter countdown progress bar ticks (every 100ms)
-  useEffect(() => {
-    if (isChatOnly) return;
-    const timer = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 0.1) return 10;
-        return Number((prev - 0.1).toFixed(1));
-      });
-    }, 100);
-
-    return () => clearInterval(timer);
-  }, [isChatOnly]);
 
   // Student Token Reset Effect when urlToken changes
   useEffect(() => {
@@ -1597,14 +1565,20 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     if (currentVal) {
       const grid = generateIconGrid(currentVal, prevVal);
       setIconGrid(grid);
+    }
+  }, [presentation?.currentIcon, presentation?.previousIcon]);
 
-      // Only reset the student's selected icon if it has become completely invalid
-      // (meaning it matches neither the active current icon nor the grace-period previous icon)
-      if (selectedIcon && selectedIcon !== currentVal && selectedIcon !== prevVal) {
+  // Reset student selected icon if it becomes completely invalid on icon rotation
+  useEffect(() => {
+    const currentVal = presentation?.currentIcon;
+    const prevVal = presentation?.previousIcon;
+
+    if (currentVal && selectedIcon) {
+      if (selectedIcon !== currentVal && selectedIcon !== prevVal) {
         setSelectedIcon(null);
       }
     }
-  }, [presentation?.currentIcon, presentation?.previousIcon]);
+  }, [presentation?.currentIcon, presentation?.previousIcon, selectedIcon]);
 
   // Student-side live countdown timer for manual icon rotation (rotates every 10s in perfect sync with QR)
   useEffect(() => {
