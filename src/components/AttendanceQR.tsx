@@ -18,7 +18,7 @@ interface LocalTokenTracker {
 export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logoUrl, isSharingScreen = false }) => {
   const [activeToken, setActiveToken] = useState<string | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(true);
-  const [timeLeft, setTimeLeft] = useState(13); // 13s countdown for token refresh
+  const [timeLeft, setTimeLeft] = useState(10); // 10s countdown for QR token refresh
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -73,7 +73,7 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
     });
   };
 
-  // Function to generate and save a new token
+  // Function to generate and save a new token (Runs every 10 seconds)
   const generateNewToken = async () => {
     if (!presentationId) return;
 
@@ -82,16 +82,10 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
       const newTokenId = generateUUID();
       const now = Date.now();
 
-      // Generate rotating OTP code and keep previous code as grace period
-      const prevCode = currentCodeRef.current;
-      const newCode = generateOTP();
-
-      // Save token, currentCode, and previousCode directly to the presentation document
+      // Save token directly to the presentation document (merge true to not touch screen codes)
       const presRef = doc(db, 'presentations', presentationId);
       await setDoc(presRef, {
-        attendanceToken: newTokenId,
-        currentCode: newCode,
-        previousCode: prevCode || null
+        attendanceToken: newTokenId
       }, { merge: true });
 
       // Write token to Firestore with server timestamp
@@ -102,8 +96,6 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
 
       // Update active token in UI
       setActiveToken(newTokenId);
-      currentCodeRef.current = newCode;
-      setCurrentCode(newCode);
       setLoading(false);
 
       // Add to our tracker
@@ -115,6 +107,29 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
       console.error('Error generating attendance token:', err);
       setLoading(false);
       setErrorMsg(err?.message || String(err));
+    }
+  };
+
+  // Function to rotate and save a new Screen Code OTP (Runs every 15 seconds)
+  const rotateScreenCode = async () => {
+    if (!presentationId) return;
+
+    try {
+      const prevCode = currentCodeRef.current;
+      const newCode = generateOTP();
+
+      // Save currentCode and previousCode directly to the presentation document
+      const presRef = doc(db, 'presentations', presentationId);
+      await setDoc(presRef, {
+        currentCode: newCode,
+        previousCode: prevCode || null
+      }, { merge: true });
+
+      // Update active code in UI
+      currentCodeRef.current = newCode;
+      setCurrentCode(newCode);
+    } catch (err) {
+      console.error('Error rotating Screen Code:', err);
     }
   };
 
@@ -135,7 +150,7 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
     }
   };
 
-  // Setup the token rotation loop (Runs every 13 seconds)
+  // Setup the QR token rotation loop (Runs every 10 seconds)
   useEffect(() => {
     if (!presentationId) return;
 
@@ -143,9 +158,9 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
     generateNewToken();
 
     const rotationInterval = setInterval(() => {
-      setTimeLeft(13);
+      setTimeLeft(10);
       generateNewToken();
-    }, 13000); // 13000ms is exactly 13 seconds
+    }, 10000); // 10000ms is exactly 10 seconds
 
     return () => {
       clearInterval(rotationInterval);
@@ -155,11 +170,27 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
     };
   }, [presentationId]);
 
+  // Setup the Screen Code rotation loop (Runs every 15 seconds)
+  useEffect(() => {
+    if (!presentationId) return;
+
+    // Generate initial Screen Code immediately
+    rotateScreenCode();
+
+    const codeRotationInterval = setInterval(() => {
+      rotateScreenCode();
+    }, 15000); // 15000ms is exactly 15 seconds
+
+    return () => {
+      clearInterval(codeRotationInterval);
+    };
+  }, [presentationId]);
+
   // Setup countdown bar ticks (Runs every 100ms for ultra-smooth UI progress bar)
   useEffect(() => {
     const timer = setInterval(() => {
       setTimeLeft(prev => {
-        if (prev <= 0.1) return 13;
+        if (prev <= 0.1) return 10;
         return Number((prev - 0.1).toFixed(1));
       });
     }, 100);
@@ -192,7 +223,7 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
     : '';
 
   // Width percentage for countdown bar
-  const progressPercent = (timeLeft / 13) * 100;
+  const progressPercent = (timeLeft / 10) * 100;
 
   return (
     <div className="absolute bottom-4 left-4 z-[80] select-none font-sans">
@@ -273,22 +304,23 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
           <div className="w-full text-center space-y-1.5 mb-2.5 px-1">
             <p className="text-[10px] font-black text-slate-200 uppercase tracking-wider">Scan to Check-In</p>
             
-            <div className="flex items-center justify-between gap-1.5 bg-slate-950/80 p-1.5 rounded-lg border border-slate-800">
-              <div className="flex flex-col items-start text-left min-w-0">
+            <div className="w-full bg-slate-950/80 p-2 rounded-xl border border-slate-800 space-y-1.5 text-center">
+              <div className="flex flex-col items-center">
                 <span className="text-[7px] font-bold text-slate-400 uppercase tracking-widest leading-none">OR JOIN AT:</span>
-                <span className="text-[10px] font-black text-osu-orange truncate max-w-[85px] leading-tight select-all">
+                <span className="text-[10.5px] font-black text-osu-orange truncate max-w-[136px] leading-normal select-all mt-0.5">
                   {shortUrl ? shortUrl.replace(/^https?:\/\//i, '') : `${window.location.hostname}/...`}
                 </span>
               </div>
-              <div className="flex flex-col items-end text-right shrink-0">
-                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest leading-none">CODE:</span>
-                <span className="text-[18px] font-black text-osu-orange leading-none font-mono tracking-wider select-all">
+              <div className="h-px bg-slate-800/60 w-full" />
+              <div className="flex flex-col items-center">
+                <span className="text-[7px] font-bold text-slate-400 uppercase tracking-widest leading-none">SCREEN CODE:</span>
+                <span className="text-3xl font-mono font-black text-white select-all mt-1 tracking-wider leading-none">
                   {currentCode || '----'}
                 </span>
               </div>
             </div>
             
-            <p className="text-[8px] text-slate-400 font-semibold leading-normal">Updates every 13s</p>
+            <p className="text-[8px] text-slate-400 font-semibold leading-normal">QR: 10s | Code: 15s</p>
           </div>
 
           {/* Visual Progress Bar Container */}

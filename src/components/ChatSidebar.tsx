@@ -1085,7 +1085,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
   // Presenter states for token rotation
   const [activeToken, setActiveToken] = useState<string | null>(null);
-  const [timeLeft, setTimeLeft] = useState(13);
+  const [timeLeft, setTimeLeft] = useState(10);
   const [loadingToken, setLoadingToken] = useState(true);
 
   // Presenter states for rotating OTP code
@@ -1591,165 +1591,106 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     }
   };
 
-  const handleJoin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setJoinError(null);
-    
-    const emailToSave = joinEmailInput.trim().toLowerCase();
-    const nameToSave = joinNameInput.trim();
+  const generateNewToken = async () => {
+    if (!presentation?.id) return;
 
-    // If manual attendance check is required
-    const isAttendanceJoin = !presentation?.disableAttendance;
-    if (isAttendanceJoin && !urlToken) {
-      if (!presentation?.id) return;
-      if (!joinScreenCode.trim()) {
-        setJoinError("Please enter the 4-Digit Screen Code.");
-        return;
-      }
+    try {
+      const newTokenId = generateUUID();
+      const now = Date.now();
 
-      setIsValidatingToken(true);
-      try {
-        // Fetch presentation doc and validate screen code
-        const presRef = doc(db, 'presentations', presentation.id);
-        const presSnap = await getDoc(presRef);
-        if (!presSnap.exists()) {
-          setJoinError("This presentation session is no longer active.");
-          setIsValidatingToken(false);
-          return;
-        }
-        const presData = presSnap.data();
-        const currentCodeVal = (presData.currentCode || '').trim().toUpperCase();
-        const previousCodeVal = (presData.previousCode || '').trim().toUpperCase();
-        const enteredCode = joinScreenCode.trim().toUpperCase();
+      // Save token directly to the presentation document (merge true to not touch screen codes)
+      const presRef = doc(db, 'presentations', presentation.id);
+      await setDoc(presRef, {
+        attendanceToken: newTokenId
+      }, { merge: true });
 
-        if (!enteredCode || (enteredCode !== currentCodeVal && enteredCode !== previousCodeVal)) {
-          setJoinError("Invalid or expired Screen Code. Please check the presenter's screen.");
-          setIsValidatingToken(false);
-          return;
-        }
+      const tokenRef = doc(db, 'presentations', presentation.id, 'attendance_tokens', newTokenId);
+      await setDoc(tokenRef, {
+        createdAt: serverTimestamp()
+      });
 
-        // Fetch active institution details from settings/global
-        let activeInstitutionId = 'custom';
-        let activeInstitutionName = 'Custom / Active Theme';
-        try {
-          const globalSnap = await getDoc(doc(db, 'settings', 'global'));
-          if (globalSnap.exists()) {
-            const globalData = globalSnap.data();
-            if (globalData.activeInstitutionId) {
-              activeInstitutionId = globalData.activeInstitutionId;
-            }
-            if (globalData.activeInstitutionName) {
-              activeInstitutionName = globalData.activeInstitutionName;
-            }
-          }
-        } catch (err) {
-          console.error('Error fetching global settings for institution info:', err);
-        }
+      setActiveToken(newTokenId);
+      setLoadingToken(false);
 
-        // Write check-in directly to Firestore subcollection using the email as document ID
-        const attendanceRef = doc(db, 'presentations', presentation.id, 'attendance', emailToSave);
-        await setDoc(attendanceRef, {
-          name: nameToSave,
-          email: emailToSave,
-          checkedInAt: serverTimestamp(),
-          scannedToken: null,
-          institutionId: activeInstitutionId,
-          institutionName: activeInstitutionName,
-          authMethod: 'URL',
-          ipAddress: ipAddress
-        });
-
-        // Set attendance states
-        setAttendanceStatus('success');
-        setShowAttendanceBanner(true);
-      } catch (err: any) {
-        console.error('Error recording manual attendance on join:', err);
-        setJoinError("Failed to record attendance. Please try again.");
-        setIsValidatingToken(false);
-        return;
-      } finally {
-        setIsValidatingToken(false);
-      }
-    }
-
-    // Now proceed with joining the chat
-    setGuestEmail(emailToSave);
-    setGuestName(nameToSave);
-    setHasJoined(true);
-    localStorage.setItem('activeDeckJoined', 'true');
-    localStorage.setItem('activeDeckGuestEmail', emailToSave);
-    localStorage.setItem('activeDeckGuestName', nameToSave);
-    if (presentation?.id) {
-      localStorage.setItem('activeDeckJoinedPresentationId', presentation.id);
-    }
-
-    // If they joined with a urlToken, validate it (this is the original QR code track)
-    if (urlToken && presentation?.id && !presentation?.disableAttendance) {
-      setIsValidatingToken(true);
-      try {
-        const tokenRef = doc(db, 'presentations', presentation.id, 'attendance_tokens', urlToken);
-        const tokenSnap = await getDoc(tokenRef);
-        
-        if (!tokenSnap.exists()) {
-          setAttendanceStatus('expired');
-          setShowAttendanceBanner(true);
-          return;
-        }
-
-        const data = tokenSnap.data();
-        const createdAt = data.createdAt as Timestamp;
-
-        const tokenTime = createdAt ? createdAt.toMillis() : Date.now();
-        const elapsed = (Date.now() - tokenTime) / 1000;
-
-        if (elapsed >= 45) {
-          setAttendanceStatus('expired');
-          setShowAttendanceBanner(true);
-          return;
-        }
-
-        let activeInstitutionId = 'custom';
-        let activeInstitutionName = 'Custom / Active Theme';
-        try {
-          const globalSnap = await getDoc(doc(db, 'settings', 'global'));
-          if (globalSnap.exists()) {
-            const globalData = globalSnap.data();
-            if (globalData.activeInstitutionId) {
-              activeInstitutionId = globalData.activeInstitutionId;
-            }
-            if (globalData.activeInstitutionName) {
-              activeInstitutionName = globalData.activeInstitutionName;
-            }
-          }
-        } catch (err) {
-          console.error('Error fetching global settings for institution info:', err);
-        }
-
-        const attendanceRef = doc(db, 'presentations', presentation.id, 'attendance', emailToSave);
-        await setDoc(attendanceRef, {
-          name: nameToSave,
-          email: emailToSave,
-          checkedInAt: serverTimestamp(),
-          scannedToken: urlToken,
-          institutionId: activeInstitutionId,
-          institutionName: activeInstitutionName,
-          authMethod: 'QR',
-          ipAddress: ipAddress
-        });
-
-        setAttendanceStatus('success');
-        setShowAttendanceBanner(true);
-      } catch (err) {
-        console.error('Error recording attendance on join:', err);
-        setAttendanceStatus('error');
-        setShowAttendanceBanner(true);
-      } finally {
-        setIsValidatingToken(false);
-      }
+      generatedTokensRef.current.push({ id: newTokenId, createdAt: now });
+      cleanExpiredTokens(now);
+    } catch (err) {
+      console.error('Error generating attendance token in ChatSidebar:', err);
+      setLoadingToken(false);
     }
   };
 
-  const handleLeave = () => {
+  const rotateScreenCode = async () => {
+    if (!presentation?.id) return;
+
+    try {
+      const prevCode = currentCodeRef.current;
+      const newCode = generateOTP();
+
+      // Save currentCode and previousCode directly to the presentation document
+      const presRef = doc(db, 'presentations', presentation.id);
+      await setDoc(presRef, {
+        currentCode: newCode,
+        previousCode: prevCode || null
+      }, { merge: true });
+
+      currentCodeRef.current = newCode;
+      setCurrentCode(newCode);
+    } catch (err) {
+      console.error('Error rotating Screen Code in ChatSidebar:', err);
+    }
+  };
+
+  // Presenter Token Rotation effect (every 10s)
+  useEffect(() => {
+    if (isChatOnly || !presentation?.id || presentation?.disableAttendance) {
+      setActiveToken(null);
+      return;
+    }
+
+    generateNewToken();
+
+    const rotationInterval = setInterval(() => {
+      setTimeLeft(10);
+      generateNewToken();
+    }, 10000);
+
+    return () => {
+      clearInterval(rotationInterval);
+      const now = Date.now();
+      cleanExpiredTokens(now + 100000);
+    };
+  }, [presentation?.id, isChatOnly, presentation?.disableAttendance]);
+
+  // Presenter Screen Code Rotation effect (every 15s)
+  useEffect(() => {
+    if (isChatOnly || !presentation?.id || presentation?.disableAttendance) {
+      return;
+    }
+
+    rotateScreenCode();
+
+    const codeRotationInterval = setInterval(() => {
+      rotateScreenCode();
+    }, 15000);
+
+    return () => {
+      clearInterval(codeRotationInterval);
+    };
+  }, [presentation?.id, isChatOnly, presentation?.disableAttendance]);
+
+  // Presenter countdown progress bar ticks (every 100ms)
+  useEffect(() => {
+    if (isChatOnly) return;
+    const timer = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 0.1) return 10;
+        return Number((prev - 0.1).toFixed(1));
+      });
+    }, 100);
+
+    return () => clearInterval(timer);
+  }, [isChatOnly]);const handleLeave = () => {
     setHasJoined(false);
     setGuestEmail('');
     setGuestName('');
@@ -2267,9 +2208,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
             
             {/* Rotating 4-Digit OTP Badge */}
             {!presentation?.disableAttendance && (
-              <div className="flex flex-col items-end shrink-0 bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800">
-                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">SCREEN CODE</span>
-                <span className="text-xl font-black text-osu-orange font-mono tracking-wider leading-none select-all mt-1">
+              <div className="flex flex-col items-end shrink-0 bg-slate-950 px-4 py-2 rounded-xl border border-slate-800 shadow-inner">
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">SCREEN CODE</span>
+                <span className="text-3xl font-black text-osu-orange font-mono tracking-wider leading-none select-all mt-1.5">
                   {currentCode || '----'}
                 </span>
               </div>
@@ -2420,7 +2361,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden relative">
                 <div 
                   className="h-full bg-osu-orange transition-all duration-100 ease-linear"
-                  style={{ width: `${(timeLeft / 13) * 100}%` }}
+                  style={{ width: `${(timeLeft / 10) * 100}%` }}
                 />
               </div>
             )}
