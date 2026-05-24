@@ -1,7 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { doc, getDoc, setDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, Timestamp, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Loader2, CheckCircle2, XCircle, User, Mail, Timer, AlertCircle } from 'lucide-react';
+import { MEDICAL_ICONS, MedicalIcon, generateIconGrid } from './MedicalIcon';
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
 
 interface StudentAttendanceProps {
   presentationId: string;
@@ -20,7 +27,9 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const isManualMode = !token;
-  const [screenCode, setScreenCode] = useState('');
+  const [selectedIcon, setSelectedIcon] = useState<string | null>(null);
+  const [iconGrid, setIconGrid] = useState<string[]>([]);
+  const [presentation, setPresentation] = useState<any>(null);
   const [ipAddress, setIpAddress] = useState('127.0.0.1');
 
   // Fetch client-side IP address on mount
@@ -106,37 +115,42 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
     validateToken();
   }, [presentationId, token]);
 
-  // Phase 1b: If in manual mode, verify that the presentation session exists
+  // Phase 1b: If in manual mode, subscribe reactively to presentation session so we get rotating icons
   useEffect(() => {
-    if (token) return;
+    if (token || !presentationId) return;
 
-    const fetchPresentation = async () => {
-      if (!presentationId) {
+    setLoading(true);
+    const presRef = doc(db, 'presentations', presentationId);
+    
+    const unsub = onSnapshot(presRef, (presSnap) => {
+      setLoading(false);
+      if (!presSnap.exists()) {
         setIsValid(false);
-        setLoading(false);
-        return;
+        setErrorMsg("Presentation session not found. Please verify the URL.");
+        setPresentation(null);
+      } else {
+        setIsValid(true);
+        const data = presSnap.data();
+        setPresentation(data);
       }
-      try {
-        setErrorMsg(null);
-        const presRef = doc(db, 'presentations', presentationId);
-        const presSnap = await getDoc(presRef);
-        if (!presSnap.exists()) {
-          setIsValid(false);
-          setErrorMsg("Presentation session not found. Please verify the URL.");
-        } else {
-          setIsValid(true);
-        }
-      } catch (err) {
-        console.error('Error fetching presentation details:', err);
-        setIsValid(false);
-        setErrorMsg("Failed to connect to the session. Please check your internet connection.");
-      } finally {
-        setLoading(false);
-      }
-    };
+    }, (err) => {
+      console.error('Error listening to presentation details:', err);
+      setLoading(false);
+      setIsValid(false);
+      setErrorMsg("Failed to connect to the session. Please check your internet connection.");
+    });
 
-    fetchPresentation();
+    return () => unsub();
   }, [presentationId, token]);
+
+  // Regenerate student manual-join 20-icon grid when the presenter's currentIcon rotates
+  useEffect(() => {
+    if (presentation?.currentIcon) {
+      const grid = generateIconGrid(presentation.currentIcon);
+      setIconGrid(grid);
+      setSelectedIcon(null); // Reset selection on rotation to prevent accidental submittal of stale icon
+    }
+  }, [presentation?.currentIcon]);
 
   // Phase 2: Live countdown timer
   useEffect(() => {
@@ -165,7 +179,7 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !email.trim()) return;
-    if (isManualMode && !screenCode.trim()) return;
+    if (isManualMode && !selectedIcon) return;
 
     setSubmitting(true);
     setErrorMsg(null);
@@ -183,19 +197,18 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
           throw new Error("EXPIRED_TOKEN");
         }
       } else {
-        // Fetch presentation doc and validate screen code
+        // Fetch presentation doc and validate screen icon
         const presRef = doc(db, 'presentations', presentationId);
         const presSnap = await getDoc(presRef);
         if (!presSnap.exists()) {
           throw new Error("SESSION_NOT_FOUND");
         }
         const presData = presSnap.data();
-        const currentCodeVal = (presData.currentCode || '').trim().toUpperCase();
-        const previousCodeVal = (presData.previousCode || '').trim().toUpperCase();
-        const enteredCode = screenCode.trim().toUpperCase();
+        const currentIconVal = presData.currentIcon || '';
+        const previousIconVal = presData.previousIcon || '';
 
-        if (!enteredCode || (enteredCode !== currentCodeVal && enteredCode !== previousCodeVal)) {
-          throw new Error("INVALID_SCREEN_CODE");
+        if (!selectedIcon || (selectedIcon !== currentIconVal && selectedIcon !== previousIconVal)) {
+          throw new Error("INVALID_SCREEN_ICON");
         }
       }
 
@@ -239,8 +252,8 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
       console.error('Submission error:', err);
       if (err.message === "EXPIRED_TOKEN") {
         setErrorMsg("This QR code has expired. Please scan the newest code on the screen.");
-      } else if (err.message === "INVALID_SCREEN_CODE") {
-        setErrorMsg("Invalid or expired 4-Digit Screen Code. Please enter the current code shown on the screen.");
+      } else if (err.message === "INVALID_SCREEN_ICON") {
+        setErrorMsg("Incorrect icon selected. Please look at the presenter's screen and choose the matching medical icon.");
       } else if (err.message === "SESSION_NOT_FOUND") {
         setErrorMsg("This presentation session is no longer active.");
       } else {
@@ -335,18 +348,33 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
 
         <form onSubmit={handleSubmit} className="space-y-5">
           {isManualMode && (
-            <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
-              <label className="block text-xs font-black uppercase tracking-wider text-slate-400">4-Digit Screen Code</label>
-              <div className="relative">
-                <input
-                  type="text"
-                  required
-                  maxLength={4}
-                  value={screenCode}
-                  onChange={(e) => setScreenCode(e.target.value.toUpperCase())}
-                  placeholder="A7X2"
-                  className="w-full h-14 bg-slate-950 border border-slate-800 rounded-xl text-center text-2xl font-mono font-black uppercase tracking-[0.35em] text-osu-orange placeholder-slate-800/30 focus:outline-none focus:border-osu-orange focus:ring-1 focus:ring-osu-orange transition-colors"
-                />
+            <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+              <label className="block text-xs font-black uppercase tracking-wider text-slate-400">
+                Verify Screen Icon
+              </label>
+              <p className="text-xs text-slate-500 leading-normal mb-1">
+                Select the medical icon shown on the presenter's screen to verify your attendance:
+              </p>
+              <div className="grid grid-cols-5 gap-3 p-3 bg-slate-950 border border-slate-800 rounded-2xl max-h-[160px] overflow-y-auto shadow-inner">
+                {iconGrid.map((iconName, idx) => {
+                  const isSelected = selectedIcon === iconName;
+                  return (
+                    <button
+                      key={`${iconName}-${idx}`}
+                      type="button"
+                      onClick={() => setSelectedIcon(iconName)}
+                      className={cn(
+                        "h-12 rounded-xl flex items-center justify-center transition-all duration-200 border cursor-pointer",
+                        isSelected
+                          ? "bg-osu-orange/20 border-osu-orange text-osu-orange shadow-[0_0_10px_rgba(235,93,0,0.4)] scale-95"
+                          : "bg-slate-900/60 border-slate-800/80 text-slate-400 hover:text-white hover:border-slate-700 hover:bg-slate-900"
+                      )}
+                      title={iconName}
+                    >
+                      <MedicalIcon name={iconName} className="w-6 h-6" />
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -387,7 +415,7 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
 
           <button
             type="submit"
-            disabled={submitting || !name.trim() || !email.trim() || (isManualMode && !screenCode.trim())}
+            disabled={submitting || !name.trim() || !email.trim() || (isManualMode && !selectedIcon)}
             className="w-full h-12 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-[0.98] shadow-lg shadow-orange-500/10 flex items-center justify-center gap-2 mt-2"
           >
             {submitting ? (

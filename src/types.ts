@@ -28,6 +28,8 @@ export interface Presentation {
   hideComments?: boolean;
   currentSlide?: number;
   theme?: Theme;
+  currentIcon?: string;
+  previousIcon?: string;
 }
 
 export interface Message {

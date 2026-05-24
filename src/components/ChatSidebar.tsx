@@ -9,6 +9,7 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { QRCodeSVG } from 'qrcode.react';
 import { motion } from 'motion/react';
+import { MEDICAL_ICONS, MedicalIcon, generateIconGrid } from './MedicalIcon';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -1089,19 +1090,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [loadingToken, setLoadingToken] = useState(true);
   const lastTokenGenerationTimeRef = useRef<number>(Date.now());
 
-  // Presenter states for rotating OTP code
-  const [currentCode, setCurrentCode] = useState<string | null>(null);
-  const currentCodeRef = useRef<string | null>(null);
-
-  // Helper to generate rotating 4-character alphanumeric OTP code
-  const generateOTP = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let code = '';
-    for (let i = 0; i < 4; i++) {
-      code += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return code;
-  };
+  // Presenter states for rotating dynamic medical icon
+  const [currentIcon, setCurrentIcon] = useState<string | null>(null);
+  const currentIconRef = useRef<string | null>(null);
 
   // Student states for token validation & check-in
   const urlParams = new URLSearchParams(window.location.search);
@@ -1114,7 +1105,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [showAttendanceBanner, setShowAttendanceBanner] = useState(true);
 
   // States for guest manual attendance check-in
-  const [joinScreenCode, setJoinScreenCode] = useState('');
+  const [selectedIcon, setSelectedIcon] = useState<string | null>(null);
+  const [iconGrid, setIconGrid] = useState<string[]>([]);
   const [joinError, setJoinError] = useState<string | null>(null);
   const [ipAddress, setIpAddress] = useState('127.0.0.1');
 
@@ -1591,22 +1583,35 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     if (!presentation?.id) return;
 
     try {
-      const prevCode = currentCodeRef.current;
-      const newCode = generateOTP();
+      const prevIcon = currentIconRef.current;
+      const availableIcons = prevIcon 
+        ? MEDICAL_ICONS.filter(icon => icon !== prevIcon) 
+        : MEDICAL_ICONS;
+      const newIcon = availableIcons[Math.floor(Math.random() * availableIcons.length)];
 
-      // Save currentCode and previousCode directly to the presentation document
+      // Save currentIcon and previousIcon directly to the presentation document
       const presRef = doc(db, 'presentations', presentation.id);
       await setDoc(presRef, {
-        currentCode: newCode,
-        previousCode: prevCode || null
+        currentIcon: newIcon,
+        previousIcon: prevIcon || null
       }, { merge: true });
 
-      currentCodeRef.current = newCode;
-      setCurrentCode(newCode);
+      // Update active icon in UI
+      currentIconRef.current = newIcon;
+      setCurrentIcon(newIcon);
     } catch (err) {
-      console.error('Error rotating Screen Code in ChatSidebar:', err);
+      console.error('Error rotating Screen Icon in ChatSidebar:', err);
     }
   };
+
+  // Regenerate student manual-join 20-icon grid when the presenter's currentIcon rotates
+  useEffect(() => {
+    if (presentation?.currentIcon) {
+      const grid = generateIconGrid(presentation.currentIcon);
+      setIconGrid(grid);
+      setSelectedIcon(null); // Reset selection on rotation to prevent accidental submittal of stale icon
+    }
+  }, [presentation?.currentIcon]);
 
   // Presenter Token Rotation and countdown effect (every 10s unified loop)
   useEffect(() => {
@@ -1664,14 +1669,14 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     const isAttendanceJoin = !presentation?.disableAttendance;
     if (isAttendanceJoin && !urlToken) {
       if (!presentation?.id) return;
-      if (!joinScreenCode.trim()) {
-        setJoinError("Please enter the 4-Digit Screen Code.");
+      if (!selectedIcon) {
+        setJoinError("Please select a Screen Icon.");
         return;
       }
 
       setIsValidatingToken(true);
       try {
-        // Fetch presentation doc and validate screen code
+        // Fetch presentation doc and validate screen icon
         const presRef = doc(db, 'presentations', presentation.id);
         const presSnap = await getDoc(presRef);
         if (!presSnap.exists()) {
@@ -1680,12 +1685,11 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           return;
         }
         const presData = presSnap.data();
-        const currentCodeVal = (presData.currentCode || '').trim().toUpperCase();
-        const previousCodeVal = (presData.previousCode || '').trim().toUpperCase();
-        const enteredCode = joinScreenCode.trim().toUpperCase();
+        const currentIconVal = presData.currentIcon || '';
+        const previousIconVal = presData.previousIcon || '';
 
-        if (!enteredCode || (enteredCode !== currentCodeVal && enteredCode !== previousCodeVal)) {
-          setJoinError("Invalid or expired Screen Code. Please check the presenter's screen.");
+        if (!selectedIcon || (selectedIcon !== currentIconVal && selectedIcon !== previousIconVal)) {
+          setJoinError("Incorrect icon selected. Please look at the presenter's screen and choose the matching medical icon.");
           setIsValidatingToken(false);
           return;
         }
@@ -2327,13 +2331,17 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               </div>
             </div>
             
-            {/* Rotating 4-Digit OTP Badge */}
+            {/* Rotating Dynamic Icon Badge */}
             {!presentation?.disableAttendance && (
               <div className="flex flex-col items-center shrink-0 bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-800 shadow-inner">
-                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">SCREEN CODE</span>
-                <span className="text-xl font-black text-osu-orange font-mono tracking-wider leading-none select-all mt-1">
-                  {currentCode || '----'}
-                </span>
+                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">SCREEN ICON</span>
+                <div className="w-8 h-8 flex items-center justify-center mt-1">
+                  {currentIcon ? (
+                    <MedicalIcon name={currentIcon} className="w-5 h-5 text-osu-orange" />
+                  ) : (
+                    <span className="text-slate-600 text-xs font-bold">---</span>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -2754,17 +2762,34 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               )}
 
               {!presentation?.disableAttendance && !urlToken && (
-                <div className="space-y-1 animate-in fade-in slide-in-from-top-2 duration-300">
-                  <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">4-Digit Screen Code</label>
-                  <input
-                    type="text"
-                    required
-                    maxLength={4}
-                    value={joinScreenCode}
-                    onChange={(e) => setJoinScreenCode(e.target.value.toUpperCase())}
-                    placeholder="A7X2"
-                    className="w-full h-11 bg-slate-50 border border-slate-300 rounded-md text-center text-lg font-mono font-black uppercase tracking-[0.2em] text-osu-orange placeholder-slate-400/30 focus:outline-none focus:ring-2 focus:ring-osu-orange focus:border-osu-orange transition-colors"
-                  />
+                <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    Verify Screen Icon
+                  </label>
+                  <p className="text-[10px] text-slate-500 leading-normal mb-1">
+                    Select the medical icon shown on the presenter's screen to verify attendance:
+                  </p>
+                  <div className="grid grid-cols-5 gap-2 p-2 bg-slate-950 border border-slate-800 rounded-xl max-h-[140px] overflow-y-auto shadow-inner">
+                    {iconGrid.map((iconName, idx) => {
+                      const isSelected = selectedIcon === iconName;
+                      return (
+                        <button
+                          key={`${iconName}-${idx}`}
+                          type="button"
+                          onClick={() => setSelectedIcon(iconName)}
+                          className={cn(
+                            "h-10 rounded-lg flex items-center justify-center transition-all duration-200 border cursor-pointer",
+                            isSelected
+                              ? "bg-osu-orange/20 border-osu-orange text-osu-orange shadow-[0_0_8px_rgba(235,93,0,0.4)] scale-95"
+                              : "bg-slate-900/60 border-slate-800/80 text-slate-400 hover:text-white hover:border-slate-700 hover:bg-slate-900"
+                          )}
+                          title={iconName}
+                        >
+                          <MedicalIcon name={iconName} className="w-5 h-5" />
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
@@ -2786,7 +2811,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               />
               <button
                 type="submit"
-                disabled={isValidatingToken || !joinNameInput.trim() || !joinEmailInput.trim() || (!presentation?.disableAttendance && !urlToken && !joinScreenCode.trim())}
+                disabled={isValidatingToken || !joinNameInput.trim() || !joinEmailInput.trim() || (!presentation?.disableAttendance && !urlToken && !selectedIcon)}
                 className="w-full bg-osu-orange disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-md hover:bg-[#c03900] transition-colors text-sm flex items-center justify-center gap-1.5 shadow-sm"
               >
                 {isValidatingToken ? (

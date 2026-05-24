@@ -3,6 +3,7 @@ import { doc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { QRCodeSVG } from 'qrcode.react';
 import { QrCode, Users, ChevronDown, ChevronUp, Loader2, RefreshCw } from 'lucide-react';
+import { MEDICAL_ICONS, MedicalIcon } from './MedicalIcon';
 
 interface AttendanceQRProps {
   presentationId: string;
@@ -28,18 +29,8 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
 
   // Rotating OTP states and helpers
   const [shortUrl, setShortUrl] = useState<string>('');
-  const [currentCode, setCurrentCode] = useState<string | null>(null);
-  const currentCodeRef = useRef<string | null>(null);
-
-  // Helper to generate rotating 4-character alphanumeric OTP code
-  const generateOTP = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let code = '';
-    for (let i = 0; i < 4; i++) {
-      code += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return code;
-  };
+  const [currentIcon, setCurrentIcon] = useState<string | null>(null);
+  const currentIconRef = useRef<string | null>(null);
 
   // Fetch the manual URL shortened via API on mount/ID change
   useEffect(() => {
@@ -112,26 +103,29 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
     }
   };
 
-  // Function to rotate and save a new Screen Code OTP (Runs every 15 seconds)
+  // Function to rotate and save a new Screen Icon (Runs every 15 seconds)
   const rotateScreenCode = async () => {
     if (!presentationId) return;
 
     try {
-      const prevCode = currentCodeRef.current;
-      const newCode = generateOTP();
+      const prevIcon = currentIconRef.current;
+      const availableIcons = prevIcon 
+        ? MEDICAL_ICONS.filter(icon => icon !== prevIcon) 
+        : MEDICAL_ICONS;
+      const newIcon = availableIcons[Math.floor(Math.random() * availableIcons.length)];
 
-      // Save currentCode and previousCode directly to the presentation document
+      // Save currentIcon and previousIcon directly to the presentation document
       const presRef = doc(db, 'presentations', presentationId);
       await setDoc(presRef, {
-        currentCode: newCode,
-        previousCode: prevCode || null
+        currentIcon: newIcon,
+        previousIcon: prevIcon || null
       }, { merge: true });
 
-      // Update active code in UI
-      currentCodeRef.current = newCode;
-      setCurrentCode(newCode);
+      // Update active icon in UI
+      currentIconRef.current = newIcon;
+      setCurrentIcon(newIcon);
     } catch (err) {
-      console.error('Error rotating Screen Code:', err);
+      console.error('Error rotating Screen Icon:', err);
     }
   };
 
@@ -310,14 +304,18 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
               </div>
               <div className="h-px bg-slate-800/60 w-full" />
               <div className="flex flex-col items-center">
-                <span className="text-[7px] font-bold text-slate-400 uppercase tracking-widest leading-none">SCREEN CODE:</span>
-                <span className="text-3xl font-mono font-black text-white select-all mt-1 tracking-wider leading-none">
-                  {currentCode || '----'}
-                </span>
+                <span className="text-[7px] font-bold text-slate-400 uppercase tracking-widest leading-none">SCREEN ICON:</span>
+                <div className="w-12 h-12 bg-slate-900 border border-slate-800 rounded-xl flex items-center justify-center shadow-inner mt-1.5">
+                  {currentIcon ? (
+                    <MedicalIcon name={currentIcon} className="w-7 h-7 text-osu-orange" />
+                  ) : (
+                    <span className="text-slate-600 text-[10px] font-bold">---</span>
+                  )}
+                </div>
               </div>
             </div>
             
-            <p className="text-[8px] text-slate-400 font-semibold leading-normal">QR: 10s | Code: 15s</p>
+            <p className="text-[8px] text-slate-400 font-semibold leading-normal">QR: 10s | Icon: 15s</p>
           </div>
 
           {/* Visual Progress Bar Container */}
