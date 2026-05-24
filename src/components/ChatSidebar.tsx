@@ -1188,9 +1188,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     generateNewToken();
 
     const rotationInterval = setInterval(() => {
-      setTimeLeft(13);
+      setTimeLeft(10);
       generateNewToken();
-    }, 13000);
+    }, 10000);
 
     return () => {
       clearInterval(rotationInterval);
@@ -1204,7 +1204,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     if (isChatOnly) return;
     const timer = setInterval(() => {
       setTimeLeft(prev => {
-        if (prev <= 0.1) return 13;
+        if (prev <= 0.1) return 10;
         return Number((prev - 0.1).toFixed(1));
       });
     }, 100);

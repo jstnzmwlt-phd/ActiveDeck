@@ -269,7 +269,7 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
           </div>
           <h2 className="text-2xl font-black mb-2 text-white">QR Code Expired</h2>
           <p className="text-slate-400 text-sm leading-relaxed mb-8">
-            This QR code has expired. To prevent cheating, attendance codes update every 13 seconds. Please scan the newest code on the presenter's screen.
+            This QR code has expired. To prevent cheating, attendance codes update every 10 seconds. Please scan the newest code on the presenter's screen.
           </p>
           <div className="text-[10px] uppercase font-bold tracking-widest text-slate-500 bg-slate-950 px-4 py-2 rounded-full border border-slate-800">
             45-Second Rotation Lock
