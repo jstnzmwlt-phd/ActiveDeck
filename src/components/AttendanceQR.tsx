@@ -114,11 +114,12 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
         : MEDICAL_ICONS;
       const newIcon = availableIcons[Math.floor(Math.random() * availableIcons.length)];
 
-      // Save currentIcon and previousIcon directly to the presentation document
+      // Save currentIcon, previousIcon, and rotation timestamp directly to the presentation document
       const presRef = doc(db, 'presentations', presentationId);
       await setDoc(presRef, {
         currentIcon: newIcon,
-        previousIcon: prevIcon || null
+        previousIcon: prevIcon || null,
+        iconRotatedAt: Date.now()
       }, { merge: true });
 
       // Update active icon in UI

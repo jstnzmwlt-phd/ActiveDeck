@@ -132,6 +132,12 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
         setIsValid(true);
         const data = presSnap.data();
         setPresentation(data);
+        if (data?.iconRotatedAt) {
+          const elapsed = (Date.now() - data.iconRotatedAt) / 1000;
+          setTimeLeft(Math.max(0, Math.ceil(15 - elapsed)));
+        } else {
+          setTimeLeft(15);
+        }
       }
     }, (err) => {
       console.error('Error listening to presentation details:', err);
@@ -174,6 +180,21 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
 
     return () => clearInterval(interval);
   }, [isValid, timeLeft, tokenData]);
+
+  // Phase 2b: Live countdown timer for manual mode (rotates every 15s)
+  useEffect(() => {
+    if (!isManualMode || !isValid || !presentation?.iconRotatedAt) return;
+
+    const interval = setInterval(() => {
+      const rotatedAt = presentation.iconRotatedAt;
+      const elapsed = (Date.now() - rotatedAt) / 1000;
+      const remaining = Math.max(0, Math.ceil(15 - elapsed));
+
+      setTimeLeft(remaining);
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [isManualMode, isValid, presentation?.iconRotatedAt]);
 
   // Phase 3: Submit Form
   const handleSubmit = async (e: React.FormEvent) => {
@@ -303,9 +324,10 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
           <p className="text-slate-400 text-sm leading-relaxed mb-6">
             Thank you, <span className="text-white font-bold">{name}</span>! Your attendance has been successfully recorded for this session.
           </p>
-          <div className="bg-slate-950/80 border border-slate-800 p-4 rounded-xl text-left w-full text-xs space-y-1 text-slate-400">
+          <div className="bg-slate-950/80 border border-slate-800 p-4 rounded-xl text-left w-full text-xs space-y-1.5 text-slate-400">
             <div className="flex justify-between"><span className="opacity-60">Email:</span> <span className="text-slate-200 font-semibold">{email}</span></div>
             <div className="flex justify-between"><span className="opacity-60">Session ID:</span> <span className="text-slate-200 font-mono font-semibold">{presentationId}</span></div>
+            <div className="flex justify-between items-center"><span className="opacity-60">Verification:</span> <span className="text-osu-orange font-bold uppercase tracking-wider text-[9px] bg-osu-orange/10 px-2 py-0.5 rounded border border-osu-orange/20">{isManualMode ? 'Screen Icon Match' : 'Secure QR Scan'}</span></div>
           </div>
         </div>
       </div>
@@ -323,19 +345,30 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
             <p className="text-xs text-slate-400 mt-1">Please record your attendance</p>
           </div>
           
-          {!isManualMode ? (
-            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-black tracking-wider transition-colors ${
-              timeLeft && timeLeft <= 10 
-                ? 'bg-red-500/10 text-red-400 border-red-500/20 animate-pulse' 
-                : 'bg-osu-orange/10 text-osu-orange border-osu-orange/20'
-            }`}>
-              <Timer className="w-4 h-4" />
-              <span>{timeLeft}s</span>
-            </div>
+          {isManualMode ? (
+            presentation?.iconRotatedAt && timeLeft !== null && (
+              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-black tracking-wider transition-all duration-200 ${
+                timeLeft <= 5 
+                  ? 'bg-red-500/10 text-red-400 border-red-500/20 animate-pulse' 
+                  : 'bg-osu-orange/10 text-osu-orange border-osu-orange/20 animate-in fade-in zoom-in duration-300'
+              }`}
+              title="Time remaining before the Screen Icon rotates"
+              >
+                <Timer className="w-3.5 h-3.5" />
+                <span>Icon: {timeLeft}s</span>
+              </div>
+            )
           ) : (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-800 bg-slate-950 text-slate-400 text-xs font-black uppercase tracking-wider">
-              <span>Manual Entry</span>
-            </div>
+            timeLeft !== null && (
+              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-black tracking-wider transition-colors ${
+                timeLeft <= 10 
+                  ? 'bg-red-500/10 text-red-400 border-red-500/20 animate-pulse' 
+                  : 'bg-osu-orange/10 text-osu-orange border-osu-orange/20'
+              }`}>
+                <Timer className="w-3.5 h-3.5" />
+                <span>QR: {timeLeft}s</span>
+              </div>
+            )
           )}
         </div>
 
