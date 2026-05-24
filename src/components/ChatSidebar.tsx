@@ -2313,25 +2313,25 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
       {/* Join URL Bar - Only for Presenter/Main View */}
       {!isChatOnly && (
-        <div className="bg-slate-900 text-white px-4 py-2 border-b border-slate-800">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex flex-col min-w-0">
+        <div className="bg-slate-900 text-white px-3.5 py-2 border-b border-slate-800">
+          <div className="flex items-center justify-between gap-2.5">
+            <div className="flex flex-col min-w-0 flex-1">
               <div className="flex items-center gap-1.5 mb-0.5">
                 <div className="w-1 h-1 rounded-full bg-osu-orange animate-pulse" />
-                <span className="text-[9px] font-black text-osu-orange uppercase tracking-widest">
+                <span className="text-[8px] font-black text-osu-orange uppercase tracking-widest">
                   Join Session:
                 </span>
               </div>
-              <div className="text-[15px] font-bold tracking-tight text-white break-all leading-none select-all">
+              <div className="text-[13px] font-bold tracking-tight text-white whitespace-nowrap overflow-hidden text-ellipsis leading-none select-all">
                 {shortUrl || chatOnlyUrl}
               </div>
             </div>
             
             {/* Rotating 4-Digit OTP Badge */}
             {!presentation?.disableAttendance && (
-              <div className="flex flex-col items-end shrink-0 bg-slate-950 px-4 py-2 rounded-xl border border-slate-800 shadow-inner">
-                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">SCREEN CODE</span>
-                <span className="text-3xl font-black text-osu-orange font-mono tracking-wider leading-none select-all mt-1.5">
+              <div className="flex flex-col items-center shrink-0 bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-800 shadow-inner">
+                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">SCREEN CODE</span>
+                <span className="text-xl font-black text-osu-orange font-mono tracking-wider leading-none select-all mt-1">
                   {currentCode || '----'}
                 </span>
               </div>
