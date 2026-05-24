@@ -1087,6 +1087,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [activeToken, setActiveToken] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState(10);
   const [loadingToken, setLoadingToken] = useState(true);
+  const lastTokenGenerationTimeRef = useRef<number>(Date.now());
 
   // Presenter states for rotating OTP code
   const [currentCode, setCurrentCode] = useState<string | null>(null);
@@ -1562,6 +1563,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     try {
       const newTokenId = generateUUID();
       const now = Date.now();
+      lastTokenGenerationTimeRef.current = now;
 
       // Save token directly to the presentation document (merge true to not touch screen codes)
       const presRef = doc(db, 'presentations', presentation.id);
@@ -1606,7 +1608,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     }
   };
 
-  // Presenter Token Rotation effect (every 10s)
+  // Presenter Token Rotation and countdown effect (every 10s unified loop)
   useEffect(() => {
     if (isChatOnly || !presentation?.id || presentation?.disableAttendance) {
       setActiveToken(null);
@@ -1615,13 +1617,20 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
     generateNewToken();
 
-    const rotationInterval = setInterval(() => {
-      setTimeLeft(10);
-      generateNewToken();
-    }, 10000);
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const elapsed = (now - lastTokenGenerationTimeRef.current) / 1000;
+
+      if (elapsed >= 10) {
+        generateNewToken();
+        setTimeLeft(10);
+      } else {
+        setTimeLeft(Number((10 - elapsed).toFixed(1)));
+      }
+    }, 100);
 
     return () => {
-      clearInterval(rotationInterval);
+      clearInterval(interval);
       const now = Date.now();
       cleanExpiredTokens(now + 100000);
     };
@@ -1643,19 +1652,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       clearInterval(codeRotationInterval);
     };
   }, [presentation?.id, isChatOnly, presentation?.disableAttendance]);
-
-  // Presenter countdown progress bar ticks (every 100ms)
-  useEffect(() => {
-    if (isChatOnly) return;
-    const timer = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 0.1) return 10;
-        return Number((prev - 0.1).toFixed(1));
-      });
-    }, 100);
-
-    return () => clearInterval(timer);
-  }, [isChatOnly]);
 
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();

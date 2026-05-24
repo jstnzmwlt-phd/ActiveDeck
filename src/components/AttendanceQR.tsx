@@ -24,6 +24,7 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
 
   // Ref to track generated tokens locally for precise self-cleaning
   const generatedTokensRef = useRef<LocalTokenTracker[]>([]);
+  const lastTokenGenerationTimeRef = useRef<number>(Date.now());
 
   // Rotating OTP states and helpers
   const [shortUrl, setShortUrl] = useState<string>('');
@@ -81,6 +82,7 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
       setErrorMsg(null); // Clear any previous errors on generation attempt
       const newTokenId = generateUUID();
       const now = Date.now();
+      lastTokenGenerationTimeRef.current = now;
 
       // Save token directly to the presentation document (merge true to not touch screen codes)
       const presRef = doc(db, 'presentations', presentationId);
@@ -150,20 +152,27 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
     }
   };
 
-  // Setup the QR token rotation loop (Runs every 10 seconds)
+  // Setup the QR token rotation and countdown loop
   useEffect(() => {
     if (!presentationId) return;
 
     // Generate initial token immediately
     generateNewToken();
 
-    const rotationInterval = setInterval(() => {
-      setTimeLeft(10);
-      generateNewToken();
-    }, 10000); // 10000ms is exactly 10 seconds
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const elapsed = (now - lastTokenGenerationTimeRef.current) / 1000;
+      
+      if (elapsed >= 10) {
+        generateNewToken();
+        setTimeLeft(10);
+      } else {
+        setTimeLeft(Number((10 - elapsed).toFixed(1)));
+      }
+    }, 100);
 
     return () => {
-      clearInterval(rotationInterval);
+      clearInterval(interval);
       // Clean up all leftover tokens from this session on unmount
       const now = Date.now();
       cleanExpiredTokens(now + 100000); // offset to trigger deletions on all remaining
@@ -185,18 +194,6 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
       clearInterval(codeRotationInterval);
     };
   }, [presentationId]);
-
-  // Setup countdown bar ticks (Runs every 100ms for ultra-smooth UI progress bar)
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 0.1) return 10;
-        return Number((prev - 0.1).toFixed(1));
-      });
-    }, 100);
-
-    return () => clearInterval(timer);
-  }, []);
 
   // Maximize when screen sharing starts
   useEffect(() => {
