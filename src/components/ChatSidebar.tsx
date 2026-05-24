@@ -1619,20 +1619,33 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   useEffect(() => {
     if (!isChatOnly || presentation?.disableAttendance || urlToken) return;
 
-    if (!presentation?.iconRotatedAt) {
+    const currentIcon = presentation?.currentIcon;
+    if (!currentIcon) {
       setIconTimeLeft(15);
       return;
     }
 
-    const interval = setInterval(() => {
-      const rotatedAt = presentation.iconRotatedAt;
+    const rotatedAt = presentation?.iconRotatedAt;
+    let initialRemaining = 15;
+    
+    if (rotatedAt) {
       const elapsed = (Date.now() - rotatedAt) / 1000;
+      if (elapsed >= 0 && elapsed <= 15) {
+        initialRemaining = 15 - elapsed;
+      }
+    }
+    
+    setIconTimeLeft(Math.max(1, Math.ceil(initialRemaining)));
+    const startTime = Date.now() - (15 - initialRemaining) * 1000;
+
+    const interval = setInterval(() => {
+      const elapsed = (Date.now() - startTime) / 1000;
       const remaining = Math.max(0, Math.ceil(15 - elapsed));
       setIconTimeLeft(remaining);
     }, 100);
 
     return () => clearInterval(interval);
-  }, [isChatOnly, presentation?.iconRotatedAt, presentation?.disableAttendance, urlToken]);
+  }, [isChatOnly, presentation?.currentIcon, presentation?.iconRotatedAt, presentation?.disableAttendance, urlToken]);
 
   // Presenter Token Rotation and countdown effect (every 10s unified loop)
   useEffect(() => {
@@ -2300,9 +2313,228 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           <p className="text-slate-400 text-sm leading-relaxed mb-6">
             The presenter has ended this session. Thank you for participating!
           </p>
-          <div className="text-[10px] uppercase font-bold tracking-widest text-slate-500 bg-slate-950 px-4 py-2 rounded-full border border-slate-800">
-            ActiveDeck Session Closed
+        </div>
+      </div>
+    );
+  }
+
+  if (isChatOnly && user?.isAnonymous && !hasJoined && (!presentation?.disableAttendance || !presentation?.allowAnonymousChat || urlToken)) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[100dvh] bg-slate-950 text-white p-4 md:p-8 relative overflow-y-auto w-screen">
+        {/* OSU Logo Watermark */}
+        {internalLogoUrl !== null && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-5 z-0">
+            <img 
+              src={internalLogoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png"} 
+              alt="Logo Watermark" 
+              className="w-1/2 object-contain animate-pulse duration-[8000ms]" 
+              referrerPolicy="no-referrer" 
+            />
           </div>
+        )}
+
+        <div className="w-full bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-10 shadow-2xl z-10 animate-in fade-in zoom-in-95 duration-300 relative max-w-md md:max-w-5xl">
+          <form onSubmit={handleJoin} className="space-y-6">
+            
+            {/* If we need manual attendance check, show responsive 2-column grid */}
+            {!presentation?.disableAttendance && !urlToken ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+                
+                {/* Left Column: Information and Inputs */}
+                <div className="space-y-5 flex flex-col justify-between h-full">
+                  <div>
+                    <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight">Join & Check-In</h2>
+                    <p className="text-slate-400 text-xs md:text-sm mt-2 leading-relaxed">
+                      Enter your name, email, and select the matching screen icon to register attendance and join the chat.
+                    </p>
+                  </div>
+
+                  {joinError && (
+                    <div className="p-4 bg-red-950/30 border border-red-500/20 rounded-2xl flex gap-3 text-xs text-red-300 items-start">
+                      <AlertCircle className="w-4.5 h-4.5 flex-shrink-0 mt-0.5 text-red-400" />
+                      <p className="leading-relaxed">{joinError}</p>
+                    </div>
+                  )}
+
+                  <div className="space-y-4">
+                    <div className="space-y-1.5">
+                      <label className="block text-xs font-black uppercase tracking-wider text-slate-400">Full Name</label>
+                      <input
+                        type="text"
+                        placeholder="John Doe"
+                        value={joinNameInput}
+                        onChange={(e) => setJoinNameInput(e.target.value)}
+                        required
+                        className="w-full h-11 bg-slate-950 border border-slate-800 rounded-xl px-4 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-osu-orange focus:ring-1 focus:ring-osu-orange transition-colors"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="block text-xs font-black uppercase tracking-wider text-slate-400">Email Address</label>
+                      <input
+                        type="email"
+                        placeholder="john.doe@example.com"
+                        value={joinEmailInput}
+                        onChange={(e) => setJoinEmailInput(e.target.value)}
+                        required
+                        className="w-full h-11 bg-slate-950 border border-slate-800 rounded-xl px-4 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-osu-orange focus:ring-1 focus:ring-osu-orange transition-colors"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isValidatingToken || !joinNameInput.trim() || !joinEmailInput.trim() || !selectedIcon}
+                    className="w-full h-12 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-[0.98] shadow-lg shadow-orange-500/10 flex items-center justify-center gap-2 mt-4"
+                  >
+                    {isValidatingToken ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <span>Checking In...</span>
+                      </>
+                    ) : (
+                      <span>Join Chat & Check-In</span>
+                    )}
+                  </button>
+                </div>
+
+                {/* Right Column: Icon Grid and Countdown Timer */}
+                <div className="bg-slate-950/40 border border-slate-800/60 rounded-2xl p-5 space-y-4">
+                  <div className="flex justify-between items-center">
+                    <label className="block text-xs font-black uppercase tracking-wider text-slate-400">
+                      Verify Screen Icon
+                    </label>
+                    {iconTimeLeft !== null && (
+                      <div className={cn(
+                        "flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-black tracking-wider uppercase transition-colors",
+                        iconTimeLeft <= 5 
+                          ? "bg-red-500/10 text-red-400 border-red-500/20 animate-pulse" 
+                          : "bg-osu-orange/10 text-osu-orange border-osu-orange/20"
+                      )}>
+                        <Timer className="w-3.5 h-3.5" />
+                        <span>Icon: {iconTimeLeft}s</span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <p className="text-xs text-slate-500 leading-normal">
+                    Select the medical icon shown on the presenter's screen to verify attendance:
+                  </p>
+
+                  {/* Premium Progress Bar */}
+                  {iconTimeLeft !== null && (
+                    <div className="w-full bg-slate-950 h-1.5 rounded-full overflow-hidden relative border border-slate-900/50">
+                      <div
+                        className={cn(
+                          "h-full rounded-full transition-all duration-100 ease-linear",
+                          iconTimeLeft <= 5 ? "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]" : "bg-osu-orange"
+                        )}
+                        style={{ width: `${(iconTimeLeft / 15) * 100}%` }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Icon grid 4 columns wide, 5 columns deep (4x5) with overflow-hidden and no scrollbar */}
+                  <div className="grid grid-cols-4 gap-2.5 p-3 bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-inner">
+                    {iconGrid.map((iconName, idx) => {
+                      const isSelected = selectedIcon === iconName;
+                      return (
+                        <button
+                          key={`${iconName}-${idx}`}
+                          type="button"
+                          onClick={() => setSelectedIcon(iconName)}
+                          className={cn(
+                            "h-12 rounded-lg flex items-center justify-center transition-all duration-200 border cursor-pointer",
+                            isSelected
+                              ? "bg-osu-orange/20 border-osu-orange text-osu-orange shadow-[0_0_8px_rgba(235,93,0,0.4)] scale-95 font-bold"
+                              : "bg-slate-900/60 border-slate-800/80 text-slate-400 hover:text-white hover:border-slate-700 hover:bg-slate-900"
+                          )}
+                          title={iconName}
+                        >
+                          <MedicalIcon name={iconName} className="w-6 h-6" />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+              </div>
+            ) : (
+              /* If no manual attendance or scanning QR code, show centered single column form */
+              <div className="max-w-md mx-auto space-y-6">
+                <div className="text-center">
+                  <h2 className="text-2xl font-black text-white tracking-tight">
+                    {urlToken ? "Register Attendance" : "Join the Discussion"}
+                  </h2>
+                  <p className="text-slate-400 text-sm mt-2 leading-relaxed">
+                    {urlToken 
+                      ? "Enter your name and email to register attendance and join the chat." 
+                      : "Enter your name and email to join the discussion."}
+                  </p>
+                  
+                  {urlToken && tokenTimeLeft !== null && isTokenValid && (
+                    <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 bg-osu-orange/10 border border-osu-orange/20 rounded-xl text-xs font-black text-osu-orange animate-pulse">
+                      <Timer className="w-3.5 h-3.5" />
+                      <span>Time left to check-in: {tokenTimeLeft}s</span>
+                    </div>
+                  )}
+                </div>
+
+                {joinError && (
+                  <div className="p-4 bg-red-950/30 border border-red-500/20 rounded-2xl flex gap-3 text-xs text-red-300 items-start">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-red-400" />
+                    <p className="leading-relaxed">{joinError}</p>
+                  </div>
+                )}
+
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-black uppercase tracking-wider text-slate-400">
+                      {urlToken ? "Full Name" : "Your Name (optional)"}
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="John Doe"
+                      value={joinNameInput}
+                      onChange={(e) => setJoinNameInput(e.target.value)}
+                      required={!!urlToken}
+                      className="w-full h-11 bg-slate-950 border border-slate-800 rounded-xl px-4 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-osu-orange focus:ring-1 focus:ring-osu-orange transition-colors"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-black uppercase tracking-wider text-slate-400">
+                      {urlToken ? "Email Address" : "Email Address (optional)"}
+                    </label>
+                    <input
+                      type="email"
+                      placeholder="john.doe@example.com"
+                      value={joinEmailInput}
+                      onChange={(e) => setJoinEmailInput(e.target.value)}
+                      required={!!urlToken}
+                      className="w-full h-11 bg-slate-950 border border-slate-800 rounded-xl px-4 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-osu-orange focus:ring-1 focus:ring-osu-orange transition-colors"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isValidatingToken || (!!urlToken && (!joinNameInput.trim() || !joinEmailInput.trim()))}
+                  className="w-full h-12 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-[0.98] shadow-lg shadow-orange-500/10 flex items-center justify-center gap-2"
+                >
+                  {isValidatingToken ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>Checking In...</span>
+                    </>
+                  ) : (
+                    <span>{urlToken ? "Register & Join Chat" : "Join Chat"}</span>
+                  )}
+                </button>
+              </div>
+            )}
+
+          </form>
         </div>
       </div>
     );
@@ -2825,7 +3057,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                     </div>
                   )}
 
-                  <div className="grid grid-cols-5 gap-2 p-2 bg-slate-950 border border-slate-800 rounded-xl max-h-[140px] overflow-y-auto shadow-inner">
+                  <div className="grid grid-cols-4 gap-2.5 p-3 bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-inner">
                     {iconGrid.map((iconName, idx) => {
                       const isSelected = selectedIcon === iconName;
                       return (
