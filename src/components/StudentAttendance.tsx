@@ -382,12 +382,36 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
         <form onSubmit={handleSubmit} className="space-y-5">
           {isManualMode && (
             <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
-              <label className="block text-xs font-black uppercase tracking-wider text-slate-400">
-                Verify Screen Icon
-              </label>
+              <div className="flex justify-between items-baseline">
+                <label className="block text-xs font-black uppercase tracking-wider text-slate-400">
+                  Verify Screen Icon
+                </label>
+                {timeLeft !== null && (
+                  <span className={cn(
+                    "text-[10px] font-black tracking-wider",
+                    timeLeft <= 5 ? "text-red-400 animate-pulse" : "text-osu-orange"
+                  )}>
+                    Rotates in {timeLeft}s
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-slate-500 leading-normal mb-1">
                 Select the medical icon shown on the presenter's screen to verify your attendance:
               </p>
+              
+              {/* Premium Progress Bar */}
+              {timeLeft !== null && (
+                <div className="w-full bg-slate-950 h-1.5 rounded-full overflow-hidden relative border border-slate-900/50">
+                  <div
+                    className={cn(
+                      "h-full rounded-full transition-all duration-100 ease-linear",
+                      timeLeft <= 5 ? "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]" : "bg-osu-orange"
+                    )}
+                    style={{ width: `${(timeLeft / 15) * 100}%` }}
+                  />
+                </div>
+              )}
+
               <div className="grid grid-cols-5 gap-3 p-3 bg-slate-950 border border-slate-800 rounded-2xl max-h-[160px] overflow-y-auto shadow-inner">
                 {iconGrid.map((iconName, idx) => {
                   const isSelected = selectedIcon === iconName;

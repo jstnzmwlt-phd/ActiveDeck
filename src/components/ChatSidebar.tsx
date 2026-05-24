@@ -1103,6 +1103,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [attendanceStatus, setAttendanceStatus] = useState<'none' | 'success' | 'expired' | 'error'>('none');
   const [verifiedTokenData, setVerifiedTokenData] = useState<any>(null);
   const [showAttendanceBanner, setShowAttendanceBanner] = useState(true);
+  const [iconTimeLeft, setIconTimeLeft] = useState<number | null>(null);
 
   // States for guest manual attendance check-in
   const [selectedIcon, setSelectedIcon] = useState<string | null>(null);
@@ -1613,6 +1614,25 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       setSelectedIcon(null); // Reset selection on rotation to prevent accidental submittal of stale icon
     }
   }, [presentation?.currentIcon]);
+
+  // Student-side live countdown timer for manual icon rotation (rotates every 15s)
+  useEffect(() => {
+    if (!isChatOnly || presentation?.disableAttendance || urlToken) return;
+
+    if (!presentation?.iconRotatedAt) {
+      setIconTimeLeft(15);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      const rotatedAt = presentation.iconRotatedAt;
+      const elapsed = (Date.now() - rotatedAt) / 1000;
+      const remaining = Math.max(0, Math.ceil(15 - elapsed));
+      setIconTimeLeft(remaining);
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [isChatOnly, presentation?.iconRotatedAt, presentation?.disableAttendance, urlToken]);
 
   // Presenter Token Rotation and countdown effect (every 10s unified loop)
   useEffect(() => {
@@ -2407,7 +2427,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       </div>
 
       {/* Attendance Status Banner for Student/Audience view */}
-      {isChatOnly && urlToken && showAttendanceBanner && (
+      {isChatOnly && showAttendanceBanner && (urlToken || attendanceStatus === 'success' || attendanceStatus === 'error') && (
         <div className={cn(
           "px-4 py-2 border-b text-xs flex items-start gap-2.5 transition-all duration-300 animate-in slide-in-from-top z-40",
           attendanceStatus === 'success' && "bg-green-50 text-green-800 border-green-200",
@@ -2418,9 +2438,14 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           {attendanceStatus === 'success' && (
             <>
               <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0 mt-0.5" />
-              <div className="flex-1 min-w-0">
-                <p className="font-bold">Attendance Checked-In!</p>
-                <p className="opacity-80">Checked in as <span className="font-semibold">{guestName || joinNameInput}</span> ({guestEmail || joinEmailInput})</p>
+              <div className="flex-1 min-w-0 flex items-center justify-between gap-2 flex-wrap">
+                <div>
+                  <p className="font-bold">Attendance Checked-In!</p>
+                  <p className="opacity-80">Checked in as <span className="font-semibold">{guestName || joinNameInput}</span> ({guestEmail || joinEmailInput})</p>
+                </div>
+                <span className="text-osu-orange font-bold uppercase tracking-wider text-[8px] bg-osu-orange/10 px-2 py-0.5 rounded border border-osu-orange/20 self-center">
+                  {urlToken ? 'Secure QR Scan' : 'Screen Icon Match'}
+                </span>
               </div>
             </>
           )}
@@ -2744,13 +2769,19 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                   {!presentation?.disableAttendance
                     ? (urlToken 
                         ? "Enter your name and email to register attendance and join the chat." 
-                        : "Enter your name, email, and the 4-digit screen code to register attendance and join the chat.")
+                        : "Enter your name, email, and select the matching screen icon to register attendance and join the chat.")
                     : "Enter your name and email to join the discussion."}
                 </p>
                 {urlToken && tokenTimeLeft !== null && isTokenValid && (
                   <div className="mt-2 py-1 px-3 bg-orange-50 border border-orange-100 rounded-lg inline-flex items-center gap-1.5 text-xs font-bold text-osu-orange animate-pulse">
                     <Timer className="w-3.5 h-3.5" />
                     <span>Time left to check-in: {tokenTimeLeft}s</span>
+                  </div>
+                )}
+                {!urlToken && !presentation?.disableAttendance && iconTimeLeft !== null && (
+                  <div className="mt-2 py-1 px-3 bg-orange-50 border border-orange-100 rounded-lg inline-flex items-center gap-1.5 text-xs font-bold text-osu-orange animate-pulse">
+                    <Timer className="w-3.5 h-3.5" />
+                    <span>Screen Icon rotates in: {iconTimeLeft}s</span>
                   </div>
                 )}
               </div>
@@ -2764,12 +2795,36 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
               {!presentation?.disableAttendance && !urlToken && (
                 <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
-                  <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
-                    Verify Screen Icon
-                  </label>
+                  <div className="flex justify-between items-baseline">
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
+                      Verify Screen Icon
+                    </label>
+                    {iconTimeLeft !== null && (
+                      <span className={cn(
+                        "text-[9px] font-black tracking-wider",
+                        iconTimeLeft <= 5 ? "text-red-500 animate-pulse" : "text-osu-orange"
+                      )}>
+                        Rotates in {iconTimeLeft}s
+                      </span>
+                    )}
+                  </div>
                   <p className="text-[10px] text-slate-500 leading-normal mb-1">
                     Select the medical icon shown on the presenter's screen to verify attendance:
                   </p>
+
+                  {/* Visual Progress Bar */}
+                  {iconTimeLeft !== null && (
+                    <div className="w-full bg-slate-950 h-1 rounded-full overflow-hidden relative border border-slate-900/50">
+                      <div
+                        className={cn(
+                          "h-full rounded-full transition-all duration-100 ease-linear",
+                          iconTimeLeft <= 5 ? "bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.5)]" : "bg-osu-orange"
+                        )}
+                        style={{ width: `${(iconTimeLeft / 15) * 100}%` }}
+                      />
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-5 gap-2 p-2 bg-slate-950 border border-slate-800 rounded-xl max-h-[140px] overflow-y-auto shadow-inner">
                     {iconGrid.map((iconName, idx) => {
                       const isSelected = selectedIcon === iconName;

@@ -30,6 +30,7 @@ export interface Presentation {
   theme?: Theme;
   currentIcon?: string;
   previousIcon?: string;
+  iconRotatedAt?: number;
 }
 
 export interface Message {
