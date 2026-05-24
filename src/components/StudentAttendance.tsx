@@ -143,21 +143,14 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
     return () => unsub();
   }, [presentationId, token]);
 
-  // Regenerate student manual-join 20-icon grid when the presenter's currentIcon rotates
+  // Regenerate student manual-join 20-icon grid unconditionally on currentIcon change to ensure immediate re-shuffling
   useEffect(() => {
     const currentVal = presentation?.currentIcon;
     const prevVal = presentation?.previousIcon;
 
     if (currentVal) {
-      // Check if both currentVal and prevVal (if existing) are already in our iconGrid
-      const hasCurrent = iconGrid.includes(currentVal);
-      const hasPrevious = prevVal ? iconGrid.includes(prevVal) : true;
-
-      if (!hasCurrent || !hasPrevious || iconGrid.length === 0) {
-        // Only regenerate and shuffle if one of them is missing (e.g. initial generation or rotation)
-        const grid = generateIconGrid(currentVal, prevVal);
-        setIconGrid(grid);
-      }
+      const grid = generateIconGrid(currentVal, prevVal);
+      setIconGrid(grid);
 
       // Only reset the student's selected icon if it has become completely invalid
       // (meaning it matches neither the active current icon nor the grace-period previous icon)
@@ -167,34 +160,7 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
     }
   }, [presentation?.currentIcon, presentation?.previousIcon]);
 
-  // Student manual check-in heartbeat effect to pause icon rotation
-  useEffect(() => {
-    if (!isManualMode || !isValid || submitSuccess || !presentationId) {
-      return;
-    }
-
-    const sendHeartbeat = async () => {
-      try {
-        const presRef = doc(db, 'presentations', presentationId);
-        await setDoc(presRef, {
-          lastManualActivityAt: Date.now()
-        }, { merge: true });
-        console.log('[Student Attendance Portal] Sent manual activity heartbeat to Firestore');
-      } catch (err) {
-        console.error('[Student Attendance Portal] Failed to send manual activity heartbeat:', err);
-      }
-    };
-
-    // Send heartbeat immediately on mount/access
-    sendHeartbeat();
-
-    // Set up 10-second interval for subsequent heartbeats
-    const interval = setInterval(() => {
-      sendHeartbeat();
-    }, 10000);
-
-    return () => clearInterval(interval);
-  }, [isManualMode, isValid, submitSuccess, presentationId]);
+  // Student manual check-in heartbeat removed to allow unconditional 10s rotation
 
   // Phase 2: Live countdown timer
   useEffect(() => {
@@ -219,32 +185,32 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
     return () => clearInterval(interval);
   }, [isValid, timeLeft, tokenData]);
 
-  // Phase 2b: Live countdown timer for manual mode (rotates every 15s)
+  // Phase 2b: Live countdown timer for manual mode (rotates every 10s in perfect sync with QR)
   useEffect(() => {
     if (!isManualMode || !isValid) return;
 
     const currentIcon = presentation?.currentIcon;
     if (!currentIcon) {
-      setTimeLeft(15);
+      setTimeLeft(10);
       return;
     }
 
     const rotatedAt = presentation?.iconRotatedAt;
-    let initialRemaining = 15;
+    let initialRemaining = 10;
 
     if (rotatedAt) {
       const elapsed = (Date.now() - rotatedAt) / 1000;
-      if (elapsed >= 0 && elapsed <= 15) {
-        initialRemaining = 15 - elapsed;
+      if (elapsed >= 0 && elapsed <= 10) {
+        initialRemaining = 10 - elapsed;
       }
     }
 
     setTimeLeft(Math.max(1, Math.ceil(initialRemaining)));
-    const startTime = Date.now() - (15 - initialRemaining) * 1000;
+    const startTime = Date.now() - (10 - initialRemaining) * 1000;
 
     const interval = setInterval(() => {
       const elapsed = (Date.now() - startTime) / 1000;
-      const remaining = Math.max(0, Math.ceil(15 - elapsed));
+      const remaining = Math.max(0, Math.ceil(10 - elapsed));
 
       setTimeLeft(remaining);
     }, 100);
@@ -505,7 +471,7 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
                   {timeLeft !== null && (
                     <div className={cn(
                       "flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-black tracking-wider uppercase transition-colors",
-                      timeLeft <= 5 
+                      timeLeft <= 3 
                         ? "bg-red-500/10 text-red-400 border-red-500/20 animate-pulse" 
                         : "bg-osu-orange/10 text-osu-orange border-osu-orange/20"
                     )}>
@@ -525,9 +491,9 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
                     <div
                       className={cn(
                         "h-full rounded-full transition-all duration-100 ease-linear",
-                        timeLeft <= 5 ? "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]" : "bg-osu-orange"
+                        timeLeft <= 3 ? "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]" : "bg-osu-orange"
                       )}
-                      style={{ width: `${(timeLeft / 15) * 100}%` }}
+                      style={{ width: `${(timeLeft / 10) * 100}%` }}
                     />
                   </div>
                 )}

@@ -1127,34 +1127,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     fetchIp();
   }, [isChatOnly]);
 
-  // Student manual check-in heartbeat effect to pause icon rotation
-  useEffect(() => {
-    if (!isChatOnly || presentation?.disableAttendance || urlToken || hasJoined || !presentation?.id) {
-      return;
-    }
-
-    const sendHeartbeat = async () => {
-      try {
-        const presRef = doc(db, 'presentations', presentation.id);
-        await setDoc(presRef, {
-          lastManualActivityAt: Date.now()
-        }, { merge: true });
-        console.log('[Student ChatSidebar] Sent manual activity heartbeat to Firestore');
-      } catch (err) {
-        console.error('[Student ChatSidebar] Failed to send manual activity heartbeat:', err);
-      }
-    };
-
-    // Send heartbeat immediately on mount/access
-    sendHeartbeat();
-
-    // Set up 10-second interval for subsequent heartbeats
-    const interval = setInterval(() => {
-      sendHeartbeat();
-    }, 10000);
-
-    return () => clearInterval(interval);
-  }, [isChatOnly, presentation?.disableAttendance, urlToken, hasJoined, presentation?.id]);
+  // Student manual check-in heartbeat removed to allow unconditional 10s rotation
 
   // Ref for tracking tokens to clean up
   const generatedTokensRef = useRef<LocalTokenTracker[]>([]);
@@ -1584,10 +1557,20 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       const now = Date.now();
       lastTokenGenerationTimeRef.current = now;
 
-      // Save token directly to the presentation document (merge true to not touch screen codes)
+      // Select a new random medical icon, avoiding the current one to ensure a visible change
+      const prevIcon = presentation?.currentIcon || null;
+      const availableIcons = prevIcon 
+        ? MEDICAL_ICONS.filter(icon => icon !== prevIcon) 
+        : MEDICAL_ICONS;
+      const newIcon = availableIcons[Math.floor(Math.random() * availableIcons.length)];
+
+      // Save token directly to the presentation document along with rotating icon details (merge true to not touch screen codes)
       const presRef = doc(db, 'presentations', presentation.id);
       await setDoc(presRef, {
-        attendanceToken: newTokenId
+        attendanceToken: newTokenId,
+        currentIcon: newIcon,
+        previousIcon: prevIcon || null,
+        iconRotatedAt: now
       }, { merge: true });
 
       const tokenRef = doc(db, 'presentations', presentation.id, 'attendance_tokens', newTokenId);
@@ -1606,21 +1589,14 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     }
   };
 
-  // Regenerate student manual-join 20-icon grid when the presenter's currentIcon rotates
+  // Regenerate student manual-join 20-icon grid unconditionally on currentIcon change to ensure immediate re-shuffle
   useEffect(() => {
     const currentVal = presentation?.currentIcon;
     const prevVal = presentation?.previousIcon;
 
     if (currentVal) {
-      // Check if both currentVal and prevVal (if existing) are already in our iconGrid
-      const hasCurrent = iconGrid.includes(currentVal);
-      const hasPrevious = prevVal ? iconGrid.includes(prevVal) : true;
-
-      if (!hasCurrent || !hasPrevious || iconGrid.length === 0) {
-        // Only regenerate and shuffle if one of them is missing (e.g. initial generation or rotation)
-        const grid = generateIconGrid(currentVal, prevVal);
-        setIconGrid(grid);
-      }
+      const grid = generateIconGrid(currentVal, prevVal);
+      setIconGrid(grid);
 
       // Only reset the student's selected icon if it has become completely invalid
       // (meaning it matches neither the active current icon nor the grace-period previous icon)
@@ -1630,32 +1606,32 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     }
   }, [presentation?.currentIcon, presentation?.previousIcon]);
 
-  // Student-side live countdown timer for manual icon rotation (rotates every 15s)
+  // Student-side live countdown timer for manual icon rotation (rotates every 10s in perfect sync with QR)
   useEffect(() => {
     if (!isChatOnly || presentation?.disableAttendance || urlToken) return;
 
     const currentIcon = presentation?.currentIcon;
     if (!currentIcon) {
-      setIconTimeLeft(15);
+      setIconTimeLeft(10);
       return;
     }
 
     const rotatedAt = presentation?.iconRotatedAt;
-    let initialRemaining = 15;
+    let initialRemaining = 10;
     
     if (rotatedAt) {
       const elapsed = (Date.now() - rotatedAt) / 1000;
-      if (elapsed >= 0 && elapsed <= 15) {
-        initialRemaining = 15 - elapsed;
+      if (elapsed >= 0 && elapsed <= 10) {
+        initialRemaining = 10 - elapsed;
       }
     }
     
     setIconTimeLeft(Math.max(1, Math.ceil(initialRemaining)));
-    const startTime = Date.now() - (15 - initialRemaining) * 1000;
+    const startTime = Date.now() - (10 - initialRemaining) * 1000;
 
     const interval = setInterval(() => {
       const elapsed = (Date.now() - startTime) / 1000;
-      const remaining = Math.max(0, Math.ceil(15 - elapsed));
+      const remaining = Math.max(0, Math.ceil(10 - elapsed));
       setIconTimeLeft(remaining);
     }, 100);
 
@@ -2405,7 +2381,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                     {iconTimeLeft !== null && (
                       <div className={cn(
                         "flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-black tracking-wider uppercase transition-colors",
-                        iconTimeLeft <= 5 
+                        iconTimeLeft <= 3 
                           ? "bg-red-500/10 text-red-400 border-red-500/20 animate-pulse" 
                           : "bg-osu-orange/10 text-osu-orange border-osu-orange/20"
                       )}>
@@ -2425,9 +2401,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                       <div
                         className={cn(
                           "h-full rounded-full transition-all duration-100 ease-linear",
-                          iconTimeLeft <= 5 ? "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]" : "bg-osu-orange"
+                          iconTimeLeft <= 3 ? "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]" : "bg-osu-orange"
                         )}
-                        style={{ width: `${(iconTimeLeft / 15) * 100}%` }}
+                        style={{ width: `${(iconTimeLeft / 10) * 100}%` }}
                       />
                     </div>
                   )}
@@ -3032,7 +3008,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                     {iconTimeLeft !== null && (
                       <span className={cn(
                         "text-[9px] font-black tracking-wider",
-                        iconTimeLeft <= 5 ? "text-red-500 animate-pulse" : "text-osu-orange"
+                        iconTimeLeft <= 3 ? "text-red-500 animate-pulse" : "text-osu-orange"
                       )}>
                         Rotates in {iconTimeLeft}s
                       </span>
@@ -3048,9 +3024,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                       <div
                         className={cn(
                           "h-full rounded-full transition-all duration-100 ease-linear",
-                          iconTimeLeft <= 5 ? "bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.5)]" : "bg-osu-orange"
+                          iconTimeLeft <= 3 ? "bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.5)]" : "bg-osu-orange"
                         )}
-                        style={{ width: `${(iconTimeLeft / 15) * 100}%` }}
+                        style={{ width: `${(iconTimeLeft / 10) * 100}%` }}
                       />
                     </div>
                   )}

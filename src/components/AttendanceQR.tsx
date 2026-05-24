@@ -66,7 +66,7 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
     });
   };
 
-  // Function to generate and save a new token (Runs every 10 seconds)
+  // Function to generate and save a new token & rotate icon (Runs every 10 seconds)
   const generateNewToken = async () => {
     if (!presentationId) return;
 
@@ -76,20 +76,31 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
       const now = Date.now();
       lastTokenGenerationTimeRef.current = now;
 
-      // Save token directly to the presentation document (merge true to not touch screen codes)
       const presRef = doc(db, 'presentations', presentationId);
+      const prevIcon = currentIconRef.current;
+      const availableIcons = prevIcon 
+        ? MEDICAL_ICONS.filter(icon => icon !== prevIcon) 
+        : MEDICAL_ICONS;
+      const newIcon = availableIcons[Math.floor(Math.random() * availableIcons.length)];
+
+      // Save token & rotated icon in a single Firestore document write
       await setDoc(presRef, {
-        attendanceToken: newTokenId
+        attendanceToken: newTokenId,
+        currentIcon: newIcon,
+        previousIcon: prevIcon || null,
+        iconRotatedAt: now
       }, { merge: true });
 
-      // Write token to Firestore with server timestamp
+      // Write token to Firestore subcollection with server timestamp
       const tokenRef = doc(db, 'presentations', presentationId, 'attendance_tokens', newTokenId);
       await setDoc(tokenRef, {
         createdAt: serverTimestamp()
       });
 
-      // Update active token in UI
+      // Update active token and icon in UI
       setActiveToken(newTokenId);
+      currentIconRef.current = newIcon;
+      setCurrentIcon(newIcon);
       setLoading(false);
 
       // Add to our tracker
@@ -97,71 +108,11 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
 
       // Run background self-cleaning of old tokens (older than 50 seconds, to guarantee students get a full 45s TTL)
       cleanExpiredTokens(now);
+      console.log(`[Presenter QR] Generated token ${newTokenId} and rotated icon to: ${newIcon}`);
     } catch (err: any) {
       console.error('Error generating attendance token:', err);
       setLoading(false);
       setErrorMsg(err?.message || String(err));
-    }
-  };
-
-  // Function to rotate and save a new Screen Icon (Runs every 15 seconds)
-  const rotateScreenCode = async () => {
-    if (!presentationId) return;
-
-    try {
-      const presRef = doc(db, 'presentations', presentationId);
-      const presSnap = await getDoc(presRef);
-
-      let hasActiveStudent = false;
-      if (presSnap.exists()) {
-        const presData = presSnap.data();
-        const lastManualActivityAt = presData.lastManualActivityAt;
-        if (lastManualActivityAt) {
-          const elapsedActivity = Date.now() - lastManualActivityAt;
-          // Fresh student heartbeat within last 25 seconds
-          if (elapsedActivity <= 25000) {
-            hasActiveStudent = true;
-          }
-        }
-      }
-
-      // If active student manual check-in detected and cycle count is under the limit (max 3 cycles total)
-      if (hasActiveStudent && iconCycleCountRef.current < 3) {
-        iconCycleCountRef.current += 1;
-
-        // Keep the current icon, but reset the iconRotatedAt timestamp to Date.now()
-        // This resets the student-side countdown timers to 15s without changing the icon.
-        if (currentIconRef.current) {
-          await setDoc(presRef, {
-            iconRotatedAt: Date.now()
-          }, { merge: true });
-
-          console.log(`[Presenter QR] Paused icon rotation: Cycle ${iconCycleCountRef.current}/3. Keeping icon: ${currentIconRef.current}`);
-          return;
-        }
-      }
-
-      // Reset cycle count to 1 and choose a new icon
-      iconCycleCountRef.current = 1;
-      const prevIcon = currentIconRef.current;
-      const availableIcons = prevIcon 
-        ? MEDICAL_ICONS.filter(icon => icon !== prevIcon) 
-        : MEDICAL_ICONS;
-      const newIcon = availableIcons[Math.floor(Math.random() * availableIcons.length)];
-
-      // Save currentIcon, previousIcon, and rotation timestamp directly to the presentation document
-      await setDoc(presRef, {
-        currentIcon: newIcon,
-        previousIcon: prevIcon || null,
-        iconRotatedAt: Date.now()
-      }, { merge: true });
-
-      // Update active icon in UI
-      currentIconRef.current = newIcon;
-      setCurrentIcon(newIcon);
-      console.log(`[Presenter QR] Rotated icon: ${newIcon}. Resetted cycle count to 1.`);
-    } catch (err) {
-      console.error('Error rotating Screen Icon:', err);
     }
   };
 
@@ -182,11 +133,11 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
     }
   };
 
-  // Setup the QR token rotation and countdown loop
+  // Setup the QR token and screen icon rotation loop (Runs every 10 seconds in sync)
   useEffect(() => {
     if (!presentationId) return;
 
-    // Generate initial token immediately
+    // Generate initial token & icon immediately
     generateNewToken();
 
     const interval = setInterval(() => {
@@ -206,22 +157,6 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
       // Clean up all leftover tokens from this session on unmount
       const now = Date.now();
       cleanExpiredTokens(now + 100000); // offset to trigger deletions on all remaining
-    };
-  }, [presentationId]);
-
-  // Setup the Screen Code rotation loop (Runs every 15 seconds)
-  useEffect(() => {
-    if (!presentationId) return;
-
-    // Generate initial Screen Code immediately
-    rotateScreenCode();
-
-    const codeRotationInterval = setInterval(() => {
-      rotateScreenCode();
-    }, 15000); // 15000ms is exactly 15 seconds
-
-    return () => {
-      clearInterval(codeRotationInterval);
     };
   }, [presentationId]);
 
@@ -351,7 +286,7 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
               </div>
             </div>
             
-            <p className="text-[8px] text-slate-400 font-semibold leading-normal">QR: 10s | Icon: 15s</p>
+            <p className="text-[8px] text-slate-400 font-semibold leading-normal">QR & Icon: 10s Rotation</p>
           </div>
 
           {/* Visual Progress Bar Container */}
