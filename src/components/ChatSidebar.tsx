@@ -1090,10 +1090,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [loadingToken, setLoadingToken] = useState(true);
   const lastTokenGenerationTimeRef = useRef<number>(Date.now());
 
-  // Presenter states for rotating dynamic medical icon
-  const [currentIcon, setCurrentIcon] = useState<string | null>(null);
-  const currentIconRef = useRef<string | null>(null);
-  const iconCycleCountRef = useRef<number>(1);
 
   // Student states for token validation & check-in
   const urlParams = new URLSearchParams(window.location.search);
@@ -1610,66 +1606,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     }
   };
 
-  const rotateScreenCode = async () => {
-    if (!presentation?.id) return;
-
-    try {
-      const presRef = doc(db, 'presentations', presentation.id);
-      const presSnap = await getDoc(presRef);
-
-      let hasActiveStudent = false;
-      if (presSnap.exists()) {
-        const presData = presSnap.data();
-        const lastManualActivityAt = presData.lastManualActivityAt;
-        if (lastManualActivityAt) {
-          const elapsedActivity = Date.now() - lastManualActivityAt;
-          // Fresh student heartbeat within last 25 seconds
-          if (elapsedActivity <= 25000) {
-            hasActiveStudent = true;
-          }
-        }
-      }
-
-      // If active student manual check-in detected and cycle count is under the limit (max 3 cycles total)
-      if (hasActiveStudent && iconCycleCountRef.current < 3) {
-        iconCycleCountRef.current += 1;
-
-        // Keep the current icon, but reset the iconRotatedAt timestamp to Date.now()
-        // This resets the student-side countdown timers to 15s without changing the icon.
-        if (currentIconRef.current) {
-          await setDoc(presRef, {
-            iconRotatedAt: Date.now()
-          }, { merge: true });
-
-          console.log(`[Presenter ChatSidebar] Paused icon rotation: Cycle ${iconCycleCountRef.current}/3. Keeping icon: ${currentIconRef.current}`);
-          return;
-        }
-      }
-
-      // Reset cycle count to 1 and choose a new icon
-      iconCycleCountRef.current = 1;
-      const prevIcon = currentIconRef.current;
-      const availableIcons = prevIcon 
-        ? MEDICAL_ICONS.filter(icon => icon !== prevIcon) 
-        : MEDICAL_ICONS;
-      const newIcon = availableIcons[Math.floor(Math.random() * availableIcons.length)];
-
-      // Save currentIcon, previousIcon, and rotation timestamp directly to the presentation document
-      await setDoc(presRef, {
-        currentIcon: newIcon,
-        previousIcon: prevIcon || null,
-        iconRotatedAt: Date.now()
-      }, { merge: true });
-
-      // Update active icon in UI
-      currentIconRef.current = newIcon;
-      setCurrentIcon(newIcon);
-      console.log(`[Presenter ChatSidebar] Rotated icon: ${newIcon}. Resetted cycle count to 1.`);
-    } catch (err) {
-      console.error('Error rotating Screen Icon in ChatSidebar:', err);
-    }
-  };
-
   // Regenerate student manual-join 20-icon grid when the presenter's currentIcon rotates
   useEffect(() => {
     const currentVal = presentation?.currentIcon;
@@ -1751,23 +1687,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       clearInterval(interval);
       const now = Date.now();
       cleanExpiredTokens(now + 100000);
-    };
-  }, [presentation?.id, isChatOnly, presentation?.disableAttendance]);
-
-  // Presenter Screen Code Rotation effect (every 15s)
-  useEffect(() => {
-    if (isChatOnly || !presentation?.id || presentation?.disableAttendance) {
-      return;
-    }
-
-    rotateScreenCode();
-
-    const codeRotationInterval = setInterval(() => {
-      rotateScreenCode();
-    }, 15000);
-
-    return () => {
-      clearInterval(codeRotationInterval);
     };
   }, [presentation?.id, isChatOnly, presentation?.disableAttendance]);
 
@@ -2668,8 +2587,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               <div className="flex flex-col items-center shrink-0 bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-800 shadow-inner">
                 <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">SCREEN ICON</span>
                 <div className="w-8 h-8 flex items-center justify-center mt-1">
-                  {currentIcon ? (
-                    <MedicalIcon name={currentIcon} className="w-5 h-5 text-osu-orange" />
+                  {presentation?.currentIcon ? (
+                    <MedicalIcon name={presentation.currentIcon} className="w-5 h-5 text-osu-orange" />
                   ) : (
                     <span className="text-slate-600 text-xs font-bold">---</span>
                   )}

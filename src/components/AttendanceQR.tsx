@@ -266,25 +266,25 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
         </button>
       ) : (
         // Expanded Panel
-        <div className="w-[170px] bg-slate-900/95 backdrop-blur-md border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col items-center p-3 animate-in fade-in slide-in-from-bottom-3 duration-300">
+        <div className="w-[190px] bg-slate-900/95 backdrop-blur-md border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col items-center p-3.5 animate-in fade-in slide-in-from-bottom-3 duration-300">
           
           {/* Header */}
           <div className="flex justify-between items-center w-full mb-2">
-            <div className="flex items-center gap-1">
-              <QrCode className="w-3.5 h-3.5 text-osu-orange" />
-              <span className="text-[9px] font-black uppercase tracking-widest text-slate-300">Attendance</span>
+            <div className="flex items-center gap-1.5">
+              <QrCode className="w-4 h-4 text-osu-orange" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-300">Attendance</span>
             </div>
             <button
               onClick={() => setIsCollapsed(true)}
               className="p-1 hover:bg-slate-800 text-slate-500 hover:text-white rounded-md transition-colors"
               title="Minimize"
             >
-              <ChevronDown className="w-3.5 h-3.5" />
+              <ChevronDown className="w-4 h-4" />
             </button>
           </div>
 
           {/* QR Display */}
-          <div className="relative bg-white p-2.5 rounded-xl flex items-center justify-center w-[146px] h-[146px] shadow-inner mb-3">
+          <div className="relative bg-white p-2.5 rounded-xl flex items-center justify-center w-[166px] h-[166px] shadow-inner mb-3">
             {loading ? (
               <div className="absolute inset-0 flex items-center justify-center bg-white rounded-xl">
                 <Loader2 className="w-6 h-6 text-osu-orange animate-spin" />
@@ -310,7 +310,7 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
               attendanceUrl && (
                 <QRCodeSVG
                   value={attendanceUrl}
-                  size={126}
+                  size={146}
                   level="H"
                   fgColor="#0f172a" // Slate 900
                   bgColor="#ffffff"
@@ -318,7 +318,7 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
                     src: logoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png",
                     x: undefined,
                     y: undefined,
-                    height: 24,
+                    height: 28,
                     width: 24,
                     excavate: true,
                   }}
@@ -328,24 +328,24 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
           </div>
 
           {/* Prompt info */}
-          <div className="w-full text-center space-y-1.5 mb-2.5 px-1">
+          <div className="w-full text-center space-y-2 mb-2.5 px-0.5">
             <p className="text-[10px] font-black text-slate-200 uppercase tracking-wider">Scan to Check-In</p>
             
-            <div className="w-full bg-slate-950/80 p-2 rounded-xl border border-slate-800 space-y-1.5 text-center">
+            <div className="w-full bg-slate-950/80 p-2.5 rounded-xl border border-slate-800 space-y-2 text-center">
               <div className="flex flex-col items-center">
                 <span className="text-[7px] font-bold text-slate-400 uppercase tracking-widest leading-none">OR JOIN AT:</span>
-                <span className="text-[10.5px] font-black text-osu-orange truncate max-w-[136px] leading-normal select-all mt-0.5">
+                <span className="text-[11px] font-black text-osu-orange truncate max-w-[156px] leading-normal select-all mt-0.5">
                   {shortUrl ? shortUrl.replace(/^https?:\/\//i, '') : `${window.location.hostname}/...`}
                 </span>
               </div>
               <div className="h-px bg-slate-800/60 w-full" />
               <div className="flex flex-col items-center">
-                <span className="text-[7px] font-bold text-slate-400 uppercase tracking-widest leading-none">SCREEN ICON:</span>
-                <div className="w-12 h-12 bg-slate-900 border border-slate-800 rounded-xl flex items-center justify-center shadow-inner mt-1.5">
+                <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest leading-none">SCREEN ICON:</span>
+                <div className="w-20 h-20 bg-slate-950 border border-osu-orange/30 rounded-2xl flex items-center justify-center shadow-[0_0_20px_rgba(255,102,0,0.15)] mt-2">
                   {currentIcon ? (
-                    <MedicalIcon name={currentIcon} className="w-7 h-7 text-osu-orange" />
+                    <MedicalIcon name={currentIcon} className="w-12 h-12 text-osu-orange" />
                   ) : (
-                    <span className="text-slate-600 text-[10px] font-bold">---</span>
+                    <span className="text-slate-600 text-[14px] font-bold">---</span>
                   )}
                 </div>
               </div>
