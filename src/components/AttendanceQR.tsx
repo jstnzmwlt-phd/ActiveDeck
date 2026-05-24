@@ -25,6 +25,41 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
   // Ref to track generated tokens locally for precise self-cleaning
   const generatedTokensRef = useRef<LocalTokenTracker[]>([]);
 
+  // Rotating OTP states and helpers
+  const [shortUrl, setShortUrl] = useState<string>('');
+  const [currentCode, setCurrentCode] = useState<string | null>(null);
+  const currentCodeRef = useRef<string | null>(null);
+
+  // Helper to generate rotating 4-character alphanumeric OTP code
+  const generateOTP = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let code = '';
+    for (let i = 0; i < 4; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+  };
+
+  // Fetch the manual URL shortened via API on mount/ID change
+  useEffect(() => {
+    if (!presentationId) return;
+    
+    const manualUrl = `${window.location.origin}/attendance/${presentationId}`;
+    const fetchShortUrl = async () => {
+      try {
+        const response = await fetch(`/api/shorten?url=${encodeURIComponent(manualUrl)}`);
+        if (response.ok) {
+          const text = await response.text();
+          setShortUrl(text);
+        }
+      } catch (error) {
+        console.error("Failed to generate short URL for AttendanceQR:", error);
+      }
+    };
+    
+    fetchShortUrl();
+  }, [presentationId]);
+
   // Helper to generate UUID safely across browser environments (especially inside iFrame/Office Add-in)
   const generateUUID = () => {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -47,6 +82,18 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
       const newTokenId = generateUUID();
       const now = Date.now();
 
+      // Generate rotating OTP code and keep previous code as grace period
+      const prevCode = currentCodeRef.current;
+      const newCode = generateOTP();
+
+      // Save token, currentCode, and previousCode directly to the presentation document
+      const presRef = doc(db, 'presentations', presentationId);
+      await setDoc(presRef, {
+        attendanceToken: newTokenId,
+        currentCode: newCode,
+        previousCode: prevCode || null
+      }, { merge: true });
+
       // Write token to Firestore with server timestamp
       const tokenRef = doc(db, 'presentations', presentationId, 'attendance_tokens', newTokenId);
       await setDoc(tokenRef, {
@@ -55,6 +102,8 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
 
       // Update active token in UI
       setActiveToken(newTokenId);
+      currentCodeRef.current = newCode;
+      setCurrentCode(newCode);
       setLoading(false);
 
       // Add to our tracker
@@ -221,9 +270,25 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
           </div>
 
           {/* Prompt info */}
-          <div className="text-center space-y-1 mb-2">
-            <p className="text-[10px] font-black text-slate-200">Scan to Check-In</p>
-            <p className="text-[8px] text-slate-400 font-medium leading-normal">Updates every 10s</p>
+          <div className="w-full text-center space-y-1.5 mb-2.5 px-1">
+            <p className="text-[10px] font-black text-slate-200 uppercase tracking-wider">Scan to Check-In</p>
+            
+            <div className="flex items-center justify-between gap-1.5 bg-slate-950/80 p-1.5 rounded-lg border border-slate-800">
+              <div className="flex flex-col items-start text-left min-w-0">
+                <span className="text-[7px] font-bold text-slate-400 uppercase tracking-widest leading-none">OR JOIN AT:</span>
+                <span className="text-[10px] font-black text-osu-orange truncate max-w-[85px] leading-tight select-all">
+                  {shortUrl ? shortUrl.replace(/^https?:\/\//i, '') : `${window.location.hostname}/...`}
+                </span>
+              </div>
+              <div className="flex flex-col items-end text-right shrink-0">
+                <span className="text-[7px] font-bold text-slate-400 uppercase tracking-widest leading-none">CODE:</span>
+                <span className="text-[13px] font-black text-white leading-none font-mono tracking-wider select-all animate-pulse">
+                  {currentCode || '----'}
+                </span>
+              </div>
+            </div>
+            
+            <p className="text-[8px] text-slate-400 font-semibold leading-normal">Updates every 10s</p>
           </div>
 
           {/* Visual Progress Bar Container */}

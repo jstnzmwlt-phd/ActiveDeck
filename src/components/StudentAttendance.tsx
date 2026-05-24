@@ -19,9 +19,42 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Phase 1: Validate the token from Firestore
+  const isManualMode = !token;
+  const [screenCode, setScreenCode] = useState('');
+  const [ipAddress, setIpAddress] = useState('127.0.0.1');
+
+  // Fetch client-side IP address on mount
   useEffect(() => {
-    if (!token || !presentationId) {
+    const fetchIp = async () => {
+      try {
+        const res = await fetch('https://api.ipify.org?format=json');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.ip) {
+            setIpAddress(data.ip);
+          }
+        }
+      } catch (err) {
+        /* 
+           DEVELOPER COMMENT: Client-side IP address fetching.
+           This is a fallback solution using https://api.ipify.org.
+           If this client-side request fails (e.g. due to user ad-blockers, network issues, 
+           or CORS constraints), it gracefully defaults to '127.0.0.1'.
+           In a production deployment, this client-side IP detection can be overridden 
+           or verified by server-side middleware checking standard request headers 
+           like 'X-Forwarded-For' or 'CF-Connecting-IP'.
+        */
+        console.warn('Failed to fetch client-side IP, using default fallback.', err);
+      }
+    };
+    fetchIp();
+  }, []);
+
+  // Phase 1: Validate the token from Firestore (If not in manual mode)
+  useEffect(() => {
+    if (!token) return; // Standard token validation handles this
+
+    if (!presentationId) {
       setIsValid(false);
       setLoading(false);
       return;
@@ -73,6 +106,38 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
     validateToken();
   }, [presentationId, token]);
 
+  // Phase 1b: If in manual mode, verify that the presentation session exists
+  useEffect(() => {
+    if (token) return;
+
+    const fetchPresentation = async () => {
+      if (!presentationId) {
+        setIsValid(false);
+        setLoading(false);
+        return;
+      }
+      try {
+        setErrorMsg(null);
+        const presRef = doc(db, 'presentations', presentationId);
+        const presSnap = await getDoc(presRef);
+        if (!presSnap.exists()) {
+          setIsValid(false);
+          setErrorMsg("Presentation session not found. Please verify the URL.");
+        } else {
+          setIsValid(true);
+        }
+      } catch (err) {
+        console.error('Error fetching presentation details:', err);
+        setIsValid(false);
+        setErrorMsg("Failed to connect to the session. Please check your internet connection.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPresentation();
+  }, [presentationId, token]);
+
   // Phase 2: Live countdown timer
   useEffect(() => {
     if (!isValid || timeLeft === null || tokenData === null) return;
@@ -100,19 +165,38 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !email.trim()) return;
+    if (isManualMode && !screenCode.trim()) return;
 
     setSubmitting(true);
     setErrorMsg(null);
 
     try {
-      // Validate again right before submit
-      const createdAt = tokenData.createdAt as Timestamp;
-      const tokenTime = createdAt.toMillis();
-      const elapsed = (Date.now() - tokenTime) / 1000;
+      if (!isManualMode) {
+        // Validate again right before submit
+        if (!tokenData) throw new Error("EXPIRED_TOKEN");
+        const createdAt = tokenData.createdAt as Timestamp;
+        const tokenTime = createdAt.toMillis();
+        const elapsed = (Date.now() - tokenTime) / 1000;
 
-      if (elapsed >= 45) {
-        setIsValid(false);
-        throw new Error("EXPIRED_TOKEN");
+        if (elapsed >= 45) {
+          setIsValid(false);
+          throw new Error("EXPIRED_TOKEN");
+        }
+      } else {
+        // Fetch presentation doc and validate screen code
+        const presRef = doc(db, 'presentations', presentationId);
+        const presSnap = await getDoc(presRef);
+        if (!presSnap.exists()) {
+          throw new Error("SESSION_NOT_FOUND");
+        }
+        const presData = presSnap.data();
+        const currentCodeVal = (presData.currentCode || '').trim().toUpperCase();
+        const previousCodeVal = (presData.previousCode || '').trim().toUpperCase();
+        const enteredCode = screenCode.trim().toUpperCase();
+
+        if (!enteredCode || (enteredCode !== currentCodeVal && enteredCode !== previousCodeVal)) {
+          throw new Error("INVALID_SCREEN_CODE");
+        }
       }
 
       // Format email to lower case and trim to ensure clean ID
@@ -143,9 +227,11 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
         name: name.trim(),
         email: studentEmail,
         checkedInAt: serverTimestamp(),
-        scannedToken: token,
+        scannedToken: token || null,
         institutionId: activeInstitutionId,
-        institutionName: activeInstitutionName
+        institutionName: activeInstitutionName,
+        authMethod: isManualMode ? 'URL' : 'QR',
+        ipAddress: ipAddress
       });
 
       setSubmitSuccess(true);
@@ -153,6 +239,10 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
       console.error('Submission error:', err);
       if (err.message === "EXPIRED_TOKEN") {
         setErrorMsg("This QR code has expired. Please scan the newest code on the screen.");
+      } else if (err.message === "INVALID_SCREEN_CODE") {
+        setErrorMsg("Invalid or expired 4-Digit Screen Code. Please enter the current code shown on the screen.");
+      } else if (err.message === "SESSION_NOT_FOUND") {
+        setErrorMsg("This presentation session is no longer active.");
       } else {
         setErrorMsg("Failed to record attendance. Please try again or ask your presenter.");
       }
@@ -220,14 +310,20 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
             <p className="text-xs text-slate-400 mt-1">Please record your attendance</p>
           </div>
           
-          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-black tracking-wider transition-colors ${
-            timeLeft && timeLeft <= 10 
-              ? 'bg-red-500/10 text-red-400 border-red-500/20 animate-pulse' 
-              : 'bg-osu-orange/10 text-osu-orange border-osu-orange/20'
-          }`}>
-            <Timer className="w-4 h-4" />
-            <span>{timeLeft}s</span>
-          </div>
+          {!isManualMode ? (
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-black tracking-wider transition-colors ${
+              timeLeft && timeLeft <= 10 
+                ? 'bg-red-500/10 text-red-400 border-red-500/20 animate-pulse' 
+                : 'bg-osu-orange/10 text-osu-orange border-osu-orange/20'
+            }`}>
+              <Timer className="w-4 h-4" />
+              <span>{timeLeft}s</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-800 bg-slate-950 text-slate-400 text-xs font-black uppercase tracking-wider">
+              <span>Manual Entry</span>
+            </div>
+          )}
         </div>
 
         {errorMsg && (
@@ -238,6 +334,23 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
         )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
+          {isManualMode && (
+            <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
+              <label className="block text-xs font-black uppercase tracking-wider text-slate-400">4-Digit Screen Code</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  required
+                  maxLength={4}
+                  value={screenCode}
+                  onChange={(e) => setScreenCode(e.target.value.toUpperCase())}
+                  placeholder="A7X2"
+                  className="w-full h-14 bg-slate-950 border border-slate-800 rounded-xl text-center text-2xl font-mono font-black uppercase tracking-[0.35em] text-osu-orange placeholder-slate-800/30 focus:outline-none focus:border-osu-orange focus:ring-1 focus:ring-osu-orange transition-colors"
+                />
+              </div>
+            </div>
+          )}
+
           <div className="space-y-1.5">
             <label className="block text-xs font-black uppercase tracking-wider text-slate-400">Full Name</label>
             <div className="relative">
@@ -274,7 +387,7 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
 
           <button
             type="submit"
-            disabled={submitting || !name.trim() || !email.trim()}
+            disabled={submitting || !name.trim() || !email.trim() || (isManualMode && !screenCode.trim())}
             className="w-full h-12 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-[0.98] shadow-lg shadow-orange-500/10 flex items-center justify-center gap-2 mt-2"
           >
             {submitting ? (

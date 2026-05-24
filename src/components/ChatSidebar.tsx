@@ -1088,6 +1088,20 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [timeLeft, setTimeLeft] = useState(10);
   const [loadingToken, setLoadingToken] = useState(true);
 
+  // Presenter states for rotating OTP code
+  const [currentCode, setCurrentCode] = useState<string | null>(null);
+  const currentCodeRef = useRef<string | null>(null);
+
+  // Helper to generate rotating 4-character alphanumeric OTP code
+  const generateOTP = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let code = '';
+    for (let i = 0; i < 4; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+  };
+
   // Student states for token validation & check-in
   const urlParams = new URLSearchParams(window.location.search);
   const urlToken = urlParams.get('token');
@@ -1145,12 +1159,26 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       const newTokenId = generateUUID();
       const now = Date.now();
 
+      // Generate rotating OTP code and keep previous code as grace period
+      const prevCode = currentCodeRef.current;
+      const newCode = generateOTP();
+
+      // Save token, currentCode, and previousCode directly to the presentation document
+      const presRef = doc(db, 'presentations', presentation.id);
+      await setDoc(presRef, {
+        attendanceToken: newTokenId,
+        currentCode: newCode,
+        previousCode: prevCode || null
+      }, { merge: true });
+
       const tokenRef = doc(db, 'presentations', presentation.id, 'attendance_tokens', newTokenId);
       await setDoc(tokenRef, {
         createdAt: serverTimestamp()
       });
 
       setActiveToken(newTokenId);
+      currentCodeRef.current = newCode;
+      setCurrentCode(newCode);
       setLoadingToken(false);
 
       generatedTokensRef.current.push({ id: newTokenId, createdAt: now });
@@ -2120,20 +2148,29 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
       {/* Join URL Bar - Only for Presenter/Main View */}
       {!isChatOnly && (
-        <div className="bg-slate-900 text-white px-4 py-1.5 border-b border-slate-800">
-          <div className="flex flex-col">
-            <div className="flex items-center gap-1.5 mb-0.5">
-              <div className="w-1 h-1 rounded-full bg-osu-orange animate-pulse" />
-              <span className="text-[9px] font-black text-osu-orange uppercase tracking-widest">
-                Join Session:
-              </span>
+        <div className="bg-slate-900 text-white px-4 py-2 border-b border-slate-800">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-col min-w-0">
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <div className="w-1 h-1 rounded-full bg-osu-orange animate-pulse" />
+                <span className="text-[9px] font-black text-osu-orange uppercase tracking-widest">
+                  Join Session:
+                </span>
+              </div>
+              <div className="text-[15px] font-bold tracking-tight text-white break-all leading-none select-all">
+                {shortUrl || chatOnlyUrl}
+              </div>
             </div>
-            <div className="text-[15px] font-bold tracking-tight text-white break-all leading-tight">
-              {shortUrl || chatOnlyUrl}
-            </div>
-            <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-1">
-              (No attendance checked if typed manually)
-            </div>
+            
+            {/* Rotating 4-Digit OTP Badge */}
+            {!presentation?.disableAttendance && (
+              <div className="flex flex-col items-end shrink-0 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800">
+                <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest leading-none">SCREEN CODE</span>
+                <span className="text-sm font-black text-osu-orange font-mono tracking-wider leading-normal select-all animate-pulse mt-0.5">
+                  {currentCode || '----'}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       )}
