@@ -29,19 +29,28 @@ export const MedicalIcon: React.FC<MedicalIconProps> = ({ name, className, size 
   return <IconComponent className={className} size={size} />;
 };
 
-// Generates a grid of 20 unique icons: 1 target icon and 19 random distractors
-export const generateIconGrid = (correctIcon: string | null | undefined): string[] => {
+// Generates a grid of 20 unique icons: guarantees inclusion of both correct (current) and previous icons
+export const generateIconGrid = (
+  correctIcon: string | null | undefined,
+  previousIcon?: string | null
+): string[] => {
   if (!correctIcon) return [];
   
-  // Extract distractors (all icons except the correct one)
-  const distractors = MEDICAL_ICONS.filter(icon => icon !== correctIcon);
+  const targetIcons = [correctIcon];
+  if (previousIcon && previousIcon !== correctIcon) {
+    targetIcons.push(previousIcon);
+  }
+
+  // Extract distractors (all icons except the target ones)
+  const distractors = MEDICAL_ICONS.filter(icon => !targetIcons.includes(icon));
   
-  // Shuffle distractors and grab 19
+  // Shuffle distractors and grab the remaining slots to make exactly 20 icons
   const shuffledDistractors = [...distractors].sort(() => Math.random() - 0.5);
-  const selectedDistractors = shuffledDistractors.slice(0, 19);
+  const slotsNeeded = 20 - targetIcons.length;
+  const selectedDistractors = shuffledDistractors.slice(0, slotsNeeded);
   
-  // Combine correct icon and the 19 distractors
-  const grid = [correctIcon, ...selectedDistractors];
+  // Combine targets and distractors
+  const grid = [...targetIcons, ...selectedDistractors];
   
   // Final shuffle of all 20 icons
   return grid.sort(() => Math.random() - 0.5);

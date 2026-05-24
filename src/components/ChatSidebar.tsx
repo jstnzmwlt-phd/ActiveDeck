@@ -1672,12 +1672,27 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
   // Regenerate student manual-join 20-icon grid when the presenter's currentIcon rotates
   useEffect(() => {
-    if (presentation?.currentIcon) {
-      const grid = generateIconGrid(presentation.currentIcon);
-      setIconGrid(grid);
-      setSelectedIcon(null); // Reset selection on rotation to prevent accidental submittal of stale icon
+    const currentVal = presentation?.currentIcon;
+    const prevVal = presentation?.previousIcon;
+
+    if (currentVal) {
+      // Check if both currentVal and prevVal (if existing) are already in our iconGrid
+      const hasCurrent = iconGrid.includes(currentVal);
+      const hasPrevious = prevVal ? iconGrid.includes(prevVal) : true;
+
+      if (!hasCurrent || !hasPrevious || iconGrid.length === 0) {
+        // Only regenerate and shuffle if one of them is missing (e.g. initial generation or rotation)
+        const grid = generateIconGrid(currentVal, prevVal);
+        setIconGrid(grid);
+      }
+
+      // Only reset the student's selected icon if it has become completely invalid
+      // (meaning it matches neither the active current icon nor the grace-period previous icon)
+      if (selectedIcon && selectedIcon !== currentVal && selectedIcon !== prevVal) {
+        setSelectedIcon(null);
+      }
     }
-  }, [presentation?.currentIcon]);
+  }, [presentation?.currentIcon, presentation?.previousIcon]);
 
   // Student-side live countdown timer for manual icon rotation (rotates every 15s)
   useEffect(() => {
