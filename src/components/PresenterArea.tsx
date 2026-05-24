@@ -62,7 +62,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         if (err.name === 'NotAllowedError' && err.message.includes('permissions policy')) {
           setError("Browser Security: Screen capture is blocked inside the editor's preview window. Please use the 'Shared App URL' or the 'Open in New Tab' icon in the top right to present.");
         } else if (err.name === 'NotAllowedError' || err.name === 'AbortError') {
-          setError("Permission Denied: The screen share request was cancelled or denied.");
+          // Gracefully return to the main instructions screen if the user cancels or denies the request
+          setError(null);
         } else {
           setError("Failed to start screen capture. Please ensure your browser supports screen sharing.");
         }
