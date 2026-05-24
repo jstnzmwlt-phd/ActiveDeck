@@ -1093,6 +1093,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   // Presenter states for rotating dynamic medical icon
   const [currentIcon, setCurrentIcon] = useState<string | null>(null);
   const currentIconRef = useRef<string | null>(null);
+  const iconCycleCountRef = useRef<number>(1);
 
   // Student states for token validation & check-in
   const urlParams = new URLSearchParams(window.location.search);
@@ -1129,6 +1130,35 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     };
     fetchIp();
   }, [isChatOnly]);
+
+  // Student manual check-in heartbeat effect to pause icon rotation
+  useEffect(() => {
+    if (!isChatOnly || presentation?.disableAttendance || urlToken || hasJoined || !presentation?.id) {
+      return;
+    }
+
+    const sendHeartbeat = async () => {
+      try {
+        const presRef = doc(db, 'presentations', presentation.id);
+        await setDoc(presRef, {
+          lastManualActivityAt: Date.now()
+        }, { merge: true });
+        console.log('[Student ChatSidebar] Sent manual activity heartbeat to Firestore');
+      } catch (err) {
+        console.error('[Student ChatSidebar] Failed to send manual activity heartbeat:', err);
+      }
+    };
+
+    // Send heartbeat immediately on mount/access
+    sendHeartbeat();
+
+    // Set up 10-second interval for subsequent heartbeats
+    const interval = setInterval(() => {
+      sendHeartbeat();
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [isChatOnly, presentation?.disableAttendance, urlToken, hasJoined, presentation?.id]);
 
   // Ref for tracking tokens to clean up
   const generatedTokensRef = useRef<LocalTokenTracker[]>([]);
@@ -1584,6 +1614,40 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     if (!presentation?.id) return;
 
     try {
+      const presRef = doc(db, 'presentations', presentation.id);
+      const presSnap = await getDoc(presRef);
+
+      let hasActiveStudent = false;
+      if (presSnap.exists()) {
+        const presData = presSnap.data();
+        const lastManualActivityAt = presData.lastManualActivityAt;
+        if (lastManualActivityAt) {
+          const elapsedActivity = Date.now() - lastManualActivityAt;
+          // Fresh student heartbeat within last 25 seconds
+          if (elapsedActivity <= 25000) {
+            hasActiveStudent = true;
+          }
+        }
+      }
+
+      // If active student manual check-in detected and cycle count is under the limit (max 3 cycles total)
+      if (hasActiveStudent && iconCycleCountRef.current < 3) {
+        iconCycleCountRef.current += 1;
+
+        // Keep the current icon, but reset the iconRotatedAt timestamp to Date.now()
+        // This resets the student-side countdown timers to 15s without changing the icon.
+        if (currentIconRef.current) {
+          await setDoc(presRef, {
+            iconRotatedAt: Date.now()
+          }, { merge: true });
+
+          console.log(`[Presenter ChatSidebar] Paused icon rotation: Cycle ${iconCycleCountRef.current}/3. Keeping icon: ${currentIconRef.current}`);
+          return;
+        }
+      }
+
+      // Reset cycle count to 1 and choose a new icon
+      iconCycleCountRef.current = 1;
       const prevIcon = currentIconRef.current;
       const availableIcons = prevIcon 
         ? MEDICAL_ICONS.filter(icon => icon !== prevIcon) 
@@ -1591,7 +1655,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       const newIcon = availableIcons[Math.floor(Math.random() * availableIcons.length)];
 
       // Save currentIcon, previousIcon, and rotation timestamp directly to the presentation document
-      const presRef = doc(db, 'presentations', presentation.id);
       await setDoc(presRef, {
         currentIcon: newIcon,
         previousIcon: prevIcon || null,
@@ -1601,6 +1664,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       // Update active icon in UI
       currentIconRef.current = newIcon;
       setCurrentIcon(newIcon);
+      console.log(`[Presenter ChatSidebar] Rotated icon: ${newIcon}. Resetted cycle count to 1.`);
     } catch (err) {
       console.error('Error rotating Screen Icon in ChatSidebar:', err);
     }

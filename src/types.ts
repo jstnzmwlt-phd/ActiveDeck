@@ -31,6 +31,7 @@ export interface Presentation {
   currentIcon?: string;
   previousIcon?: string;
   iconRotatedAt?: number;
+  lastManualActivityAt?: number;
 }
 
 export interface Message {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { doc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { QRCodeSVG } from 'qrcode.react';
 import { QrCode, Users, ChevronDown, ChevronUp, Loader2, RefreshCw } from 'lucide-react';
@@ -31,6 +31,7 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
   const [shortUrl, setShortUrl] = useState<string>('');
   const [currentIcon, setCurrentIcon] = useState<string | null>(null);
   const currentIconRef = useRef<string | null>(null);
+  const iconCycleCountRef = useRef<number>(1);
 
   // Fetch the manual URL shortened via API on mount/ID change
   useEffect(() => {
@@ -108,6 +109,40 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
     if (!presentationId) return;
 
     try {
+      const presRef = doc(db, 'presentations', presentationId);
+      const presSnap = await getDoc(presRef);
+
+      let hasActiveStudent = false;
+      if (presSnap.exists()) {
+        const presData = presSnap.data();
+        const lastManualActivityAt = presData.lastManualActivityAt;
+        if (lastManualActivityAt) {
+          const elapsedActivity = Date.now() - lastManualActivityAt;
+          // Fresh student heartbeat within last 25 seconds
+          if (elapsedActivity <= 25000) {
+            hasActiveStudent = true;
+          }
+        }
+      }
+
+      // If active student manual check-in detected and cycle count is under the limit (max 3 cycles total)
+      if (hasActiveStudent && iconCycleCountRef.current < 3) {
+        iconCycleCountRef.current += 1;
+
+        // Keep the current icon, but reset the iconRotatedAt timestamp to Date.now()
+        // This resets the student-side countdown timers to 15s without changing the icon.
+        if (currentIconRef.current) {
+          await setDoc(presRef, {
+            iconRotatedAt: Date.now()
+          }, { merge: true });
+
+          console.log(`[Presenter QR] Paused icon rotation: Cycle ${iconCycleCountRef.current}/3. Keeping icon: ${currentIconRef.current}`);
+          return;
+        }
+      }
+
+      // Reset cycle count to 1 and choose a new icon
+      iconCycleCountRef.current = 1;
       const prevIcon = currentIconRef.current;
       const availableIcons = prevIcon 
         ? MEDICAL_ICONS.filter(icon => icon !== prevIcon) 
@@ -115,7 +150,6 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
       const newIcon = availableIcons[Math.floor(Math.random() * availableIcons.length)];
 
       // Save currentIcon, previousIcon, and rotation timestamp directly to the presentation document
-      const presRef = doc(db, 'presentations', presentationId);
       await setDoc(presRef, {
         currentIcon: newIcon,
         previousIcon: prevIcon || null,
@@ -125,6 +159,7 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
       // Update active icon in UI
       currentIconRef.current = newIcon;
       setCurrentIcon(newIcon);
+      console.log(`[Presenter QR] Rotated icon: ${newIcon}. Resetted cycle count to 1.`);
     } catch (err) {
       console.error('Error rotating Screen Icon:', err);
     }

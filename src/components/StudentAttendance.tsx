@@ -152,6 +152,35 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
     }
   }, [presentation?.currentIcon]);
 
+  // Student manual check-in heartbeat effect to pause icon rotation
+  useEffect(() => {
+    if (!isManualMode || !isValid || submitSuccess || !presentationId) {
+      return;
+    }
+
+    const sendHeartbeat = async () => {
+      try {
+        const presRef = doc(db, 'presentations', presentationId);
+        await setDoc(presRef, {
+          lastManualActivityAt: Date.now()
+        }, { merge: true });
+        console.log('[Student Attendance Portal] Sent manual activity heartbeat to Firestore');
+      } catch (err) {
+        console.error('[Student Attendance Portal] Failed to send manual activity heartbeat:', err);
+      }
+    };
+
+    // Send heartbeat immediately on mount/access
+    sendHeartbeat();
+
+    // Set up 10-second interval for subsequent heartbeats
+    const interval = setInterval(() => {
+      sendHeartbeat();
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [isManualMode, isValid, submitSuccess, presentationId]);
+
   // Phase 2: Live countdown timer
   useEffect(() => {
     if (!isValid || timeLeft === null || tokenData === null) return;
