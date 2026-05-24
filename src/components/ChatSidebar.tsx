@@ -1085,7 +1085,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
   // Presenter states for token rotation
   const [activeToken, setActiveToken] = useState<string | null>(null);
-  const [timeLeft, setTimeLeft] = useState(10);
+  const [timeLeft, setTimeLeft] = useState(13);
   const [loadingToken, setLoadingToken] = useState(true);
 
   // Presenter states for rotating OTP code
@@ -1111,6 +1111,30 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [attendanceStatus, setAttendanceStatus] = useState<'none' | 'success' | 'expired' | 'error'>('none');
   const [verifiedTokenData, setVerifiedTokenData] = useState<any>(null);
   const [showAttendanceBanner, setShowAttendanceBanner] = useState(true);
+
+  // States for guest manual attendance check-in
+  const [joinScreenCode, setJoinScreenCode] = useState('');
+  const [joinError, setJoinError] = useState<string | null>(null);
+  const [ipAddress, setIpAddress] = useState('127.0.0.1');
+
+  // Fetch client-side IP address on mount for manual check-ins
+  useEffect(() => {
+    if (!isChatOnly) return;
+    const fetchIp = async () => {
+      try {
+        const res = await fetch('https://api.ipify.org?format=json');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.ip) {
+            setIpAddress(data.ip);
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch client-side IP in ChatSidebar, using default fallback.', err);
+      }
+    };
+    fetchIp();
+  }, [isChatOnly]);
 
   // Ref for tracking tokens to clean up
   const generatedTokensRef = useRef<LocalTokenTracker[]>([]);
@@ -1199,9 +1223,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     generateNewToken();
 
     const rotationInterval = setInterval(() => {
-      setTimeLeft(10);
+      setTimeLeft(13);
       generateNewToken();
-    }, 10000);
+    }, 13000);
 
     return () => {
       clearInterval(rotationInterval);
@@ -1215,7 +1239,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     if (isChatOnly) return;
     const timer = setInterval(() => {
       setTimeLeft(prev => {
-        if (prev <= 0.1) return 10;
+        if (prev <= 0.1) return 13;
         return Number((prev - 0.1).toFixed(1));
       });
     }, 100);
@@ -1569,10 +1593,86 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setJoinError(null);
     
     const emailToSave = joinEmailInput.trim().toLowerCase();
     const nameToSave = joinNameInput.trim();
 
+    // If manual attendance check is required
+    const isAttendanceJoin = !presentation?.disableAttendance;
+    if (isAttendanceJoin && !urlToken) {
+      if (!presentation?.id) return;
+      if (!joinScreenCode.trim()) {
+        setJoinError("Please enter the 4-Digit Screen Code.");
+        return;
+      }
+
+      setIsValidatingToken(true);
+      try {
+        // Fetch presentation doc and validate screen code
+        const presRef = doc(db, 'presentations', presentation.id);
+        const presSnap = await getDoc(presRef);
+        if (!presSnap.exists()) {
+          setJoinError("This presentation session is no longer active.");
+          setIsValidatingToken(false);
+          return;
+        }
+        const presData = presSnap.data();
+        const currentCodeVal = (presData.currentCode || '').trim().toUpperCase();
+        const previousCodeVal = (presData.previousCode || '').trim().toUpperCase();
+        const enteredCode = joinScreenCode.trim().toUpperCase();
+
+        if (!enteredCode || (enteredCode !== currentCodeVal && enteredCode !== previousCodeVal)) {
+          setJoinError("Invalid or expired Screen Code. Please check the presenter's screen.");
+          setIsValidatingToken(false);
+          return;
+        }
+
+        // Fetch active institution details from settings/global
+        let activeInstitutionId = 'custom';
+        let activeInstitutionName = 'Custom / Active Theme';
+        try {
+          const globalSnap = await getDoc(doc(db, 'settings', 'global'));
+          if (globalSnap.exists()) {
+            const globalData = globalSnap.data();
+            if (globalData.activeInstitutionId) {
+              activeInstitutionId = globalData.activeInstitutionId;
+            }
+            if (globalData.activeInstitutionName) {
+              activeInstitutionName = globalData.activeInstitutionName;
+            }
+          }
+        } catch (err) {
+          console.error('Error fetching global settings for institution info:', err);
+        }
+
+        // Write check-in directly to Firestore subcollection using the email as document ID
+        const attendanceRef = doc(db, 'presentations', presentation.id, 'attendance', emailToSave);
+        await setDoc(attendanceRef, {
+          name: nameToSave,
+          email: emailToSave,
+          checkedInAt: serverTimestamp(),
+          scannedToken: null,
+          institutionId: activeInstitutionId,
+          institutionName: activeInstitutionName,
+          authMethod: 'URL',
+          ipAddress: ipAddress
+        });
+
+        // Set attendance states
+        setAttendanceStatus('success');
+        setShowAttendanceBanner(true);
+      } catch (err: any) {
+        console.error('Error recording manual attendance on join:', err);
+        setJoinError("Failed to record attendance. Please try again.");
+        setIsValidatingToken(false);
+        return;
+      } finally {
+        setIsValidatingToken(false);
+      }
+    }
+
+    // Now proceed with joining the chat
     setGuestEmail(emailToSave);
     setGuestName(nameToSave);
     setHasJoined(true);
@@ -1583,6 +1683,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       localStorage.setItem('activeDeckJoinedPresentationId', presentation.id);
     }
 
+    // If they joined with a urlToken, validate it (this is the original QR code track)
     if (urlToken && presentation?.id && !presentation?.disableAttendance) {
       setIsValidatingToken(true);
       try {
@@ -1631,7 +1732,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           checkedInAt: serverTimestamp(),
           scannedToken: urlToken,
           institutionId: activeInstitutionId,
-          institutionName: activeInstitutionName
+          institutionName: activeInstitutionName,
+          authMethod: 'QR',
+          ipAddress: ipAddress
         });
 
         setAttendanceStatus('success');
@@ -2164,9 +2267,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
             
             {/* Rotating 4-Digit OTP Badge */}
             {!presentation?.disableAttendance && (
-              <div className="flex flex-col items-end shrink-0 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800">
-                <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest leading-none">SCREEN CODE</span>
-                <span className="text-sm font-black text-osu-orange font-mono tracking-wider leading-normal select-all animate-pulse mt-0.5">
+              <div className="flex flex-col items-end shrink-0 bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800">
+                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">SCREEN CODE</span>
+                <span className="text-xl font-black text-osu-orange font-mono tracking-wider leading-none select-all mt-1">
                   {currentCode || '----'}
                 </span>
               </div>
@@ -2317,7 +2420,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden relative">
                 <div 
                   className="h-full bg-osu-orange transition-all duration-100 ease-linear"
-                  style={{ width: `${(timeLeft / 10) * 100}%` }}
+                  style={{ width: `${(timeLeft / 13) * 100}%` }}
                 />
               </div>
             )}
@@ -2560,15 +2663,17 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 Refresh Page
               </button>
             </div>
-          ) : user.isAnonymous && !hasJoined && (presentation?.disableAttendance || !presentation?.allowAnonymousChat || urlToken) ? (
+          ) : user.isAnonymous && !hasJoined && (!presentation?.disableAttendance || !presentation?.allowAnonymousChat || urlToken) ? (
             <form onSubmit={handleJoin} className="p-4 flex flex-col gap-3">
               <div className="text-center mb-1">
                 <h3 className="text-sm font-bold text-slate-900">
-                  {urlToken ? "Join & Check-In" : "Join the Discussion"}
+                  {!presentation?.disableAttendance ? "Join & Check-In" : "Join the Discussion"}
                 </h3>
                 <p className="text-xs text-slate-500 mt-1 mb-2">
-                  {urlToken 
-                    ? "Enter your name and email to register attendance and join the chat." 
+                  {!presentation?.disableAttendance
+                    ? (urlToken 
+                        ? "Enter your name and email to register attendance and join the chat." 
+                        : "Enter your name, email, and the 4-digit screen code to register attendance and join the chat.")
                     : "Enter your name and email to join the discussion."}
                 </p>
                 {urlToken && tokenTimeLeft !== null && isTokenValid && (
@@ -2578,17 +2683,40 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                   </div>
                 )}
               </div>
+
+              {joinError && (
+                <div className="p-2.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600 font-semibold text-center flex items-center justify-center gap-1.5 animate-in fade-in duration-200">
+                  <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                  <span>{joinError}</span>
+                </div>
+              )}
+
+              {!presentation?.disableAttendance && !urlToken && (
+                <div className="space-y-1 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">4-Digit Screen Code</label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={4}
+                    value={joinScreenCode}
+                    onChange={(e) => setJoinScreenCode(e.target.value.toUpperCase())}
+                    placeholder="A7X2"
+                    className="w-full h-11 bg-slate-50 border border-slate-300 rounded-md text-center text-lg font-mono font-black uppercase tracking-[0.2em] text-osu-orange placeholder-slate-400/30 focus:outline-none focus:ring-2 focus:ring-osu-orange focus:border-osu-orange transition-colors"
+                  />
+                </div>
+              )}
+
               <input
                 type="text"
-                placeholder={(presentation?.disableAttendance || urlToken) ? "Your Name (required)" : "Your Name (optional)"}
+                placeholder={(!presentation?.disableAttendance || urlToken) ? "Your Name (required)" : "Your Name (optional)"}
                 value={joinNameInput}
                 onChange={(e) => setJoinNameInput(e.target.value)}
-                required={presentation?.disableAttendance || !!urlToken}
+                required={!presentation?.disableAttendance || !!urlToken}
                 className="w-full px-3 py-2 text-base border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-osu-orange"
               />
               <input
                 type="email"
-                placeholder={presentation?.disableAttendance ? "Email address (optional)" : "Email address (required)"}
+                placeholder={!presentation?.disableAttendance ? "Email address (required)" : "Email address (optional)"}
                 value={joinEmailInput}
                 onChange={(e) => setJoinEmailInput(e.target.value)}
                 required={!presentation?.disableAttendance}
@@ -2596,9 +2724,17 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               />
               <button
                 type="submit"
-                className="w-full bg-osu-orange text-white font-bold py-2 px-4 rounded-md hover:bg-[#c03900] transition-colors text-sm flex items-center justify-center gap-1.5"
+                disabled={isValidatingToken || !joinNameInput.trim() || !joinEmailInput.trim() || (!presentation?.disableAttendance && !urlToken && !joinScreenCode.trim())}
+                className="w-full bg-osu-orange disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-md hover:bg-[#c03900] transition-colors text-sm flex items-center justify-center gap-1.5 shadow-sm"
               >
-                {urlToken ? "Join Chat & Check-In" : "Join Chat"}
+                {isValidatingToken ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Checking In...</span>
+                  </>
+                ) : (
+                  <span>{!presentation?.disableAttendance ? "Join Chat & Check-In" : "Join Chat"}</span>
+                )}
               </button>
             </form>
           ) : (

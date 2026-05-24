@@ -18,7 +18,7 @@ interface LocalTokenTracker {
 export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logoUrl, isSharingScreen = false }) => {
   const [activeToken, setActiveToken] = useState<string | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(true);
-  const [timeLeft, setTimeLeft] = useState(10); // 10s countdown for token refresh
+  const [timeLeft, setTimeLeft] = useState(13); // 13s countdown for token refresh
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -135,7 +135,7 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
     }
   };
 
-  // Setup the token rotation loop (Runs every 10 seconds)
+  // Setup the token rotation loop (Runs every 13 seconds)
   useEffect(() => {
     if (!presentationId) return;
 
@@ -143,9 +143,9 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
     generateNewToken();
 
     const rotationInterval = setInterval(() => {
-      setTimeLeft(10);
+      setTimeLeft(13);
       generateNewToken();
-    }, 10000); // 10000ms is exactly 10 seconds
+    }, 13000); // 13000ms is exactly 13 seconds
 
     return () => {
       clearInterval(rotationInterval);
@@ -159,7 +159,7 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
   useEffect(() => {
     const timer = setInterval(() => {
       setTimeLeft(prev => {
-        if (prev <= 0.1) return 10;
+        if (prev <= 0.1) return 13;
         return Number((prev - 0.1).toFixed(1));
       });
     }, 100);
@@ -192,7 +192,7 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
     : '';
 
   // Width percentage for countdown bar
-  const progressPercent = (timeLeft / 10) * 100;
+  const progressPercent = (timeLeft / 13) * 100;
 
   return (
     <div className="absolute bottom-4 left-4 z-[80] select-none font-sans">
@@ -281,14 +281,14 @@ export const AttendanceQR: React.FC<AttendanceQRProps> = ({ presentationId, logo
                 </span>
               </div>
               <div className="flex flex-col items-end text-right shrink-0">
-                <span className="text-[7px] font-bold text-slate-400 uppercase tracking-widest leading-none">CODE:</span>
-                <span className="text-[13px] font-black text-white leading-none font-mono tracking-wider select-all animate-pulse">
+                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest leading-none">CODE:</span>
+                <span className="text-[18px] font-black text-osu-orange leading-none font-mono tracking-wider select-all">
                   {currentCode || '----'}
                 </span>
               </div>
             </div>
             
-            <p className="text-[8px] text-slate-400 font-semibold leading-normal">Updates every 10s</p>
+            <p className="text-[8px] text-slate-400 font-semibold leading-normal">Updates every 13s</p>
           </div>
 
           {/* Visual Progress Bar Container */}
