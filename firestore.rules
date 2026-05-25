@@ -12,12 +12,21 @@ service cloud.firestore {
       }
 
       match /attendance/{studentEmail} {
+        // 1. Allow manual check-in via URL (does not require active token verification)
         allow create: if request.resource.data.checkedInAt == request.time
                       && (
                         request.resource.data.authMethod == 'URL' ||
-                        request.resource.data.scannedToken == null ||
-                        get(/databases/$(database)/documents/presentations/$(presentationId)/attendance_tokens/$(request.resource.data.scannedToken)).data.createdAt >= request.time - duration.value(45, "s")
+                        !('scannedToken' in request.resource.data) ||
+                        request.resource.data.scannedToken == null
                       );
+
+        // 2. Allow secure check-in via QR code scanning (requires valid 45s active token verification)
+        allow create: if request.resource.data.checkedInAt == request.time
+                      && request.resource.data.authMethod == 'QR'
+                      && 'scannedToken' in request.resource.data
+                      && request.resource.data.scannedToken != null
+                      && get(/databases/$(database)/documents/presentations/$(presentationId)/attendance_tokens/$(request.resource.data.scannedToken)).data.createdAt >= request.time - duration.value(45, "s");
+
         allow read, update, delete: if true;
       }
     }
