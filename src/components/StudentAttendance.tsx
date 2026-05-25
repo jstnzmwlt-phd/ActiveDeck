@@ -277,6 +277,7 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
       // Fetch active institution details from settings/global
       let activeInstitutionId = 'custom';
       let activeInstitutionName = 'Custom / Active Theme';
+      let activeInstitutionDomain = '';
       try {
         const globalRef = doc(db, 'settings', 'global');
         const globalSnap = await getDoc(globalRef);
@@ -288,9 +289,20 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
           if (globalData.activeInstitutionName) {
             activeInstitutionName = globalData.activeInstitutionName;
           }
+          if (globalData.activeInstitutionDomain) {
+            activeInstitutionDomain = globalData.activeInstitutionDomain;
+          }
         }
       } catch (err) {
         console.error('Error fetching global settings for institution info:', err);
+      }
+
+      // Check domain restriction if active
+      if (activeInstitutionDomain && activeInstitutionDomain.trim() !== '') {
+        const requiredDomain = activeInstitutionDomain.trim().toLowerCase();
+        if (!studentEmail.endsWith(`@${requiredDomain}`) && !studentEmail.endsWith(`.${requiredDomain}`)) {
+          throw new Error("INVALID_EMAIL_DOMAIN");
+        }
       }
 
       // Write check-in directly to Firestore subcollection using the email as document ID
@@ -316,6 +328,8 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
         setErrorMsg("Incorrect icon selected. Please look at the presenter's screen and choose the matching medical icon.");
       } else if (err.message === "SESSION_NOT_FOUND") {
         setErrorMsg("This presentation session is no longer active.");
+      } else if (err.message === "INVALID_EMAIL_DOMAIN") {
+        setErrorMsg(`Access Denied: This attendance session is restricted to verified email addresses ending with @${activeInstitutionDomain || 'your-school.edu'}.`);
       } else {
         setErrorMsg("Failed to record attendance. Please try again or ask your presenter.");
       }

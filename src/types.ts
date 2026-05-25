@@ -10,12 +10,14 @@ export interface SavedTheme {
   id: string;
   name: string;
   theme: Theme;
+  domain?: string;
 }
 
 export interface GlobalSettings {
   theme: Theme;
   activeInstitutionId?: string;
   activeInstitutionName?: string;
+  activeInstitutionDomain?: string;
 }
 
 export interface Presentation {

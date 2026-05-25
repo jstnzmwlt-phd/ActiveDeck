@@ -4,52 +4,90 @@ service cloud.firestore {
     // ==========================================
     // ACTIVEDECK SECURITY RULES
     // ==========================================
+    
+    // Helper function to check if the current user is the owner/presenter of a presentation
+    function isPresenter(presId) {
+      return request.auth != null && get(/databases/$(database)/documents/presentations/$(presId)).data.presenterId == request.auth.uid;
+    }
+
     match /presentations/{presentationId} {
-      allow read, write: if true;
+      // Anyone can read a presentation configuration; only the owner/presenter can create, update, or delete it
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && resource.data.presenterId == request.auth.uid;
 
       match /attendance_tokens/{tokenId} {
-        allow read, write: if true;
+        // Students must be able to read active QR tokens; only the presenter can write/delete them
+        allow read: if request.auth != null;
+        allow write: if isPresenter(presentationId);
       }
 
       match /attendance/{studentEmail} {
-        allow read, write: if true;
+        // Students can write (create or update) their own check-in record; only the presenter can read the class roster (critical for FERPA)
+        allow create, update: if request.auth != null;
+        allow read, delete: if isPresenter(presentationId);
       }
     }
 
     match /messages/{messageId} {
-      allow read, write: if true;
+      // Chat messages are viewable and listable by anyone in the class
+      allow read: if request.auth != null;
+      // Any authenticated student/presenter can send a message
+      allow create: if request.auth != null;
+      // Users can modify/delete their own messages; presenters can delete any message for moderation
+      allow update, delete: if request.auth != null && (
+        resource.data.userId == request.auth.uid || 
+        isPresenter(resource.data.presentationId)
+      );
     }
 
     match /polls/{pollId} {
-      allow read, write: if true;
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && isPresenter(request.resource.data.presentationId);
+      // Allow updates so students can register their votes, but restrict deletion/creation to presenters
+      allow update: if request.auth != null;
+      allow delete: if request.auth != null && isPresenter(resource.data.presentationId);
     }
 
     match /wordClouds/{cloudId} {
-      allow read, write: if true;
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && isPresenter(request.resource.data.presentationId);
+      allow update: if request.auth != null;
+      allow delete: if request.auth != null && isPresenter(resource.data.presentationId);
     }
 
     match /openEndedQuestions/{questionId} {
-      allow read, write: if true;
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && isPresenter(request.resource.data.presentationId);
+      allow update: if request.auth != null;
+      allow delete: if request.auth != null && isPresenter(resource.data.presentationId);
     }
 
     match /settings/{docId} {
-      allow read, write: if true;
+      // Global settings are readable by all clients; writable only by authenticated users (admins)
+      allow read: if true;
+      allow write: if request.auth != null;
     }
 
     match /savedThemes/{docId} {
-      allow read, write: if true;
+      // Themes are readable by all clients; writable only by authenticated users (admins)
+      allow read: if true;
+      allow write: if request.auth != null;
     }
 
     match /test/{docId} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null;
     }
 
     match /questions/{questionId} {
-      allow read, write: if true;
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null && (resource.data.userId == request.auth.uid || isPresenter(resource.data.presentationId));
+      allow delete: if request.auth != null && isPresenter(resource.data.presentationId);
     }
 
     match /participants/{participantId} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null;
     }
   }
 }

@@ -31,6 +31,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
   const [primaryColor, setPrimaryColor] = useState('#FF6600');
   const [secondaryColor, setSecondaryColor] = useState('#000000');
   const [logoUrl, setLogoUrl] = useState('');
+  const [institutionDomain, setInstitutionDomain] = useState('');
   const [loadingInstitution, setLoadingInstitution] = useState(true);
   const [savedInstitutions, setSavedInstitutions] = useState<SavedTheme[]>([]);
   const [newInstitutionName, setNewInstitutionName] = useState('');
@@ -93,6 +94,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
         setLogoUrl(theme.logoUrl);
         setActiveInstitutionId(data.activeInstitutionId || 'custom');
         setActiveInstitutionName(data.activeInstitutionName || 'Custom / Active Theme');
+        setInstitutionDomain(data.activeInstitutionDomain || '');
       }
       setLoadingInstitution(false);
     };
@@ -175,11 +177,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
   // Handle saving the global active institution or a custom user institution
   const handleSaveInstitution = async (isNew: boolean = false) => {
     const themeData = { primaryColor, secondaryColor, logoUrl };
+    const domainVal = institutionDomain.trim().toLowerCase();
     
     try {
       if (isNew) {
         if (!newInstitutionName.trim()) return alert('Institution Name is required');
-        const docRef = await addDoc(collection(db, 'savedThemes'), { name: newInstitutionName.trim(), theme: themeData });
+        const docRef = await addDoc(collection(db, 'savedThemes'), { 
+          name: newInstitutionName.trim(), 
+          theme: themeData,
+          domain: domainVal
+        });
         setNewInstitutionName(''); 
         alert('Institution saved!');
         setActiveInstitutionId(docRef.id);
@@ -188,7 +195,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
         await setDoc(doc(db, 'settings', 'global'), { 
           theme: themeData,
           activeInstitutionId,
-          activeInstitutionName
+          activeInstitutionName,
+          activeInstitutionDomain: domainVal
         }, { merge: true });
         alert('Active Institution successfully updated!');
         window.location.reload();
@@ -199,12 +207,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
     }
   };
 
-  const loadInstitution = async (theme: Theme, name: string, id: string) => {
+  const loadInstitution = async (theme: Theme, name: string, id: string, domain?: string) => {
     setPrimaryColor(theme.primaryColor);
     setSecondaryColor(theme.secondaryColor);
     setLogoUrl(theme.logoUrl);
     setActiveInstitutionId(id);
     setActiveInstitutionName(name);
+    setInstitutionDomain(domain || '');
   };
 
   const handleDeleteInstitution = async (themeId: string) => {
@@ -514,7 +523,22 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                         setActiveInstitutionName('Custom / Active Theme');
                       }} 
                       placeholder="https://example.com/logo.png"
-                      className="w-full h-11 rounded-xl bg-slate-950 border border-slate-800 text-sm px-4 text-white placeholder-slate-600" 
+                      className="w-full h-11 rounded-xl bg-slate-950 border border-slate-800 text-sm px-4 text-white placeholder-slate-600 focus:outline-none focus:border-osu-orange" 
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-black uppercase tracking-wider text-slate-400">Institutional Email Domain</label>
+                    <input 
+                      type="text" 
+                      value={institutionDomain} 
+                      onChange={(e) => {
+                        setInstitutionDomain(e.target.value);
+                        setActiveInstitutionId('custom');
+                        setActiveInstitutionName('Custom / Active Theme');
+                      }} 
+                      placeholder="osu.edu (Optional)"
+                      className="w-full h-11 rounded-xl bg-slate-950 border border-slate-800 text-sm px-4 text-white placeholder-slate-600 focus:outline-none focus:border-osu-orange" 
                     />
                   </div>
                 </div>
@@ -558,7 +582,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                           </div>
                           <div className="flex gap-2">
                             <button 
-                              onClick={() => loadInstitution(t.theme, t.name, t.id)} 
+                              onClick={() => loadInstitution(t.theme, t.name, t.id, t.domain)} 
                               className="px-3.5 py-1.5 bg-osu-orange hover:bg-[#c03900] text-[10px] font-black uppercase tracking-wider text-white rounded-lg transition-colors"
                             >
                               Load
