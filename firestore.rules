@@ -24,7 +24,15 @@ service cloud.firestore {
 
       match /attendance/{studentEmail} {
         // Students can write (create or update) their own check-in record; only the presenter can read the class roster (critical for FERPA)
-        allow create, update: if request.auth != null;
+        // If there is an active institution domain globally configured, enforce that student's email matches the domain.
+        allow create, update: if request.auth != null && (
+          !exists(/databases/$(database)/documents/settings/global) ||
+          !("activeInstitutionDomain" in get(/databases/$(database)/documents/settings/global).data) ||
+          get(/databases/$(database)/documents/settings/global).data.activeInstitutionDomain == "" ||
+          get(/databases/$(database)/documents/settings/global).data.activeInstitutionDomain == null ||
+          studentEmail.toLowerCase().endsWith("@" + get(/databases/$(database)/documents/settings/global).data.activeInstitutionDomain.toLowerCase()) ||
+          studentEmail.toLowerCase().endsWith("." + get(/databases/$(database)/documents/settings/global).data.activeInstitutionDomain.toLowerCase())
+        );
         allow read, delete: if isPresenter(presentationId);
       }
     }
