@@ -124,8 +124,26 @@ function AppContent() {
         }
       };
 
+      // Determine if we should load the presentation ID from the URL or if it's a stale autocomplete
+      let shouldLoadUrlId = false;
       if (presentationId) {
-        console.log('AppContent - Loading existing presentation:', presentationId);
+        if (isChatOnly) {
+          // Audience members/students must ALWAYS load the exact ID in the URL to join the correct session
+          shouldLoadUrlId = true;
+        } else if (user) {
+          // Presenter: only load the URL ID if it matches our active tab session in sessionStorage.
+          // This prevents browser autocomplete from loading a previous session when opening a new tab.
+          const cachedId = sessionStorage.getItem('activePresenterPresentationId');
+          if (cachedId === presentationId) {
+            shouldLoadUrlId = true;
+          } else {
+            console.log('AppContent - Presenter loaded URL with ID but sessionStorage is empty or has a different ID. Treating URL ID as stale/autocomplete.', { presentationId, cachedId });
+          }
+        }
+      }
+
+      if (shouldLoadUrlId && presentationId) {
+        console.log('AppContent - Loading existing presentation from URL ID:', presentationId);
         // Sync to cache
         sessionStorage.setItem('activePresenterPresentationId', presentationId);
         
