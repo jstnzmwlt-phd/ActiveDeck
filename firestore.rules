@@ -30,8 +30,8 @@ service cloud.firestore {
           !("activeInstitutionDomain" in get(/databases/$(database)/documents/settings/global).data) ||
           get(/databases/$(database)/documents/settings/global).data.activeInstitutionDomain == "" ||
           get(/databases/$(database)/documents/settings/global).data.activeInstitutionDomain == null ||
-          studentEmail.toLowerCase().endsWith("@" + get(/databases/$(database)/documents/settings/global).data.activeInstitutionDomain.toLowerCase()) ||
-          studentEmail.toLowerCase().endsWith("." + get(/databases/$(database)/documents/settings/global).data.activeInstitutionDomain.toLowerCase())
+          studentEmail.matches(".*@" + get(/databases/$(database)/documents/settings/global).data.activeInstitutionDomain + "$") ||
+          studentEmail.matches(".*\\." + get(/databases/$(database)/documents/settings/global).data.activeInstitutionDomain + "$")
         );
         allow read, delete: if isPresenter(presentationId);
       }
