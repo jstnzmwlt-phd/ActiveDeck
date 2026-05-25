@@ -98,7 +98,7 @@ function AppContent() {
           });
           
           console.log('AppContent - New presentation created:', docRef.id);
-          localStorage.setItem('activePresenterPresentationId', docRef.id);
+          sessionStorage.setItem('activePresenterPresentationId', docRef.id);
           
           // Update URL with the new ID without reloading the page
           const newUrl = new URL(window.location.href);
@@ -127,7 +127,7 @@ function AppContent() {
       if (presentationId) {
         console.log('AppContent - Loading existing presentation:', presentationId);
         // Sync to cache
-        localStorage.setItem('activePresenterPresentationId', presentationId);
+        sessionStorage.setItem('activePresenterPresentationId', presentationId);
         
         // Listen to specific presentation
         const docRef = doc(db, 'presentations', presentationId);
@@ -145,9 +145,9 @@ function AppContent() {
           setPresentationLoaded(true);
         });
       } else if (!isChatOnly && user) {
-        const cachedId = localStorage.getItem('activePresenterPresentationId');
+        const cachedId = sessionStorage.getItem('activePresenterPresentationId');
         if (cachedId) {
-          console.log('AppContent - Found cached presentation ID in localStorage:', cachedId);
+          console.log('AppContent - Found cached presentation ID in sessionStorage:', cachedId);
           const docRef = doc(db, 'presentations', cachedId);
           let isFirstCallback = true;
           unsubscribe = onSnapshot(docRef, (docSnap) => {
@@ -165,7 +165,7 @@ function AppContent() {
               }
             } else {
               console.warn('AppContent - Cached presentation does not exist in Firestore. Cleaning cache and creating a new one.');
-              localStorage.removeItem('activePresenterPresentationId');
+              sessionStorage.removeItem('activePresenterPresentationId');
               if (unsubscribe) {
                 unsubscribe();
               }
@@ -174,7 +174,7 @@ function AppContent() {
           }, (error) => {
             console.error("AppContent - Cached presentation snapshot error:", error);
             // If it's a permission or load error, clean up and fallback
-            localStorage.removeItem('activePresenterPresentationId');
+            sessionStorage.removeItem('activePresenterPresentationId');
             createNewPresentation();
           });
         } else {
