@@ -85,26 +85,8 @@ function AppContent() {
     let unsubscribe: () => void;
 
     const loadPresentation = async () => {
-      if (presentationId) {
-        console.log('AppContent - Loading existing presentation:', presentationId);
-        // Listen to specific presentation
-        const docRef = doc(db, 'presentations', presentationId);
-        unsubscribe = onSnapshot(docRef, (docSnap) => {
-          setPresentationLoaded(true);
-          if (docSnap.exists()) {
-            console.log('AppContent - Presentation data received:', docSnap.id);
-            setPresentation({ id: docSnap.id, ...docSnap.data() } as Presentation);
-          } else {
-            console.warn('AppContent - Presentation not found:', presentationId);
-            setPresentation(null);
-          }
-        }, (error) => {
-          console.error("AppContent - Presentation snapshot error:", error);
-          setPresentationLoaded(true);
-        });
-      } else if (!isChatOnly && user) {
+      const createNewPresentation = async () => {
         console.log('AppContent - Creating new presentation for user:', user.uid);
-        // Presenter creating a new session
         try {
           const docRef = await addDoc(collection(db, 'presentations'), {
             presenterId: user.uid,
@@ -116,6 +98,7 @@ function AppContent() {
           });
           
           console.log('AppContent - New presentation created:', docRef.id);
+          localStorage.setItem('activePresenterPresentationId', docRef.id);
           
           // Update URL with the new ID without reloading the page
           const newUrl = new URL(window.location.href);
@@ -137,6 +120,65 @@ function AppContent() {
           });
         } catch (error) {
           console.error("AppContent - Error creating presentation:", error);
+          setPresentationLoaded(true);
+        }
+      };
+
+      if (presentationId) {
+        console.log('AppContent - Loading existing presentation:', presentationId);
+        // Sync to cache
+        localStorage.setItem('activePresenterPresentationId', presentationId);
+        
+        // Listen to specific presentation
+        const docRef = doc(db, 'presentations', presentationId);
+        unsubscribe = onSnapshot(docRef, (docSnap) => {
+          setPresentationLoaded(true);
+          if (docSnap.exists()) {
+            console.log('AppContent - Presentation data received:', docSnap.id);
+            setPresentation({ id: docSnap.id, ...docSnap.data() } as Presentation);
+          } else {
+            console.warn('AppContent - Presentation not found:', presentationId);
+            setPresentation(null);
+          }
+        }, (error) => {
+          console.error("AppContent - Presentation snapshot error:", error);
+          setPresentationLoaded(true);
+        });
+      } else if (!isChatOnly && user) {
+        const cachedId = localStorage.getItem('activePresenterPresentationId');
+        if (cachedId) {
+          console.log('AppContent - Found cached presentation ID in localStorage:', cachedId);
+          const docRef = doc(db, 'presentations', cachedId);
+          let isFirstCallback = true;
+          unsubscribe = onSnapshot(docRef, (docSnap) => {
+            setPresentationLoaded(true);
+            if (docSnap.exists()) {
+              console.log('AppContent - Cached presentation exists in Firestore. Setting active:', docSnap.id);
+              setPresentation({ id: docSnap.id, ...docSnap.data() } as Presentation);
+              
+              if (isFirstCallback) {
+                // Update URL parameter without reloading
+                const newUrl = new URL(window.location.href);
+                newUrl.searchParams.set('id', docSnap.id);
+                window.history.replaceState({}, '', newUrl.toString());
+                isFirstCallback = false;
+              }
+            } else {
+              console.warn('AppContent - Cached presentation does not exist in Firestore. Cleaning cache and creating a new one.');
+              localStorage.removeItem('activePresenterPresentationId');
+              if (unsubscribe) {
+                unsubscribe();
+              }
+              createNewPresentation();
+            }
+          }, (error) => {
+            console.error("AppContent - Cached presentation snapshot error:", error);
+            // If it's a permission or load error, clean up and fallback
+            localStorage.removeItem('activePresenterPresentationId');
+            createNewPresentation();
+          });
+        } else {
+          createNewPresentation();
         }
       } else {
         console.log('AppContent - No presentation ID and not a presenter/chat-only');
