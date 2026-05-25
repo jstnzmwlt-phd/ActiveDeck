@@ -1447,8 +1447,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   }, [presentation?.id]);
 
   // Register participant when joined
+  // Register participant when joined (students only, not the presenter)
   useEffect(() => {
-    if (hasJoined && user && presentation?.id) {
+    if (hasJoined && user && presentation?.id && !canModerate) {
       const registerParticipant = async () => {
         try {
           const participantId = `${presentation.id}_${user.uid}`;
@@ -1463,7 +1464,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       };
       registerParticipant();
     }
-  }, [hasJoined, user, presentation?.id]);
+  }, [hasJoined, user, presentation?.id, canModerate]);
 
   useEffect(() => {
     if (scrollRef.current) {
