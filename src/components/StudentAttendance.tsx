@@ -240,6 +240,10 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
     if (!name.trim() || !email.trim()) return;
     if (isManualMode && !selectedIcon) return;
 
+    let activeInstitutionId = 'custom';
+    let activeInstitutionName = 'Custom / Active Theme';
+    let activeInstitutionDomain = '';
+
     setSubmitting(true);
     setErrorMsg(null);
 
@@ -275,9 +279,6 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
       const studentEmail = email.trim().toLowerCase();
 
       // Fetch active institution details from settings/global
-      let activeInstitutionId = 'custom';
-      let activeInstitutionName = 'Custom / Active Theme';
-      let activeInstitutionDomain = '';
       try {
         const globalRef = doc(db, 'settings', 'global');
         const globalSnap = await getDoc(globalRef);
