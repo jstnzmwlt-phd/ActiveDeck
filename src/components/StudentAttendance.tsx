@@ -301,9 +301,12 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
       // Check domain restriction if active
       if (activeInstitutionDomain && activeInstitutionDomain.trim() !== '') {
         const requiredDomain = activeInstitutionDomain.trim().toLowerCase();
+        alert(`DEBUG - Validation Triggered:\nStudent Email: ${studentEmail}\nRequired Domain: ${requiredDomain}`);
         if (!studentEmail.endsWith(`@${requiredDomain}`) && !studentEmail.endsWith(`.${requiredDomain}`)) {
           throw new Error("INVALID_EMAIL_DOMAIN");
         }
+      } else {
+        alert(`DEBUG - Validation Triggered:\nNo active domain restriction found! (Domain value loaded: "${activeInstitutionDomain}")`);
       }
 
       // Write check-in directly to Firestore subcollection using the email as document ID
