@@ -2534,13 +2534,13 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
             
             {/* Rotating Dynamic Icon Badge */}
             {!presentation?.disableAttendance && (
-              <div className="flex flex-col items-center shrink-0 bg-slate-950 px-3 py-2.5 rounded-xl border border-slate-800 shadow-inner">
+              <div className="flex flex-col items-center shrink-0 bg-slate-950 px-2.5 py-1.5 rounded-xl border border-slate-800 shadow-inner">
                 <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">SCREEN ICON</span>
-                <div className="w-16 h-16 flex items-center justify-center mt-2.5 bg-slate-900/50 rounded-xl border border-slate-800/40">
+                <div className="w-12 h-12 flex items-center justify-center mt-1.5 bg-slate-900/50 rounded-lg border border-slate-800/30">
                   {presentation?.currentIcon ? (
-                    <MedicalIcon name={presentation.currentIcon} className="w-11 h-11 text-osu-orange" />
+                    <MedicalIcon name={presentation.currentIcon} className="w-8 h-8 text-osu-orange" />
                   ) : (
-                    <span className="text-slate-600 text-sm font-bold">---</span>
+                    <span className="text-slate-600 text-xs font-bold">---</span>
                   )}
                 </div>
               </div>
