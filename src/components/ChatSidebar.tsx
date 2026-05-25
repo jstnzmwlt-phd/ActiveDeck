@@ -1265,18 +1265,40 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         try {
           let activeInstitutionId = 'custom';
           let activeInstitutionName = 'Custom / Active Theme';
+          let activeInstitutionDomain = '';
           try {
             const globalSnap = await getDoc(doc(db, 'settings', 'global'));
             if (globalSnap.exists()) {
               const gd = globalSnap.data();
               if (gd.activeInstitutionId) activeInstitutionId = gd.activeInstitutionId;
               if (gd.activeInstitutionName) activeInstitutionName = gd.activeInstitutionName;
+              if (gd.activeInstitutionDomain) activeInstitutionDomain = gd.activeInstitutionDomain;
             }
           } catch (err) {
             console.error(err);
           }
 
           const studentEmail = guestEmail.trim().toLowerCase();
+
+          // Strict domain restriction check
+          if (activeInstitutionDomain && activeInstitutionDomain.trim() !== '') {
+            const requiredDomain = activeInstitutionDomain.trim().toLowerCase();
+            if (!studentEmail.endsWith(`@${requiredDomain}`) && !studentEmail.endsWith(`.${requiredDomain}`)) {
+              console.warn(`Blocking background auto-check-in: email ${studentEmail} does not match required domain ${requiredDomain}`);
+              setAttendanceStatus('error');
+              // Clear invalid session guest info so they are forced to re-join with a proper email
+              setHasJoined(false);
+              setGuestEmail('');
+              setGuestName('');
+              localStorage.removeItem('activeDeckJoined');
+              localStorage.removeItem('activeDeckGuestEmail');
+              localStorage.removeItem('activeDeckGuestName');
+              localStorage.removeItem('activeDeckJoinedPresentationId');
+              alert(`Access Denied: This session is restricted to verified email addresses ending with @${requiredDomain}.`);
+              return;
+            }
+          }
+
           const attendanceRef = doc(db, 'presentations', presentation.id, 'attendance', studentEmail);
           await setDoc(attendanceRef, {
             name: guestName.trim(),
@@ -1648,16 +1670,53 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     const emailToSave = joinEmailInput.trim().toLowerCase();
     const nameToSave = joinNameInput.trim();
 
+    setIsValidatingToken(true);
+
+    // Fetch active institution details from settings/global first
+    let activeInstitutionId = 'custom';
+    let activeInstitutionName = 'Custom / Active Theme';
+    let activeInstitutionDomain = '';
+    try {
+      const globalSnap = await getDoc(doc(db, 'settings', 'global'));
+      if (globalSnap.exists()) {
+        const globalData = globalSnap.data();
+        if (globalData.activeInstitutionId) {
+          activeInstitutionId = globalData.activeInstitutionId;
+        }
+        if (globalData.activeInstitutionName) {
+          activeInstitutionName = globalData.activeInstitutionName;
+        }
+        if (globalData.activeInstitutionDomain) {
+          activeInstitutionDomain = globalData.activeInstitutionDomain;
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching global settings for institution info:', err);
+    }
+
+    // Strict domain restriction check right at entry
+    if (activeInstitutionDomain && activeInstitutionDomain.trim() !== '') {
+      const requiredDomain = activeInstitutionDomain.trim().toLowerCase();
+      if (!emailToSave.endsWith(`@${requiredDomain}`) && !emailToSave.endsWith(`.${requiredDomain}`)) {
+        setJoinError(`Access Denied: This session is restricted to verified email addresses ending with @${requiredDomain}.`);
+        setIsValidatingToken(false);
+        return;
+      }
+    }
+
     // If manual attendance check is required
     const isAttendanceJoin = !presentation?.disableAttendance;
     if (isAttendanceJoin && !urlToken) {
-      if (!presentation?.id) return;
+      if (!presentation?.id) {
+        setIsValidatingToken(false);
+        return;
+      }
       if (!selectedIcon) {
         setJoinError("Please select a Screen Icon.");
+        setIsValidatingToken(false);
         return;
       }
 
-      setIsValidatingToken(true);
       try {
         // Fetch presentation doc and validate screen icon
         const presRef = doc(db, 'presentations', presentation.id);
@@ -1675,24 +1734,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           setJoinError("Incorrect icon selected. Please look at the presenter's screen and choose the matching medical icon.");
           setIsValidatingToken(false);
           return;
-        }
-
-        // Fetch active institution details from settings/global
-        let activeInstitutionId = 'custom';
-        let activeInstitutionName = 'Custom / Active Theme';
-        try {
-          const globalSnap = await getDoc(doc(db, 'settings', 'global'));
-          if (globalSnap.exists()) {
-            const globalData = globalSnap.data();
-            if (globalData.activeInstitutionId) {
-              activeInstitutionId = globalData.activeInstitutionId;
-            }
-            if (globalData.activeInstitutionName) {
-              activeInstitutionName = globalData.activeInstitutionName;
-            }
-          }
-        } catch (err) {
-          console.error('Error fetching global settings for institution info:', err);
         }
 
         // Write check-in directly to Firestore subcollection using the email as document ID
@@ -1758,23 +1799,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           return;
         }
 
-        let activeInstitutionId = 'custom';
-        let activeInstitutionName = 'Custom / Active Theme';
-        try {
-          const globalSnap = await getDoc(doc(db, 'settings', 'global'));
-          if (globalSnap.exists()) {
-            const globalData = globalSnap.data();
-            if (globalData.activeInstitutionId) {
-              activeInstitutionId = globalData.activeInstitutionId;
-            }
-            if (globalData.activeInstitutionName) {
-              activeInstitutionName = globalData.activeInstitutionName;
-            }
-          }
-        } catch (err) {
-          console.error('Error fetching global settings for institution info:', err);
-        }
-
         const attendanceRef = doc(db, 'presentations', presentation.id, 'attendance', emailToSave);
         await setDoc(attendanceRef, {
           name: nameToSave,
@@ -1797,6 +1821,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       } finally {
         setIsValidatingToken(false);
       }
+    } else {
+      // If we don't have QR validation to run, stop the validating spinner
+      setIsValidatingToken(false);
     }
   };
 
