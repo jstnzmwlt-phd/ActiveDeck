@@ -16,6 +16,8 @@ interface StudentAttendanceRecord {
   scannedToken: string;
   institutionId?: string;
   institutionName?: string;
+  authMethod?: string;
+  slide?: number | null;
 }
 
 interface RecentPresentationRecord {
@@ -156,7 +158,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
         checkedInAt: doc.data().checkedInAt || null,
         scannedToken: doc.data().scannedToken || '',
         institutionId: doc.data().institutionId || 'custom',
-        institutionName: doc.data().institutionName || 'Custom / Active Theme'
+        institutionName: doc.data().institutionName || 'Custom / Active Theme',
+        authMethod: doc.data().authMethod || (doc.data().scannedToken ? 'QR' : 'URL'),
+        slide: doc.data().slide !== undefined ? doc.data().slide : null
       })) as StudentAttendanceRecord[];
       setAttendanceList(list);
       setLoadingAttendance(false);
@@ -342,17 +346,20 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
   const handleDownloadCSV = () => {
     if (filteredAttendance.length === 0 || !selectedSessionId) return;
 
-    const headers = ["Student Name", "Email Address", "Check-In Timestamp", "Institution Name", "Scanned Token ID"];
+    const headers = ["Student Name", "Email Address", "Check-In Timestamp", "Join Method", "PPT Slide", "Institution Name", "Scanned Token ID"];
     const rows = filteredAttendance.map(record => {
       const timestampString = record.checkedInAt 
         ? new Date(record.checkedInAt.seconds * 1000).toLocaleString() 
         : 'Pending Server Timestamp...';
+      const slideString = record.slide !== null && record.slide !== undefined ? `Slide ${record.slide}` : '—';
       return [
         `"${record.name.replace(/"/g, '""')}"`,
         `"${record.email.replace(/"/g, '""')}"`,
         `"${timestampString}"`,
+        `"${record.authMethod || 'QR'}"`,
+        `"${slideString}"`,
         `"${(record.institutionName || 'Custom / Active Theme').replace(/"/g, '""')}"`,
-        `"${record.scannedToken}"`
+        `"${record.scannedToken || ''}"`
       ];
     });
 
@@ -801,6 +808,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                                 <th className="py-3 px-4">Student Name</th>
                                 <th className="py-3 px-4">Email Address</th>
                                 <th className="py-3 px-4">Checked-In Timestamp</th>
+                                <th className="py-3 px-4 text-center">Join Method</th>
+                                <th className="py-3 px-4 text-center">Slide</th>
                                 <th className="py-3 px-4">Institution</th>
                                 <th className="py-3 px-4 text-right">Verification Status</th>
                               </tr>
@@ -808,14 +817,14 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                             <tbody>
                               {loadingAttendance ? (
                                 <tr>
-                                  <td colSpan={5} className="py-16 text-center">
+                                  <td colSpan={7} className="py-16 text-center">
                                     <Loader2 className="w-8 h-8 text-osu-orange animate-spin mx-auto mb-2" />
                                     <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500">Retrieving check-ins...</span>
                                   </td>
                                 </tr>
                               ) : filteredAttendance.length === 0 ? (
                                 <tr>
-                                  <td colSpan={5} className="py-16 text-center text-slate-500 text-xs italic">
+                                  <td colSpan={7} className="py-16 text-center text-slate-500 text-xs italic">
                                     {attendanceList.length === 0
                                       ? (selectedSessionId === presentationId 
                                           ? 'No students have scanned in yet. Ask your class to scan the QR code to check in.' 
@@ -832,6 +841,18 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                                       {record.checkedInAt 
                                         ? new Date(record.checkedInAt.seconds * 1000).toLocaleString() 
                                         : 'Registering on server...'}
+                                    </td>
+                                    <td className="py-3.5 px-4 text-center">
+                                      <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wide px-2.5 py-0.5 rounded border ${
+                                        record.authMethod === 'QR' 
+                                          ? 'text-orange-400 bg-orange-500/10 border-orange-500/20' 
+                                          : 'text-sky-400 bg-sky-500/10 border-sky-500/20'
+                                      }`}>
+                                        {record.authMethod || 'QR'}
+                                      </span>
+                                    </td>
+                                    <td className="py-3.5 px-4 text-center text-slate-300 font-mono font-bold text-xs">
+                                      {record.slide !== null && record.slide !== undefined ? `Slide ${record.slide}` : '—'}
                                     </td>
                                     <td className="py-3.5 px-4 text-slate-300 font-medium">
                                       {record.institutionName || 'Custom / Active Theme'}

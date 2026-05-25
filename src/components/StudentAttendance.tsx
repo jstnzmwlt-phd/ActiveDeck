@@ -115,29 +115,39 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
     validateToken();
   }, [presentationId, token]);
 
-  // Phase 1b: If in manual mode, subscribe reactively to presentation session so we get rotating icons
+  // Phase 1b: Subscribe reactively to presentation session so we get slide/session details
   useEffect(() => {
-    if (token || !presentationId) return;
+    if (!presentationId) return;
 
-    setLoading(true);
+    if (!token) {
+      setLoading(true);
+    }
     const presRef = doc(db, 'presentations', presentationId);
     
     const unsub = onSnapshot(presRef, (presSnap) => {
-      setLoading(false);
+      if (!token) {
+        setLoading(false);
+      }
       if (!presSnap.exists()) {
-        setIsValid(false);
-        setErrorMsg("Presentation session not found. Please verify the URL.");
+        if (!token) {
+          setIsValid(false);
+          setErrorMsg("Presentation session not found. Please verify the URL.");
+        }
         setPresentation(null);
       } else {
-        setIsValid(true);
+        if (!token) {
+          setIsValid(true);
+        }
         const data = presSnap.data();
         setPresentation(data);
       }
     }, (err) => {
       console.error('Error listening to presentation details:', err);
-      setLoading(false);
-      setIsValid(false);
-      setErrorMsg("Failed to connect to the session. Please check your internet connection.");
+      if (!token) {
+        setLoading(false);
+        setIsValid(false);
+        setErrorMsg("Failed to connect to the session. Please check your internet connection.");
+      }
     });
 
     return () => unsub();
@@ -293,6 +303,7 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
         institutionId: activeInstitutionId,
         institutionName: activeInstitutionName,
         authMethod: isManualMode ? 'URL' : 'QR',
+        slide: presentation?.currentSlide !== undefined ? presentation.currentSlide : 0,
         ipAddress: ipAddress
       });
 

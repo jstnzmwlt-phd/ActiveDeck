@@ -1704,6 +1704,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           institutionId: activeInstitutionId,
           institutionName: activeInstitutionName,
           authMethod: 'URL',
+          slide: presentation?.currentSlide !== undefined ? presentation.currentSlide : 0,
           ipAddress: ipAddress
         });
 
@@ -1782,6 +1783,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           institutionId: activeInstitutionId,
           institutionName: activeInstitutionName,
           authMethod: 'QR',
+          slide: presentation?.currentSlide !== undefined ? presentation.currentSlide : 0,
           ipAddress: ipAddress
         });
 
