@@ -1600,14 +1600,14 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       }
     }
     
-    setIconTimeLeft(Math.max(1, Math.ceil(initialRemaining)));
+    setIconTimeLeft(Math.max(0.1, initialRemaining));
     const startTime = Date.now() - (10 - initialRemaining) * 1000;
 
     const interval = setInterval(() => {
       const elapsed = (Date.now() - startTime) / 1000;
-      const remaining = Math.max(0, Math.ceil(10 - elapsed));
+      const remaining = Math.max(0, 10 - elapsed);
       setIconTimeLeft(remaining);
-    }, 100);
+    }, 40);
 
     return () => clearInterval(interval);
   }, [isChatOnly, presentation?.currentIcon, presentation?.iconRotatedAt, presentation?.disableAttendance, urlToken]);
@@ -2360,7 +2360,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                           : "bg-osu-orange/10 text-osu-orange border-osu-orange/20"
                       )}>
                         <Timer className="w-3.5 h-3.5" />
-                        <span>Icon: {iconTimeLeft}s</span>
+                        <span>Icon: {Math.ceil(iconTimeLeft)}s</span>
                       </div>
                     )}
                   </div>
@@ -2961,7 +2961,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 {!urlToken && !presentation?.disableAttendance && iconTimeLeft !== null && (
                   <div className="mt-2 py-1 px-3 bg-orange-50 border border-orange-100 rounded-lg inline-flex items-center gap-1.5 text-xs font-bold text-osu-orange animate-pulse">
                     <Timer className="w-3.5 h-3.5" />
-                    <span>Screen Icon rotates in: {iconTimeLeft}s</span>
+                    <span>Screen Icon rotates in: {Math.ceil(iconTimeLeft)}s</span>
                   </div>
                 )}
               </div>
@@ -2984,7 +2984,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                         "text-[9px] font-black tracking-wider",
                         iconTimeLeft <= 3 ? "text-red-500 animate-pulse" : "text-osu-orange"
                       )}>
-                        Rotates in {iconTimeLeft}s
+                        Rotates in {Math.ceil(iconTimeLeft)}s
                       </span>
                     )}
                   </div>

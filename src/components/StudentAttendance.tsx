@@ -211,15 +211,15 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
       }
     }
 
-    setTimeLeft(Math.max(1, Math.ceil(initialRemaining)));
+    setTimeLeft(Math.max(0.1, initialRemaining));
     const startTime = Date.now() - (10 - initialRemaining) * 1000;
 
     const interval = setInterval(() => {
       const elapsed = (Date.now() - startTime) / 1000;
-      const remaining = Math.max(0, Math.ceil(10 - elapsed));
+      const remaining = Math.max(0, 10 - elapsed);
 
       setTimeLeft(remaining);
-    }, 100);
+    }, 40);
 
     return () => clearInterval(interval);
   }, [isManualMode, isValid, presentation?.currentIcon, presentation?.iconRotatedAt]);
@@ -482,7 +482,7 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
                         : "bg-osu-orange/10 text-osu-orange border-osu-orange/20"
                     )}>
                       <Timer className="w-3.5 h-3.5" />
-                      <span>Icon: {timeLeft}s</span>
+                      <span>Icon: {Math.ceil(timeLeft)}s</span>
                     </div>
                   )}
                 </div>
