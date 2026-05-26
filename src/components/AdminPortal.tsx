@@ -199,6 +199,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
           activeInstitutionDomain: domainVal
         }, { merge: true });
         alert('Active Institution applied successfully! A new presentation session will now start.');
+        sessionStorage.removeItem('activePresenterPresentationId');
         window.location.href = window.location.origin + window.location.pathname + '#admin';
       }
     } catch (e) {

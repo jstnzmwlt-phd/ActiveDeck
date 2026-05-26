@@ -72,7 +72,7 @@ export const Header: React.FC<HeaderProps> = ({ presentationId }) => {
   const handleNewSession = () => {
     const confirmNew = window.confirm("Are you sure you want to start a new session? This will redirect to a new URL, clear the chat, and reset the attendance list.");
     if (confirmNew) {
-      window.location.origin;
+      sessionStorage.removeItem('activePresenterPresentationId');
       window.location.href = window.location.origin + window.location.pathname;
     }
   };
