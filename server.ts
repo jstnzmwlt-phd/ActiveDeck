@@ -56,25 +56,11 @@ async function startServer() {
       const response = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(url as string)}`);
       if (response.ok) {
         const text = await response.text();
-        // Validate and sanitize fetched response text to prevent XSS
-        try {
-          const parsedUrl = new URL(text);
-          if (parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:') {
-            const escapedText = text.replace(/[&<>"']/g, (m) => {
-              switch (m) {
-                case '&': return '&amp;';
-                case '<': return '&lt;';
-                case '>': return '&gt;';
-                case '"': return '&quot;';
-                case "'": return '&#039;';
-                default: return m;
-              }
-            });
-            res.send(escapedText);
-          } else {
-            res.status(400).send('Invalid response from URL shortener');
-          }
-        } catch (e) {
+        // Validate that the output strictly matches a secure TinyURL format and enforce plain text content type
+        const match = text.match(/^https:\/\/tinyurl\.com\/[a-zA-Z0-9\-]+$/);
+        if (match) {
+          res.type('text/plain').send(match[0]);
+        } else {
           res.status(400).send('Invalid response from URL shortener');
         }
       } else {

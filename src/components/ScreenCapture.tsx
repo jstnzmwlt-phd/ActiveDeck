@@ -10,16 +10,6 @@ interface ScreenCaptureProps {
   logoUrl?: string;
 }
 
-const isSafeUrl = (urlStr: string): boolean => {
-  try {
-    const parsed = new URL(urlStr);
-    return (parsed.protocol === 'http:' || parsed.protocol === 'https:') && 
-           parsed.hostname === window.location.hostname;
-  } catch {
-    return false;
-  }
-};
-
 export const ScreenCapture: React.FC<ScreenCaptureProps> = ({ 
   isCapturing, 
   stream, 
@@ -99,43 +89,17 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
                 <div className="flex flex-col gap-4 mt-4">
                   <button 
                     onClick={() => {
+                      const params = new URLSearchParams(window.location.search);
+                      const id = params.get('id');
+                      const cleanId = id ? id.replace(/[^a-zA-Z0-9\-_]/g, '') : '';
+                      const safeUrl = cleanId ? `/?id=${cleanId}` : '/';
+                      
                       try {
-                        // Create a clean URL from the current location
-                        const currentUrl = new URL(window.location.href);
-                        
-                        // Force standard HTTPS and remove any dev ports (like 24678 for HMR)
-                        const cleanUrl = new URL('https://' + currentUrl.hostname);
-                        cleanUrl.pathname = '/';
-                        
-                        // If we have a presentation ID in the current URL, preserve it
-                        const params = new URLSearchParams(window.location.search);
-                        const id = params.get('id');
-                        if (id) {
-                          cleanUrl.searchParams.set('id', id);
-                        }
-                        
-                        const finalUrl = cleanUrl.toString();
-                        console.log("ActiveDeck: Opening direct app link:", finalUrl);
-                        if (isSafeUrl(finalUrl)) {
-                          window.open(finalUrl, '_blank');
-                        } else {
-                          console.error("ActiveDeck: Blocked potentially unsafe redirect URL:", finalUrl);
-                          window.open('/', '_blank');
-                        }
+                        console.log("ActiveDeck: Opening direct app link:", safeUrl);
+                        window.open(safeUrl, '_blank');
                       } catch (e) {
-                        // Ultimate fallback: just try to fix the origin
-                        const fallbackUrl = window.location.origin
-                          .replace('wss://', 'https://')
-                          .replace('ws://', 'http://')
-                          .split(':')[0] + ':' + window.location.origin.split(':')[1]; // Keep hostname, drop port if it was HMR
-                        
-                        console.log("ActiveDeck: Opening fallback app link:", fallbackUrl);
-                        if (isSafeUrl(fallbackUrl)) {
-                          window.open(fallbackUrl, '_blank');
-                        } else {
-                          console.error("ActiveDeck: Blocked potentially unsafe redirect URL:", fallbackUrl);
-                          window.open('/', '_blank');
-                        }
+                        console.log("ActiveDeck: Opening fallback app link:", safeUrl);
+                        window.open(safeUrl, '_blank');
                       }
                     }}
                     className="px-6 py-3 bg-white text-slate-900 font-black uppercase tracking-widest rounded-xl hover:bg-slate-100 transition-all active:scale-95 shadow-xl"
