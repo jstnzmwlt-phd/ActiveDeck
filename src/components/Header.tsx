@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Monitor, Clock, Maximize, Minimize, Link2, Link2Off, Sun, Moon, Loader2, AlertCircle, Eye, EyeOff, Download, ShieldAlert, Mail, FileText, X } from 'lucide-react';
+import { Monitor, Clock, Maximize, Minimize, Link2, Link2Off, Sun, Moon, Loader2, AlertCircle, Eye, EyeOff, Download, ShieldAlert, X } from 'lucide-react';
 import { useBridge } from '../contexts/BridgeContext';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
-import { useAuth } from './AuthProvider';
 
 interface HeaderProps {
   presentationId?: string | null;
@@ -19,16 +18,6 @@ export const Header: React.FC<HeaderProps> = ({ presentationId }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isDownloading, setIsDownloading] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-  const [isEmailing, setIsEmailing] = useState(false);
-  const [presenterEmail, setPresenterEmail] = useState('');
-  const { user } = useAuth();
-
-  // Prefill email when user state loads or modal opens
-  useEffect(() => {
-    if (user?.email) {
-      setPresenterEmail(user.email);
-    }
-  }, [user]);
 
   const fetchAttendanceRecords = async () => {
     if (!presentationId) return null;
@@ -92,60 +81,7 @@ export const Header: React.FC<HeaderProps> = ({ presentationId }) => {
     }
   };
 
-  const handleEmailAttendance = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!presenterEmail.trim()) {
-      alert("Please enter a valid email address.");
-      return;
-    }
-    setIsEmailing(true);
-    try {
-      const csvText = await fetchAttendanceRecords();
-      if (!csvText) return;
 
-      const now = new Date();
-      const dateString = now.toLocaleDateString();
-      const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const subject = `Attendance for ${dateString}, ${timeString}`;
-      const fileName = `activedeck_attendance_session_${presentationId!.substring(0, 8)}.csv`;
-
-      // 1. Download the CSV file automatically so it is waiting in their Downloads folder
-      const csvContent = "data:text/csv;charset=utf-8," + encodeURIComponent(csvText);
-      const link = document.createElement("a");
-      link.setAttribute("href", csvContent);
-      link.setAttribute("download", fileName);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      // 2. Draft the email and launch Outlook / default mail client via mailto
-      const body = `Hi,
-
-Please find attached the student attendance CSV file for session ${presentationId!.substring(0, 8)}.
-
-Instructions:
-1. Click the 'Attach File' (paperclip) icon in Outlook.
-2. Select the downloaded file "${fileName}" from your Downloads folder.
-3. Send this email!`;
-
-      const mailtoUrl = `mailto:${encodeURIComponent(presenterEmail.trim())}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-      
-      // Directly assign window.location.href to invoke Outlook
-      window.location.href = mailtoUrl;
-      
-      alert(`Email draft created and CSV file downloaded successfully!\n\nPlease click Attach in Outlook and select "${fileName}" from your Downloads folder.`);
-      setIsExportModalOpen(false);
-    } catch (err: any) {
-      if (err.message === "NO_RECORDS") {
-        alert("No students have checked in yet for this session.");
-      } else {
-        console.error("Error emailing attendance CSV:", err);
-        alert("Failed to email attendance: " + (err?.message || err));
-      }
-    } finally {
-      setIsEmailing(false);
-    }
-  };
 
   const handleNewSession = () => {
     const confirmNew = window.confirm("Are you sure you want to start a new session? This will redirect to a new URL, clear the chat, and reset the attendance list.");
@@ -484,7 +420,7 @@ Instructions:
           onClick={() => setIsExportModalOpen(false)}
         >
           <div 
-            className="bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-6 max-w-md w-full text-slate-100 animate-in zoom-in-95 duration-200"
+            className="bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-6 max-w-sm w-full text-slate-100 animate-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-start mb-4">
@@ -504,79 +440,29 @@ Instructions:
               <strong>Warning:</strong> Displaying student names, emails, or check-in records on a screen visible to others (such as a projector or screen share) violates FERPA privacy protections. Please pause or turn off your screen sharing before viewing or exporting attendance.
             </div>
 
-            <div className="space-y-6">
-              {/* Option 1: Direct CSV Download */}
-              <div className="bg-slate-800/50 border border-slate-800 p-4 rounded-xl flex items-center justify-between gap-4">
-                <div className="flex-1">
-                  <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
-                    <FileText className="w-4 h-4 text-osu-orange" />
-                    Download CSV file
-                  </h4>
-                  <p className="text-[11px] text-slate-400 mt-1 leading-normal">
-                    Download the attendance spreadsheet directly to your device.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleDownloadAttendance}
-                  disabled={isDownloading || isEmailing}
-                  className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-700 hover:bg-slate-650 disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white text-xs font-black uppercase tracking-wider rounded-lg transition-colors cursor-pointer"
-                >
-                  {isDownloading ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Download className="w-3.5 h-3.5 text-osu-orange" />
-                  )}
-                  <span>Download</span>
-                </button>
-              </div>
-
-              {/* Option 2: Email CSV */}
-              <form onSubmit={handleEmailAttendance} className="bg-slate-800/50 border border-slate-800 p-4 rounded-xl space-y-4">
-                <div>
-                  <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
-                    <Mail className="w-4 h-4 text-osu-orange" />
-                    Email Attendance
-                  </h4>
-                  <p className="text-[11px] text-slate-400 mt-1 leading-normal">
-                    Send the attendance data directly to your inbox.
-                  </p>
-                </div>
-                
-                <div className="space-y-2">
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Presenter Email Address</label>
-                  <input
-                    type="email"
-                    required
-                    value={presenterEmail}
-                    onChange={(e) => setPresenterEmail(e.target.value)}
-                    placeholder="presenter@osu.edu"
-                    className="w-full h-9 bg-slate-950 border border-slate-800 rounded px-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-osu-orange"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isDownloading || isEmailing || !presenterEmail.trim()}
-                  className="w-full h-9 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-850 disabled:text-slate-600 disabled:cursor-not-allowed text-white text-xs font-black uppercase tracking-widest rounded transition-colors flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  {isEmailing ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Mail className="w-4 h-4" />
-                  )}
-                  <span>Email Attendance</span>
-                </button>
-              </form>
+            <div className="space-y-4">
+              <button
+                type="button"
+                onClick={handleDownloadAttendance}
+                disabled={isDownloading}
+                className="w-full h-11 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-650 disabled:cursor-not-allowed text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all active:scale-[0.98] shadow-lg shadow-orange-500/10 flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {isDownloading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4" />
+                )}
+                <span>Download Attendance CSV</span>
+              </button>
             </div>
             
             <div className="flex justify-end mt-6 pt-3 border-t border-slate-800">
               <button
                 type="button"
                 onClick={() => setIsExportModalOpen(false)}
-                className="px-4 py-2 text-xs font-medium text-slate-400 hover:bg-slate-800 hover:text-white rounded transition-colors"
+                className="px-4 py-2 text-xs font-medium text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg transition-colors"
               >
-                Close
+                Cancel
               </button>
             </div>
           </div>
