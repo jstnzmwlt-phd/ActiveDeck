@@ -239,6 +239,17 @@ export const Header: React.FC<HeaderProps> = ({ presentationId }) => {
             {isBridgeConnected ? <Link2 className="w-3 h-3" /> : <Link2Off className="w-3 h-3" />}
             {isBridgeConnected ? 'Bridge Online' : 'Bridge Offline'}
           </button>
+
+          {presentationId && (
+            <button
+              onClick={handleNewSession}
+              className="flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-800 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 cursor-pointer"
+              title="Start a new presentation session (Resets chat & attendance)"
+            >
+              <Monitor className="w-3.5 h-3.5 text-osu-orange" />
+              <span>New Session</span>
+            </button>
+          )}
         </div>
 
         {/* Centered ActiveDeck Logo */}
@@ -256,30 +267,19 @@ export const Header: React.FC<HeaderProps> = ({ presentationId }) => {
 
         <div className="flex items-center gap-4 z-10">
           {presentationId && (
-            <div className="flex gap-2">
-              <button
-                onClick={handleDownloadAttendance}
-                disabled={isDownloading}
-                className="flex items-center gap-2 px-3 py-1.5 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-orange-500/10 active:scale-95 cursor-pointer"
-                title="Download Student Attendance CSV"
-              >
-                {isDownloading ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Download className="w-3.5 h-3.5" />
-                )}
-                <span>Download Attendance</span>
-              </button>
-              
-              <button
-                onClick={handleNewSession}
-                className="flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-800 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 cursor-pointer"
-                title="Start a new presentation session (Resets chat & attendance)"
-              >
-                <Monitor className="w-3.5 h-3.5 text-osu-orange" />
-                <span>New Session</span>
-              </button>
-            </div>
+            <button
+              onClick={handleDownloadAttendance}
+              disabled={isDownloading}
+              className="flex items-center gap-2 px-3 py-1.5 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-orange-500/10 active:scale-95 cursor-pointer"
+              title="Download Student Attendance CSV"
+            >
+              {isDownloading ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Download className="w-3.5 h-3.5" />
+              )}
+              <span>Download Attendance</span>
+            </button>
           )}
 
           <div className="flex items-center gap-2 text-lg font-mono font-bold text-slate-800 bg-white px-3 py-1 rounded-lg border-2 border-osu-orange shadow-sm">
