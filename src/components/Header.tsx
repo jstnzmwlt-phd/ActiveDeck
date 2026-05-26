@@ -107,8 +107,29 @@ export const Header: React.FC<HeaderProps> = ({ presentationId }) => {
       const dateString = now.toLocaleDateString();
       const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       const subject = `Attendance for ${dateString}, ${timeString}`;
+      const fileName = `activedeck_attendance_session_${presentationId!.substring(0, 8)}.csv`;
 
-      // Gracefully attempt clipboard copy in background
+      // Try using modern Web Share API if supported for files (attaches the CSV file directly)
+      const csvFile = new File([csvText], fileName, { type: 'text/csv' });
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [csvFile] })) {
+        try {
+          await navigator.share({
+            files: [csvFile],
+            title: subject,
+            text: `Please find attached the student attendance CSV file for session ${presentationId!.substring(0, 8)}.`
+          });
+          setIsExportModalOpen(false);
+          return;
+        } catch (shareErr: any) {
+          if (shareErr.name === 'AbortError') {
+            console.log("Web Share cancelled by user.");
+            return;
+          }
+          console.warn("Web Share failed, falling back to mailto link:", shareErr);
+        }
+      }
+
+      // Fallback: Copy to clipboard and open mailto link
       try {
         await navigator.clipboard.writeText(csvText);
       } catch (clipErr) {
@@ -119,7 +140,9 @@ export const Header: React.FC<HeaderProps> = ({ presentationId }) => {
 
 Here is the student attendance CSV data for the presentation session ${presentationId!.substring(0, 8)}.
 
-Note: The attendance CSV content has also been automatically copied to your clipboard. You can paste (Ctrl+V) the clipboard contents directly below, or paste them into a text editor (like Notepad) and save as a .csv file.
+Note: Because browser security restricts directly attaching local files in client-side links, the attendance CSV content has also been automatically copied to your clipboard.
+
+You can paste (Ctrl+V) the clipboard contents directly below, or paste them into a text editor (like Notepad) and save as a .csv file.
 
 --------------------------------------------------
 ${csvText}
