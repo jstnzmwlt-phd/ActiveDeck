@@ -107,43 +107,29 @@ export const Header: React.FC<HeaderProps> = ({ presentationId }) => {
       const dateString = now.toLocaleDateString();
       const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       const subject = `Attendance for ${dateString}, ${timeString}`;
-      const fileName = `activedeck_attendance_session_${presentationId!.substring(0, 8)}.csv`;
 
-      // Try using modern Web Share API if supported for files
-      const csvFile = new File([csvText], fileName, { type: 'text/csv' });
-      if (navigator.share && navigator.canShare && navigator.canShare({ files: [csvFile] })) {
-        try {
-          await navigator.share({
-            files: [csvFile],
-            title: subject,
-            text: `Please find attached the attendance CSV file for session ${presentationId!.substring(0, 8)}.`
-          });
-          setIsExportModalOpen(false);
-          return;
-        } catch (shareErr) {
-          console.warn("Web Share failed, falling back to mailto link:", shareErr);
-        }
+      // Gracefully attempt clipboard copy in background
+      try {
+        await navigator.clipboard.writeText(csvText);
+      } catch (clipErr) {
+        console.warn("Clipboard copy failed:", clipErr);
       }
 
-      // Fallback: Copy to clipboard and open mailto link
-      await navigator.clipboard.writeText(csvText);
-      
       const body = `Hi,
 
 Here is the student attendance CSV data for the presentation session ${presentationId!.substring(0, 8)}.
 
-Note: Because browser security restricts directly attaching local files in client-side links, the attendance CSV content has been automatically copied to your clipboard. 
-
-You can paste (Ctrl+V) the clipboard contents directly below, or paste them into a text editor (like Notepad) and save as a .csv file.
+Note: The attendance CSV content has also been automatically copied to your clipboard. You can paste (Ctrl+V) the clipboard contents directly below, or paste them into a text editor (like Notepad) and save as a .csv file.
 
 --------------------------------------------------
 ${csvText}
 --------------------------------------------------`;
 
       const mailtoUrl = `mailto:${encodeURIComponent(presenterEmail.trim())}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-      window.open(mailtoUrl, '_blank');
       
-      alert("Email client opened! The attendance CSV data has also been copied to your clipboard. You can paste (Ctrl+V) the data directly into your email body if needed.");
+      // Directly assign window.location.href to invoke Outlook or default client
+      window.location.href = mailtoUrl;
+      
       setIsExportModalOpen(false);
     } catch (err: any) {
       if (err.message === "NO_RECORDS") {
