@@ -3,6 +3,8 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 
 dotenv.config();
 
@@ -13,7 +15,18 @@ async function startServer() {
   const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
+  // Use Helmet to secure HTTP headers (e.g. disabling X-Powered-By)
+  app.use(helmet({ contentSecurityPolicy: false }));
+
   app.use(express.json());
+
+  const fileLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // limit each IP to 100 requests per windowMs
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: "Too many requests from this IP, please try again after 15 minutes."
+  });
 
   // Serve a self-unregistering service worker to force client browser updates
   app.get(['/service-worker.js', '/service_worker.js'], (req, res) => {
@@ -43,7 +56,27 @@ async function startServer() {
       const response = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(url as string)}`);
       if (response.ok) {
         const text = await response.text();
-        res.send(text);
+        // Validate and sanitize fetched response text to prevent XSS
+        try {
+          const parsedUrl = new URL(text);
+          if (parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:') {
+            const escapedText = text.replace(/[&<>"']/g, (m) => {
+              switch (m) {
+                case '&': return '&amp;';
+                case '<': return '&lt;';
+                case '>': return '&gt;';
+                case '"': return '&quot;';
+                case "'": return '&#039;';
+                default: return m;
+              }
+            });
+            res.send(escapedText);
+          } else {
+            res.status(400).send('Invalid response from URL shortener');
+          }
+        } catch (e) {
+          res.status(400).send('Invalid response from URL shortener');
+        }
       } else {
         res.status(response.status).send('Failed to shorten URL');
       }
@@ -66,7 +99,7 @@ async function startServer() {
     app.use(express.static(distPath, { index: false }));
     
     // Catch-all route to serve dynamically hydrated index.html
-    app.get('/{*splat}', async (req, res) => {
+    app.get('/{*splat}', fileLimiter, async (req, res) => {
       try {
         const fs = await import('fs/promises');
         let html = await fs.readFile(path.join(distPath, 'index.html'), 'utf-8');
