@@ -109,50 +109,31 @@ export const Header: React.FC<HeaderProps> = ({ presentationId }) => {
       const subject = `Attendance for ${dateString}, ${timeString}`;
       const fileName = `activedeck_attendance_session_${presentationId!.substring(0, 8)}.csv`;
 
-      // Try using modern Web Share API if supported for files (attaches the CSV file directly)
-      const csvFile = new File([csvText], fileName, { type: 'text/csv' });
-      if (navigator.share && navigator.canShare && navigator.canShare({ files: [csvFile] })) {
-        try {
-          await navigator.share({
-            files: [csvFile],
-            title: subject,
-            text: `Please find attached the student attendance CSV file for session ${presentationId!.substring(0, 8)}.`
-          });
-          setIsExportModalOpen(false);
-          return;
-        } catch (shareErr: any) {
-          if (shareErr.name === 'AbortError') {
-            console.log("Web Share cancelled by user.");
-            return;
-          }
-          console.warn("Web Share failed, falling back to mailto link:", shareErr);
-        }
-      }
+      // 1. Download the CSV file automatically so it is waiting in their Downloads folder
+      const csvContent = "data:text/csv;charset=utf-8," + encodeURIComponent(csvText);
+      const link = document.createElement("a");
+      link.setAttribute("href", csvContent);
+      link.setAttribute("download", fileName);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
 
-      // Fallback: Copy to clipboard and open mailto link
-      try {
-        await navigator.clipboard.writeText(csvText);
-      } catch (clipErr) {
-        console.warn("Clipboard copy failed:", clipErr);
-      }
-
+      // 2. Draft the email and launch Outlook / default mail client via mailto
       const body = `Hi,
 
-Here is the student attendance CSV data for the presentation session ${presentationId!.substring(0, 8)}.
+Please find attached the student attendance CSV file for session ${presentationId!.substring(0, 8)}.
 
-Note: Because browser security restricts directly attaching local files in client-side links, the attendance CSV content has also been automatically copied to your clipboard.
-
-You can paste (Ctrl+V) the clipboard contents directly below, or paste them into a text editor (like Notepad) and save as a .csv file.
-
---------------------------------------------------
-${csvText}
---------------------------------------------------`;
+Instructions:
+1. Click the 'Attach File' (paperclip) icon in Outlook.
+2. Select the downloaded file "${fileName}" from your Downloads folder.
+3. Send this email!`;
 
       const mailtoUrl = `mailto:${encodeURIComponent(presenterEmail.trim())}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
       
-      // Directly assign window.location.href to invoke Outlook or default client
+      // Directly assign window.location.href to invoke Outlook
       window.location.href = mailtoUrl;
       
+      alert(`Email draft created and CSV file downloaded successfully!\n\nPlease click Attach in Outlook and select "${fileName}" from your Downloads folder.`);
       setIsExportModalOpen(false);
     } catch (err: any) {
       if (err.message === "NO_RECORDS") {
