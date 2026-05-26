@@ -306,7 +306,7 @@ ${csvText}
   }, [isWakeLockActive]);
 
   return (
-    <div className={`p-4 bg-white border-b border-slate-200 h-12 py-1 relative w-full flex-shrink-0 ${isAdminModalOpen ? 'z-[200]' : 'z-50'}`}>
+    <div className={`p-4 bg-white border-b border-slate-200 h-12 py-1 relative w-full flex-shrink-0 ${(isAdminModalOpen || isExportModalOpen) ? 'z-[200]' : 'z-50'}`}>
       <div className="flex items-center justify-between relative h-full">
         <div className="flex items-center gap-4 z-10">
           <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
