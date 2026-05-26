@@ -198,8 +198,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
           activeInstitutionName,
           activeInstitutionDomain: domainVal
         }, { merge: true });
-        alert('Active Institution successfully updated!');
-        window.location.reload();
+        alert('Active Institution applied successfully! A new presentation session will now start.');
+        window.location.href = window.location.origin + window.location.pathname + '#admin';
       }
     } catch (e) {
       console.error("Error saving institution:", e);
