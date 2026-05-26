@@ -356,7 +356,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
   const handleDownloadCSV = () => {
     if (filteredAttendance.length === 0 || !selectedSessionId) return;
 
-    const headers = ["Student Name", "Email Address", "Check-In Timestamp", "Join Method", "PPT Slide", "Institution Name", "Scanned Token ID"];
+    const headers = ["Student Name", "Email Address", "Checked-In Timestamp", "Join Method", "Slide", "Institution", "Verification Status"];
     const rows = filteredAttendance.map(record => {
       const timestampString = record.checkedInAt 
         ? new Date(record.checkedInAt.seconds * 1000).toLocaleString() 
@@ -369,7 +369,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
         `"${record.authMethod || 'QR'}"`,
         `"${slideString}"`,
         `"${(record.institutionName || 'Custom / Active Theme').replace(/"/g, '""')}"`,
-        `"${record.scannedToken || ''}"`
+        `"Verified Check-In"`
       ];
     });
 

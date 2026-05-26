@@ -38,16 +38,20 @@ export const Header: React.FC<HeaderProps> = ({ presentationId }) => {
         return;
       }
 
-      const headers = ["Student Name", "Email Address", "Check-In Timestamp", "Scanned Token ID"];
+      const headers = ["Student Name", "Email Address", "Checked-In Timestamp", "Join Method", "Slide", "Institution", "Verification Status"];
       const rows = records.map(record => {
         const timestampString = record.checkedInAt 
           ? new Date(record.checkedInAt.seconds * 1000).toLocaleString() 
           : 'Pending Server Timestamp...';
+        const slideString = record.slide !== null && record.slide !== undefined ? `Slide ${record.slide}` : '—';
         return [
           `"${(record.name || '').replace(/"/g, '""')}"`,
           `"${(record.email || '').replace(/"/g, '""')}"`,
           `"${timestampString}"`,
-          `"${record.scannedToken || ''}"`
+          `"${record.authMethod || 'QR'}"`,
+          `"${slideString}"`,
+          `"${(record.institutionName || 'Custom / Active Theme').replace(/"/g, '""')}"`,
+          `"Verified Check-In"`
         ];
       });
 
