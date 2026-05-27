@@ -37,6 +37,33 @@ function AppContent() {
     localStorage.setItem('activePresenterEmail', trimmed);
     setPresenterEmail(trimmed);
 
+    // Auto-match institution domain
+    const emailDomain = trimmed.split('@')[1];
+    if (emailDomain) {
+      try {
+        const { getDocs } = await import('firebase/firestore');
+        const themesSnap = await getDocs(collection(db, 'savedThemes'));
+        const matchedInstDoc = themesSnap.docs.find(docSnap => {
+          const domain = docSnap.data().domain;
+          return domain && domain.trim().toLowerCase() === emailDomain;
+        });
+
+        if (matchedInstDoc) {
+          const instData = matchedInstDoc.data();
+          // Apply matching institution settings globally
+          await updateDoc(doc(db, 'settings', 'global'), {
+            theme: instData.theme,
+            activeInstitutionId: matchedInstDoc.id,
+            activeInstitutionName: instData.name,
+            activeInstitutionDomain: instData.domain || ''
+          });
+          console.log(`Auto-loaded matching institution theme for domain ${emailDomain}: ${instData.name}`);
+        }
+      } catch (err) {
+        console.error('Failed to auto-match presenter institution domain:', err);
+      }
+    }
+
     if (presentation?.id) {
       try {
         await updateDoc(doc(db, 'presentations', presentation.id), {
