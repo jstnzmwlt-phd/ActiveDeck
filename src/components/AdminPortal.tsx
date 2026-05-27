@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc, addDoc, collection, onSnapshot, deleteDoc, query, orderBy, limit, Timestamp, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Theme, SavedTheme } from '../types';
-import { Palette, UserCheck, Download, ArrowLeft, Loader2, Calendar, Database, AlertCircle, Trash2 } from 'lucide-react';
+import { Palette, UserCheck, Download, ArrowLeft, Loader2, Calendar, Database, AlertCircle, Trash2, Monitor } from 'lucide-react';
 
 interface AdminPortalProps {
   presentationId?: string | null;
