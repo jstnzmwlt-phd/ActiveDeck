@@ -1,0 +1,35 @@
+{
+  "version": 2,
+  "functions": {
+    "server.ts": {
+      "runtime": "@vercel/node",
+      "includeFiles": "dist/**"
+    }
+  },
+  "routes": [
+    {
+      "src": "/assets/(.*)",
+      "dest": "/assets/$1"
+    },
+    {
+      "src": "/favicon.ico",
+      "dest": "/favicon.ico"
+    },
+    {
+      "src": "/service-worker.js",
+      "dest": "/server.ts"
+    },
+    {
+      "src": "/service_worker.js",
+      "dest": "/server.ts"
+    },
+    {
+      "src": "/api/(.*)",
+      "dest": "/server.ts"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/server.ts"
+    }
+  ]
+}
