@@ -449,7 +449,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
 
       {/* Main Workspace */}
       <main className="flex-1 p-8 flex justify-center overflow-y-auto">
-        <div className={`w-full transition-all duration-300 ${activeTab === 'attendance' ? 'max-w-7xl' : 'max-w-5xl'}`}>
+        <div className={`w-full transition-all duration-300 ${activeTab === 'attendance' ? 'max-w-[1450px]' : 'max-w-5xl'}`}>
 
           {/* ========================================================
               TAB 1: INSTITUTIONS WORKSPACE
