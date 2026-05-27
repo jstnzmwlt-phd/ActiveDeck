@@ -28,7 +28,7 @@ interface RecentPresentationRecord {
 }
 
 export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
-  const [activeTab, setActiveTab] = useState<'theme' | 'attendance'>('theme');
+  const [activeTab, setActiveTab] = useState<'theme' | 'attendance' | 'presenters'>('theme');
   const [primaryColor, setPrimaryColor] = useState('#FF6600');
   const [secondaryColor, setSecondaryColor] = useState('#000000');
   const [logoUrl, setLogoUrl] = useState('');
@@ -110,15 +110,15 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
     return () => unsub();
   }, []);
 
-  // Attendance Tracker: Fetch recent presentation sessions chronologically
+  // Attendance & Presenter Stats: Fetch recent presentation sessions chronologically
   useEffect(() => {
-    if (activeTab !== 'attendance') return;
+    if (activeTab !== 'attendance' && activeTab !== 'presenters') return;
 
     setLoadingSessions(true);
     const qSessions = query(
       collection(db, 'presentations'),
       orderBy('createdAt', 'desc'),
-      limit(50)
+      limit(500)
     );
 
     const unsubSessions = onSnapshot(qSessions, (snapshot) => {
@@ -432,6 +432,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
             <UserCheck className="w-4 h-4" />
             Attendance Tracker
           </button>
+          <button
+            onClick={() => setActiveTab('presenters')}
+            className={`flex items-center gap-2 px-5 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${
+              activeTab === 'presenters' 
+                ? 'bg-osu-orange text-white shadow-lg shadow-orange-500/10' 
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Monitor className="w-4 h-4" />
+            Presenters
+          </button>
         </div>
 
         {/* Return to App Button */}
@@ -449,7 +460,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
 
       {/* Main Workspace */}
       <main className="flex-1 p-8 flex justify-center overflow-y-auto">
-        <div className={`w-full transition-all duration-300 ${activeTab === 'attendance' ? 'max-w-[1450px]' : 'max-w-5xl'}`}>
+        <div className={`w-full transition-all duration-300 ${activeTab === 'attendance' ? 'max-w-[1450px]' : activeTab === 'presenters' ? 'max-w-[1100px]' : 'max-w-5xl'}`}>
 
           {/* ========================================================
               TAB 1: INSTITUTIONS WORKSPACE
@@ -918,6 +929,116 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
 
             </div>
           )}
+
+          {/* ========================================================
+              TAB 3: PRESENTERS WORKSPACE
+              ======================================================== */}
+          {activeTab === 'presenters' && (() => {
+            // Group presentations by presenter email/id
+            const presenterStatsMap: Record<string, { email: string; sessionsCount: number; lastPresentedAt: Date | null }> = {};
+            
+            recentSessions.forEach(session => {
+              // Graceful fallback for older sessions that didn't have presenterEmail
+              const emailKey = session.presenterEmail ? session.presenterEmail.trim().toLowerCase() : `anonymous_presenter_${session.presenterId}`;
+              const displayName = session.presenterEmail || `Anonymous (ID: ${session.presenterId.substring(0,6)})`;
+              const sessionDate = session.createdAt ? new Date(session.createdAt.seconds * 1000) : null;
+              
+              if (!presenterStatsMap[emailKey]) {
+                presenterStatsMap[emailKey] = {
+                  email: displayName,
+                  sessionsCount: 0,
+                  lastPresentedAt: null
+                };
+              }
+              
+              presenterStatsMap[emailKey].sessionsCount += 1;
+              
+              if (sessionDate) {
+                if (!presenterStatsMap[emailKey].lastPresentedAt || sessionDate > presenterStatsMap[emailKey].lastPresentedAt) {
+                  presenterStatsMap[emailKey].lastPresentedAt = sessionDate;
+                }
+              }
+            });
+
+            const statsList = Object.values(presenterStatsMap).sort((a, b) => {
+              if (!a.lastPresentedAt) return 1;
+              if (!b.lastPresentedAt) return -1;
+              return b.lastPresentedAt.getTime() - a.lastPresentedAt.getTime();
+            });
+
+            return (
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 overflow-hidden animate-in fade-in duration-300">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-6">
+                  <div className="space-y-1">
+                    <h2 className="text-lg font-black uppercase tracking-wider text-white flex items-center gap-2.5">
+                      <Monitor className="w-5 h-5 text-osu-orange" />
+                      Presenter Analytics Directory
+                    </h2>
+                    <p className="text-xs text-slate-400">
+                      Detailed overview of all presenter accounts, login/session frequency, and their latest presentation times.
+                    </p>
+                  </div>
+                  <div className="bg-slate-950 px-4 py-2 border border-slate-800 rounded-xl text-right">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 block">Total Active Presenters</span>
+                    <span className="text-lg font-black text-osu-orange">{statsList.length}</span>
+                  </div>
+                </div>
+
+                <div className="border border-slate-800/80 rounded-2xl overflow-hidden bg-slate-950/40">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-950 border-b border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                          <th className="py-3 px-5">Presenter Name / Display Handle</th>
+                          <th className="py-3 px-5">Presenter Email Address</th>
+                          <th className="py-3 px-5 text-center">Sessions Logged</th>
+                          <th className="py-3 px-5 text-right">Last Session Date & Time</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {loadingSessions && statsList.length === 0 ? (
+                          <tr>
+                            <td colSpan={4} className="py-16 text-center">
+                              <Loader2 className="w-8 h-8 text-osu-orange animate-spin mx-auto mb-2" />
+                              <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500">Compiling presenter stats...</span>
+                            </td>
+                          </tr>
+                        ) : statsList.length === 0 ? (
+                          <tr>
+                            <td colSpan={4} className="py-16 text-center text-slate-500 text-xs italic">
+                              No presenter accounts have logged or hosted presentation sessions yet.
+                            </td>
+                          </tr>
+                        ) : (
+                          statsList.map((presenter, i) => {
+                            const hasDomain = presenter.email.includes('@');
+                            const displayHandle = hasDomain ? presenter.email.split('@')[0] : 'Anonymous Host';
+                            
+                            return (
+                              <tr key={i} className="border-b border-slate-800/50 last:border-0 hover:bg-slate-900/40 text-sm transition-colors">
+                                <td className="py-4 px-5 font-bold text-white capitalize">{displayHandle}</td>
+                                <td className="py-4 px-5 text-slate-300 font-mono text-xs">{presenter.email}</td>
+                                <td className="py-4 px-5 text-center font-black text-osu-orange">
+                                  <span className="bg-osu-orange/10 px-3 py-1 rounded-full border border-osu-orange/20">
+                                    {presenter.sessionsCount} sessions
+                                  </span>
+                                </td>
+                                <td className="py-4 px-5 text-right text-slate-400 font-mono text-xs font-semibold">
+                                  {presenter.lastPresentedAt 
+                                    ? presenter.lastPresentedAt.toLocaleString() 
+                                    : '—'}
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </main>
     </div>
