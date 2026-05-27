@@ -26,7 +26,9 @@ function AppContent() {
   const [presentationLoaded, setPresentationLoaded] = useState(false);
   const [appError, setAppError] = useState<string | null>(null);
   const [hash, setHash] = useState(window.location.hash);
-  const [presenterEmail, setPresenterEmail] = useState<string | null>(() => localStorage.getItem('activePresenterEmail'));
+  const [emailDomainError, setEmailDomainError] = useState<string | null>(null);
+  const [checkingEmailDomain, setCheckingEmailDomain] = useState(false);
+  const [presenterEmail, setPresenterEmail] = useState<string>(() => localStorage.getItem('activePresenterEmail') || '');
 
   const handleSavePresenterEmail = async (email: string) => {
     const trimmed = email.trim().toLowerCase();
@@ -34,8 +36,9 @@ function AppContent() {
       alert('Please enter a valid email address.');
       return;
     }
-    localStorage.setItem('activePresenterEmail', trimmed);
-    setPresenterEmail(trimmed);
+
+    setEmailDomainError(null);
+    setCheckingEmailDomain(true);
 
     // Auto-match institution domain
     const emailDomain = trimmed.split('@')[1];
@@ -48,21 +51,36 @@ function AppContent() {
           return domain && domain.trim().toLowerCase() === emailDomain;
         });
 
-        if (matchedInstDoc) {
-          const instData = matchedInstDoc.data();
-          // Apply matching institution settings globally
-          await updateDoc(doc(db, 'settings', 'global'), {
-            theme: instData.theme,
-            activeInstitutionId: matchedInstDoc.id,
-            activeInstitutionName: instData.name,
-            activeInstitutionDomain: instData.domain || ''
-          });
-          console.log(`Auto-loaded matching institution theme for domain ${emailDomain}: ${instData.name}`);
+        if (!matchedInstDoc) {
+          setEmailDomainError(`The institution domain "@${emailDomain}" does not exist in our database. Please contact jstnzmwlt@gmail.com to register your institution.`);
+          setCheckingEmailDomain(false);
+          return;
         }
+
+        const instData = matchedInstDoc.data();
+        // Apply matching institution settings globally
+        await updateDoc(doc(db, 'settings', 'global'), {
+          theme: instData.theme,
+          activeInstitutionId: matchedInstDoc.id,
+          activeInstitutionName: instData.name,
+          activeInstitutionDomain: instData.domain || ''
+        });
+        console.log(`Auto-loaded matching institution theme for domain ${emailDomain}: ${instData.name}`);
       } catch (err) {
         console.error('Failed to auto-match presenter institution domain:', err);
+        alert('An error occurred while verifying your institution. Please try again.');
+        setCheckingEmailDomain(false);
+        return;
       }
+    } else {
+      alert('Please enter a valid email address.');
+      setCheckingEmailDomain(false);
+      return;
     }
+
+    localStorage.setItem('activePresenterEmail', trimmed);
+    setPresenterEmail(trimmed);
+    setCheckingEmailDomain(false);
 
     if (presentation?.id) {
       try {
@@ -354,15 +372,35 @@ function AppContent() {
                 type="email" 
                 name="email"
                 required
+                disabled={checkingEmailDomain}
                 placeholder="e.g. name@institution.edu"
-                className="w-full h-12 rounded-xl px-4 text-sm text-white bg-slate-950 border border-slate-800 focus:outline-none focus:ring-2 focus:ring-osu-orange focus:border-transparent transition-all placeholder-slate-700"
+                className="w-full h-12 rounded-xl px-4 text-sm text-white bg-slate-950 border border-slate-800 focus:outline-none focus:ring-2 focus:ring-osu-orange focus:border-transparent transition-all placeholder-slate-700 disabled:opacity-50"
               />
             </div>
+            
+            {emailDomainError && (
+              <div className="flex items-start gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-200 text-xs text-left animate-in fade-in-50 duration-200">
+                <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-bold text-red-400">Access Denied</p>
+                  <p className="leading-relaxed opacity-90">{emailDomainError}</p>
+                </div>
+              </div>
+            )}
+
             <button 
               type="submit"
-              className="w-full h-12 bg-osu-orange hover:bg-[#c03900] text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-orange-500/15 active:scale-[0.98]"
+              disabled={checkingEmailDomain}
+              className="w-full h-12 bg-osu-orange hover:bg-[#c03900] text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-orange-500/15 active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50 disabled:pointer-events-none"
             >
-              Start Session
+              {checkingEmailDomain ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Verifying Institution...</span>
+                </>
+              ) : (
+                'Start Session'
+              )}
             </button>
           </form>
         </div>

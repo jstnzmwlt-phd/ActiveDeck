@@ -49,6 +49,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
   const [selectedSessionIdsForBulk, setSelectedSessionIdsForBulk] = useState<string[]>([]);
   const [isDeletingSessions, setIsDeletingSessions] = useState(false);
 
+  // Presenter Management States
+  const [selectedPresenterKeysForBulk, setSelectedPresenterKeysForBulk] = useState<string[]>([]);
+  const [isDeletingPresenters, setIsDeletingPresenters] = useState(false);
+
   // Sync selected session with active presentation prop
   useEffect(() => {
     if (presentationId) {
@@ -323,6 +327,57 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
       alert("Error performing bulk deletion: " + e);
     } finally {
       setIsDeletingSessions(false);
+    }
+  };
+
+  const handleDeletePresenters = async (keysToDelete: string[]) => {
+    if (keysToDelete.length === 0) return;
+
+    // Find all sessions corresponding to these presenters
+    const sessionsToDelete: string[] = [];
+    let hasLiveSession = false;
+
+    keysToDelete.forEach(key => {
+      recentSessions.forEach(session => {
+        const emailKey = session.presenterEmail ? session.presenterEmail.trim().toLowerCase() : `anonymous_presenter_${session.presenterId}`;
+        if (emailKey === key) {
+          if (session.id === presentationId) {
+            hasLiveSession = true;
+          } else {
+            sessionsToDelete.push(session.id);
+          }
+        }
+      });
+    });
+
+    if (sessionsToDelete.length === 0) {
+      if (hasLiveSession) {
+        alert("The selected presenter(s) only have the active live presentation session, which cannot be deleted.");
+      } else {
+        alert("No sessions found to delete for the selected presenter(s).");
+      }
+      return;
+    }
+
+    const confirmMessage = `Are you sure you want to delete the selected presenter(s)? This will permanently erase ${sessionsToDelete.length} of their presentation sessions and all associated student attendance records.${
+      hasLiveSession ? " Note: The active live presentation session cannot be deleted and will be preserved." : ""
+    }`;
+
+    if (!confirm(confirmMessage)) return;
+
+    setIsDeletingPresenters(true);
+    try {
+      // Delete all sessions in parallel
+      await Promise.all(sessionsToDelete.map(id => deleteSessionDoc(id)));
+      
+      // Clear selection
+      setSelectedPresenterKeysForBulk(prev => prev.filter(key => !keysToDelete.includes(key)));
+      alert(`Successfully deleted ${keysToDelete.length} presenter(s) and their sessions.`);
+    } catch (e) {
+      console.error("Error deleting presenters:", e);
+      alert("Error deleting presenters: " + e);
+    } finally {
+      setIsDeletingPresenters(false);
     }
   };
 
@@ -935,7 +990,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
               ======================================================== */}
           {activeTab === 'presenters' && (() => {
             // Group presentations by presenter email/id
-            const presenterStatsMap: Record<string, { email: string; sessionsCount: number; lastPresentedAt: Date | null }> = {};
+            const presenterStatsMap: Record<string, { email: string; sessionsCount: number; lastPresentedAt: Date | null; key: string }> = {};
             
             recentSessions.forEach(session => {
               // Graceful fallback for older sessions that didn't have presenterEmail
@@ -947,7 +1002,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                 presenterStatsMap[emailKey] = {
                   email: displayName,
                   sessionsCount: 0,
-                  lastPresentedAt: null
+                  lastPresentedAt: null,
+                  key: emailKey
                 };
               }
               
@@ -978,9 +1034,26 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                       Detailed overview of all presenter accounts, login/session frequency, and their latest presentation times.
                     </p>
                   </div>
-                  <div className="bg-slate-950 px-4 py-2 border border-slate-800 rounded-xl text-right">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 block">Total Active Presenters</span>
-                    <span className="text-lg font-black text-osu-orange">{statsList.length}</span>
+                  
+                  <div className="flex items-center gap-4">
+                    {selectedPresenterKeysForBulk.length > 0 && (
+                      <button
+                        onClick={() => handleDeletePresenters(selectedPresenterKeysForBulk)}
+                        disabled={isDeletingPresenters}
+                        className="flex items-center gap-1.5 h-11 px-4 bg-red-950/40 hover:bg-red-900 border border-red-500/30 text-xs font-black uppercase tracking-wider text-red-400 hover:text-white rounded-xl transition-all"
+                      >
+                        {isDeletingPresenters ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-4 h-4" />
+                        )}
+                        Delete Selected ({selectedPresenterKeysForBulk.length})
+                      </button>
+                    )}
+                    <div className="bg-slate-950 px-4 py-2 border border-slate-800 rounded-xl text-right">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 block">Total Active Presenters</span>
+                      <span className="text-lg font-black text-osu-orange">{statsList.length}</span>
+                    </div>
                   </div>
                 </div>
 
@@ -989,23 +1062,38 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                     <table className="w-full text-left border-collapse">
                       <thead>
                         <tr className="bg-slate-950 border-b border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                          <th className="py-3 px-5 text-center w-12">
+                            <input
+                              type="checkbox"
+                              checked={statsList.length > 0 && statsList.every(p => selectedPresenterKeysForBulk.includes(p.key))}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedPresenterKeysForBulk(statsList.map(p => p.key));
+                                } else {
+                                  setSelectedPresenterKeysForBulk([]);
+                                }
+                              }}
+                              className="w-4 h-4 rounded border-slate-700 text-osu-orange focus:ring-osu-orange/20 bg-slate-950 cursor-pointer"
+                            />
+                          </th>
                           <th className="py-3 px-5">Presenter Name / Display Handle</th>
                           <th className="py-3 px-5">Presenter Email Address</th>
                           <th className="py-3 px-5 text-center">Sessions Logged</th>
-                          <th className="py-3 px-5 text-right">Last Session Date & Time</th>
+                          <th className="py-3 px-5">Last Session Date & Time</th>
+                          <th className="py-3 px-5 text-right w-20">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {loadingSessions && statsList.length === 0 ? (
                           <tr>
-                            <td colSpan={4} className="py-16 text-center">
+                            <td colSpan={6} className="py-16 text-center">
                               <Loader2 className="w-8 h-8 text-osu-orange animate-spin mx-auto mb-2" />
                               <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500">Compiling presenter stats...</span>
                             </td>
                           </tr>
                         ) : statsList.length === 0 ? (
                           <tr>
-                            <td colSpan={4} className="py-16 text-center text-slate-500 text-xs italic">
+                            <td colSpan={6} className="py-16 text-center text-slate-500 text-xs italic">
                               No presenter accounts have logged or hosted presentation sessions yet.
                             </td>
                           </tr>
@@ -1016,6 +1104,20 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                             
                             return (
                               <tr key={i} className="border-b border-slate-800/50 last:border-0 hover:bg-slate-900/40 text-sm transition-colors">
+                                <td className="py-4 px-5 text-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedPresenterKeysForBulk.includes(presenter.key)}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setSelectedPresenterKeysForBulk(prev => [...prev, presenter.key]);
+                                      } else {
+                                        setSelectedPresenterKeysForBulk(prev => prev.filter(k => k !== presenter.key));
+                                      }
+                                    }}
+                                    className="w-4 h-4 rounded border-slate-700 text-osu-orange focus:ring-osu-orange/20 bg-slate-950 cursor-pointer"
+                                  />
+                                </td>
                                 <td className="py-4 px-5 font-bold text-white capitalize">{displayHandle}</td>
                                 <td className="py-4 px-5 text-slate-300 font-mono text-xs">{presenter.email}</td>
                                 <td className="py-4 px-5 text-center font-black text-osu-orange">
@@ -1023,10 +1125,20 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                                     {presenter.sessionsCount} sessions
                                   </span>
                                 </td>
-                                <td className="py-4 px-5 text-right text-slate-400 font-mono text-xs font-semibold">
+                                <td className="py-4 px-5 text-slate-400 font-mono text-xs font-semibold">
                                   {presenter.lastPresentedAt 
                                     ? presenter.lastPresentedAt.toLocaleString() 
                                     : '—'}
+                                </td>
+                                <td className="py-4 px-5 text-right">
+                                  <button
+                                    onClick={() => handleDeletePresenters([presenter.key])}
+                                    disabled={isDeletingPresenters}
+                                    className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200 cursor-pointer disabled:opacity-50"
+                                    title="Delete Presenter"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
                                 </td>
                               </tr>
                             );
