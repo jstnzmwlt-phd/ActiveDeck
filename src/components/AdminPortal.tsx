@@ -24,6 +24,7 @@ interface RecentPresentationRecord {
   id: string;
   createdAt: Timestamp | null;
   presenterId: string;
+  presenterEmail?: string;
 }
 
 export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
@@ -64,6 +65,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
 
   // Derived session info for the selected session in history
   const selectedSession = recentSessions.find(s => s.id === selectedSessionId);
+  const selectedPresenterEmail = selectedSession?.presenterEmail || '';
   const selectedSessionDate = selectedSession?.createdAt 
     ? new Date(selectedSession.createdAt.seconds * 1000) 
     : null;
@@ -123,7 +125,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
       const sessions = snapshot.docs.map(doc => ({
         id: doc.id,
         createdAt: doc.data().createdAt || null,
-        presenterId: doc.data().presenterId || ''
+        presenterId: doc.data().presenterId || '',
+        presenterEmail: doc.data().presenterEmail || ''
       })) as RecentPresentationRecord[];
       setRecentSessions(sessions);
       setLoadingSessions(false);
@@ -356,22 +359,23 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
   const handleDownloadCSV = () => {
     if (filteredAttendance.length === 0 || !selectedSessionId) return;
 
-    const headers = ["Student Name", "Email Address", "Checked-In Timestamp", "Join Method", "Slide", "Institution", "Verification Status"];
-    const rows = filteredAttendance.map(record => {
-      const timestampString = record.checkedInAt 
-        ? new Date(record.checkedInAt.seconds * 1000).toLocaleString() 
-        : 'Pending Server Timestamp...';
-      const slideString = record.slide !== null && record.slide !== undefined ? `Slide ${record.slide}` : '—';
-      return [
-        `"${record.name.replace(/"/g, '""')}"`,
-        `"${record.email.replace(/"/g, '""')}"`,
-        `"${timestampString}"`,
-        `"${record.authMethod || 'QR'}"`,
-        `"${slideString}"`,
-        `"${(record.institutionName || 'Custom / Active Theme').replace(/"/g, '""')}"`,
-        `"Verified Check-In"`
-      ];
-    });
+     const headers = ["Student Name", "Email Address", "Presenter Email", "Checked-In Timestamp", "Join Method", "Slide", "Institution", "Verification Status"];
+     const rows = filteredAttendance.map(record => {
+       const timestampString = record.checkedInAt 
+         ? new Date(record.checkedInAt.seconds * 1000).toLocaleString() 
+         : 'Pending Server Timestamp...';
+       const slideString = record.slide !== null && record.slide !== undefined ? `Slide ${record.slide}` : '—';
+       return [
+         `"${record.name.replace(/"/g, '""')}"`,
+         `"${record.email.replace(/"/g, '""')}"`,
+         `"${(selectedPresenterEmail || '—').replace(/"/g, '""')}"`,
+         `"${timestampString}"`,
+         `"${record.authMethod || 'QR'}"`,
+         `"${slideString}"`,
+         `"${(record.institutionName || 'Custom / Active Theme').replace(/"/g, '""')}"`,
+         `"Verified Check-In"`
+       ];
+     });
 
     const csvContent = "data:text/csv;charset=utf-8," 
       + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
@@ -739,6 +743,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                                   <span className="text-[8px] font-black uppercase bg-osu-orange text-white px-1.5 py-0.5 rounded scale-90 origin-right">Active</span>
                                 )}
                               </div>
+                              {session.presenterEmail && (
+                                <div className="text-[9px] text-indigo-400 font-bold truncate mt-0.5">
+                                  Presenter: {session.presenterEmail}
+                                </div>
+                              )}
                             </div>
 
                             {/* Individual Delete Button on Hover */}
@@ -791,6 +800,12 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                           <span className="text-slate-300 font-bold">{formattedSelectedDate}</span>
                           <span className="text-slate-600">|</span>
                           <span>Total Check-Ins: <span className="text-white font-bold text-xs bg-slate-950 px-2.5 py-0.5 rounded-lg border border-slate-800">{filteredAttendance.length} students</span></span>
+                          {selectedPresenterEmail && (
+                            <>
+                              <span className="text-slate-600">|</span>
+                              <span>Presenter: <span className="text-indigo-400 font-bold text-xs bg-slate-950 px-2.5 py-0.5 rounded-lg border border-slate-800">{selectedPresenterEmail}</span></span>
+                            </>
+                          )}
                         </div>
                       </div>
 
@@ -832,6 +847,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                               <tr className="bg-slate-950 border-b border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-400">
                                 <th className="py-3 px-4">Student Name</th>
                                 <th className="py-3 px-4">Email Address</th>
+                                <th className="py-3 px-4">Presenter Email</th>
                                 <th className="py-3 px-4">Checked-In Timestamp</th>
                                 <th className="py-3 px-4 text-center">Join Method</th>
                                 <th className="py-3 px-4 text-center">Slide</th>
@@ -842,14 +858,14 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                             <tbody>
                               {loadingAttendance ? (
                                 <tr>
-                                  <td colSpan={7} className="py-16 text-center">
+                                  <td colSpan={8} className="py-16 text-center">
                                     <Loader2 className="w-8 h-8 text-osu-orange animate-spin mx-auto mb-2" />
                                     <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500">Retrieving check-ins...</span>
                                   </td>
                                 </tr>
                               ) : filteredAttendance.length === 0 ? (
                                 <tr>
-                                  <td colSpan={7} className="py-16 text-center text-slate-500 text-xs italic">
+                                  <td colSpan={8} className="py-16 text-center text-slate-500 text-xs italic">
                                     {attendanceList.length === 0
                                       ? (selectedSessionId === presentationId 
                                           ? 'No students have scanned in yet. Ask your class to scan the QR code to check in.' 
@@ -862,6 +878,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                                   <tr key={record.id} className="border-b border-slate-800/50 last:border-0 hover:bg-slate-900/40 text-sm transition-colors">
                                     <td className="py-3.5 px-4 font-bold text-white">{record.name}</td>
                                     <td className="py-3.5 px-4 text-slate-300 font-medium">{record.email}</td>
+                                    <td className="py-3.5 px-4 text-slate-400 font-medium text-xs truncate max-w-[150px]">{selectedPresenterEmail || '—'}</td>
                                     <td className="py-3.5 px-4 text-slate-400 font-mono text-xs">
                                       {record.checkedInAt 
                                         ? new Date(record.checkedInAt.seconds * 1000).toLocaleString() 

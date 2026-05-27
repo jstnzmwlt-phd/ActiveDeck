@@ -1505,7 +1505,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         : user.displayName || 'User';
 
       if (!isChatOnly) {
-        userName = user.displayName ? `${user.displayName} (Presenter)` : 'Presenter';
+        const presenterEmail = localStorage.getItem('activePresenterEmail');
+        userName = presenterEmail ? presenterEmail.split('@')[0] : (user.displayName || 'Host');
       } else if (isPostingAnonymously && !presentation?.disableAttendance) {
         userName = `Anonymous ${user.uid.slice(0, 4)}`;
       }

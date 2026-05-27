@@ -5,7 +5,7 @@ import { ChatSidebar } from './components/ChatSidebar';
 import { Header } from './components/Header';
 import { Presentation, GlobalSettings } from './types';
 import { db } from './firebase';
-import { collection, query, orderBy, limit, onSnapshot, doc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot, doc, addDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { Presentation as PresentationIcon, Loader2, AlertCircle } from 'lucide-react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { BridgeProvider } from './contexts/BridgeContext';
@@ -26,6 +26,27 @@ function AppContent() {
   const [presentationLoaded, setPresentationLoaded] = useState(false);
   const [appError, setAppError] = useState<string | null>(null);
   const [hash, setHash] = useState(window.location.hash);
+  const [presenterEmail, setPresenterEmail] = useState<string | null>(() => localStorage.getItem('activePresenterEmail'));
+
+  const handleSavePresenterEmail = async (email: string) => {
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed || !trimmed.includes('@')) {
+      alert('Please enter a valid email address.');
+      return;
+    }
+    localStorage.setItem('activePresenterEmail', trimmed);
+    setPresenterEmail(trimmed);
+
+    if (presentation?.id) {
+      try {
+        await updateDoc(doc(db, 'presentations', presentation.id), {
+          presenterEmail: trimmed
+        });
+      } catch (err) {
+        console.error('Failed to update presenter email in presentation document:', err);
+      }
+    }
+  };
 
   useEffect(() => {
     const onHashChange = () => {
@@ -94,7 +115,8 @@ function AppContent() {
             createdAt: serverTimestamp(),
             allowAnonymousChat: false,
             disableAttendance: false,
-            hideComments: false
+            hideComments: false,
+            presenterEmail: localStorage.getItem('activePresenterEmail') || ''
           });
           
           console.log('AppContent - New presentation created:', docRef.id);
@@ -153,7 +175,14 @@ function AppContent() {
           setPresentationLoaded(true);
           if (docSnap.exists()) {
             console.log('AppContent - Presentation data received:', docSnap.id);
-            setPresentation({ id: docSnap.id, ...docSnap.data() } as Presentation);
+            const data = docSnap.data();
+            setPresentation({ id: docSnap.id, ...data } as Presentation);
+            const localEmail = localStorage.getItem('activePresenterEmail');
+            if (localEmail && !data.presenterEmail) {
+              updateDoc(docRef, { presenterEmail: localEmail }).catch(err => 
+                console.error('Failed to sync local email to loaded presentation:', err)
+              );
+            }
           } else {
             console.warn('AppContent - Presentation not found:', presentationId);
             setPresentation(null);
@@ -172,7 +201,14 @@ function AppContent() {
             setPresentationLoaded(true);
             if (docSnap.exists()) {
               console.log('AppContent - Cached presentation exists in Firestore. Setting active:', docSnap.id);
-              setPresentation({ id: docSnap.id, ...docSnap.data() } as Presentation);
+              const data = docSnap.data();
+              setPresentation({ id: docSnap.id, ...data } as Presentation);
+              const localEmail = localStorage.getItem('activePresenterEmail');
+              if (localEmail && !data.presenterEmail) {
+                updateDoc(docRef, { presenterEmail: localEmail }).catch(err => 
+                  console.error('Failed to sync local email to cached presentation:', err)
+                );
+              }
               
               if (isFirstCallback) {
                 // Update URL parameter without reloading
@@ -259,6 +295,51 @@ function AppContent() {
         presentationId={attendancePresentationId} 
         token={attendanceToken} 
       />
+    );
+  }
+
+  // Ask for presenter's email before letting them proceed to the presenter screen
+  if (!isChatOnly && !presenterEmail) {
+    return (
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-950 text-white p-6">
+        <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl shadow-orange-500/5 text-center space-y-6 animate-in zoom-in-95 duration-200">
+          <div className="w-16 h-16 bg-osu-orange/10 border border-osu-orange/20 text-osu-orange rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-orange-500/10">
+            <PresentationIcon className="w-8 h-8 animate-pulse" />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-2xl font-black uppercase tracking-wide text-white">Welcome to ActiveDeck</h1>
+            <p className="text-xs text-slate-400 leading-relaxed max-w-sm mx-auto">
+              Please enter your presenter email address. This will be used to generate your display name and log your sessions in the attendance registry.
+            </p>
+          </div>
+          <form 
+            onSubmit={(e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              const email = formData.get('email') as string;
+              handleSavePresenterEmail(email);
+            }} 
+            className="space-y-4 pt-2"
+          >
+            <div className="space-y-1 text-left relative">
+              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">Presenter Email</label>
+              <input 
+                type="email" 
+                name="email"
+                required
+                placeholder="e.g. name@institution.edu"
+                className="w-full h-12 rounded-xl px-4 text-sm text-white bg-slate-950 border border-slate-800 focus:outline-none focus:ring-2 focus:ring-osu-orange focus:border-transparent transition-all placeholder-slate-700"
+              />
+            </div>
+            <button 
+              type="submit"
+              className="w-full h-12 bg-osu-orange hover:bg-[#c03900] text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-orange-500/15 active:scale-[0.98]"
+            >
+              Start Session
+            </button>
+          </form>
+        </div>
+      </div>
     );
   }
 
