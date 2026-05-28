@@ -28,7 +28,7 @@ function AppContent() {
   const [hash, setHash] = useState(window.location.hash);
   const [emailDomainError, setEmailDomainError] = useState<string | null>(null);
   const [checkingEmailDomain, setCheckingEmailDomain] = useState(false);
-  const [presenterEmail, setPresenterEmail] = useState<string>(() => localStorage.getItem('activePresenterEmail') || '');
+  const [presenterEmail, setPresenterEmail] = useState<string>(() => sessionStorage.getItem('activePresenterEmail') || '');
 
   const handleSavePresenterEmail = async (email: string) => {
     const trimmed = email.trim().toLowerCase();
@@ -78,7 +78,7 @@ function AppContent() {
       return;
     }
 
-    localStorage.setItem('activePresenterEmail', trimmed);
+    sessionStorage.setItem('activePresenterEmail', trimmed);
     setPresenterEmail(trimmed);
     setCheckingEmailDomain(false);
 
@@ -161,7 +161,7 @@ function AppContent() {
             allowAnonymousChat: false,
             disableAttendance: false,
             hideComments: false,
-            presenterEmail: localStorage.getItem('activePresenterEmail') || ''
+            presenterEmail: sessionStorage.getItem('activePresenterEmail') || ''
           });
           
           console.log('AppContent - New presentation created:', docRef.id);
@@ -222,7 +222,7 @@ function AppContent() {
             console.log('AppContent - Presentation data received:', docSnap.id);
             const data = docSnap.data();
             setPresentation({ id: docSnap.id, ...data } as Presentation);
-            const localEmail = localStorage.getItem('activePresenterEmail');
+            const localEmail = sessionStorage.getItem('activePresenterEmail');
             if (localEmail && !data.presenterEmail) {
               updateDoc(docRef, { presenterEmail: localEmail }).catch(err => 
                 console.error('Failed to sync local email to loaded presentation:', err)
@@ -248,7 +248,7 @@ function AppContent() {
               console.log('AppContent - Cached presentation exists in Firestore. Setting active:', docSnap.id);
               const data = docSnap.data();
               setPresentation({ id: docSnap.id, ...data } as Presentation);
-              const localEmail = localStorage.getItem('activePresenterEmail');
+              const localEmail = sessionStorage.getItem('activePresenterEmail');
               if (localEmail && !data.presenterEmail) {
                 updateDoc(docRef, { presenterEmail: localEmail }).catch(err => 
                   console.error('Failed to sync local email to cached presentation:', err)
