@@ -109,8 +109,8 @@ if (process.env.NODE_ENV !== "production") {
   });
 }
 
-// Ensure the local testing does not break by wrapping app.listen in a check
-if (process.env.NODE_ENV !== "production") {
+// Ensure that the server runs app.listen() everywhere EXCEPT inside Vercel's serverless environment
+if (!process.env.VERCEL) {
   const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
