@@ -1,7 +1,7 @@
 {
   "version": 2,
   "functions": {
-    "server.ts": {
+    "api/server.ts": {
       "includeFiles": "dist/**"
     }
   },
@@ -16,19 +16,19 @@
     },
     {
       "src": "/service-worker.js",
-      "dest": "/server.ts"
+      "dest": "/api/server.ts"
     },
     {
       "src": "/service_worker.js",
-      "dest": "/server.ts"
+      "dest": "/api/server.ts"
     },
     {
       "src": "/api/(.*)",
-      "dest": "/server.ts"
+      "dest": "/api/server.ts"
     },
     {
       "src": "/(.*)",
-      "dest": "/server.ts"
+      "dest": "/api/server.ts"
     }
   ]
 }
