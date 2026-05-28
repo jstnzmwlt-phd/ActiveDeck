@@ -2,7 +2,6 @@
   "version": 2,
   "functions": {
     "server.ts": {
-      "runtime": "nodejs20.x",
       "includeFiles": "dist/**"
     }
   },
