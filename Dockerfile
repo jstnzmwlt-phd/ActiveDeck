@@ -24,4 +24,4 @@ ENV NODE_ENV=production
 ENV PORT=8080
 
 # Start the Express server using tsx
-CMD ["npx", "tsx", "server.ts"]
+CMD ["npx", "tsx", "api/server.ts"]
