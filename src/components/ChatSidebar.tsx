@@ -1929,7 +1929,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   }
   .container {
     width: 100%;
-    max-width: 900px;
+    max-width: 720px;
     margin: 0 auto;
     background-color: #ffffff;
     border-radius: 8px;
@@ -1959,6 +1959,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     width: 100%;
     border-collapse: collapse;
     margin-bottom: 30px;
+    table-layout: fixed;
   }
   .log-table th {
     background-color: #f1f5f9;
@@ -1967,15 +1968,17 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    padding: 12px;
+    padding: 12px 6px;
     border-bottom: 2px solid #cbd5e1;
   }
   .log-table td {
-    padding: 12px;
+    padding: 12px 6px;
     border-bottom: 1px solid #e2e8f0;
     font-size: 13px;
     vertical-align: top;
     color: #334155;
+    word-break: break-word;
+    word-wrap: break-word;
   }
   .badge {
     display: inline-block;
@@ -2052,11 +2055,14 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   .poll-table {
     width: 100%;
     border-collapse: collapse;
+    table-layout: fixed;
   }
   .poll-table td {
     padding: 6px 10px;
     border: none;
     font-size: 13px;
+    word-break: break-word;
+    word-wrap: break-word;
   }
   .word-pill {
     display: inline-block;
@@ -2068,6 +2074,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     margin-right: 6px;
     margin-bottom: 6px;
     font-size: 12px;
+    word-break: break-all;
   }
   .response-box {
     padding: 10px 14px;
@@ -2079,12 +2086,14 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     font-size: 13px;
     color: #334155;
     box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+    word-break: break-word;
+    word-wrap: break-word;
   }
 </style>
 </head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1e293b; margin: 40px; background-color: #f8fafc; line-height: 1.5;">
-  <!-- Centering Outer Layout Table -->
-  <table align="center" width="900" style="width: 900px; max-width: 900px; margin: 0 auto; border-collapse: collapse; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); text-align: left;">
+  <!-- Centering Outer Layout Table with 100% width for Word compatibility -->
+  <table align="center" width="100%" style="width: 100%; max-width: 720px; margin: 0 auto; border-collapse: collapse; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); text-align: left;">
     <tr>
       <td style="padding: 40px; border: none; vertical-align: top; background-color: #ffffff;">
         <div class="header" style="border-bottom: 3px solid ${themeAccentColor}; padding-bottom: 20px; margin-bottom: 30px; text-align: center;">
@@ -2117,16 +2126,16 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         
         // Open table if not already open
         if (!isTableOpen) {
-          htmlContent += `<table class="log-table" style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+          htmlContent += `<table class="log-table" style="width: 100%; border-collapse: collapse; margin-bottom: 30px; table-layout: fixed;">
             <thead>
               <tr style="background-color: #f1f5f9;">
-                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px; border-bottom: 2px solid #cbd5e1; text-align: center;">Date</th>
-                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px; border-bottom: 2px solid #cbd5e1; text-align: center;">Time</th>
-                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px; border-bottom: 2px solid #cbd5e1; text-align: center;">Slide</th>
-                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px; border-bottom: 2px solid #cbd5e1; text-align: left;">Name</th>
-                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px; border-bottom: 2px solid #cbd5e1; text-align: left;">Email</th>
-                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px; border-bottom: 2px solid #cbd5e1; text-align: center;">Type</th>
-                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px; border-bottom: 2px solid #cbd5e1; text-align: left;">Question / Message</th>
+                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 6px; border-bottom: 2px solid #cbd5e1; text-align: center; width: 10%;">Date</th>
+                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 6px; border-bottom: 2px solid #cbd5e1; text-align: center; width: 12%;">Time</th>
+                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 6px; border-bottom: 2px solid #cbd5e1; text-align: center; width: 8%;">Slide</th>
+                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 6px; border-bottom: 2px solid #cbd5e1; text-align: left; width: 13%;">Name</th>
+                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 6px; border-bottom: 2px solid #cbd5e1; text-align: left; width: 17%;">Email</th>
+                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 6px; border-bottom: 2px solid #cbd5e1; text-align: center; width: 10%;">Type</th>
+                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 6px; border-bottom: 2px solid #cbd5e1; text-align: left; width: 30%;">Question / Message</th>
               </tr>
             </thead>
             <tbody>`;
@@ -2146,17 +2155,17 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           : '';
 
         const emailLink = m.userEmail
-          ? `<a href="mailto:${m.userEmail}" style="color: #2563eb; text-decoration: none; border-bottom: 1px dotted #2563eb;">${m.userEmail}</a>`
+          ? `<a href="mailto:${m.userEmail}" style="color: #2563eb; text-decoration: none; border-bottom: 1px dotted #2563eb; word-break: break-all;">${m.userEmail}</a>`
           : '-';
 
         htmlContent += `<tr>
-          <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: center;">${dateStr}</td>
-          <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: center;">${timeStr}</td>
-          <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: center;">${slideBadge}</td>
-          <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; font-weight: 600; text-align: left;">${m.userName}</td>
-          <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: left;">${emailLink}</td>
-          <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: center;">${typeBadge}</td>
-          <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: left;"><strong>${m.text}</strong>${likesBadge}</td>
+          <td style="padding: 12px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: center; word-break: break-word; word-wrap: break-word;">${dateStr}</td>
+          <td style="padding: 12px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: center; word-break: break-word; word-wrap: break-word;">${timeStr}</td>
+          <td style="padding: 12px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: center; word-break: break-word; word-wrap: break-word;">${slideBadge}</td>
+          <td style="padding: 12px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; font-weight: 600; text-align: left; word-break: break-word; word-wrap: break-word;">${m.userName}</td>
+          <td style="padding: 12px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: left; word-break: break-all; word-wrap: break-word;">${emailLink}</td>
+          <td style="padding: 12px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: center; word-break: break-word; word-wrap: break-word;">${typeBadge}</td>
+          <td style="padding: 12px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: left; word-break: break-word; word-wrap: break-word;"><strong>${m.text}</strong>${likesBadge}</td>
         </tr>`;
       } else {
         // Close table if it was open
@@ -2183,8 +2192,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               : '';
 
             pollOptionsHtml += `<tr>
-              <td style="width: 80px; font-weight: bold; padding: 6px 10px; border: none; font-size: 13px;">Option ${opt}</td>
-              <td style="padding: 6px 10px; border: none;">
+              <td style="width: 15%; font-weight: bold; padding: 6px 10px; border: none; font-size: 13px;">Option ${opt}</td>
+              <td style="width: 50%; padding: 6px 10px; border: none;">
                 <table style="width: 100%; border: 1px solid #cbd5e1; border-collapse: collapse; height: 16px;">
                   <tr>
                     <td style="width: ${percentage}%; background-color: ${themeAccentColor}; border: none; padding: 0; height: 16px;"></td>
@@ -2192,7 +2201,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                   </tr>
                 </table>
               </td>
-              <td style="width: 220px; padding: 6px 10px; border: none; font-size: 13px;">
+              <td style="width: 35%; padding: 6px 10px; border: none; font-size: 13px; word-break: break-word; word-wrap: break-word;">
                 <strong>${count} votes</strong> (${percentage}%)${correctBadge}
               </td>
             </tr>`;
@@ -2203,7 +2212,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               <td style="padding: 20px; border: none; text-align: left; vertical-align: top;">
                 <h3 class="card-title" style="font-weight: 800; font-size: 15px; margin: 0 0 4px 0; color: #0f172a; text-align: center;">📊 MCQ POLL RESULTS</h3>
                 <p class="card-meta" style="font-size: 11px; color: #64748b; margin: 0 0 16px 0; text-align: center;">Triggered on ${dateStr} at ${timeStr}${slideStr}</p>
-                <table class="poll-table" style="width: 100%; border-collapse: collapse;">
+                <table class="poll-table" style="width: 100%; border-collapse: collapse; table-layout: fixed;">
                   ${pollOptionsHtml}
                 </table>
                 <p style="margin-top: 12px; margin-bottom: 0; font-size: 12px; font-weight: bold; color: #475569; text-align: center;">Total Votes: ${totalVotes}</p>
@@ -2221,7 +2230,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
           let wordPillsHtml = '';
           Object.entries(w.words || {}).sort((a, b) => b[1] - a[1]).forEach(([word, count]) => {
-            wordPillsHtml += `<span class="word-pill" style="display: inline-block; padding: 5px 10px; background-color: #ffffff; color: #1e293b; border: 1px solid #cbd5e1; border-radius: 16px; margin-right: 6px; margin-bottom: 6px; font-size: 12px;">
+            wordPillsHtml += `<span class="word-pill" style="display: inline-block; padding: 5px 10px; background-color: #ffffff; color: #1e293b; border: 1px solid #cbd5e1; border-radius: 16px; margin-right: 6px; margin-bottom: 6px; font-size: 12px; word-break: break-all;">
               <strong>${word}</strong> (${count})
             </span>`;
           });
@@ -2250,7 +2259,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
           let responsesHtml = '';
           Object.values(q.responses || {}).forEach(response => {
-            responsesHtml += `<div class="response-box" style="padding: 10px 14px; background-color: #ffffff; border-left: 3px solid #10b981; border-radius: 0 4px 4px 0; margin-bottom: 8px; font-style: italic; font-size: 13px; color: #334155; border-top: none; border-right: none; border-bottom: none;">
+            responsesHtml += `<div class="response-box" style="padding: 10px 14px; background-color: #ffffff; border-left: 3px solid #10b981; border-radius: 0 4px 4px 0; margin-bottom: 8px; font-style: italic; font-size: 13px; color: #334155; border-top: none; border-right: none; border-bottom: none; word-break: break-word; word-wrap: break-word;">
               "${response}"
             </div>`;
           });
