@@ -3222,7 +3222,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
       {/* Presenter-only Bottom Chat Input Area */}
       {!isChatOnly && user && (
-        <div className="bg-white border-t border-slate-200 shrink-0 p-3 pb-[env(safe-area-inset-bottom)]">
+        <div className="bg-white border-t border-slate-200 shrink-0 p-3" style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom))' }}>
           <form onSubmit={handleSendMessage} className="flex gap-2">
             <input
               type="text"
