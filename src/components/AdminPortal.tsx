@@ -4,6 +4,17 @@ import { db } from '../firebase';
 import { Theme, SavedTheme, Message, Poll, WordCloud, OpenEndedQuestion } from '../types';
 import { Palette, UserCheck, Download, ArrowLeft, Loader2, Calendar, Database, AlertCircle, Trash2, Monitor } from 'lucide-react';
 
+const formatHtmlTextWithLinks = (text: string): string => {
+  if (!text) return '';
+  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+  return text.replace(urlRegex, (url) => {
+    const href = url.startsWith('http://') || url.startsWith('https://') 
+      ? url 
+      : `https://${url}`;
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="color: #2563eb; text-decoration: underline; word-break: break-all;">${url}</a>`;
+  });
+};
+
 interface AdminPortalProps {
   presentationId?: string | null;
 }
@@ -756,7 +767,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
             <td style="padding: 12px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; font-weight: 600; text-align: left; word-break: break-word; word-wrap: break-word;">${m.userName}</td>
             <td style="padding: 12px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: left; word-break: break-all; word-wrap: break-word;">${emailLink}</td>
             <td style="padding: 12px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: center; word-break: break-word; word-wrap: break-word;">${typeBadge}</td>
-            <td style="padding: 12px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: left; word-break: break-word; word-wrap: break-word;"><strong>${m.text}</strong>${likesBadge}</td>
+            <td style="padding: 12px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: left; word-break: break-word; word-wrap: break-word;"><strong>${formatHtmlTextWithLinks(m.text)}</strong>${likesBadge}</td>
           </tr>`;
         } else {
           if (isTableOpen) {

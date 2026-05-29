@@ -15,6 +15,43 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+const renderTextWithLinks = (text: string) => {
+  if (!text) return null;
+  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+  const parts = text.split(urlRegex);
+  return parts.map((part, index) => {
+    if (part.match(urlRegex)) {
+      const href = part.startsWith('http://') || part.startsWith('https://') 
+        ? part 
+        : `https://${part}`;
+      return (
+        <a 
+          key={index} 
+          href={href} 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline break-all font-bold"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {part}
+        </a>
+      );
+    }
+    return part;
+  });
+};
+
+const formatHtmlTextWithLinks = (text: string): string => {
+  if (!text) return '';
+  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+  return text.replace(urlRegex, (url) => {
+    const href = url.startsWith('http://') || url.startsWith('https://') 
+      ? url 
+      : `https://${url}`;
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="color: #2563eb; text-decoration: underline; word-break: break-all;">${url}</a>`;
+  });
+};
+
 enum OperationType {
   CREATE = 'create',
   UPDATE = 'update',
@@ -943,7 +980,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
       {!isCollapsed && (
         <>
           <p className="text-sm text-slate-800 leading-relaxed">
-            <span className="font-bold">{msg.text}</span>
+            <span className="font-bold">{renderTextWithLinks(msg.text)}</span>
             {(msg.slide !== undefined && msg.slide !== null) && (
               <span className={cn(
                 "inline-flex items-center ml-1.5 px-2.5 py-1 rounded-full text-[11px] font-normal text-white border-2 border-white uppercase tracking-wider",
@@ -2165,7 +2202,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           <td style="padding: 12px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; font-weight: 600; text-align: left; word-break: break-word; word-wrap: break-word;">${m.userName}</td>
           <td style="padding: 12px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: left; word-break: break-all; word-wrap: break-word;">${emailLink}</td>
           <td style="padding: 12px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: center; word-break: break-word; word-wrap: break-word;">${typeBadge}</td>
-          <td style="padding: 12px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: left; word-break: break-word; word-wrap: break-word;"><strong>${m.text}</strong>${likesBadge}</td>
+          <td style="padding: 12px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: left; word-break: break-word; word-wrap: break-word;"><strong>${formatHtmlTextWithLinks(m.text)}</strong>${likesBadge}</td>
         </tr>`;
       } else {
         // Close table if it was open
