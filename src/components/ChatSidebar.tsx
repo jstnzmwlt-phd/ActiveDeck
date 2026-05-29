@@ -1014,6 +1014,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [inputText, setInputText] = useState('');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isAllCollapsed, setIsAllCollapsed] = useState(false);
+  const [isQRExpanded, setIsQRExpanded] = useState(false);
   const [showWordCloudModal, setShowWordCloudModal] = useState(false);
   const [showOpenEndedQuestionModal, setShowOpenEndedQuestionModal] = useState(false);
   const [wordCloudPrompt, setWordCloudPrompt] = useState('');
@@ -2707,82 +2708,142 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
       {/* Embedded QR Code Section */}
       {!isChatOnly && (
-        <div className="p-3 bg-slate-50 border-b border-slate-200 flex flex-row items-start gap-3 animate-in slide-in-from-top duration-300">
-          <div className="bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm shrink-0 flex flex-col items-center gap-1.5">
-            <QRCodeSVG 
-              value={dynamicChatUrl} 
-              size={120}
-              level="H"
-              imageSettings={{
-                src: internalLogoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png",
-                x: undefined,
-                y: undefined,
-                height: 24,
-                width: 24,
-                excavate: true,
-              }}
-            />
-            {/* Progress countdown bar */}
-            {!presentation?.disableAttendance && (
-              <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden relative">
-                <div 
-                  className="h-full bg-osu-orange transition-all duration-100 ease-linear"
-                  style={{ width: `${(timeLeft / 10) * 100}%` }}
-                />
-              </div>
-            )}
-          </div>
-          <div className="flex flex-col justify-center min-w-0 py-1 flex-1">
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+        isQRExpanded ? (
+          /* Expanded Card View */
+          <div 
+            onClick={() => setIsQRExpanded(false)}
+            className="p-5 bg-white border-b border-slate-200 flex flex-col items-center justify-center gap-3.5 cursor-pointer animate-in fade-in duration-300 select-none h-[380px]"
+            title="Click to minimize QR code"
+          >
+            <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-md flex flex-col items-center gap-2 animate-in zoom-in-95 duration-300">
+              <QRCodeSVG 
+                value={dynamicChatUrl} 
+                size={230}
+                level="M"
+                includeMargin={true}
+                imageSettings={{
+                  src: internalLogoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png",
+                  x: undefined,
+                  y: undefined,
+                  height: 38,
+                  width: 38,
+                  excavate: true,
+                }}
+              />
+              {/* Progress countdown bar */}
+              {!presentation?.disableAttendance && (
+                <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden relative">
+                  <div 
+                    className="h-full bg-osu-orange transition-all duration-100 ease-linear"
+                    style={{ width: `${(timeLeft / 10) * 100}%` }}
+                  />
+                </div>
+              )}
+            </div>
+            
+            <div className="text-center space-y-1 w-full max-w-[270px]">
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-tight">
                 {presentation?.disableAttendance ? "Scan to Join Chat" : "Scan to Mark Attendance and Join Chat"}
               </p>
-              <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-200/50 rounded-lg text-xs font-black text-slate-700 shadow-sm transition-all animate-in zoom-in-50 duration-500">
-                <Users className="w-4 h-4 text-osu-orange" />
-                <span>{participantCount}</span>
+              <p className="text-xs font-bold text-slate-700 font-mono select-all truncate">
+                {shortUrl || chatOnlyUrl}
+              </p>
+              <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-slate-100 rounded border border-slate-200 text-[10px] font-black text-slate-650 mt-1">
+                <Users className="w-3.5 h-3.5 text-osu-orange" />
+                <span>{participantCount} Joined</span>
               </div>
+              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-2.5 animate-pulse">
+                (Click anywhere to minimize)
+              </p>
             </div>
-            {canModerate && (
-              <div className="flex flex-col gap-2 mt-2">
-                <div className="flex items-stretch gap-2">
+          </div>
+        ) : (
+          /* Minimized Horizontal View */
+          <div className="p-3 bg-slate-50 border-b border-slate-200 flex flex-row items-start gap-3 animate-in slide-in-from-top duration-300">
+            <div 
+              onClick={() => setIsQRExpanded(true)}
+              className="bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm shrink-0 flex flex-col items-center gap-1 cursor-pointer hover:border-osu-orange hover:shadow-md transition-all group/qr"
+              title="Click to expand QR code"
+            >
+              <QRCodeSVG 
+                value={dynamicChatUrl} 
+                size={120}
+                level="M"
+                includeMargin={true}
+                imageSettings={{
+                  src: internalLogoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png",
+                  x: undefined,
+                  y: undefined,
+                  height: 20,
+                  width: 20,
+                  excavate: true,
+                }}
+              />
+              {/* Progress countdown bar */}
+              {!presentation?.disableAttendance && (
+                <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden relative">
+                  <div 
+                    className="h-full bg-osu-orange transition-all duration-100 ease-linear"
+                    style={{ width: `${(timeLeft / 10) * 100}%` }}
+                  />
+                </div>
+              )}
+              <span className="text-[7px] text-slate-400 group-hover/qr:text-osu-orange font-bold uppercase tracking-wider leading-none mt-0.5">
+                Click to Expand
+              </span>
+            </div>
+            <div className="flex flex-col justify-center min-w-0 py-1 flex-1">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest truncate mr-1">
+                  {presentation?.disableAttendance ? "Scan to Join" : "Scan to Check-In"}
+                </p>
+                <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-200/50 rounded-lg text-xs font-black text-slate-700 shadow-sm shrink-0">
+                  <Users className="w-4 h-4 text-osu-orange" />
+                  <span>{participantCount}</span>
+                </div>
+              </div>
+              {canModerate && (
+                <div className="flex flex-col gap-2 mt-2">
+                  <div className="flex items-stretch gap-2">
+                    <button 
+                      onClick={handleCreatePoll}
+                      className="flex-1 flex flex-col items-center justify-center px-1 py-2 bg-osu-orange text-white rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-[#c03900] transition-all shadow-sm leading-tight border-0 cursor-pointer"
+                    >
+                      <BarChart2 className="w-4 h-4 mb-0.5" />
+                      <span>MCQ</span>
+                    </button>
+                    <button 
+                      onClick={() => handleCreateWordCloud('Word Cloud')}
+                      className="flex-1 flex flex-col items-center justify-center px-1 py-2 bg-blue-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-blue-600 transition-all shadow-sm leading-tight border-0 cursor-pointer"
+                    >
+                      <Cloud className="w-4 h-4 mb-0.5" />
+                      <span>Word</span>
+                    </button>
+                    <button                
+                        onClick={() => handleCreateOpenEndedQuestion('Open question')}
+                        className="flex-1 flex flex-col items-center justify-center px-1 py-2 bg-green-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-green-600 transition-all shadow-sm leading-tight border-0 cursor-pointer"
+                    >                
+                      <MessageSquare className="w-4 h-4 mb-0.5" />
+                      <span>Open ?</span>
+                    </button>
+                  </div>
                   <button 
-                    onClick={handleCreatePoll}
-                    className="flex-1 flex flex-col items-center justify-center px-1 py-2 bg-osu-orange text-white rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-[#c03900] transition-all shadow-sm leading-tight"
+                    onClick={() => setIsAllCollapsed(!isAllCollapsed)}
+                    className={cn(
+                      "w-full flex items-center justify-center gap-2 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border shadow-sm cursor-pointer",
+                      isAllCollapsed 
+                        ? "bg-slate-800 text-osu-orange border-slate-700" 
+                        : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200"
+                    )}
                   >
-                    <BarChart2 className="w-4 h-4 mb-0.5" />
-                    <span>MCQ</span>
-                  </button>
-                  <button 
-                    onClick={() => handleCreateWordCloud('Word Cloud')}
-                    className="flex-1 flex flex-col items-center justify-center px-1 py-2 bg-blue-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-blue-600 transition-all shadow-sm leading-tight"
-                  >
-                    <Cloud className="w-4 h-4 mb-0.5" />
-                    <span>Word</span>
-                  </button>
-                  <button                
-                      onClick={() => handleCreateOpenEndedQuestion('Open question')}
-                      className="flex-1 flex flex-col items-center justify-center px-1 py-2 bg-green-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-green-600 transition-all shadow-sm leading-tight"
-                  >                
-                    <MessageSquare className="w-4 h-4 mb-0.5" />
-                    <span>Open ?</span>
+                    {isAllCollapsed ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
+                    <span>{isAllCollapsed ? "Expand All Content" : "Collapse All Content"}</span>
                   </button>
                 </div>
-                <button 
-                  onClick={() => setIsAllCollapsed(!isAllCollapsed)}
-                  className={cn(
-                    "w-full flex items-center justify-center gap-2 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border shadow-sm",
-                    isAllCollapsed 
-                      ? "bg-slate-800 text-osu-orange border-slate-700" 
-                      : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200"
-                  )}
-                >
-                  {isAllCollapsed ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
-                  <span>{isAllCollapsed ? "Expand All Content" : "Collapse All Content"}</span>
-                </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
+        )
       )}
 
       {/* Messages Area Wrapper */}
