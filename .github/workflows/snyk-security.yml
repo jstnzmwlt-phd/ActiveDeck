@@ -31,21 +31,6 @@ jobs:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
       - name: Run Snyk Code Test (SAST)
-        run: |
-          node -e "
-            const { spawn } = require('child_process');
-            const child = spawn('npx', ['snyk', 'code', 'test'], { shell: true });
-            let output = '';
-            child.stdout.on('data', data => output += data);
-            child.stderr.on('data', data => output += data);
-            child.on('close', (code) => {
-              console.log(output);
-              if (code !== 0) {
-                const msg = output.replace(/\r/g, '').replace(/\n/g, '%0A').substring(0, 4000);
-                console.log('::error title=Snyk Code Output::' + msg);
-                process.exit(code);
-              }
-            });
-          "
+        run: npx snyk code test
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
