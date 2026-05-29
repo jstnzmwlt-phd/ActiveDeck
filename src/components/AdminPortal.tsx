@@ -694,7 +694,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in duration-300">
               
               {/* Left Column: Chronological Session Logs */}
-              <div className="lg:col-span-4 flex flex-col gap-6">
+              <div className="lg:col-span-3 flex flex-col gap-6">
                 <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 flex flex-col h-[650px] overflow-hidden">
                   
                   {/* Sidebar Header with Bulk Actions */}
@@ -839,7 +839,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
               </div>
 
               {/* Right Column: Attendance Monitor */}
-              <div className="lg:col-span-8">
+              <div className="lg:col-span-9">
                 {!selectedSessionId ? (
                   <div className="bg-slate-900 border border-slate-800 rounded-3xl p-12 text-center flex flex-col items-center justify-center h-[650px]">
                     <div className="w-12 h-12 bg-osu-orange/10 border border-osu-orange/20 text-osu-orange rounded-2xl flex items-center justify-center mb-4">
@@ -851,9 +851,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-6">
+                  <div className="flex flex-col gap-6 h-[650px] overflow-hidden">
                     {/* Dashboard header card */}
-                    <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 flex-shrink-0">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
                           <span className={`w-2 h-2 rounded-full ${selectedSessionId === presentationId ? 'bg-green-500 animate-pulse' : 'bg-slate-500'}`} />
@@ -900,17 +900,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                     </div>
 
                     {/* Real-Time Live Roster Table Card */}
-                    <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 overflow-hidden">
-                      <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
+                    <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 overflow-hidden flex-1 flex flex-col min-h-0">
+                      <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2 flex-shrink-0">
                         <UserCheck className="w-4 h-4 text-green-500" />
                         {selectedSessionId === presentationId ? 'Live Attendance Roster' : 'Attendance Roster Log'}
                       </h3>
 
-                      <div className="border border-slate-800/80 rounded-2xl overflow-hidden bg-slate-950/40">
-                        <div className="overflow-x-auto">
+                      <div className="border border-slate-800/80 rounded-2xl overflow-hidden bg-slate-950/40 flex-1 flex flex-col min-h-0">
+                        <div className="overflow-x-auto overflow-y-auto flex-1 custom-scrollbar">
                           <table className="w-full text-left border-collapse">
                             <thead>
-                              <tr className="bg-slate-950 border-b border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                              <tr className="bg-slate-950 border-b border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-400 sticky top-0 z-10">
                                 <th className="py-3 px-4">Student Name</th>
                                 <th className="py-3 px-4">Email Address</th>
                                 <th className="py-3 px-4">Presenter Email</th>
