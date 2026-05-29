@@ -2291,9 +2291,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     const link = document.createElement('a');
     link.href = url;
     link.download = 'chat-log.doc';
-    document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
     URL.revokeObjectURL(url);
   };
 

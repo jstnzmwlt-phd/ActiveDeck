@@ -440,9 +440,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
     link.setAttribute("download", `activedeck_attendance_session_${selectedSessionId.substring(0, 8)}.csv`);
-    document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
   };
 
   const handleDownloadChatLog = async () => {
@@ -883,9 +881,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
       const link = document.createElement('a');
       link.href = url;
       link.download = `chat-log-session-${selectedSessionId.substring(0, 8)}.doc`;
-      document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error("Error downloading chat log:", err);

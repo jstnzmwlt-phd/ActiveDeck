@@ -65,9 +65,7 @@ export const Header: React.FC<HeaderProps> = ({ presentationId }) => {
       const link = document.createElement("a");
       link.setAttribute("href", csvContent);
       link.setAttribute("download", `activedeck_attendance_session_${presentationId.substring(0, 8)}.csv`);
-      document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
       setIsExportModalOpen(false);
     } catch (err: any) {
       if (err.message === "NO_RECORDS") {
