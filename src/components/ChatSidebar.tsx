@@ -1928,28 +1928,32 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     line-height: 1.5;
   }
   .container {
+    width: 100%;
     max-width: 900px;
     margin: 0 auto;
     background-color: #ffffff;
-    padding: 30px;
     border-radius: 8px;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    text-align: left;
   }
   .header {
     border-bottom: 3px solid ${themeAccentColor};
     padding-bottom: 20px;
     margin-bottom: 30px;
+    text-align: center;
   }
   .header h1 {
     font-size: 26px;
     margin: 0 0 8px 0;
     color: #0f172a;
     font-weight: 800;
+    text-align: center;
   }
   .header p {
     font-size: 13px;
     color: #64748b;
     margin: 0;
+    text-align: center;
   }
   .log-table {
     width: 100%;
@@ -1965,7 +1969,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     letter-spacing: 0.5px;
     padding: 12px;
     border-bottom: 2px solid #cbd5e1;
-    text-align: left;
   }
   .log-table td {
     padding: 12px;
@@ -2006,8 +2009,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     margin-left: 4px;
   }
   .card {
-    padding: 20px;
-    border-radius: 8px;
+    width: 100%;
+    border-collapse: collapse;
     margin: 24px 0;
     background-color: #ffffff;
   }
@@ -2031,17 +2034,20 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     font-size: 15px;
     margin: 0 0 4px 0;
     color: #0f172a;
+    text-align: center;
   }
   .card-subtitle {
     font-size: 13px;
     font-weight: 600;
     color: #334155;
     margin: 0 0 12px 0;
+    text-align: center;
   }
   .card-meta {
     font-size: 11px;
     color: #64748b;
     margin: 0 0 16px 0;
+    text-align: center;
   }
   .poll-table {
     width: 100%;
@@ -2076,14 +2082,17 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   }
 </style>
 </head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h1>ActiveDeck Session Activity Log</h1>
-      <p>Generated on ${new Date().toLocaleString()}</p>
-    </div>`;
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1e293b; margin: 40px; background-color: #f8fafc; line-height: 1.5;">
+  <!-- Centering Outer Layout Table -->
+  <table align="center" width="900" style="width: 900px; max-width: 900px; margin: 0 auto; border-collapse: collapse; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); text-align: left;">
+    <tr>
+      <td style="padding: 40px; border: none; vertical-align: top; background-color: #ffffff;">
+        <div class="header" style="border-bottom: 3px solid ${themeAccentColor}; padding-bottom: 20px; margin-bottom: 30px; text-align: center;">
+          <h1 style="font-size: 26px; margin: 0 0 8px 0; color: #0f172a; font-weight: 800; text-align: center;">ActiveDeck Session Activity Log</h1>
+          <p style="font-size: 13px; color: #64748b; margin: 0; text-align: center;">Generated on ${new Date().toLocaleString()}</p>
+        </div>`;
 
-    const footer = "</div></body></html>";
+    const footer = "</td></tr></table></body></html>";
     
     const combinedItems = [
       ...messages.map(m => ({ ...m, type: 'message' as const })),
@@ -2111,12 +2120,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           htmlContent += `<table class="log-table" style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
             <thead>
               <tr style="background-color: #f1f5f9;">
-                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px; border-bottom: 2px solid #cbd5e1; text-align: left;">Date</th>
-                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px; border-bottom: 2px solid #cbd5e1; text-align: left;">Time</th>
-                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px; border-bottom: 2px solid #cbd5e1; text-align: left;">Slide</th>
+                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px; border-bottom: 2px solid #cbd5e1; text-align: center;">Date</th>
+                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px; border-bottom: 2px solid #cbd5e1; text-align: center;">Time</th>
+                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px; border-bottom: 2px solid #cbd5e1; text-align: center;">Slide</th>
                 <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px; border-bottom: 2px solid #cbd5e1; text-align: left;">Name</th>
                 <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px; border-bottom: 2px solid #cbd5e1; text-align: left;">Email</th>
-                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px; border-bottom: 2px solid #cbd5e1; text-align: left;">Type</th>
+                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px; border-bottom: 2px solid #cbd5e1; text-align: center;">Type</th>
                 <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px; border-bottom: 2px solid #cbd5e1; text-align: left;">Question / Message</th>
               </tr>
             </thead>
@@ -2141,13 +2150,13 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           : '-';
 
         htmlContent += `<tr>
-          <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155;">${dateStr}</td>
-          <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155;">${timeStr}</td>
-          <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155;">${slideBadge}</td>
-          <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; font-weight: 600;">${m.userName}</td>
-          <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155;">${emailLink}</td>
-          <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155;">${typeBadge}</td>
-          <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155;"><strong>${m.text}</strong>${likesBadge}</td>
+          <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: center;">${dateStr}</td>
+          <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: center;">${timeStr}</td>
+          <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: center;">${slideBadge}</td>
+          <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; font-weight: 600; text-align: left;">${m.userName}</td>
+          <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: left;">${emailLink}</td>
+          <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: center;">${typeBadge}</td>
+          <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: left;"><strong>${m.text}</strong>${likesBadge}</td>
         </tr>`;
       } else {
         // Close table if it was open
@@ -2189,14 +2198,18 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
             </tr>`;
           });
 
-          htmlContent += `<div class="card card-mcq" style="padding: 20px; border-radius: 8px; margin: 24px 0; background-color: #fff5f2; border: 1px solid #fca5a5; border-left: 6px solid ${themeAccentColor};">
-            <h3 class="card-title" style="font-weight: 800; font-size: 15px; margin: 0 0 4px 0; color: #0f172a;">📊 MCQ POLL RESULTS</h3>
-            <p class="card-meta" style="font-size: 11px; color: #64748b; margin: 0 0 16px 0;">Triggered on ${dateStr} at ${timeStr}${slideStr}</p>
-            <table class="poll-table" style="width: 100%; border-collapse: collapse;">
-              ${pollOptionsHtml}
-            </table>
-            <p style="margin-top: 12px; margin-bottom: 0; font-size: 12px; font-weight: bold; color: #475569;">Total Votes: ${totalVotes}</p>
-          </div>`;
+          htmlContent += `<table class="card card-mcq" style="width: 100%; border-collapse: collapse; margin: 24px 0; background-color: #fff5f2; border: 1px solid #fca5a5; border-left: 6px solid ${themeAccentColor}; border-radius: 8px;">
+            <tr>
+              <td style="padding: 20px; border: none; text-align: left; vertical-align: top;">
+                <h3 class="card-title" style="font-weight: 800; font-size: 15px; margin: 0 0 4px 0; color: #0f172a; text-align: center;">📊 MCQ POLL RESULTS</h3>
+                <p class="card-meta" style="font-size: 11px; color: #64748b; margin: 0 0 16px 0; text-align: center;">Triggered on ${dateStr} at ${timeStr}${slideStr}</p>
+                <table class="poll-table" style="width: 100%; border-collapse: collapse;">
+                  ${pollOptionsHtml}
+                </table>
+                <p style="margin-top: 12px; margin-bottom: 0; font-size: 12px; font-weight: bold; color: #475569; text-align: center;">Total Votes: ${totalVotes}</p>
+              </td>
+            </tr>
+          </table>`;
 
         } else if (item.type === 'wordCloud') {
           const w = item as WordCloud;
@@ -2213,15 +2226,19 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
             </span>`;
           });
 
-          htmlContent += `<div class="card card-wordcloud" style="padding: 20px; border-radius: 8px; margin: 24px 0; background-color: #eff6ff; border: 1px solid #93c5fd; border-left: 6px solid #3b82f6;">
-            <h3 class="card-title" style="font-weight: 800; font-size: 15px; margin: 0 0 4px 0; color: #0f172a;">☁️ WORD CLOUD RESULTS</h3>
-            <p class="card-meta" style="font-size: 11px; color: #64748b; margin: 0 0 16px 0;">Triggered on ${dateStr} at ${timeStr}${slideStr}</p>
-            <h4 class="card-subtitle" style="font-size: 13px; font-weight: 600; color: #334155; margin: 0 0 12px 0;">Prompt: "${w.prompt}"</h4>
-            <div style="margin-top: 12px; margin-bottom: 12px;">
-              ${wordPillsHtml || '<p style="font-size: 13px; color: #64748b; font-style: italic;">No entries recorded</p>'}
-            </div>
-            <p style="margin-top: 12px; margin-bottom: 0; font-size: 12px; font-weight: bold; color: #475569;">Total Submissions: ${totalWords}</p>
-          </div>`;
+          htmlContent += `<table class="card card-wordcloud" style="width: 100%; border-collapse: collapse; margin: 24px 0; background-color: #eff6ff; border: 1px solid #93c5fd; border-left: 6px solid #3b82f6; border-radius: 8px;">
+            <tr>
+              <td style="padding: 20px; border: none; text-align: left; vertical-align: top;">
+                <h3 class="card-title" style="font-weight: 800; font-size: 15px; margin: 0 0 4px 0; color: #0f172a; text-align: center;">☁️ WORD CLOUD RESULTS</h3>
+                <p class="card-meta" style="font-size: 11px; color: #64748b; margin: 0 0 16px 0; text-align: center;">Triggered on ${dateStr} at ${timeStr}${slideStr}</p>
+                <h4 class="card-subtitle" style="font-size: 13px; font-weight: 600; color: #334155; margin: 0 0 12px 0; text-align: center;">Prompt: "${w.prompt}"</h4>
+                <div style="margin-top: 12px; margin-bottom: 12px; text-align: center;">
+                  ${wordPillsHtml || '<p style="font-size: 13px; color: #64748b; font-style: italic; text-align: center;">No entries recorded</p>'}
+                </div>
+                <p style="margin-top: 12px; margin-bottom: 0; font-size: 12px; font-weight: bold; color: #475569; text-align: center;">Total Submissions: ${totalWords}</p>
+              </td>
+            </tr>
+          </table>`;
 
         } else if (item.type === 'openEnded') {
           const q = item as OpenEndedQuestion;
@@ -2238,15 +2255,19 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
             </div>`;
           });
 
-          htmlContent += `<div class="card card-openended" style="padding: 20px; border-radius: 8px; margin: 24px 0; background-color: #f0fdf4; border: 1px solid #6ee7b7; border-left: 6px solid #10b981;">
-            <h3 class="card-title" style="font-weight: 800; font-size: 15px; margin: 0 0 4px 0; color: #0f172a;">💬 OPEN ENDED RESULTS</h3>
-            <p class="card-meta" style="font-size: 11px; color: #64748b; margin: 0 0 16px 0;">Triggered on ${dateStr} at ${timeStr}${slideStr}</p>
-            <h4 class="card-subtitle" style="font-size: 13px; font-weight: 600; color: #334155; margin: 0 0 12px 0;">Question: "${q.prompt}"</h4>
-            <div style="margin-top: 12px; margin-bottom: 12px;">
-              ${responsesHtml || '<p style="font-size: 13px; color: #64748b; font-style: italic;">No responses recorded</p>'}
-            </div>
-            <p style="margin-top: 12px; margin-bottom: 0; font-size: 12px; font-weight: bold; color: #475569;">Total Responses: ${totalResponses}</p>
-          </div>`;
+          htmlContent += `<table class="card card-openended" style="width: 100%; border-collapse: collapse; margin: 24px 0; background-color: #f0fdf4; border: 1px solid #6ee7b7; border-left: 6px solid #10b981; border-radius: 8px;">
+            <tr>
+              <td style="padding: 20px; border: none; text-align: left; vertical-align: top;">
+                <h3 class="card-title" style="font-weight: 800; font-size: 15px; margin: 0 0 4px 0; color: #0f172a; text-align: center;">💬 OPEN ENDED RESULTS</h3>
+                <p class="card-meta" style="font-size: 11px; color: #64748b; margin: 0 0 16px 0; text-align: center;">Triggered on ${dateStr} at ${timeStr}${slideStr}</p>
+                <h4 class="card-subtitle" style="font-size: 13px; font-weight: 600; color: #334155; margin: 0 0 12px 0; text-align: center;">Question: "${q.prompt}"</h4>
+                <div style="margin-top: 12px; margin-bottom: 12px;">
+                  ${responsesHtml || '<p style="font-size: 13px; color: #64748b; font-style: italic; text-align: center;">No responses recorded</p>'}
+                </div>
+                <p style="margin-top: 12px; margin-bottom: 0; font-size: 12px; font-weight: bold; color: #475569; text-align: center;">Total Responses: ${totalResponses}</p>
+              </td>
+            </tr>
+          </table>`;
         }
       }
     });
