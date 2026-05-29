@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { doc, getDoc, setDoc, addDoc, collection, onSnapshot, deleteDoc, query, orderBy, limit, Timestamp, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, addDoc, collection, onSnapshot, deleteDoc, query, orderBy, limit, Timestamp, getDocs, where } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Theme, SavedTheme } from '../types';
+import { Theme, SavedTheme, Message, Poll, WordCloud, OpenEndedQuestion } from '../types';
 import { Palette, UserCheck, Download, ArrowLeft, Loader2, Calendar, Database, AlertCircle, Trash2, Monitor } from 'lucide-react';
 
 interface AdminPortalProps {
@@ -48,6 +48,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
   const [loadingAttendance, setLoadingAttendance] = useState(false);
   const [selectedSessionIdsForBulk, setSelectedSessionIdsForBulk] = useState<string[]>([]);
   const [isDeletingSessions, setIsDeletingSessions] = useState(false);
+  const [isDownloadingChatLog, setIsDownloadingChatLog] = useState(false);
 
   // Presenter Management States
   const [selectedPresenterKeysForBulk, setSelectedPresenterKeysForBulk] = useState<string[]>([]);
@@ -442,6 +443,447 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleDownloadChatLog = async () => {
+    if (!selectedSessionId) return;
+    setIsDownloadingChatLog(true);
+
+    try {
+      // Query messages
+      const msgsQuery = query(
+        collection(db, 'messages'),
+        where('presentationId', '==', selectedSessionId)
+      );
+      const msgsSnap = await getDocs(msgsQuery);
+      const msgs = msgsSnap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Message[];
+
+      // Sort client-side
+      msgs.sort((a, b) => {
+        const timeA = a.timestamp?.toMillis() || 0;
+        const timeB = b.timestamp?.toMillis() || 0;
+        return timeA - timeB;
+      });
+
+      // Query polls
+      const pollsQuery = query(
+        collection(db, 'polls'),
+        where('presentationId', '==', selectedSessionId)
+      );
+      const pollsSnap = await getDocs(pollsQuery);
+      const ps = pollsSnap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Poll[];
+      ps.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
+
+      // Query word clouds
+      const wcQuery = query(
+        collection(db, 'wordClouds'),
+        where('presentationId', '==', selectedSessionId)
+      );
+      const wcSnap = await getDocs(wcQuery);
+      const wcs = wcSnap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as WordCloud[];
+      wcs.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
+
+      // Query open ended questions
+      const oeqQuery = query(
+        collection(db, 'openEndedQuestions'),
+        where('presentationId', '==', selectedSessionId)
+      );
+      const oeqSnap = await getDocs(oeqQuery);
+      const oeqs = oeqSnap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as OpenEndedQuestion[];
+      oeqs.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
+
+      // Construct HTML exactly matching optimized formatting in ChatSidebar.tsx
+      const themeAccentColor = secondaryColor || '#ff3e00';
+
+      const header = `<!DOCTYPE html>
+<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head>
+<meta charset='utf-8'>
+<title>ActiveDeck Chat & Poll Log</title>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: #1e293b;
+    margin: 40px;
+    background-color: #f8fafc;
+    line-height: 1.5;
+  }
+  .container {
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    text-align: left;
+  }
+  .header {
+    border-bottom: 3px solid ${themeAccentColor};
+    padding-bottom: 20px;
+    margin-bottom: 30px;
+    text-align: center;
+  }
+  .header h1 {
+    font-size: 26px;
+    margin: 0 0 8px 0;
+    color: #0f172a;
+    font-weight: 800;
+    text-align: center;
+  }
+  .header p {
+    font-size: 13px;
+    color: #64748b;
+    margin: 0;
+    text-align: center;
+  }
+  .log-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 30px;
+  }
+  .log-table th {
+    background-color: #f1f5f9;
+    color: #475569;
+    font-weight: 700;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 12px;
+    border-bottom: 2px solid #cbd5e1;
+  }
+  .log-table td {
+    padding: 12px;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: 13px;
+    vertical-align: top;
+    color: #334155;
+  }
+  .badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+  .badge-message {
+    background-color: #e0f2fe;
+    color: #0369a1;
+    border: 1px solid #bae6fd;
+  }
+  .badge-question {
+    background-color: #fee2e2;
+    color: #b91c1c;
+    border: 1px solid #fca5a5;
+  }
+  .badge-slide {
+    background-color: #f1f5f9;
+    color: #475569;
+    border: 1px solid #cbd5e1;
+  }
+  .badge-likes {
+    background-color: #fef08a;
+    color: #854d0e;
+    border: 1px solid #fde047;
+    margin-left: 4px;
+  }
+  .card {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 24px 0;
+    background-color: #ffffff;
+  }
+  .card-mcq {
+    border: 1px solid #fca5a5;
+    border-left: 6px solid ${themeAccentColor};
+    background-color: #fff5f2;
+  }
+  .card-wordcloud {
+    border: 1px solid #93c5fd;
+    border-left: 6px solid #3b82f6;
+    background-color: #eff6ff;
+  }
+  .card-openended {
+    border: 1px solid #6ee7b7;
+    border-left: 6px solid #10b981;
+    background-color: #f0fdf4;
+  }
+  .card-title {
+    font-weight: 800;
+    font-size: 15px;
+    margin: 0 0 4px 0;
+    color: #0f172a;
+    text-align: center;
+  }
+  .card-subtitle {
+    font-size: 13px;
+    font-weight: 600;
+    color: #334155;
+    margin: 0 0 12px 0;
+    text-align: center;
+  }
+  .card-meta {
+    font-size: 11px;
+    color: #64748b;
+    margin: 0 0 16px 0;
+    text-align: center;
+  }
+  .poll-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .poll-table td {
+    padding: 6px 10px;
+    border: none;
+    font-size: 13px;
+  }
+  .word-pill {
+    display: inline-block;
+    padding: 5px 10px;
+    background-color: #ffffff;
+    color: #1e293b;
+    border: 1px solid #cbd5e1;
+    border-radius: 16px;
+    margin-right: 6px;
+    margin-bottom: 6px;
+    font-size: 12px;
+  }
+  .response-box {
+    padding: 10px 14px;
+    background-color: #ffffff;
+    border-left: 3px solid #10b981;
+    border-radius: 0 4px 4px 0;
+    margin-bottom: 8px;
+    font-style: italic;
+    font-size: 13px;
+    color: #334155;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+  }
+</style>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1e293b; margin: 40px; background-color: #f8fafc; line-height: 1.5;">
+  <!-- Centering Outer Layout Table -->
+  <table align="center" width="900" style="width: 900px; max-width: 900px; margin: 0 auto; border-collapse: collapse; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); text-align: left;">
+    <tr>
+      <td style="padding: 40px; border: none; vertical-align: top; background-color: #ffffff;">
+        <div class="header" style="border-bottom: 3px solid ${themeAccentColor}; padding-bottom: 20px; margin-bottom: 30px; text-align: center;">
+          <h1 style="font-size: 26px; margin: 0 0 8px 0; color: #0f172a; font-weight: 800; text-align: center;">ActiveDeck Session Activity Log</h1>
+          <p style="font-size: 13px; color: #64748b; margin: 0; text-align: center;">Generated on ${new Date().toLocaleString()}</p>
+          <p style="font-size: 10px; font-family: monospace; color: #94a3b8; margin-top: 4px; text-align: center;">Session ID: ${selectedSessionId}</p>
+        </div>`;
+
+      const footer = "</td></tr></table></body></html>";
+
+      const combinedItems = [
+        ...msgs.map(m => ({ ...m, type: 'message' as const })),
+        ...ps.map(p => ({ ...p, type: 'poll' as const })),
+        ...wcs.map(w => ({ ...w, type: 'wordCloud' as const })),
+        ...oeqs.map(q => ({ ...q, type: 'openEnded' as const }))
+      ].sort((a, b) => {
+        const timeA = ((a as any).timestamp || (a as any).createdAt)?.toMillis() || 0;
+        const timeB = ((b as any).timestamp || (b as any).createdAt)?.toMillis() || 0;
+        return timeA - timeB;
+      });
+
+      let htmlContent = '';
+      let isTableOpen = false;
+
+      combinedItems.forEach(item => {
+        if (item.type === 'message') {
+          const m = item as Message;
+          const dateObj = m.timestamp?.toDate() || new Date();
+          const dateStr = dateObj.toLocaleDateString();
+          const timeStr = dateObj.toLocaleTimeString();
+
+          if (!isTableOpen) {
+            htmlContent += `<table class="log-table" style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+              <thead>
+                <tr style="background-color: #f1f5f9;">
+                  <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px; border-bottom: 2px solid #cbd5e1; text-align: center;">Date</th>
+                  <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px; border-bottom: 2px solid #cbd5e1; text-align: center;">Time</th>
+                  <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px; border-bottom: 2px solid #cbd5e1; text-align: center;">Slide</th>
+                  <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px; border-bottom: 2px solid #cbd5e1; text-align: left;">Name</th>
+                  <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px; border-bottom: 2px solid #cbd5e1; text-align: left;">Email</th>
+                  <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px; border-bottom: 2px solid #cbd5e1; text-align: center;">Type</th>
+                  <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px; border-bottom: 2px solid #cbd5e1; text-align: left;">Question / Message</th>
+                </tr>
+              </thead>
+              <tbody>`;
+            isTableOpen = true;
+          }
+
+          const typeBadge = m.isQuestion 
+            ? `<span class="badge badge-question" style="display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; background-color: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5;">Question</span>`
+            : `<span class="badge badge-message" style="display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; background-color: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd;">Message</span>`;
+
+          const slideBadge = m.slide !== undefined && m.slide !== null
+            ? `<span class="badge badge-slide" style="display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; background-color: #f1f5f9; color: #475569; border: 1px solid #cbd5e1;">Slide ${m.slide}</span>`
+            : `-`;
+
+          const likesBadge = m.likes 
+            ? `<span class="badge badge-likes" style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; background-color: #fef08a; color: #854d0e; border: 1px solid #fde047; margin-left: 4px;">👍 ${m.likes}</span>`
+            : '';
+
+          const emailLink = m.userEmail
+            ? `<a href="mailto:${m.userEmail}" style="color: #2563eb; text-decoration: none; border-bottom: 1px dotted #2563eb;">${m.userEmail}</a>`
+            : '-';
+
+          htmlContent += `<tr>
+            <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: center;">${dateStr}</td>
+            <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: center;">${timeStr}</td>
+            <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: center;">${slideBadge}</td>
+            <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; font-weight: 600; text-align: left;">${m.userName}</td>
+            <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: left;">${emailLink}</td>
+            <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: center;">${typeBadge}</td>
+            <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: left;"><strong>${m.text}</strong>${likesBadge}</td>
+          </tr>`;
+        } else {
+          if (isTableOpen) {
+            htmlContent += `</tbody></table>`;
+            isTableOpen = false;
+          }
+
+          if (item.type === 'poll') {
+            const p = item as Poll;
+            const dateObj = p.createdAt?.toDate() || new Date();
+            const dateStr = dateObj.toLocaleDateString();
+            const timeStr = dateObj.toLocaleTimeString();
+            const slideStr = p.slide !== undefined ? ` [Slide ${p.slide}]` : '';
+            const totalVotes = Object.values(p.votes || {}).reduce((a, b) => a + b, 0);
+
+            let pollOptionsHtml = '';
+            p.options.forEach(opt => {
+              const count = p.votes[opt] || 0;
+              const percentage = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
+              const isCorrect = p.correctAnswer === opt;
+              const correctBadge = isCorrect 
+                ? `<span style="color: #10b981; font-weight: bold; margin-left: 8px; font-size: 12px;">✓ CORRECT ANSWER</span>` 
+                : '';
+
+              pollOptionsHtml += `<tr>
+                <td style="width: 80px; font-weight: bold; padding: 6px 10px; border: none; font-size: 13px;">Option ${opt}</td>
+                <td style="padding: 6px 10px; border: none;">
+                  <table style="width: 100%; border: 1px solid #cbd5e1; border-collapse: collapse; height: 16px;">
+                    <tr>
+                      <td style="width: ${percentage}%; background-color: ${themeAccentColor}; border: none; padding: 0; height: 16px;"></td>
+                      <td style="width: ${100 - percentage}%; background-color: #f1f5f9; border: none; padding: 0; height: 16px;"></td>
+                    </tr>
+                  </table>
+                </td>
+                <td style="width: 220px; padding: 6px 10px; border: none; font-size: 13px;">
+                  <strong>${count} votes</strong> (${percentage}%)${correctBadge}
+                </td>
+              </tr>`;
+            });
+
+            htmlContent += `<table class="card card-mcq" style="width: 100%; border-collapse: collapse; margin: 24px 0; background-color: #fff5f2; border: 1px solid #fca5a5; border-left: 6px solid ${themeAccentColor}; border-radius: 8px;">
+              <tr>
+                <td style="padding: 20px; border: none; text-align: left; vertical-align: top;">
+                  <h3 class="card-title" style="font-weight: 800; font-size: 15px; margin: 0 0 4px 0; color: #0f172a; text-align: center;">📊 MCQ POLL RESULTS</h3>
+                  <p class="card-meta" style="font-size: 11px; color: #64748b; margin: 0 0 16px 0; text-align: center;">Triggered on ${dateStr} at ${timeStr}${slideStr}</p>
+                  <table class="poll-table" style="width: 100%; border-collapse: collapse;">
+                    ${pollOptionsHtml}
+                  </table>
+                  <p style="margin-top: 12px; margin-bottom: 0; font-size: 12px; font-weight: bold; color: #475569; text-align: center;">Total Votes: ${totalVotes}</p>
+                </td>
+              </tr>
+            </table>`;
+
+          } else if (item.type === 'wordCloud') {
+            const w = item as WordCloud;
+            const dateObj = w.createdAt?.toDate() || new Date();
+            const dateStr = dateObj.toLocaleDateString();
+            const timeStr = dateObj.toLocaleTimeString();
+            const slideStr = w.slide !== undefined ? ` [Slide ${w.slide}]` : '';
+            const totalWords = Object.values(w.words || {}).reduce((a, b) => a + b, 0);
+
+            let wordPillsHtml = '';
+            Object.entries(w.words || {}).sort((a, b) => b[1] - a[1]).forEach(([word, count]) => {
+              wordPillsHtml += `<span class="word-pill" style="display: inline-block; padding: 5px 10px; background-color: #ffffff; color: #1e293b; border: 1px solid #cbd5e1; border-radius: 16px; margin-right: 6px; margin-bottom: 6px; font-size: 12px;">
+                <strong>${word}</strong> (${count})
+              </span>`;
+            });
+
+            htmlContent += `<table class="card card-wordcloud" style="width: 100%; border-collapse: collapse; margin: 24px 0; background-color: #eff6ff; border: 1px solid #93c5fd; border-left: 6px solid #3b82f6; border-radius: 8px;">
+              <tr>
+                <td style="padding: 20px; border: none; text-align: left; vertical-align: top;">
+                  <h3 class="card-title" style="font-weight: 800; font-size: 15px; margin: 0 0 4px 0; color: #0f172a; text-align: center;">☁️ WORD CLOUD RESULTS</h3>
+                  <p class="card-meta" style="font-size: 11px; color: #64748b; margin: 0 0 16px 0; text-align: center;">Triggered on ${dateStr} at ${timeStr}${slideStr}</p>
+                  <h4 class="card-subtitle" style="font-size: 13px; font-weight: 600; color: #334155; margin: 0 0 12px 0; text-align: center;">Prompt: "${w.prompt}"</h4>
+                  <div style="margin-top: 12px; margin-bottom: 12px; text-align: center;">
+                    ${wordPillsHtml || '<p style="font-size: 13px; color: #64748b; font-style: italic; text-align: center;">No entries recorded</p>'}
+                  </div>
+                  <p style="margin-top: 12px; margin-bottom: 0; font-size: 12px; font-weight: bold; color: #475569; text-align: center;">Total Submissions: ${totalWords}</p>
+                </td>
+              </tr>
+            </table>`;
+
+          } else if (item.type === 'openEnded') {
+            const q = item as OpenEndedQuestion;
+            const dateObj = q.createdAt?.toDate() || new Date();
+            const dateStr = dateObj.toLocaleDateString();
+            const timeStr = dateObj.toLocaleTimeString();
+            const slideStr = q.slide !== undefined ? ` [Slide ${q.slide}]` : '';
+            const totalResponses = Object.values(q.responses || {}).length;
+
+            let responsesHtml = '';
+            Object.values(q.responses || {}).forEach(response => {
+              responsesHtml += `<div class="response-box" style="padding: 10px 14px; background-color: #ffffff; border-left: 3px solid #10b981; border-radius: 0 4px 4px 0; margin-bottom: 8px; font-style: italic; font-size: 13px; color: #334155; border-top: none; border-right: none; border-bottom: none;">
+                "${response}"
+              </div>`;
+            });
+
+            htmlContent += `<table class="card card-openended" style="width: 100%; border-collapse: collapse; margin: 24px 0; background-color: #f0fdf4; border: 1px solid #6ee7b7; border-left: 6px solid #10b981; border-radius: 8px;">
+              <tr>
+                <td style="padding: 20px; border: none; text-align: left; vertical-align: top;">
+                  <h3 class="card-title" style="font-weight: 800; font-size: 15px; margin: 0 0 4px 0; color: #0f172a; text-align: center;">💬 OPEN ENDED RESULTS</h3>
+                  <p class="card-meta" style="font-size: 11px; color: #64748b; margin: 0 0 16px 0; text-align: center;">Triggered on ${dateStr} at ${timeStr}${slideStr}</p>
+                  <h4 class="card-subtitle" style="font-size: 13px; font-weight: 600; color: #334155; margin: 0 0 12px 0; text-align: center;">Question: "${q.prompt}"</h4>
+                  <div style="margin-top: 12px; margin-bottom: 12px;">
+                    ${responsesHtml || '<p style="font-size: 13px; color: #64748b; font-style: italic; text-align: center;">No responses recorded</p>'}
+                  </div>
+                  <p style="margin-top: 12px; margin-bottom: 0; font-size: 12px; font-weight: bold; color: #475569; text-align: center;">Total Responses: ${totalResponses}</p>
+                </td>
+              </tr>
+            </table>`;
+          }
+        }
+      });
+
+      if (isTableOpen) {
+        htmlContent += `</tbody></table>`;
+      }
+
+      const html = header + htmlContent + footer;
+      const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `chat-log-session-${selectedSessionId.substring(0, 8)}.doc`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Error downloading chat log:", err);
+      alert("Failed to download chat log: " + err);
+    } finally {
+      setIsDownloadingChatLog(false);
+    }
   };
 
   if (loadingInstitution) {
@@ -895,6 +1337,18 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                         >
                           <Download className="w-4 h-4" />
                           Export CSV Sheet
+                        </button>
+                        <button
+                          onClick={handleDownloadChatLog}
+                          disabled={isDownloadingChatLog}
+                          className="flex items-center gap-2 h-11 px-5 bg-slate-800 hover:bg-slate-750 disabled:bg-slate-900 disabled:text-slate-650 text-slate-200 text-xs font-black uppercase tracking-wider rounded-xl transition-all border border-slate-700/50 cursor-pointer"
+                        >
+                          {isDownloadingChatLog ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Download className="w-4 h-4" />
+                          )}
+                          Download Chat Log
                         </button>
                       </div>
                     </div>
