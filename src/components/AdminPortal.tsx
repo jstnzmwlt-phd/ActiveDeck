@@ -691,7 +691,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
               TAB 2: ATTENDANCE TRACKER WORKSPACE
               ======================================================== */}
           {activeTab === 'attendance' && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in duration-300">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in duration-300 pb-12">
               
               {/* Left Column: Chronological Session Logs */}
               <div className="lg:col-span-3 flex flex-col gap-6">
