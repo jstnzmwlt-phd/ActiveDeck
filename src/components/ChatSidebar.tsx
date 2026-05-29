@@ -869,12 +869,12 @@ const MessageCard: React.FC<MessageCardProps> = ({
         isCollapsed && "py-2"
       )}
     >
-      <div className="flex items-start justify-between mb-1">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
           <button 
             onClick={() => setIsCollapsed(!isCollapsed)}
             className={cn(
-              "p-1 -ml-1 rounded transition-colors text-slate-400",
+              "p-1 -ml-1 rounded transition-colors text-slate-400 focus:outline-none",
               isPresenter 
                 ? "hover:bg-indigo-100 hover:text-indigo-600" 
                 : "hover:bg-orange-100 hover:text-osu-orange"
@@ -882,30 +882,30 @@ const MessageCard: React.FC<MessageCardProps> = ({
           >
             {isCollapsed ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
           </button>
-          <div className="flex flex-col">
+          <div className="flex flex-col min-w-0 flex-1">
             <span className={cn(
-              "text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5",
+              "text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 flex-wrap",
               isPresenter ? "text-indigo-700" : "text-slate-500"
             )}>
-              {msg.userName}
+              <span className="truncate max-w-[120px]">{msg.userName}</span>
               {isPresenter && (
-                <span className="inline-flex items-center gap-0.5 bg-indigo-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+                <span className="inline-flex items-center gap-0.5 bg-indigo-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider shrink-0">
                   Presenter
                 </span>
               )}
               {msg.isPinned && (
-                <span className="inline-flex items-center gap-0.5 bg-amber-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+                <span className="inline-flex items-center gap-0.5 bg-amber-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider shrink-0">
                   <Pin className="w-2 h-2 fill-current rotate-45" /> Pinned
                 </span>
               )}
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 shrink-0 ml-2">
           <button
             onClick={() => onLike(msg)}
             className={cn(
-              "flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold transition-colors border",
+              "flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold transition-colors border focus:outline-none",
               (msg.likes || 0) > 0 
                 ? "bg-yellow-400 text-slate-900 border-yellow-500 shadow-sm" 
                 : "bg-white/60 text-slate-500 border-transparent hover:bg-white hover:text-slate-700"
@@ -919,10 +919,10 @@ const MessageCard: React.FC<MessageCardProps> = ({
             <button
               onClick={() => onTogglePin?.(msg)}
               className={cn(
-                "p-1 transition-colors flex-shrink-0",
+                "p-1 rounded-md transition-colors flex-shrink-0 focus:outline-none hover:bg-black/5",
                 msg.isPinned 
                   ? "text-amber-500 hover:text-amber-600" 
-                  : "text-slate-300 hover:text-slate-500"
+                  : "text-slate-350 hover:text-slate-500"
               )}
               title={msg.isPinned ? "Unpin Message" : "Pin Message"}
             >
@@ -932,7 +932,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
           {(user?.uid === msg.userId || canModerate) && (
             <button
               onClick={() => onDelete(msg.id)}
-              className="p-1 text-slate-300 hover:text-red-500 transition-colors flex-shrink-0"
+              className="p-1 rounded-md text-slate-350 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0 focus:outline-none"
               title="Delete Message"
             >
               <Trash2 className="w-3.5 h-3.5" />
