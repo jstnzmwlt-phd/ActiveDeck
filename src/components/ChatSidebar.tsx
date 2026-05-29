@@ -1912,8 +1912,178 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   };
 
   const handleDownloadWord = () => {
-    const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>Chat Log</title></head><body style='font-family: sans-serif;'>";
-    const footer = "</body></html>";
+    const themeAccentColor = secondaryColor || '#ff3e00';
+
+    const header = `<!DOCTYPE html>
+<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head>
+<meta charset='utf-8'>
+<title>ActiveDeck Chat & Poll Log</title>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: #1e293b;
+    margin: 40px;
+    background-color: #f8fafc;
+    line-height: 1.5;
+  }
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    background-color: #ffffff;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  }
+  .header {
+    border-bottom: 3px solid ${themeAccentColor};
+    padding-bottom: 20px;
+    margin-bottom: 30px;
+  }
+  .header h1 {
+    font-size: 26px;
+    margin: 0 0 8px 0;
+    color: #0f172a;
+    font-weight: 800;
+  }
+  .header p {
+    font-size: 13px;
+    color: #64748b;
+    margin: 0;
+  }
+  .log-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 30px;
+  }
+  .log-table th {
+    background-color: #f1f5f9;
+    color: #475569;
+    font-weight: 700;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 12px;
+    border-bottom: 2px solid #cbd5e1;
+    text-align: left;
+  }
+  .log-table td {
+    padding: 12px;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: 13px;
+    vertical-align: top;
+    color: #334155;
+  }
+  .badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+  .badge-message {
+    background-color: #e0f2fe;
+    color: #0369a1;
+    border: 1px solid #bae6fd;
+  }
+  .badge-question {
+    background-color: #fee2e2;
+    color: #b91c1c;
+    border: 1px solid #fca5a5;
+  }
+  .badge-slide {
+    background-color: #f1f5f9;
+    color: #475569;
+    border: 1px solid #cbd5e1;
+  }
+  .badge-likes {
+    background-color: #fef08a;
+    color: #854d0e;
+    border: 1px solid #fde047;
+    margin-left: 4px;
+  }
+  .card {
+    padding: 20px;
+    border-radius: 8px;
+    margin: 24px 0;
+    background-color: #ffffff;
+  }
+  .card-mcq {
+    border: 1px solid #fca5a5;
+    border-left: 6px solid ${themeAccentColor};
+    background-color: #fff5f2;
+  }
+  .card-wordcloud {
+    border: 1px solid #93c5fd;
+    border-left: 6px solid #3b82f6;
+    background-color: #eff6ff;
+  }
+  .card-openended {
+    border: 1px solid #6ee7b7;
+    border-left: 6px solid #10b981;
+    background-color: #f0fdf4;
+  }
+  .card-title {
+    font-weight: 800;
+    font-size: 15px;
+    margin: 0 0 4px 0;
+    color: #0f172a;
+  }
+  .card-subtitle {
+    font-size: 13px;
+    font-weight: 600;
+    color: #334155;
+    margin: 0 0 12px 0;
+  }
+  .card-meta {
+    font-size: 11px;
+    color: #64748b;
+    margin: 0 0 16px 0;
+  }
+  .poll-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .poll-table td {
+    padding: 6px 10px;
+    border: none;
+    font-size: 13px;
+  }
+  .word-pill {
+    display: inline-block;
+    padding: 5px 10px;
+    background-color: #ffffff;
+    color: #1e293b;
+    border: 1px solid #cbd5e1;
+    border-radius: 16px;
+    margin-right: 6px;
+    margin-bottom: 6px;
+    font-size: 12px;
+  }
+  .response-box {
+    padding: 10px 14px;
+    background-color: #ffffff;
+    border-left: 3px solid #10b981;
+    border-radius: 0 4px 4px 0;
+    margin-bottom: 8px;
+    font-style: italic;
+    font-size: 13px;
+    color: #334155;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>ActiveDeck Session Activity Log</h1>
+      <p>Generated on ${new Date().toLocaleString()}</p>
+    </div>`;
+
+    const footer = "</div></body></html>";
     
     const combinedItems = [
       ...messages.map(m => ({ ...m, type: 'message' as const })),
@@ -1926,79 +2096,166 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       return timeA - timeB;
     });
 
-    const content = combinedItems.map(item => {
+    let htmlContent = '';
+    let isTableOpen = false;
+
+    combinedItems.forEach(item => {
       if (item.type === 'message') {
         const m = item as Message;
-        const dateObj = m.timestamp?.toDate();
-        const dateStr = dateObj ? dateObj.toLocaleDateString() : '';
-        const timeStr = dateObj ? dateObj.toLocaleTimeString() : '';
-        const slideStr = m.slide !== undefined ? ` [Slide ${m.slide}]` : '';
-        const type = m.isQuestion ? '<b>[QUESTION]</b> ' : '';
-        const likes = m.likes ? ` (Likes: ${m.likes})` : '';
-        const email = m.userEmail ? `, <a href="mailto:${m.userEmail}">${m.userEmail}</a>` : '';
-        return `<p style="margin-bottom: 16px;">${dateStr}, ${timeStr}${slideStr}, <b>${m.userName}</b>${email}:<br>&nbsp;&nbsp;&nbsp;&nbsp;${type}${m.text}${likes}</p>`;
-      } else if (item.type === 'poll') {
-        const p = item as Poll;
-        const dateObj = p.createdAt?.toDate();
-        const dateStr = dateObj ? dateObj.toLocaleDateString() : '';
-        const timeStr = dateObj ? dateObj.toLocaleTimeString() : '';
-        const slideStr = p.slide !== undefined ? ` [Slide ${p.slide}]` : '';
-        const totalVotes = Object.values(p.votes).reduce((a, b) => a + b, 0);
+        const dateObj = m.timestamp?.toDate() || new Date();
+        const dateStr = dateObj.toLocaleDateString();
+        const timeStr = dateObj.toLocaleTimeString();
         
-        let pollHtml = `<div style="margin-bottom: 24px; padding: 12px; border: 2px solid #ff3e00; background-color: #fff5f2; border-radius: 8px;">`;
-        pollHtml += `<p style="margin-top: 0;"><b>[MCQ RESULTS]</b> ${dateStr}, ${timeStr}${slideStr}</p>`;
-        pollHtml += `<ul style="list-style-type: none; padding-left: 0;">`;
-        p.options.forEach(opt => {
-          const count = p.votes[opt] || 0;
-          const percentage = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
-          pollHtml += `<li style="margin-bottom: 4px;">Option ${opt}: <b>${count} votes</b> (${percentage}%)${p.correctAnswer === opt ? ' <span style="color: #10b981; font-weight: bold;">[CORRECT ANSWER]</span>' : ''}</li>`;
-        });
-        pollHtml += `</ul>`;
-        pollHtml += `<p style="margin-bottom: 0; font-size: 11px;">Total Votes: ${totalVotes}</p>`;
-        pollHtml += `</div>`;
-        return pollHtml;
-      } else if (item.type === 'wordCloud') {
-        const w = item as WordCloud;
-        const dateObj = w.createdAt?.toDate();
-        const dateStr = dateObj ? dateObj.toLocaleDateString() : '';
-        const timeStr = dateObj ? dateObj.toLocaleTimeString() : '';
-        const slideStr = w.slide !== undefined ? ` [Slide ${w.slide}]` : '';
-        const totalWords = Object.values(w.words || {}).reduce((a, b) => a + b, 0);
-        
-        let wcHtml = `<div style="margin-bottom: 24px; padding: 12px; border: 2px solid #3b82f6; background-color: #eff6ff; border-radius: 8px;">`;
-        wcHtml += `<p style="margin-top: 0;"><b>[WORD CLOUD]</b> ${dateStr}, ${timeStr}${slideStr}</p>`;
-        wcHtml += `<p style="margin-bottom: 8px;"><b>Prompt:</b> ${w.prompt}</p>`;
-        wcHtml += `<ul style="list-style-type: none; padding-left: 0;">`;
-        Object.entries(w.words || {}).forEach(([word, count]) => {
-          wcHtml += `<li style="margin-bottom: 4px;">${word}: <b>${count} submissions</b></li>`;
-        });
-        wcHtml += `</ul>`;
-        wcHtml += `<p style="margin-bottom: 0; font-size: 11px;">Total Submissions: ${totalWords}</p>`;
-        wcHtml += `</div>`;
-        return wcHtml;
+        // Open table if not already open
+        if (!isTableOpen) {
+          htmlContent += `<table class="log-table" style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+            <thead>
+              <tr style="background-color: #f1f5f9;">
+                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px; border-bottom: 2px solid #cbd5e1; text-align: left;">Date</th>
+                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px; border-bottom: 2px solid #cbd5e1; text-align: left;">Time</th>
+                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px; border-bottom: 2px solid #cbd5e1; text-align: left;">Slide</th>
+                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px; border-bottom: 2px solid #cbd5e1; text-align: left;">Name</th>
+                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px; border-bottom: 2px solid #cbd5e1; text-align: left;">Email</th>
+                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px; border-bottom: 2px solid #cbd5e1; text-align: left;">Type</th>
+                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px; border-bottom: 2px solid #cbd5e1; text-align: left;">Question / Message</th>
+              </tr>
+            </thead>
+            <tbody>`;
+          isTableOpen = true;
+        }
+
+        const typeBadge = m.isQuestion 
+          ? `<span class="badge badge-question" style="display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; background-color: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5;">Question</span>`
+          : `<span class="badge badge-message" style="display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; background-color: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd;">Message</span>`;
+
+        const slideBadge = m.slide !== undefined && m.slide !== null
+          ? `<span class="badge badge-slide" style="display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; background-color: #f1f5f9; color: #475569; border: 1px solid #cbd5e1;">Slide ${m.slide}</span>`
+          : `-`;
+
+        const likesBadge = m.likes 
+          ? `<span class="badge badge-likes" style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; background-color: #fef08a; color: #854d0e; border: 1px solid #fde047; margin-left: 4px;">👍 ${m.likes}</span>`
+          : '';
+
+        const emailLink = m.userEmail
+          ? `<a href="mailto:${m.userEmail}" style="color: #2563eb; text-decoration: none; border-bottom: 1px dotted #2563eb;">${m.userEmail}</a>`
+          : '-';
+
+        htmlContent += `<tr>
+          <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155;">${dateStr}</td>
+          <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155;">${timeStr}</td>
+          <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155;">${slideBadge}</td>
+          <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; font-weight: 600;">${m.userName}</td>
+          <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155;">${emailLink}</td>
+          <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155;">${typeBadge}</td>
+          <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155;"><strong>${m.text}</strong>${likesBadge}</td>
+        </tr>`;
       } else {
-        const q = item as OpenEndedQuestion;
-        const dateObj = q.createdAt?.toDate();
-        const dateStr = dateObj ? dateObj.toLocaleDateString() : '';
-        const timeStr = dateObj ? dateObj.toLocaleTimeString() : '';
-        const slideStr = q.slide !== undefined ? ` [Slide ${q.slide}]` : '';
-        const totalResponses = Object.values(q.responses || {}).length;
-        
-        let qHtml = `<div style="margin-bottom: 24px; padding: 12px; border: 2px solid #10b981; background-color: #f0fdf4; border-radius: 8px;">`;
-        qHtml += `<p style="margin-top: 0;"><b>[OPEN ? RESULTS]</b> ${dateStr}, ${timeStr}${slideStr}</p>`;
-        qHtml += `<p style="margin-bottom: 8px;"><b>Question:</b> ${q.prompt}</p>`;
-        qHtml += `<ul style="list-style-type: none; padding-left: 0;">`;
-        Object.values(q.responses || {}).forEach(response => {
-          qHtml += `<li style="margin-bottom: 8px; font-style: italic;">"${response}"</li>`;
-        });
-        qHtml += `</ul>`;
-        qHtml += `<p style="margin-bottom: 0; font-size: 11px;">Total Responses: ${totalResponses}</p>`;
-        qHtml += `</div>`;
-        return qHtml;
+        // Close table if it was open
+        if (isTableOpen) {
+          htmlContent += `</tbody></table>`;
+          isTableOpen = false;
+        }
+
+        if (item.type === 'poll') {
+          const p = item as Poll;
+          const dateObj = p.createdAt?.toDate() || new Date();
+          const dateStr = dateObj.toLocaleDateString();
+          const timeStr = dateObj.toLocaleTimeString();
+          const slideStr = p.slide !== undefined ? ` [Slide ${p.slide}]` : '';
+          const totalVotes = Object.values(p.votes || {}).reduce((a, b) => a + b, 0);
+
+          let pollOptionsHtml = '';
+          p.options.forEach(opt => {
+            const count = p.votes[opt] || 0;
+            const percentage = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
+            const isCorrect = p.correctAnswer === opt;
+            const correctBadge = isCorrect 
+              ? `<span style="color: #10b981; font-weight: bold; margin-left: 8px; font-size: 12px;">✓ CORRECT ANSWER</span>` 
+              : '';
+
+            pollOptionsHtml += `<tr>
+              <td style="width: 80px; font-weight: bold; padding: 6px 10px; border: none; font-size: 13px;">Option ${opt}</td>
+              <td style="padding: 6px 10px; border: none;">
+                <table style="width: 100%; border: 1px solid #cbd5e1; border-collapse: collapse; height: 16px;">
+                  <tr>
+                    <td style="width: ${percentage}%; background-color: ${themeAccentColor}; border: none; padding: 0; height: 16px;"></td>
+                    <td style="width: ${100 - percentage}%; background-color: #f1f5f9; border: none; padding: 0; height: 16px;"></td>
+                  </tr>
+                </table>
+              </td>
+              <td style="width: 220px; padding: 6px 10px; border: none; font-size: 13px;">
+                <strong>${count} votes</strong> (${percentage}%)${correctBadge}
+              </td>
+            </tr>`;
+          });
+
+          htmlContent += `<div class="card card-mcq" style="padding: 20px; border-radius: 8px; margin: 24px 0; background-color: #fff5f2; border: 1px solid #fca5a5; border-left: 6px solid ${themeAccentColor};">
+            <h3 class="card-title" style="font-weight: 800; font-size: 15px; margin: 0 0 4px 0; color: #0f172a;">📊 MCQ POLL RESULTS</h3>
+            <p class="card-meta" style="font-size: 11px; color: #64748b; margin: 0 0 16px 0;">Triggered on ${dateStr} at ${timeStr}${slideStr}</p>
+            <table class="poll-table" style="width: 100%; border-collapse: collapse;">
+              ${pollOptionsHtml}
+            </table>
+            <p style="margin-top: 12px; margin-bottom: 0; font-size: 12px; font-weight: bold; color: #475569;">Total Votes: ${totalVotes}</p>
+          </div>`;
+
+        } else if (item.type === 'wordCloud') {
+          const w = item as WordCloud;
+          const dateObj = w.createdAt?.toDate() || new Date();
+          const dateStr = dateObj.toLocaleDateString();
+          const timeStr = dateObj.toLocaleTimeString();
+          const slideStr = w.slide !== undefined ? ` [Slide ${w.slide}]` : '';
+          const totalWords = Object.values(w.words || {}).reduce((a, b) => a + b, 0);
+
+          let wordPillsHtml = '';
+          Object.entries(w.words || {}).sort((a, b) => b[1] - a[1]).forEach(([word, count]) => {
+            wordPillsHtml += `<span class="word-pill" style="display: inline-block; padding: 5px 10px; background-color: #ffffff; color: #1e293b; border: 1px solid #cbd5e1; border-radius: 16px; margin-right: 6px; margin-bottom: 6px; font-size: 12px;">
+              <strong>${word}</strong> (${count})
+            </span>`;
+          });
+
+          htmlContent += `<div class="card card-wordcloud" style="padding: 20px; border-radius: 8px; margin: 24px 0; background-color: #eff6ff; border: 1px solid #93c5fd; border-left: 6px solid #3b82f6;">
+            <h3 class="card-title" style="font-weight: 800; font-size: 15px; margin: 0 0 4px 0; color: #0f172a;">☁️ WORD CLOUD RESULTS</h3>
+            <p class="card-meta" style="font-size: 11px; color: #64748b; margin: 0 0 16px 0;">Triggered on ${dateStr} at ${timeStr}${slideStr}</p>
+            <h4 class="card-subtitle" style="font-size: 13px; font-weight: 600; color: #334155; margin: 0 0 12px 0;">Prompt: "${w.prompt}"</h4>
+            <div style="margin-top: 12px; margin-bottom: 12px;">
+              ${wordPillsHtml || '<p style="font-size: 13px; color: #64748b; font-style: italic;">No entries recorded</p>'}
+            </div>
+            <p style="margin-top: 12px; margin-bottom: 0; font-size: 12px; font-weight: bold; color: #475569;">Total Submissions: ${totalWords}</p>
+          </div>`;
+
+        } else if (item.type === 'openEnded') {
+          const q = item as OpenEndedQuestion;
+          const dateObj = q.createdAt?.toDate() || new Date();
+          const dateStr = dateObj.toLocaleDateString();
+          const timeStr = dateObj.toLocaleTimeString();
+          const slideStr = q.slide !== undefined ? ` [Slide ${q.slide}]` : '';
+          const totalResponses = Object.values(q.responses || {}).length;
+
+          let responsesHtml = '';
+          Object.values(q.responses || {}).forEach(response => {
+            responsesHtml += `<div class="response-box" style="padding: 10px 14px; background-color: #ffffff; border-left: 3px solid #10b981; border-radius: 0 4px 4px 0; margin-bottom: 8px; font-style: italic; font-size: 13px; color: #334155; border-top: none; border-right: none; border-bottom: none;">
+              "${response}"
+            </div>`;
+          });
+
+          htmlContent += `<div class="card card-openended" style="padding: 20px; border-radius: 8px; margin: 24px 0; background-color: #f0fdf4; border: 1px solid #6ee7b7; border-left: 6px solid #10b981;">
+            <h3 class="card-title" style="font-weight: 800; font-size: 15px; margin: 0 0 4px 0; color: #0f172a;">💬 OPEN ENDED RESULTS</h3>
+            <p class="card-meta" style="font-size: 11px; color: #64748b; margin: 0 0 16px 0;">Triggered on ${dateStr} at ${timeStr}${slideStr}</p>
+            <h4 class="card-subtitle" style="font-size: 13px; font-weight: 600; color: #334155; margin: 0 0 12px 0;">Question: "${q.prompt}"</h4>
+            <div style="margin-top: 12px; margin-bottom: 12px;">
+              ${responsesHtml || '<p style="font-size: 13px; color: #64748b; font-style: italic;">No responses recorded</p>'}
+            </div>
+            <p style="margin-top: 12px; margin-bottom: 0; font-size: 12px; font-weight: bold; color: #475569;">Total Responses: ${totalResponses}</p>
+          </div>`;
+        }
       }
-    }).join('');
-    
-    const html = header + "<h1>ActiveDeck Chat & Poll Log</h1>" + content + footer;
+    });
+
+    if (isTableOpen) {
+      htmlContent += `</tbody></table>`;
+    }
+
+    const html = header + htmlContent + footer;
     const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
