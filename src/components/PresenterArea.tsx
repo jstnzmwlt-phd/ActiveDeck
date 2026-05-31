@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Presentation } from '../types';
 import { ScreenCapture } from './ScreenCapture';
-import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play, X } from 'lucide-react';
 import { useBridge } from '../contexts/BridgeContext';
 import { auth, db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -18,6 +18,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const [isCapturing, setIsCapturing] = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showInstructions, setShowInstructions] = useState(false);
 
   useEffect(() => {
     const fetchTheme = async () => {
@@ -112,10 +113,102 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           logoUrl={logoUrl}
         />
         
+        {/* Floating Setup Instructions Bubble - Shown in the top-left when not capturing */}
+        {!isCapturing && !error && (
+          <button 
+            onClick={() => setShowInstructions(true)}
+            className="absolute top-4 left-4 z-[70] flex items-center gap-2 px-3 py-1.5 bg-slate-900/90 hover:bg-slate-800 border border-slate-700/50 text-white text-xs font-bold rounded-full shadow-lg transition-all hover:scale-105 active:scale-95 cursor-pointer backdrop-blur-sm"
+            title="Show Presentation Setup Instructions"
+          >
+            <Info className="w-4 h-4 text-osu-orange" />
+            <span>Setup Instructions</span>
+          </button>
+        )}
+
         {/* Setup Bridge Card - Shown when not capturing and no error */}
         {!isCapturing && !error && (
-          <div className="absolute inset-0 z-[60] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 p-5 max-w-lg w-full text-center">
+          <div className="absolute inset-0 z-[60] flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4">
+            <div className="bg-slate-900/90 border border-slate-800 rounded-3xl shadow-2xl p-8 max-w-sm w-full text-center flex flex-col items-center justify-center relative">
+              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 transition-all duration-500 shadow-lg ${
+                isBridgeConnected 
+                  ? 'bg-green-500/10 border border-green-500/35 text-green-400 shadow-green-500/5 animate-pulse' 
+                  : 'bg-osu-orange/10 border border-osu-orange/30 text-osu-orange shadow-orange-500/5'
+              }`}>
+                <PresentationIcon className="w-7 h-7" />
+              </div>
+              
+              <h2 className="text-xl font-black text-white mb-1 tracking-tight">Ready to Present?</h2>
+              
+              <div className="flex items-center gap-1.5 justify-center mb-6">
+                <span className={`w-2 h-2 rounded-full ${isBridgeConnected ? 'bg-green-500 animate-pulse' : 'bg-osu-orange'}`} />
+                <span className={`text-[11px] font-black uppercase tracking-wider ${isBridgeConnected ? 'text-green-500' : 'text-osu-orange'}`}>
+                  {isBridgeConnected ? 'ActiveDeck Bridge Connected' : 'ActiveDeck Bridge Offline'}
+                </span>
+              </div>
+              
+              <div className="w-full space-y-3.5">
+                {isBridgeConnected ? (
+                  <>
+                    <button
+                      onClick={startCapture}
+                      className="flex items-center justify-center gap-2.5 w-full py-3.5 bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-xl shadow-green-650/20 text-sm cursor-pointer"
+                    >
+                      <Play className="w-4 h-4 fill-current" />
+                      Start Presentation
+                    </button>
+                    <p className="text-[10px] text-slate-500 leading-normal font-medium">
+                      Ensure your PowerPoint is in Slide Show mode (F5) before sharing.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <a 
+                      href="https://github.com/jstnzmwlt-phd/ActiveDeck/releases/download/v1.0.0/ActiveBridge.Sync.zip"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-2.5 w-full py-3.5 bg-osu-orange hover:bg-[#c03900] text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg shadow-orange-500/20 text-sm"
+                    >
+                      <Download className="w-4 h-4" />
+                      Download ActiveDeck Bridge
+                    </a>
+                    
+                    <div className="pt-2">
+                      <button
+                        onClick={() => {
+                          setUseWithoutBridge(true);
+                          startCapture();
+                        }}
+                        className="text-xs text-slate-400 hover:text-white transition-colors underline font-bold cursor-pointer bg-transparent border-0 p-0"
+                      >
+                        Start Presentation in Manual Mode (No Bridge)
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Detailed Instructions Modal Overlay */}
+        {showInstructions && (
+          <div 
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 backdrop-blur-md p-4 animate-in fade-in duration-205"
+            onClick={() => setShowInstructions(false)}
+          >
+            <div 
+              className="bg-white rounded-3xl shadow-2xl border border-slate-200 p-6 max-w-lg w-full text-center relative animate-in zoom-in-95 duration-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Close Button */}
+              <button 
+                onClick={() => setShowInstructions(false)}
+                className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer border-0 bg-transparent"
+                title="Close Instructions"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
               <div className="w-10 h-10 bg-osu-orange/10 rounded-2xl flex items-center justify-center mx-auto mb-3">
                 <PresentationIcon className="w-5 h-5 text-osu-orange" />
               </div>
@@ -136,8 +229,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               <div className="flex p-1 bg-slate-100 rounded-xl mb-4">
                 <button
                   onClick={() => setActiveTab('single')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${
-                    activeTab === 'single' ? 'bg-white text-osu-orange shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer border-0 ${
+                    activeTab === 'single' ? 'bg-white text-osu-orange shadow-sm' : 'bg-transparent text-slate-500 hover:text-slate-700'
                   }`}
                 >
                   <Monitor className="w-3.5 h-3.5" />
@@ -145,8 +238,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 </button>
                 <button
                   onClick={() => setActiveTab('dual')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${
-                    activeTab === 'dual' ? 'bg-white text-osu-orange shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer border-0 ${
+                    activeTab === 'dual' ? 'bg-white text-osu-orange shadow-sm' : 'bg-transparent text-slate-500 hover:text-slate-700'
                   }`}
                 >
                   <MonitorPlay className="w-3.5 h-3.5" />
@@ -154,8 +247,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 </button>
                 <button
                   onClick={() => setActiveTab('manual')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${
-                    activeTab === 'manual' ? 'bg-white text-osu-orange shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer border-0 ${
+                    activeTab === 'manual' ? 'bg-white text-osu-orange shadow-sm' : 'bg-transparent text-slate-500 hover:text-slate-700'
                   }`}
                 >
                   <MousePointer2 className="w-3.5 h-3.5" />
@@ -221,8 +314,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         </>
                       ) : (
                         <button
-                          onClick={startCapture}
-                          className="flex items-center justify-center gap-2.5 w-full py-3 bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-xl shadow-green-500/30 text-base"
+                          onClick={() => {
+                            setShowInstructions(false);
+                            startCapture();
+                          }}
+                          className="flex items-center justify-center gap-2.5 w-full py-3 bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-xl shadow-green-500/30 text-base cursor-pointer border-0"
                         >
                           <Play className="w-5 h-5 fill-current" />
                           Start Your Presentation
@@ -289,8 +385,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         </>
                       ) : (
                         <button
-                          onClick={startCapture}
-                          className="flex items-center justify-center gap-2.5 w-full py-3 bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-xl shadow-green-500/30 text-base"
+                          onClick={() => {
+                            setShowInstructions(false);
+                            startCapture();
+                          }}
+                          className="flex items-center justify-center gap-2.5 w-full py-3 bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-xl shadow-green-500/30 text-base cursor-pointer border-0"
                         >
                           <Play className="w-5 h-5 fill-current" />
                           Start Your Presentation
@@ -323,10 +422,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     <div className="mt-auto space-y-2">
                       <button
                         onClick={() => {
+                          setShowInstructions(false);
                           setUseWithoutBridge(true);
                           startCapture();
                         }}
-                        className="flex items-center justify-center gap-2.5 w-full py-3 bg-slate-800 hover:bg-slate-900 text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-xl shadow-slate-900/30 text-base"
+                        className="flex items-center justify-center gap-2.5 w-full py-3 bg-slate-800 hover:bg-slate-900 text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-xl shadow-slate-900/30 text-base cursor-pointer border-0"
                       >
                         <Play className="w-5 h-5 fill-current" />
                         Start Presentation

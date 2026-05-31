@@ -15,6 +15,43 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+const renderTextWithLinks = (text: string) => {
+  if (!text) return null;
+  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+  const parts = text.split(urlRegex);
+  return parts.map((part, index) => {
+    if (part.match(urlRegex)) {
+      const href = part.startsWith('http://') || part.startsWith('https://') 
+        ? part 
+        : `https://${part}`;
+      return (
+        <a 
+          key={index} 
+          href={href} 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline break-all font-bold"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {part}
+        </a>
+      );
+    }
+    return part;
+  });
+};
+
+const formatHtmlTextWithLinks = (text: string): string => {
+  if (!text) return '';
+  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+  return text.replace(urlRegex, (url) => {
+    const href = url.startsWith('http://') || url.startsWith('https://') 
+      ? url 
+      : `https://${url}`;
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="color: #2563eb; text-decoration: underline; word-break: break-all;">${url}</a>`;
+  });
+};
+
 enum OperationType {
   CREATE = 'create',
   UPDATE = 'update',
@@ -869,12 +906,12 @@ const MessageCard: React.FC<MessageCardProps> = ({
         isCollapsed && "py-2"
       )}
     >
-      <div className="flex items-start justify-between mb-1">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
           <button 
             onClick={() => setIsCollapsed(!isCollapsed)}
             className={cn(
-              "p-1 -ml-1 rounded transition-colors text-slate-400",
+              "p-1 -ml-1 rounded transition-colors text-slate-400 focus:outline-none",
               isPresenter 
                 ? "hover:bg-indigo-100 hover:text-indigo-600" 
                 : "hover:bg-orange-100 hover:text-osu-orange"
@@ -882,30 +919,30 @@ const MessageCard: React.FC<MessageCardProps> = ({
           >
             {isCollapsed ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
           </button>
-          <div className="flex flex-col">
+          <div className="flex flex-col min-w-0 flex-1">
             <span className={cn(
-              "text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5",
+              "text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 flex-wrap",
               isPresenter ? "text-indigo-700" : "text-slate-500"
             )}>
-              {msg.userName}
+              <span className="truncate max-w-[120px]">{msg.userName}</span>
               {isPresenter && (
-                <span className="inline-flex items-center gap-0.5 bg-indigo-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+                <span className="inline-flex items-center gap-0.5 bg-indigo-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider shrink-0">
                   Presenter
                 </span>
               )}
               {msg.isPinned && (
-                <span className="inline-flex items-center gap-0.5 bg-amber-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+                <span className="inline-flex items-center gap-0.5 bg-amber-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider shrink-0">
                   <Pin className="w-2 h-2 fill-current rotate-45" /> Pinned
                 </span>
               )}
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 shrink-0 ml-2">
           <button
             onClick={() => onLike(msg)}
             className={cn(
-              "flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold transition-colors border",
+              "flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold transition-colors border focus:outline-none",
               (msg.likes || 0) > 0 
                 ? "bg-yellow-400 text-slate-900 border-yellow-500 shadow-sm" 
                 : "bg-white/60 text-slate-500 border-transparent hover:bg-white hover:text-slate-700"
@@ -919,10 +956,10 @@ const MessageCard: React.FC<MessageCardProps> = ({
             <button
               onClick={() => onTogglePin?.(msg)}
               className={cn(
-                "p-1 transition-colors flex-shrink-0",
+                "p-1 rounded-md transition-colors flex-shrink-0 focus:outline-none hover:bg-black/5",
                 msg.isPinned 
                   ? "text-amber-500 hover:text-amber-600" 
-                  : "text-slate-300 hover:text-slate-500"
+                  : "text-slate-350 hover:text-slate-500"
               )}
               title={msg.isPinned ? "Unpin Message" : "Pin Message"}
             >
@@ -932,7 +969,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
           {(user?.uid === msg.userId || canModerate) && (
             <button
               onClick={() => onDelete(msg.id)}
-              className="p-1 text-slate-300 hover:text-red-500 transition-colors flex-shrink-0"
+              className="p-1 rounded-md text-slate-350 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0 focus:outline-none"
               title="Delete Message"
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -943,7 +980,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
       {!isCollapsed && (
         <>
           <p className="text-sm text-slate-800 leading-relaxed">
-            <span className="font-bold">{msg.text}</span>
+            <span className="font-bold">{renderTextWithLinks(msg.text)}</span>
             {(msg.slide !== undefined && msg.slide !== null) && (
               <span className={cn(
                 "inline-flex items-center ml-1.5 px-2.5 py-1 rounded-full text-[11px] font-normal text-white border-2 border-white uppercase tracking-wider",
@@ -1014,6 +1051,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [inputText, setInputText] = useState('');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isAllCollapsed, setIsAllCollapsed] = useState(false);
+  const [isQRExpanded, setIsQRExpanded] = useState(false);
   const [showWordCloudModal, setShowWordCloudModal] = useState(false);
   const [showOpenEndedQuestionModal, setShowOpenEndedQuestionModal] = useState(false);
   const [wordCloudPrompt, setWordCloudPrompt] = useState('');
@@ -1505,7 +1543,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         : user.displayName || 'User';
 
       if (!isChatOnly) {
-        const presenterEmail = localStorage.getItem('activePresenterEmail');
+        const presenterEmail = sessionStorage.getItem('activePresenterEmail');
         userName = presenterEmail ? presenterEmail.split('@')[0] : (user.displayName || 'Host');
       } else if (isPostingAnonymously && !presentation?.disableAttendance) {
         userName = `Anonymous ${user.uid.slice(0, 4)}`;
@@ -1911,8 +1949,196 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   };
 
   const handleDownloadWord = () => {
-    const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>Chat Log</title></head><body style='font-family: sans-serif;'>";
-    const footer = "</body></html>";
+    const themeAccentColor = secondaryColor || '#ff3e00';
+
+    const header = `<!DOCTYPE html>
+<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head>
+<meta charset='utf-8'>
+<title>ActiveDeck Chat & Poll Log</title>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: #1e293b;
+    margin: 40px;
+    background-color: #f8fafc;
+    line-height: 1.5;
+  }
+  .container {
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    text-align: left;
+  }
+  .header {
+    border-bottom: 3px solid ${themeAccentColor};
+    padding-bottom: 20px;
+    margin-bottom: 30px;
+    text-align: center;
+  }
+  .header h1 {
+    font-size: 26px;
+    margin: 0 0 8px 0;
+    color: #0f172a;
+    font-weight: 800;
+    text-align: center;
+  }
+  .header p {
+    font-size: 13px;
+    color: #64748b;
+    margin: 0;
+    text-align: center;
+  }
+  .log-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 30px;
+    table-layout: fixed;
+  }
+  .log-table th {
+    background-color: #f1f5f9;
+    color: #475569;
+    font-weight: 700;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 12px 6px;
+    border-bottom: 2px solid #cbd5e1;
+  }
+  .log-table td {
+    padding: 12px 6px;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: 13px;
+    vertical-align: top;
+    color: #334155;
+    word-break: break-word;
+    word-wrap: break-word;
+  }
+  .badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+  .badge-message {
+    background-color: #e0f2fe;
+    color: #0369a1;
+    border: 1px solid #bae6fd;
+  }
+  .badge-question {
+    background-color: #fee2e2;
+    color: #b91c1c;
+    border: 1px solid #fca5a5;
+  }
+  .badge-slide {
+    background-color: #f1f5f9;
+    color: #475569;
+    border: 1px solid #cbd5e1;
+  }
+  .badge-likes {
+    background-color: #fef08a;
+    color: #854d0e;
+    border: 1px solid #fde047;
+    margin-left: 4px;
+  }
+  .card {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 24px 0;
+    background-color: #ffffff;
+  }
+  .card-mcq {
+    border: 1px solid #fca5a5;
+    border-left: 6px solid ${themeAccentColor};
+    background-color: #fff5f2;
+  }
+  .card-wordcloud {
+    border: 1px solid #93c5fd;
+    border-left: 6px solid #3b82f6;
+    background-color: #eff6ff;
+  }
+  .card-openended {
+    border: 1px solid #6ee7b7;
+    border-left: 6px solid #10b981;
+    background-color: #f0fdf4;
+  }
+  .card-title {
+    font-weight: 800;
+    font-size: 15px;
+    margin: 0 0 4px 0;
+    color: #0f172a;
+    text-align: center;
+  }
+  .card-subtitle {
+    font-size: 13px;
+    font-weight: 600;
+    color: #334155;
+    margin: 0 0 12px 0;
+    text-align: center;
+  }
+  .card-meta {
+    font-size: 11px;
+    color: #64748b;
+    margin: 0 0 16px 0;
+    text-align: center;
+  }
+  .poll-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+  .poll-table td {
+    padding: 6px 10px;
+    border: none;
+    font-size: 13px;
+    word-break: break-word;
+    word-wrap: break-word;
+  }
+  .word-pill {
+    display: inline-block;
+    padding: 5px 10px;
+    background-color: #ffffff;
+    color: #1e293b;
+    border: 1px solid #cbd5e1;
+    border-radius: 16px;
+    margin-right: 6px;
+    margin-bottom: 6px;
+    font-size: 12px;
+    word-break: break-all;
+  }
+  .response-box {
+    padding: 10px 14px;
+    background-color: #ffffff;
+    border-left: 3px solid #10b981;
+    border-radius: 0 4px 4px 0;
+    margin-bottom: 8px;
+    font-style: italic;
+    font-size: 13px;
+    color: #334155;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+    word-break: break-word;
+    word-wrap: break-word;
+  }
+</style>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1e293b; margin: 40px; background-color: #f8fafc; line-height: 1.5;">
+  <!-- Centering Outer Layout Table with 100% width for Word compatibility -->
+  <table align="center" width="100%" style="width: 100%; max-width: 720px; margin: 0 auto; border-collapse: collapse; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); text-align: left;">
+    <tr>
+      <td style="padding: 40px; border: none; vertical-align: top; background-color: #ffffff;">
+        <div class="header" style="border-bottom: 3px solid ${themeAccentColor}; padding-bottom: 20px; margin-bottom: 30px; text-align: center;">
+          <h1 style="font-size: 26px; margin: 0 0 8px 0; color: #0f172a; font-weight: 800; text-align: center;">ActiveDeck Session Activity Log</h1>
+          <p style="font-size: 13px; color: #64748b; margin: 0; text-align: center;">Generated on ${new Date().toLocaleString()}</p>
+        </div>`;
+
+    const footer = "</td></tr></table></body></html>";
     
     const combinedItems = [
       ...messages.map(m => ({ ...m, type: 'message' as const })),
@@ -1925,87 +2151,184 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       return timeA - timeB;
     });
 
-    const content = combinedItems.map(item => {
+    let htmlContent = '';
+    let isTableOpen = false;
+
+    combinedItems.forEach(item => {
       if (item.type === 'message') {
         const m = item as Message;
-        const dateObj = m.timestamp?.toDate();
-        const dateStr = dateObj ? dateObj.toLocaleDateString() : '';
-        const timeStr = dateObj ? dateObj.toLocaleTimeString() : '';
-        const slideStr = m.slide !== undefined ? ` [Slide ${m.slide}]` : '';
-        const type = m.isQuestion ? '<b>[QUESTION]</b> ' : '';
-        const likes = m.likes ? ` (Likes: ${m.likes})` : '';
-        const email = m.userEmail ? `, <a href="mailto:${m.userEmail}">${m.userEmail}</a>` : '';
-        return `<p style="margin-bottom: 16px;">${dateStr}, ${timeStr}${slideStr}, <b>${m.userName}</b>${email}:<br>&nbsp;&nbsp;&nbsp;&nbsp;${type}${m.text}${likes}</p>`;
-      } else if (item.type === 'poll') {
-        const p = item as Poll;
-        const dateObj = p.createdAt?.toDate();
-        const dateStr = dateObj ? dateObj.toLocaleDateString() : '';
-        const timeStr = dateObj ? dateObj.toLocaleTimeString() : '';
-        const slideStr = p.slide !== undefined ? ` [Slide ${p.slide}]` : '';
-        const totalVotes = Object.values(p.votes).reduce((a, b) => a + b, 0);
+        const dateObj = m.timestamp?.toDate() || new Date();
+        const dateStr = dateObj.toLocaleDateString();
+        const timeStr = dateObj.toLocaleTimeString();
         
-        let pollHtml = `<div style="margin-bottom: 24px; padding: 12px; border: 2px solid #ff3e00; background-color: #fff5f2; border-radius: 8px;">`;
-        pollHtml += `<p style="margin-top: 0;"><b>[MCQ RESULTS]</b> ${dateStr}, ${timeStr}${slideStr}</p>`;
-        pollHtml += `<ul style="list-style-type: none; padding-left: 0;">`;
-        p.options.forEach(opt => {
-          const count = p.votes[opt] || 0;
-          const percentage = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
-          pollHtml += `<li style="margin-bottom: 4px;">Option ${opt}: <b>${count} votes</b> (${percentage}%)${p.correctAnswer === opt ? ' <span style="color: #10b981; font-weight: bold;">[CORRECT ANSWER]</span>' : ''}</li>`;
-        });
-        pollHtml += `</ul>`;
-        pollHtml += `<p style="margin-bottom: 0; font-size: 11px;">Total Votes: ${totalVotes}</p>`;
-        pollHtml += `</div>`;
-        return pollHtml;
-      } else if (item.type === 'wordCloud') {
-        const w = item as WordCloud;
-        const dateObj = w.createdAt?.toDate();
-        const dateStr = dateObj ? dateObj.toLocaleDateString() : '';
-        const timeStr = dateObj ? dateObj.toLocaleTimeString() : '';
-        const slideStr = w.slide !== undefined ? ` [Slide ${w.slide}]` : '';
-        const totalWords = Object.values(w.words || {}).reduce((a, b) => a + b, 0);
-        
-        let wcHtml = `<div style="margin-bottom: 24px; padding: 12px; border: 2px solid #3b82f6; background-color: #eff6ff; border-radius: 8px;">`;
-        wcHtml += `<p style="margin-top: 0;"><b>[WORD CLOUD]</b> ${dateStr}, ${timeStr}${slideStr}</p>`;
-        wcHtml += `<p style="margin-bottom: 8px;"><b>Prompt:</b> ${w.prompt}</p>`;
-        wcHtml += `<ul style="list-style-type: none; padding-left: 0;">`;
-        Object.entries(w.words || {}).forEach(([word, count]) => {
-          wcHtml += `<li style="margin-bottom: 4px;">${word}: <b>${count} submissions</b></li>`;
-        });
-        wcHtml += `</ul>`;
-        wcHtml += `<p style="margin-bottom: 0; font-size: 11px;">Total Submissions: ${totalWords}</p>`;
-        wcHtml += `</div>`;
-        return wcHtml;
+        // Open table if not already open
+        if (!isTableOpen) {
+          htmlContent += `<table class="log-table" style="width: 100%; border-collapse: collapse; margin-bottom: 30px; table-layout: fixed;">
+            <thead>
+              <tr style="background-color: #f1f5f9;">
+                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 6px; border-bottom: 2px solid #cbd5e1; text-align: center; width: 10%;">Date</th>
+                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 6px; border-bottom: 2px solid #cbd5e1; text-align: center; width: 12%;">Time</th>
+                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 6px; border-bottom: 2px solid #cbd5e1; text-align: center; width: 8%;">Slide</th>
+                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 6px; border-bottom: 2px solid #cbd5e1; text-align: left; width: 13%;">Name</th>
+                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 6px; border-bottom: 2px solid #cbd5e1; text-align: left; width: 17%;">Email</th>
+                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 6px; border-bottom: 2px solid #cbd5e1; text-align: center; width: 10%;">Type</th>
+                <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 6px; border-bottom: 2px solid #cbd5e1; text-align: left; width: 30%;">Question / Message</th>
+              </tr>
+            </thead>
+            <tbody>`;
+          isTableOpen = true;
+        }
+
+        const typeBadge = m.isQuestion 
+          ? `<span class="badge badge-question" style="display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; background-color: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5;">Question</span>`
+          : `<span class="badge badge-message" style="display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; background-color: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd;">Message</span>`;
+
+        const slideBadge = m.slide !== undefined && m.slide !== null
+          ? `<span class="badge badge-slide" style="display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; background-color: #f1f5f9; color: #475569; border: 1px solid #cbd5e1;">Slide ${m.slide}</span>`
+          : `-`;
+
+        const likesBadge = m.likes 
+          ? `<span class="badge badge-likes" style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; background-color: #fef08a; color: #854d0e; border: 1px solid #fde047; margin-left: 4px;">👍 ${m.likes}</span>`
+          : '';
+
+        const emailLink = m.userEmail
+          ? `<a href="mailto:${m.userEmail}" style="color: #2563eb; text-decoration: none; border-bottom: 1px dotted #2563eb; word-break: break-all;">${m.userEmail}</a>`
+          : '-';
+
+        htmlContent += `<tr>
+          <td style="padding: 12px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: center; word-break: break-word; word-wrap: break-word;">${dateStr}</td>
+          <td style="padding: 12px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: center; word-break: break-word; word-wrap: break-word;">${timeStr}</td>
+          <td style="padding: 12px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: center; word-break: break-word; word-wrap: break-word;">${slideBadge}</td>
+          <td style="padding: 12px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; font-weight: 600; text-align: left; word-break: break-word; word-wrap: break-word;">${m.userName}</td>
+          <td style="padding: 12px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: left; word-break: break-all; word-wrap: break-word;">${emailLink}</td>
+          <td style="padding: 12px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: center; word-break: break-word; word-wrap: break-word;">${typeBadge}</td>
+          <td style="padding: 12px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: left; word-break: break-word; word-wrap: break-word;"><strong>${formatHtmlTextWithLinks(m.text)}</strong>${likesBadge}</td>
+        </tr>`;
       } else {
-        const q = item as OpenEndedQuestion;
-        const dateObj = q.createdAt?.toDate();
-        const dateStr = dateObj ? dateObj.toLocaleDateString() : '';
-        const timeStr = dateObj ? dateObj.toLocaleTimeString() : '';
-        const slideStr = q.slide !== undefined ? ` [Slide ${q.slide}]` : '';
-        const totalResponses = Object.values(q.responses || {}).length;
-        
-        let qHtml = `<div style="margin-bottom: 24px; padding: 12px; border: 2px solid #10b981; background-color: #f0fdf4; border-radius: 8px;">`;
-        qHtml += `<p style="margin-top: 0;"><b>[OPEN ? RESULTS]</b> ${dateStr}, ${timeStr}${slideStr}</p>`;
-        qHtml += `<p style="margin-bottom: 8px;"><b>Question:</b> ${q.prompt}</p>`;
-        qHtml += `<ul style="list-style-type: none; padding-left: 0;">`;
-        Object.values(q.responses || {}).forEach(response => {
-          qHtml += `<li style="margin-bottom: 8px; font-style: italic;">"${response}"</li>`;
-        });
-        qHtml += `</ul>`;
-        qHtml += `<p style="margin-bottom: 0; font-size: 11px;">Total Responses: ${totalResponses}</p>`;
-        qHtml += `</div>`;
-        return qHtml;
+        // Close table if it was open
+        if (isTableOpen) {
+          htmlContent += `</tbody></table>`;
+          isTableOpen = false;
+        }
+
+        if (item.type === 'poll') {
+          const p = item as Poll;
+          const dateObj = p.createdAt?.toDate() || new Date();
+          const dateStr = dateObj.toLocaleDateString();
+          const timeStr = dateObj.toLocaleTimeString();
+          const slideStr = p.slide !== undefined ? ` [Slide ${p.slide}]` : '';
+          const totalVotes = Object.values(p.votes || {}).reduce((a, b) => a + b, 0);
+
+          let pollOptionsHtml = '';
+          p.options.forEach(opt => {
+            const count = p.votes[opt] || 0;
+            const percentage = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
+            const isCorrect = p.correctAnswer === opt;
+            const correctBadge = isCorrect 
+              ? `<span style="color: #10b981; font-weight: bold; margin-left: 8px; font-size: 12px;">✓ CORRECT ANSWER</span>` 
+              : '';
+
+            pollOptionsHtml += `<tr>
+              <td style="width: 15%; font-weight: bold; padding: 6px 10px; border: none; font-size: 13px;">Option ${opt}</td>
+              <td style="width: 50%; padding: 6px 10px; border: none;">
+                <table style="width: 100%; border: 1px solid #cbd5e1; border-collapse: collapse; height: 16px;">
+                  <tr>
+                    <td style="width: ${percentage}%; background-color: ${themeAccentColor}; border: none; padding: 0; height: 16px;"></td>
+                    <td style="width: ${100 - percentage}%; background-color: #f1f5f9; border: none; padding: 0; height: 16px;"></td>
+                  </tr>
+                </table>
+              </td>
+              <td style="width: 35%; padding: 6px 10px; border: none; font-size: 13px; word-break: break-word; word-wrap: break-word;">
+                <strong>${count} votes</strong> (${percentage}%)${correctBadge}
+              </td>
+            </tr>`;
+          });
+
+          htmlContent += `<table class="card card-mcq" style="width: 100%; border-collapse: collapse; margin: 24px 0; background-color: #fff5f2; border: 1px solid #fca5a5; border-left: 6px solid ${themeAccentColor}; border-radius: 8px;">
+            <tr>
+              <td style="padding: 20px; border: none; text-align: left; vertical-align: top;">
+                <h3 class="card-title" style="font-weight: 800; font-size: 15px; margin: 0 0 4px 0; color: #0f172a; text-align: center;">📊 MCQ POLL RESULTS</h3>
+                <p class="card-meta" style="font-size: 11px; color: #64748b; margin: 0 0 16px 0; text-align: center;">Triggered on ${dateStr} at ${timeStr}${slideStr}</p>
+                <table class="poll-table" style="width: 100%; border-collapse: collapse; table-layout: fixed;">
+                  ${pollOptionsHtml}
+                </table>
+                <p style="margin-top: 12px; margin-bottom: 0; font-size: 12px; font-weight: bold; color: #475569; text-align: center;">Total Votes: ${totalVotes}</p>
+              </td>
+            </tr>
+          </table>`;
+
+        } else if (item.type === 'wordCloud') {
+          const w = item as WordCloud;
+          const dateObj = w.createdAt?.toDate() || new Date();
+          const dateStr = dateObj.toLocaleDateString();
+          const timeStr = dateObj.toLocaleTimeString();
+          const slideStr = w.slide !== undefined ? ` [Slide ${w.slide}]` : '';
+          const totalWords = Object.values(w.words || {}).reduce((a, b) => a + b, 0);
+
+          let wordPillsHtml = '';
+          Object.entries(w.words || {}).sort((a, b) => b[1] - a[1]).forEach(([word, count]) => {
+            wordPillsHtml += `<span class="word-pill" style="display: inline-block; padding: 5px 10px; background-color: #ffffff; color: #1e293b; border: 1px solid #cbd5e1; border-radius: 16px; margin-right: 6px; margin-bottom: 6px; font-size: 12px; word-break: break-all;">
+              <strong>${word}</strong> (${count})
+            </span>`;
+          });
+
+          htmlContent += `<table class="card card-wordcloud" style="width: 100%; border-collapse: collapse; margin: 24px 0; background-color: #eff6ff; border: 1px solid #93c5fd; border-left: 6px solid #3b82f6; border-radius: 8px;">
+            <tr>
+              <td style="padding: 20px; border: none; text-align: left; vertical-align: top;">
+                <h3 class="card-title" style="font-weight: 800; font-size: 15px; margin: 0 0 4px 0; color: #0f172a; text-align: center;">☁️ WORD CLOUD RESULTS</h3>
+                <p class="card-meta" style="font-size: 11px; color: #64748b; margin: 0 0 16px 0; text-align: center;">Triggered on ${dateStr} at ${timeStr}${slideStr}</p>
+                <h4 class="card-subtitle" style="font-size: 13px; font-weight: 600; color: #334155; margin: 0 0 12px 0; text-align: center;">Prompt: "${w.prompt}"</h4>
+                <div style="margin-top: 12px; margin-bottom: 12px; text-align: center;">
+                  ${wordPillsHtml || '<p style="font-size: 13px; color: #64748b; font-style: italic; text-align: center;">No entries recorded</p>'}
+                </div>
+                <p style="margin-top: 12px; margin-bottom: 0; font-size: 12px; font-weight: bold; color: #475569; text-align: center;">Total Submissions: ${totalWords}</p>
+              </td>
+            </tr>
+          </table>`;
+
+        } else if (item.type === 'openEnded') {
+          const q = item as OpenEndedQuestion;
+          const dateObj = q.createdAt?.toDate() || new Date();
+          const dateStr = dateObj.toLocaleDateString();
+          const timeStr = dateObj.toLocaleTimeString();
+          const slideStr = q.slide !== undefined ? ` [Slide ${q.slide}]` : '';
+          const totalResponses = Object.values(q.responses || {}).length;
+
+          let responsesHtml = '';
+          Object.values(q.responses || {}).forEach(response => {
+            responsesHtml += `<div class="response-box" style="padding: 10px 14px; background-color: #ffffff; border-left: 3px solid #10b981; border-radius: 0 4px 4px 0; margin-bottom: 8px; font-style: italic; font-size: 13px; color: #334155; border-top: none; border-right: none; border-bottom: none; word-break: break-word; word-wrap: break-word;">
+              "${response}"
+            </div>`;
+          });
+
+          htmlContent += `<table class="card card-openended" style="width: 100%; border-collapse: collapse; margin: 24px 0; background-color: #f0fdf4; border: 1px solid #6ee7b7; border-left: 6px solid #10b981; border-radius: 8px;">
+            <tr>
+              <td style="padding: 20px; border: none; text-align: left; vertical-align: top;">
+                <h3 class="card-title" style="font-weight: 800; font-size: 15px; margin: 0 0 4px 0; color: #0f172a; text-align: center;">💬 OPEN ENDED RESULTS</h3>
+                <p class="card-meta" style="font-size: 11px; color: #64748b; margin: 0 0 16px 0; text-align: center;">Triggered on ${dateStr} at ${timeStr}${slideStr}</p>
+                <h4 class="card-subtitle" style="font-size: 13px; font-weight: 600; color: #334155; margin: 0 0 12px 0; text-align: center;">Question: "${q.prompt}"</h4>
+                <div style="margin-top: 12px; margin-bottom: 12px;">
+                  ${responsesHtml || '<p style="font-size: 13px; color: #64748b; font-style: italic; text-align: center;">No responses recorded</p>'}
+                </div>
+                <p style="margin-top: 12px; margin-bottom: 0; font-size: 12px; font-weight: bold; color: #475569; text-align: center;">Total Responses: ${totalResponses}</p>
+              </td>
+            </tr>
+          </table>`;
+        }
       }
-    }).join('');
-    
-    const html = header + "<h1>ActiveDeck Chat & Poll Log</h1>" + content + footer;
+    });
+
+    if (isTableOpen) {
+      htmlContent += `</tbody></table>`;
+    }
+
+    const html = header + htmlContent + footer;
     const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
     link.download = 'chat-log.doc';
-    document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
     URL.revokeObjectURL(url);
   };
 
@@ -2707,82 +3030,142 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
       {/* Embedded QR Code Section */}
       {!isChatOnly && (
-        <div className="p-3 bg-slate-50 border-b border-slate-200 flex flex-row items-start gap-3 animate-in slide-in-from-top duration-300">
-          <div className="bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm shrink-0 flex flex-col items-center gap-1.5">
-            <QRCodeSVG 
-              value={dynamicChatUrl} 
-              size={120}
-              level="H"
-              imageSettings={{
-                src: internalLogoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png",
-                x: undefined,
-                y: undefined,
-                height: 24,
-                width: 24,
-                excavate: true,
-              }}
-            />
-            {/* Progress countdown bar */}
-            {!presentation?.disableAttendance && (
-              <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden relative">
-                <div 
-                  className="h-full bg-osu-orange transition-all duration-100 ease-linear"
-                  style={{ width: `${(timeLeft / 10) * 100}%` }}
-                />
-              </div>
-            )}
-          </div>
-          <div className="flex flex-col justify-center min-w-0 py-1 flex-1">
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+        isQRExpanded ? (
+          /* Expanded Card View */
+          <div 
+            onClick={() => setIsQRExpanded(false)}
+            className="p-5 bg-white border-b border-slate-200 flex flex-col items-center justify-center gap-3.5 cursor-pointer animate-in fade-in duration-300 select-none h-[380px]"
+            title="Click to minimize QR code"
+          >
+            <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-md flex flex-col items-center gap-2 animate-in zoom-in-95 duration-300">
+              <QRCodeSVG 
+                value={dynamicChatUrl} 
+                size={230}
+                level="M"
+                includeMargin={true}
+                imageSettings={{
+                  src: internalLogoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png",
+                  x: undefined,
+                  y: undefined,
+                  height: 38,
+                  width: 38,
+                  excavate: true,
+                }}
+              />
+              {/* Progress countdown bar */}
+              {!presentation?.disableAttendance && (
+                <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden relative">
+                  <div 
+                    className="h-full bg-osu-orange transition-all duration-100 ease-linear"
+                    style={{ width: `${(timeLeft / 10) * 100}%` }}
+                  />
+                </div>
+              )}
+            </div>
+            
+            <div className="text-center space-y-1 w-full max-w-[270px]">
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-tight">
                 {presentation?.disableAttendance ? "Scan to Join Chat" : "Scan to Mark Attendance and Join Chat"}
               </p>
-              <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-200/50 rounded-lg text-xs font-black text-slate-700 shadow-sm transition-all animate-in zoom-in-50 duration-500">
-                <Users className="w-4 h-4 text-osu-orange" />
-                <span>{participantCount}</span>
+              <p className="text-xs font-bold text-slate-700 font-mono select-all truncate">
+                {shortUrl || chatOnlyUrl}
+              </p>
+              <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-slate-100 rounded border border-slate-200 text-[10px] font-black text-slate-650 mt-1">
+                <Users className="w-3.5 h-3.5 text-osu-orange" />
+                <span>{participantCount} Joined</span>
               </div>
+              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-2.5 animate-pulse">
+                (Click anywhere to minimize)
+              </p>
             </div>
-            {canModerate && (
-              <div className="flex flex-col gap-2 mt-2">
-                <div className="flex items-stretch gap-2">
+          </div>
+        ) : (
+          /* Minimized Horizontal View */
+          <div className="p-3 bg-slate-50 border-b border-slate-200 flex flex-row items-start gap-3 animate-in slide-in-from-top duration-300">
+            <div 
+              onClick={() => setIsQRExpanded(true)}
+              className="bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm shrink-0 flex flex-col items-center gap-1 cursor-pointer hover:border-osu-orange hover:shadow-md transition-all group/qr"
+              title="Click to expand QR code"
+            >
+              <QRCodeSVG 
+                value={dynamicChatUrl} 
+                size={120}
+                level="M"
+                includeMargin={true}
+                imageSettings={{
+                  src: internalLogoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png",
+                  x: undefined,
+                  y: undefined,
+                  height: 20,
+                  width: 20,
+                  excavate: true,
+                }}
+              />
+              {/* Progress countdown bar */}
+              {!presentation?.disableAttendance && (
+                <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden relative">
+                  <div 
+                    className="h-full bg-osu-orange transition-all duration-100 ease-linear"
+                    style={{ width: `${(timeLeft / 10) * 100}%` }}
+                  />
+                </div>
+              )}
+              <span className="text-[7px] text-slate-400 group-hover/qr:text-osu-orange font-bold uppercase tracking-wider leading-none mt-0.5">
+                Click to Expand
+              </span>
+            </div>
+            <div className="flex flex-col justify-center min-w-0 py-1 flex-1">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest truncate mr-1">
+                  {presentation?.disableAttendance ? "Scan to Join" : "Scan to Check-In"}
+                </p>
+                <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-200/50 rounded-lg text-xs font-black text-slate-700 shadow-sm shrink-0">
+                  <Users className="w-4 h-4 text-osu-orange" />
+                  <span>{participantCount}</span>
+                </div>
+              </div>
+              {canModerate && (
+                <div className="flex flex-col gap-2 mt-2">
+                  <div className="flex items-stretch gap-2">
+                    <button 
+                      onClick={handleCreatePoll}
+                      className="flex-1 flex flex-col items-center justify-center px-1 py-2 bg-osu-orange text-white rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-[#c03900] transition-all shadow-sm leading-tight border-0 cursor-pointer"
+                    >
+                      <BarChart2 className="w-4 h-4 mb-0.5" />
+                      <span>MCQ</span>
+                    </button>
+                    <button 
+                      onClick={() => handleCreateWordCloud('Word Cloud')}
+                      className="flex-1 flex flex-col items-center justify-center px-1 py-2 bg-blue-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-blue-600 transition-all shadow-sm leading-tight border-0 cursor-pointer"
+                    >
+                      <Cloud className="w-4 h-4 mb-0.5" />
+                      <span>Word</span>
+                    </button>
+                    <button                
+                        onClick={() => handleCreateOpenEndedQuestion('Open question')}
+                        className="flex-1 flex flex-col items-center justify-center px-1 py-2 bg-green-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-green-600 transition-all shadow-sm leading-tight border-0 cursor-pointer"
+                    >                
+                      <MessageSquare className="w-4 h-4 mb-0.5" />
+                      <span>Open ?</span>
+                    </button>
+                  </div>
                   <button 
-                    onClick={handleCreatePoll}
-                    className="flex-1 flex flex-col items-center justify-center px-1 py-2 bg-osu-orange text-white rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-[#c03900] transition-all shadow-sm leading-tight"
+                    onClick={() => setIsAllCollapsed(!isAllCollapsed)}
+                    className={cn(
+                      "w-full flex items-center justify-center gap-2 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border shadow-sm cursor-pointer",
+                      isAllCollapsed 
+                        ? "bg-slate-800 text-osu-orange border-slate-700" 
+                        : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200"
+                    )}
                   >
-                    <BarChart2 className="w-4 h-4 mb-0.5" />
-                    <span>MCQ</span>
-                  </button>
-                  <button 
-                    onClick={() => handleCreateWordCloud('Word Cloud')}
-                    className="flex-1 flex flex-col items-center justify-center px-1 py-2 bg-blue-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-blue-600 transition-all shadow-sm leading-tight"
-                  >
-                    <Cloud className="w-4 h-4 mb-0.5" />
-                    <span>Word</span>
-                  </button>
-                  <button                
-                      onClick={() => handleCreateOpenEndedQuestion('Open question')}
-                      className="flex-1 flex flex-col items-center justify-center px-1 py-2 bg-green-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-green-600 transition-all shadow-sm leading-tight"
-                  >                
-                    <MessageSquare className="w-4 h-4 mb-0.5" />
-                    <span>Open ?</span>
+                    {isAllCollapsed ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
+                    <span>{isAllCollapsed ? "Expand All Content" : "Collapse All Content"}</span>
                   </button>
                 </div>
-                <button 
-                  onClick={() => setIsAllCollapsed(!isAllCollapsed)}
-                  className={cn(
-                    "w-full flex items-center justify-center gap-2 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border shadow-sm",
-                    isAllCollapsed 
-                      ? "bg-slate-800 text-osu-orange border-slate-700" 
-                      : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200"
-                  )}
-                >
-                  {isAllCollapsed ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
-                  <span>{isAllCollapsed ? "Expand All Content" : "Collapse All Content"}</span>
-                </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
+        )
       )}
 
       {/* Messages Area Wrapper */}
@@ -3161,7 +3544,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
       {/* Presenter-only Bottom Chat Input Area */}
       {!isChatOnly && user && (
-        <div className="bg-white border-t border-slate-200 shrink-0 p-3 pb-[env(safe-area-inset-bottom)]">
+        <div className="bg-white border-t border-slate-200 shrink-0 p-3" style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom))' }}>
           <form onSubmit={handleSendMessage} className="flex gap-2">
             <input
               type="text"
