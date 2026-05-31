@@ -159,7 +159,7 @@ function AppContent() {
             embedUrl: '',
             createdAt: serverTimestamp(),
             allowAnonymousChat: false,
-            disableAttendance: false,
+            disableAttendance: true,
             hideComments: false,
             presenterEmail: localStorage.getItem('activePresenterEmail') || ''
           });
