@@ -1545,7 +1545,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       if (!isChatOnly) {
         const presenterEmail = sessionStorage.getItem('activePresenterEmail');
         userName = presenterEmail ? presenterEmail.split('@')[0] : (user.displayName || 'Host');
-      } else if (isPostingAnonymously && !presentation?.disableAttendance) {
+      } else if (isPostingAnonymously) {
         userName = `Anonymous ${user.uid.slice(0, 4)}`;
       }
 
@@ -3481,12 +3481,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                   <div className="flex flex-col gap-1.5">
                     <span className="text-xs text-slate-500">
                       Posting as: <span className="font-semibold text-slate-700">
-                        {isPostingAnonymously && !presentation?.disableAttendance
+                        {isPostingAnonymously
                           ? `Anonymous ${user.uid.slice(0, 4)}` 
                           : (guestName || (guestEmail ? guestEmail.split('@')[0] : `Guest ${user.uid.slice(0, 4)}`))}
                       </span>
                     </span>
-                    {!presentation?.disableAttendance && (guestName || guestEmail || presentation?.allowAnonymousChat) && (
+                    {(guestName || guestEmail || presentation?.allowAnonymousChat || presentation?.disableAttendance) && (
                       <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
                         <input 
                           type="checkbox" 
