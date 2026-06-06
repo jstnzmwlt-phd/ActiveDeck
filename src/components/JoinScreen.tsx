@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, query, collection, where, getDocs, limit } from 'firebase/firestore';
 import { db } from '../firebase';
 import { KeyRound, Loader2, AlertCircle } from 'lucide-react';
 
@@ -14,6 +14,13 @@ export const JoinScreen: React.FC = () => {
     setTimeout(() => setIsShaking(false), 500);
   };
 
+  const getFormattedPin = (raw: string) => {
+    if (raw.length > 3) {
+      return `${raw.slice(0, 3)} ${raw.slice(3)}`;
+    }
+    return raw;
+  };
+
   const handleSubmit = async (pinCode: string) => {
     if (pinCode.length !== 6) return;
     
@@ -21,12 +28,35 @@ export const JoinScreen: React.FC = () => {
     setErrorErrorMsg(null);
     
     try {
-      const pinRef = doc(db, 'sessionPins', pinCode);
-      const pinSnap = await getDoc(pinRef);
+      let presentationId: string | null = null;
       
-      if (pinSnap.exists() && pinSnap.data().active) {
-        const presentationId = pinSnap.data().presentationId;
+      // Step 1: Try finding the PIN in the `sessionPins` collection
+      try {
+        const pinRef = doc(db, 'sessionPins', pinCode);
+        const pinSnap = await getDoc(pinRef);
         
+        if (pinSnap.exists() && pinSnap.data().active) {
+          presentationId = pinSnap.data().presentationId;
+        }
+      } catch (err) {
+        console.warn('Error reading from sessionPins, attempting direct presentations lookup fallback...', err);
+      }
+      
+      // Step 2: Fallback to direct query on the `presentations` collection
+      if (!presentationId) {
+        try {
+          const q = query(collection(db, 'presentations'), where('pinCode', '==', pinCode), limit(1));
+          const querySnap = await getDocs(q);
+          if (!querySnap.empty) {
+            presentationId = querySnap.docs[0].id;
+            console.log('Fallback direct lookup successful. Found presentation ID:', presentationId);
+          }
+        } catch (fallbackErr) {
+          console.error('Fallback presentations query failed:', fallbackErr);
+        }
+      }
+      
+      if (presentationId) {
         // Redirect to the chat room for this presentation
         const newUrl = new URL(window.location.href);
         newUrl.searchParams.set('id', presentationId);
@@ -97,8 +127,8 @@ export const JoinScreen: React.FC = () => {
                 type="text" 
                 inputMode="numeric"
                 pattern="[0-9]*"
-                maxLength={6}
-                value={pinInput}
+                maxLength={7}
+                value={getFormattedPin(pinInput)}
                 onChange={handlePinChange}
                 disabled={isValidating}
                 placeholder="000 000"

@@ -2882,13 +2882,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                   Join Session:
                 </span>
               </div>
-              <div className="text-[13px] font-bold tracking-tight text-white whitespace-nowrap overflow-hidden text-ellipsis leading-none select-all flex items-center gap-2">
-                <span>{window.location.origin}/chat</span>
+              <div className="flex items-center justify-between gap-2 overflow-hidden w-full">
+                <span className="text-[12px] font-bold text-slate-300 select-all">{window.location.origin}/chat</span>
                 {presentation?.pinCode && (
-                  <>
-                    <span className="text-slate-500 font-normal">|</span>
-                    <span className="text-osu-orange font-mono font-black">Code: {presentation.pinCode.replace(/(\d{3})(\d{3})/, '$1 $2')}</span>
-                  </>
+                  <span className="text-[24px] font-mono font-black tracking-wider text-osu-orange bg-osu-orange/10 border border-osu-orange/20 px-3 py-1.5 rounded-xl shrink-0 leading-none select-all shadow-sm">
+                    {presentation.pinCode.replace(/(\d{3})(\d{3})/, '$1 $2')}
+                  </span>
                 )}
               </div>
             </div>
