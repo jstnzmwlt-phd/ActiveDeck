@@ -5,12 +5,13 @@ import { ChatSidebar } from './components/ChatSidebar';
 import { Header } from './components/Header';
 import { Presentation, GlobalSettings } from './types';
 import { db } from './firebase';
-import { collection, query, orderBy, limit, onSnapshot, doc, addDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot, doc, addDoc, serverTimestamp, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 import { Presentation as PresentationIcon, Loader2, AlertCircle } from 'lucide-react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { BridgeProvider } from './contexts/BridgeContext';
 import { AdminPortal } from './components/AdminPortal';
 import { StudentAttendance } from './components/StudentAttendance';
+import { JoinScreen } from './components/JoinScreen';
 
 console.log('App.tsx - Module loaded');
 
@@ -18,6 +19,20 @@ console.log('App.tsx - Module loaded');
 window.onerror = (msg, url, lineNo, columnNo, error) => {
   console.error('Global Error:', msg, 'at', url, ':', lineNo, ':', columnNo, error);
   return false;
+};
+
+const generateUniquePin = async (): Promise<string> => {
+  let isUnique = false;
+  let pin = '';
+  while (!isUnique) {
+    pin = Math.floor(100000 + Math.random() * 900000).toString();
+    const pinRef = doc(db, 'sessionPins', pin);
+    const pinSnap = await getDoc(pinRef);
+    if (!pinSnap.exists()) {
+      isUnique = true;
+    }
+  }
+  return pin;
 };
 
 function AppContent() {
@@ -130,8 +145,9 @@ function AppContent() {
   const urlParams = new URLSearchParams(window.location.search);
   const isChatOnly = urlParams.get('view') === 'chat';
   const presentationId = urlParams.get('id');
+  const isPresenterInit = urlParams.get('mode') === 'presenter' || urlParams.get('presenter') === 'true';
 
-  console.log('AppContent Render - AuthLoading:', authLoading, 'User:', user?.uid, 'PresentationId:', presentationId, 'isChatOnly:', isChatOnly);
+  console.log('AppContent Render - AuthLoading:', authLoading, 'User:', user?.uid, 'PresentationId:', presentationId, 'isChatOnly:', isChatOnly, 'isPresenterInit:', isPresenterInit);
 
   useEffect(() => {
     // Hide static loader once React mounts
@@ -151,9 +167,27 @@ function AppContent() {
     let unsubscribe: () => void;
 
     const loadPresentation = async () => {
+      const ensurePresentationHasPin = async (presId: string, data: any) => {
+        if (!data.pinCode && !isChatOnly && user) {
+          try {
+            const newPin = await generateUniquePin();
+            await updateDoc(doc(db, 'presentations', presId), { pinCode: newPin });
+            await setDoc(doc(db, 'sessionPins', newPin), {
+              presentationId: presId,
+              createdAt: serverTimestamp(),
+              active: true
+            });
+            console.log(`v1.1 Migration: Generated PIN ${newPin} for presentation ${presId}`);
+          } catch (err) {
+            console.error('Error generating and saving PIN for existing presentation:', err);
+          }
+        }
+      };
+
       const createNewPresentation = async () => {
         console.log('AppContent - Creating new presentation for user:', user.uid);
         try {
+          const pinCode = await generateUniquePin();
           const docRef = await addDoc(collection(db, 'presentations'), {
             presenterId: user.uid,
             embedUrl: '',
@@ -161,10 +195,17 @@ function AppContent() {
             allowAnonymousChat: false,
             disableAttendance: true,
             hideComments: false,
-            presenterEmail: sessionStorage.getItem('activePresenterEmail') || ''
+            presenterEmail: sessionStorage.getItem('activePresenterEmail') || '',
+            pinCode: pinCode
           });
           
-          console.log('AppContent - New presentation created:', docRef.id);
+          await setDoc(doc(db, 'sessionPins', pinCode), {
+            presentationId: docRef.id,
+            createdAt: serverTimestamp(),
+            active: true
+          });
+          
+          console.log('AppContent - New presentation created:', docRef.id, 'with PIN:', pinCode);
           sessionStorage.setItem('activePresenterPresentationId', docRef.id);
           
           // Update URL with the new ID without reloading the page
@@ -222,6 +263,7 @@ function AppContent() {
             console.log('AppContent - Presentation data received:', docSnap.id);
             const data = docSnap.data();
             setPresentation({ id: docSnap.id, ...data } as Presentation);
+            ensurePresentationHasPin(docSnap.id, data);
             const localEmail = sessionStorage.getItem('activePresenterEmail');
             if (localEmail && !data.presenterEmail) {
               updateDoc(docRef, { presenterEmail: localEmail }).catch(err => 
@@ -236,7 +278,7 @@ function AppContent() {
           console.error("AppContent - Presentation snapshot error:", error);
           setPresentationLoaded(true);
         });
-      } else if (!isChatOnly && user) {
+      } else if (!isChatOnly && user && isPresenterInit) {
         const cachedId = sessionStorage.getItem('activePresenterPresentationId');
         if (cachedId) {
           console.log('AppContent - Found cached presentation ID in sessionStorage:', cachedId);
@@ -248,6 +290,7 @@ function AppContent() {
               console.log('AppContent - Cached presentation exists in Firestore. Setting active:', docSnap.id);
               const data = docSnap.data();
               setPresentation({ id: docSnap.id, ...data } as Presentation);
+              ensurePresentationHasPin(docSnap.id, data);
               const localEmail = sessionStorage.getItem('activePresenterEmail');
               if (localEmail && !data.presenterEmail) {
                 updateDoc(docRef, { presenterEmail: localEmail }).catch(err => 
@@ -293,7 +336,7 @@ function AppContent() {
         unsubscribe();
       }
     };
-  }, [authLoading, user, presentationId, isChatOnly]);
+  }, [authLoading, user, presentationId, isChatOnly, isPresenterInit]);
 
   const isLoading = authLoading;
 
@@ -341,6 +384,11 @@ function AppContent() {
         token={attendanceToken} 
       />
     );
+  }
+
+  // Check if we should render student Join Screen
+  if (!presentationId && !isPresenterInit) {
+    return <JoinScreen />;
   }
 
   // Ask for presenter's email before letting them proceed to the presenter screen
@@ -450,7 +498,7 @@ function AppContent() {
       </div>
 
       <footer className="px-6 pb-3 pt-1 flex items-center justify-between text-[11px] font-bold tracking-wider text-slate-400 uppercase select-none">
-        <span>v1.0</span>
+        <span>v1.1</span>
         <span className="opacity-65">ActiveDeck &copy; {new Date().getFullYear()}</span>
       </footer>
     </div>

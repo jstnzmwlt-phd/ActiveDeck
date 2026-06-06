@@ -28,6 +28,7 @@ export interface Presentation {
   createdAt: Timestamp;
   allowAnonymousChat?: boolean;
   disableAttendance?: boolean;
+  pinCode?: string;
   hideComments?: boolean;
   currentSlide?: number;
   theme?: Theme;
