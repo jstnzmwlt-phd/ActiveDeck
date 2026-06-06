@@ -95,6 +95,13 @@ export interface WordCloud {
   slide?: number;
 }
 
+export interface WhitelistedPresenter {
+  email: string;
+  addedAt: Timestamp;
+  usageCount: number;
+  lastUsedAt: Timestamp | null;
+}
+
 declare global {
   interface Window {
     Office: any;

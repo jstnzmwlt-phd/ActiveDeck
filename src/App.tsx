@@ -5,7 +5,7 @@ import { ChatSidebar } from './components/ChatSidebar';
 import { Header } from './components/Header';
 import { Presentation, GlobalSettings } from './types';
 import { db } from './firebase';
-import { collection, query, orderBy, limit, onSnapshot, doc, addDoc, serverTimestamp, updateDoc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot, doc, addDoc, serverTimestamp, updateDoc, getDoc, setDoc, increment } from 'firebase/firestore';
 import { Presentation as PresentationIcon, Loader2, AlertCircle } from 'lucide-react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { BridgeProvider } from './contexts/BridgeContext';
@@ -62,40 +62,52 @@ function AppContent() {
     setEmailDomainError(null);
     setCheckingEmailDomain(true);
 
-    // Auto-match institution domain
-    const emailDomain = trimmed.split('@')[1];
-    if (emailDomain) {
-      try {
-        const { getDocs } = await import('firebase/firestore');
-        const themesSnap = await getDocs(collection(db, 'savedThemes'));
-        const matchedInstDoc = themesSnap.docs.find(docSnap => {
-          const domain = docSnap.data().domain;
-          return domain && domain.trim().toLowerCase() === emailDomain;
-        });
-
-        if (!matchedInstDoc) {
-          setEmailDomainError(`The institution domain "@${emailDomain}" does not exist in our database. Please contact jstnzmwlt@gmail.com to register your institution.`);
-          setCheckingEmailDomain(false);
-          return;
-        }
-
-        const instData = matchedInstDoc.data();
-        // Apply matching institution settings globally
-        await updateDoc(doc(db, 'settings', 'global'), {
-          theme: instData.theme,
-          activeInstitutionId: matchedInstDoc.id,
-          activeInstitutionName: instData.name,
-          activeInstitutionDomain: instData.domain || ''
-        });
-        console.log(`Auto-loaded matching institution theme for domain ${emailDomain}: ${instData.name}`);
-      } catch (err) {
-        console.error('Failed to auto-match presenter institution domain:', err);
-        alert('An error occurred while verifying your institution. Please try again.');
+    try {
+      // Step 1: Check Whitelisted Presenters
+      const presenterRef = doc(db, 'whitelistedPresenters', trimmed);
+      const presenterSnap = await getDoc(presenterRef);
+      if (!presenterSnap.exists()) {
+        setEmailDomainError("Access Denied: Your email is not registered as an authorized presenter. Please contact jstnzmwlt@gmail.com to be whitelisted.");
         setCheckingEmailDomain(false);
         return;
       }
-    } else {
-      alert('Please enter a valid email address.');
+
+      // Step 2: Auto-match institution domain (Optional - do not block if not found)
+      const emailDomain = trimmed.split('@')[1];
+      if (emailDomain) {
+        try {
+          const { getDocs } = await import('firebase/firestore');
+          const themesSnap = await getDocs(collection(db, 'savedThemes'));
+          const matchedInstDoc = themesSnap.docs.find(docSnap => {
+            const domain = docSnap.data().domain;
+            return domain && domain.trim().toLowerCase() === emailDomain;
+          });
+
+          if (matchedInstDoc) {
+            const instData = matchedInstDoc.data();
+            // Apply matching institution settings globally
+            await updateDoc(doc(db, 'settings', 'global'), {
+              theme: instData.theme,
+              activeInstitutionId: matchedInstDoc.id,
+              activeInstitutionName: instData.name,
+              activeInstitutionDomain: instData.domain || ''
+            });
+            console.log(`Auto-loaded matching institution theme for domain ${emailDomain}: ${instData.name}`);
+          }
+        } catch (err) {
+          console.error('Failed to auto-match presenter institution domain:', err);
+        }
+      }
+
+      // Step 3: Increment usage stats
+      await updateDoc(presenterRef, {
+        usageCount: increment(1),
+        lastUsedAt: serverTimestamp()
+      });
+
+    } catch (err: any) {
+      console.error('Error verifying whitelisted presenter:', err);
+      alert('An error occurred while verifying your presenter account. Please try again.');
       setCheckingEmailDomain(false);
       return;
     }
@@ -472,6 +484,16 @@ function AppContent() {
               ) : (
                 'Start Session'
               )}
+            </button>
+            <button 
+              type="button"
+              onClick={() => {
+                sessionStorage.removeItem('presenterMode');
+                window.location.href = '/chat';
+              }}
+              className="w-full h-11 border border-slate-800 hover:border-osu-orange/30 bg-slate-900/40 hover:bg-slate-900/80 text-slate-400 hover:text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              Looking for Chat? Join Session
             </button>
           </form>
         </div>

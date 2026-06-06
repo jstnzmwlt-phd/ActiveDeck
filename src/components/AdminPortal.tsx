@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { doc, getDoc, setDoc, addDoc, collection, onSnapshot, deleteDoc, query, orderBy, limit, Timestamp, getDocs, where } from 'firebase/firestore';
+import { doc, getDoc, setDoc, addDoc, collection, onSnapshot, deleteDoc, query, orderBy, limit, Timestamp, getDocs, where, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Theme, SavedTheme, Message, Poll, WordCloud, OpenEndedQuestion } from '../types';
-import { Palette, UserCheck, Download, ArrowLeft, Loader2, Calendar, Database, AlertCircle, Trash2, Monitor } from 'lucide-react';
+import { Palette, UserCheck, Download, ArrowLeft, Loader2, Calendar, Database, AlertCircle, Trash2, Monitor, Plus, Mail } from 'lucide-react';
 
 const formatHtmlTextWithLinks = (text: string): string => {
   if (!text) return '';
@@ -65,6 +65,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
   // Presenter Management States
   const [selectedPresenterKeysForBulk, setSelectedPresenterKeysForBulk] = useState<string[]>([]);
   const [isDeletingPresenters, setIsDeletingPresenters] = useState(false);
+  const [whitelistedPresenters, setWhitelistedPresenters] = useState<any[]>([]);
+  const [loadingWhitelisted, setLoadingWhitelisted] = useState(false);
+  const [newPresenterEmail, setNewPresenterEmail] = useState('');
+  const [isAddingPresenter, setIsAddingPresenter] = useState(false);
 
   // Sync selected session with active presentation prop
   useEffect(() => {
@@ -160,6 +164,31 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
     });
 
     return () => unsubSessions();
+  }, [activeTab]);
+
+  // Real-Time Subscribe to Whitelisted Presenters
+  useEffect(() => {
+    if (activeTab !== 'presenters') return;
+
+    setLoadingWhitelisted(true);
+    const qWhitelisted = query(
+      collection(db, 'whitelistedPresenters'),
+      orderBy('addedAt', 'desc')
+    );
+
+    const unsubWhitelisted = onSnapshot(qWhitelisted, (snapshot) => {
+      const list = snapshot.docs.map(docSnap => ({
+        email: docSnap.id,
+        ...docSnap.data()
+      }));
+      setWhitelistedPresenters(list);
+      setLoadingWhitelisted(false);
+    }, (error) => {
+      console.error("Error loading whitelisted presenters:", error);
+      setLoadingWhitelisted(false);
+    });
+
+    return () => unsubWhitelisted();
   }, [activeTab]);
 
   // Attendance Tracker: Subscribe to real-time check-ins for the active presentation session
@@ -345,51 +374,53 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
     }
   };
 
+  const handleAddPresenter = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = newPresenterEmail.trim().toLowerCase();
+    if (!trimmed || !trimmed.includes('@')) {
+      alert('Please enter a valid email address.');
+      return;
+    }
+    
+    setIsAddingPresenter(true);
+    try {
+      const docRef = doc(db, 'whitelistedPresenters', trimmed);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        alert('This email is already whitelisted!');
+        setIsAddingPresenter(false);
+        return;
+      }
+      
+      await setDoc(docRef, {
+        addedAt: serverTimestamp(),
+        usageCount: 0,
+        lastUsedAt: null
+      });
+      
+      setNewPresenterEmail('');
+      alert('Presenter successfully added to whitelist!');
+    } catch (err: any) {
+      console.error('Error whitelisting presenter:', err);
+      alert('Failed to add presenter: ' + err.message);
+    } finally {
+      setIsAddingPresenter(false);
+    }
+  };
+
   const handleDeletePresenters = async (keysToDelete: string[]) => {
     if (keysToDelete.length === 0) return;
 
-    // Find all sessions corresponding to these presenters
-    const sessionsToDelete: string[] = [];
-    let hasLiveSession = false;
-
-    keysToDelete.forEach(key => {
-      recentSessions.forEach(session => {
-        const emailKey = session.presenterEmail ? session.presenterEmail.trim().toLowerCase() : `anonymous_presenter_${session.presenterId}`;
-        if (emailKey === key) {
-          if (session.id === presentationId) {
-            hasLiveSession = true;
-          } else {
-            sessionsToDelete.push(session.id);
-          }
-        }
-      });
-    });
-
-    if (sessionsToDelete.length === 0) {
-      if (hasLiveSession) {
-        alert("The selected presenter(s) only have the active live presentation session, which cannot be deleted.");
-      } else {
-        alert("No sessions found to delete for the selected presenter(s).");
-      }
-      return;
-    }
-
-    const confirmMessage = `Are you sure you want to delete the selected presenter(s)? This will permanently erase ${sessionsToDelete.length} of their presentation sessions and all associated student attendance records.${
-      hasLiveSession ? " Note: The active live presentation session cannot be deleted and will be preserved." : ""
-    }`;
-
+    const confirmMessage = `Are you sure you want to remove the ${keysToDelete.length} selected presenter(s) from the whitelist? They will immediately lose access to the presenter portal.`;
     if (!confirm(confirmMessage)) return;
 
     setIsDeletingPresenters(true);
     try {
-      // Delete all sessions in parallel
-      await Promise.all(sessionsToDelete.map(id => deleteSessionDoc(id)));
-      
-      // Clear selection
-      setSelectedPresenterKeysForBulk(prev => prev.filter(key => !keysToDelete.includes(key)));
-      alert(`Successfully deleted ${keysToDelete.length} presenter(s) and their sessions.`);
+      await Promise.all(keysToDelete.map(email => deleteDoc(doc(db, 'whitelistedPresenters', email))));
+      setSelectedPresenterKeysForBulk([]);
+      alert(`Successfully removed ${keysToDelete.length} presenter(s) from the whitelist.`);
     } catch (e) {
-      console.error("Error deleting presenters:", e);
+      console.error("Error deleting presenters from whitelist:", e);
       alert("Error deleting presenters: " + e);
     } finally {
       setIsDeletingPresenters(false);
@@ -1486,50 +1517,55 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
           {/* ========================================================
               TAB 3: PRESENTERS WORKSPACE
               ======================================================== */}
-          {activeTab === 'presenters' && (() => {
-            // Group presentations by presenter email/id
-            const presenterStatsMap: Record<string, { email: string; sessionsCount: number; lastPresentedAt: Date | null; key: string }> = {};
-            
-            recentSessions.forEach(session => {
-              // Graceful fallback for older sessions that didn't have presenterEmail
-              const emailKey = session.presenterEmail ? session.presenterEmail.trim().toLowerCase() : `anonymous_presenter_${session.presenterId}`;
-              const displayName = session.presenterEmail || `Anonymous (ID: ${session.presenterId.substring(0,6)})`;
-              const sessionDate = session.createdAt ? new Date(session.createdAt.seconds * 1000) : null;
+          {activeTab === 'presenters' && (
+            <div className="space-y-6 animate-in fade-in duration-300">
               
-              if (!presenterStatsMap[emailKey]) {
-                presenterStatsMap[emailKey] = {
-                  email: displayName,
-                  sessionsCount: 0,
-                  lastPresentedAt: null,
-                  key: emailKey
-                };
-              }
-              
-              presenterStatsMap[emailKey].sessionsCount += 1;
-              
-              if (sessionDate) {
-                if (!presenterStatsMap[emailKey].lastPresentedAt || sessionDate > presenterStatsMap[emailKey].lastPresentedAt) {
-                  presenterStatsMap[emailKey].lastPresentedAt = sessionDate;
-                }
-              }
-            });
+              {/* Add Whitelisted Presenter Form Card */}
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6">
+                <h3 className="text-sm font-black uppercase tracking-wider text-white mb-4 flex items-center gap-2">
+                  <Plus className="w-5 h-5 text-osu-orange" />
+                  Whitelist Authorized Presenter
+                </h3>
+                <form onSubmit={handleAddPresenter} className="flex flex-col md:flex-row gap-4 items-end">
+                  <div className="flex-1 space-y-1.5 w-full">
+                    <label className="block text-xs font-black uppercase tracking-wider text-slate-400">Presenter Email Address</label>
+                    <div className="relative">
+                      <Mail className="w-4 h-4 text-slate-500 absolute left-4 top-3.5" />
+                      <input 
+                        type="email" 
+                        value={newPresenterEmail}
+                        onChange={(e) => setNewPresenterEmail(e.target.value)}
+                        placeholder="e.g. name@institution.edu"
+                        required
+                        className="w-full h-11 rounded-xl bg-slate-950 border border-slate-800 text-sm pl-11 pr-4 text-white placeholder-slate-600 focus:outline-none focus:border-osu-orange"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={isAddingPresenter}
+                    className="h-11 px-6 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-650 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-orange-500/10 flex items-center gap-2 cursor-pointer w-full md:w-auto justify-center"
+                  >
+                    {isAddingPresenter ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Plus className="w-4 h-4" />
+                    )}
+                    Add To Whitelist
+                  </button>
+                </form>
+              </div>
 
-            const statsList = Object.values(presenterStatsMap).sort((a, b) => {
-              if (!a.lastPresentedAt) return 1;
-              if (!b.lastPresentedAt) return -1;
-              return b.lastPresentedAt.getTime() - a.lastPresentedAt.getTime();
-            });
-
-            return (
-              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 overflow-hidden animate-in fade-in duration-300">
+              {/* Whitelisted Directory Table Card */}
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 overflow-hidden">
                 <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-6">
                   <div className="space-y-1">
                     <h2 className="text-lg font-black uppercase tracking-wider text-white flex items-center gap-2.5">
                       <Monitor className="w-5 h-5 text-osu-orange" />
-                      Presenter Analytics Directory
+                      Whitelisted Presenters Directory
                     </h2>
                     <p className="text-xs text-slate-400">
-                      Detailed overview of all presenter accounts, login/session frequency, and their latest presentation times.
+                      Authorized presenter accounts allowed to create and host presentation sessions.
                     </p>
                   </div>
                   
@@ -1538,19 +1574,19 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                       <button
                         onClick={() => handleDeletePresenters(selectedPresenterKeysForBulk)}
                         disabled={isDeletingPresenters}
-                        className="flex items-center gap-1.5 h-11 px-4 bg-red-950/40 hover:bg-red-900 border border-red-500/30 text-xs font-black uppercase tracking-wider text-red-400 hover:text-white rounded-xl transition-all"
+                        className="flex items-center gap-1.5 h-11 px-4 bg-red-950/40 hover:bg-red-900 border border-red-500/30 text-xs font-black uppercase tracking-wider text-red-400 hover:text-white rounded-xl transition-all cursor-pointer"
                       >
                         {isDeletingPresenters ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
                         ) : (
                           <Trash2 className="w-4 h-4" />
                         )}
-                        Delete Selected ({selectedPresenterKeysForBulk.length})
+                        Remove Selected ({selectedPresenterKeysForBulk.length})
                       </button>
                     )}
                     <div className="bg-slate-950 px-4 py-2 border border-slate-800 rounded-xl text-right">
-                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 block">Total Active Presenters</span>
-                      <span className="text-lg font-black text-osu-orange">{statsList.length}</span>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 block">Whitelisted Presenters</span>
+                      <span className="text-lg font-black text-osu-orange">{whitelistedPresenters.length}</span>
                     </div>
                   </div>
                 </div>
@@ -1563,10 +1599,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                           <th className="py-3 px-5 text-center w-12">
                             <input
                               type="checkbox"
-                              checked={statsList.length > 0 && statsList.every(p => selectedPresenterKeysForBulk.includes(p.key))}
+                              checked={whitelistedPresenters.length > 0 && whitelistedPresenters.every(p => selectedPresenterKeysForBulk.includes(p.email))}
                               onChange={(e) => {
                                 if (e.target.checked) {
-                                  setSelectedPresenterKeysForBulk(statsList.map(p => p.key));
+                                  setSelectedPresenterKeysForBulk(whitelistedPresenters.map(p => p.email));
                                 } else {
                                   setSelectedPresenterKeysForBulk([]);
                                 }
@@ -1574,43 +1610,49 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                               className="w-4 h-4 rounded border-slate-700 text-osu-orange focus:ring-osu-orange/20 bg-slate-950 cursor-pointer"
                             />
                           </th>
-                          <th className="py-3 px-5">Presenter Name / Display Handle</th>
+                          <th className="py-3 px-5">Presenter Display Name</th>
                           <th className="py-3 px-5">Presenter Email Address</th>
-                          <th className="py-3 px-5 text-center">Sessions Logged</th>
-                          <th className="py-3 px-5">Last Session Date & Time</th>
+                          <th className="py-3 px-5">Date Whitelisted</th>
+                          <th className="py-3 px-5 text-center">Sessions Hosted</th>
+                          <th className="py-3 px-5">Latest Session Date & Time</th>
                           <th className="py-3 px-5 text-right w-20">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {loadingSessions && statsList.length === 0 ? (
+                        {loadingWhitelisted && whitelistedPresenters.length === 0 ? (
                           <tr>
-                            <td colSpan={6} className="py-16 text-center">
+                            <td colSpan={7} className="py-16 text-center">
                               <Loader2 className="w-8 h-8 text-osu-orange animate-spin mx-auto mb-2" />
-                              <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500">Compiling presenter stats...</span>
+                              <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500">Loading whitelist directory...</span>
                             </td>
                           </tr>
-                        ) : statsList.length === 0 ? (
+                        ) : whitelistedPresenters.length === 0 ? (
                           <tr>
-                            <td colSpan={6} className="py-16 text-center text-slate-500 text-xs italic">
-                              No presenter accounts have logged or hosted presentation sessions yet.
+                            <td colSpan={7} className="py-16 text-center text-slate-500 text-xs italic">
+                              No presenter accounts have been whitelisted yet. Enter an email address above to add one.
                             </td>
                           </tr>
                         ) : (
-                          statsList.map((presenter, i) => {
-                            const hasDomain = presenter.email.includes('@');
-                            const displayHandle = hasDomain ? presenter.email.split('@')[0] : 'Anonymous Host';
+                          whitelistedPresenters.map((presenter, i) => {
+                            const displayHandle = presenter.email.split('@')[0];
+                            const addedDateString = presenter.addedAt 
+                              ? new Date(presenter.addedAt.seconds * 1000).toLocaleDateString()
+                              : '—';
+                            const lastUsedDateString = presenter.lastUsedAt
+                              ? new Date(presenter.lastUsedAt.seconds * 1000).toLocaleString()
+                              : 'Never Used';
                             
                             return (
                               <tr key={i} className="border-b border-slate-800/50 last:border-0 hover:bg-slate-900/40 text-sm transition-colors">
                                 <td className="py-4 px-5 text-center">
                                   <input
                                     type="checkbox"
-                                    checked={selectedPresenterKeysForBulk.includes(presenter.key)}
+                                    checked={selectedPresenterKeysForBulk.includes(presenter.email)}
                                     onChange={(e) => {
                                       if (e.target.checked) {
-                                        setSelectedPresenterKeysForBulk(prev => [...prev, presenter.key]);
+                                        setSelectedPresenterKeysForBulk(prev => [...prev, presenter.email]);
                                       } else {
-                                        setSelectedPresenterKeysForBulk(prev => prev.filter(k => k !== presenter.key));
+                                        setSelectedPresenterKeysForBulk(prev => prev.filter(k => k !== presenter.email));
                                       }
                                     }}
                                     className="w-4 h-4 rounded border-slate-700 text-osu-orange focus:ring-osu-orange/20 bg-slate-950 cursor-pointer"
@@ -1618,22 +1660,22 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                                 </td>
                                 <td className="py-4 px-5 font-bold text-white capitalize">{displayHandle}</td>
                                 <td className="py-4 px-5 text-slate-300 font-mono text-xs">{presenter.email}</td>
+                                <td className="py-4 px-5 text-slate-400 text-xs">{addedDateString}</td>
                                 <td className="py-4 px-5 text-center font-black text-osu-orange">
                                   <span className="bg-osu-orange/10 px-3 py-1 rounded-full border border-osu-orange/20">
-                                    {presenter.sessionsCount} sessions
+                                    {presenter.usageCount || 0} sessions
                                   </span>
                                 </td>
                                 <td className="py-4 px-5 text-slate-400 font-mono text-xs font-semibold">
-                                  {presenter.lastPresentedAt 
-                                    ? presenter.lastPresentedAt.toLocaleString() 
-                                    : '—'}
+                                  {lastUsedDateString}
                                 </td>
                                 <td className="py-4 px-5 text-right">
                                   <button
-                                    onClick={() => handleDeletePresenters([presenter.key])}
+                                    type="button"
+                                    onClick={() => handleDeletePresenters([presenter.email])}
                                     disabled={isDeletingPresenters}
                                     className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200 cursor-pointer disabled:opacity-50"
-                                    title="Delete Presenter"
+                                    title="Remove Presenter Whitelist"
                                   >
                                     <Trash2 className="w-4 h-4" />
                                   </button>
@@ -1647,8 +1689,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                   </div>
                 </div>
               </div>
-            );
-          })()}
+
+            </div>
+          )}
         </div>
       </main>
     </div>
