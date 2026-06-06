@@ -153,9 +153,17 @@ function AppContent() {
   const isChatOnly = urlParams.get('view') === 'chat';
   const presentationId = urlParams.get('id');
   const pathname = window.location.pathname;
-  const isJoinRoute = (pathname === '/chat' || pathname === '/chat/') && !presentationId;
+  
+  // Smart routing to handle students forgetting "/chat" in the URL and landing on root "/"
+  const modeParam = urlParams.get('mode');
+  const isPresenterMode = sessionStorage.getItem('presenterMode') === 'true' || modeParam === 'presenter';
+  const isPresenterSession = sessionStorage.getItem('activePresenterEmail') || sessionStorage.getItem('activePresenterPresentationId') || isPresenterMode;
+  
+  const isJoinRoute = 
+    ((pathname === '/chat' || pathname === '/chat/') && !presentationId) ||
+    ((pathname === '/' || pathname === '') && !presentationId && !isPresenterSession);
 
-  console.log('AppContent Render - AuthLoading:', authLoading, 'User:', user?.uid, 'PresentationId:', presentationId, 'isChatOnly:', isChatOnly, 'isJoinRoute:', isJoinRoute);
+  console.log('AppContent Render - AuthLoading:', authLoading, 'User:', user?.uid, 'PresentationId:', presentationId, 'isChatOnly:', isChatOnly, 'isJoinRoute:', isJoinRoute, 'isPresenterSession:', !!isPresenterSession);
 
   useEffect(() => {
     // Hide static loader once React mounts

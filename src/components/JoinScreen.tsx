@@ -163,8 +163,17 @@ export const JoinScreen: React.FC = () => {
       </div>
 
       {/* Styled Brand Tagline */}
-      <footer className="mt-8 text-[10px] font-black tracking-widest text-slate-600 uppercase select-none relative z-10">
-        ActiveDeck &copy; {new Date().getFullYear()}
+      <footer className="mt-8 text-[10px] font-black tracking-widest text-slate-600 uppercase select-none relative z-10 flex flex-col items-center gap-2">
+        <span>ActiveDeck &copy; {new Date().getFullYear()}</span>
+        <span 
+          onClick={() => {
+            sessionStorage.setItem('presenterMode', 'true');
+            window.location.href = '/?mode=presenter';
+          }}
+          className="text-[9px] text-slate-500 hover:text-osu-orange transition-colors duration-200 cursor-pointer mt-1 font-bold border border-slate-800 hover:border-osu-orange/30 px-2.5 py-1 rounded-lg bg-slate-900/40"
+        >
+          Host Login
+        </span>
       </footer>
 
       {/* Keyframes inject for shake animation if not available in general index.css */}
