@@ -145,9 +145,10 @@ function AppContent() {
   const urlParams = new URLSearchParams(window.location.search);
   const isChatOnly = urlParams.get('view') === 'chat';
   const presentationId = urlParams.get('id');
-  const isPresenterInit = urlParams.get('mode') === 'presenter' || urlParams.get('presenter') === 'true';
+  const pathname = window.location.pathname;
+  const isJoinRoute = (pathname === '/chat' || pathname === '/chat/') && !presentationId;
 
-  console.log('AppContent Render - AuthLoading:', authLoading, 'User:', user?.uid, 'PresentationId:', presentationId, 'isChatOnly:', isChatOnly, 'isPresenterInit:', isPresenterInit);
+  console.log('AppContent Render - AuthLoading:', authLoading, 'User:', user?.uid, 'PresentationId:', presentationId, 'isChatOnly:', isChatOnly, 'isJoinRoute:', isJoinRoute);
 
   useEffect(() => {
     // Hide static loader once React mounts
@@ -278,7 +279,7 @@ function AppContent() {
           console.error("AppContent - Presentation snapshot error:", error);
           setPresentationLoaded(true);
         });
-      } else if (!isChatOnly && user && isPresenterInit) {
+      } else if (!isChatOnly && user && !isJoinRoute) {
         const cachedId = sessionStorage.getItem('activePresenterPresentationId');
         if (cachedId) {
           console.log('AppContent - Found cached presentation ID in sessionStorage:', cachedId);
@@ -336,7 +337,7 @@ function AppContent() {
         unsubscribe();
       }
     };
-  }, [authLoading, user, presentationId, isChatOnly, isPresenterInit]);
+  }, [authLoading, user, presentationId, isChatOnly, isJoinRoute]);
 
   const isLoading = authLoading;
 
@@ -373,7 +374,6 @@ function AppContent() {
   }
 
   // Handle SPA path routing for Student Attendance
-  const pathname = window.location.pathname;
   const attendanceMatch = pathname.match(/^\/attendance\/([^\/]+)/);
   if (attendanceMatch) {
     const attendancePresentationId = attendanceMatch[1];
@@ -387,7 +387,7 @@ function AppContent() {
   }
 
   // Check if we should render student Join Screen
-  if (!presentationId && !isPresenterInit) {
+  if (isJoinRoute) {
     return <JoinScreen />;
   }
 

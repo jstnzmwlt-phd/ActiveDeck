@@ -2883,7 +2883,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 </span>
               </div>
               <div className="text-[13px] font-bold tracking-tight text-white whitespace-nowrap overflow-hidden text-ellipsis leading-none select-all flex items-center gap-2">
-                <span>{window.location.origin}</span>
+                <span>{window.location.origin}/chat</span>
                 {presentation?.pinCode && (
                   <>
                     <span className="text-slate-500 font-normal">|</span>
