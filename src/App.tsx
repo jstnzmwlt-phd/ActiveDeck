@@ -419,6 +419,7 @@ function AppContent() {
           presentation={presentation} 
           logoUrl={settings?.theme.logoUrl} 
           presentationLoaded={presentationLoaded} 
+          showAttendance={settings?.showAttendance}
         />
       </div>
     );
@@ -426,7 +427,10 @@ function AppContent() {
 
   return (
     <div className="flex flex-col h-[100dvh] w-screen overflow-hidden bg-slate-100 font-sans antialiased">
-      <Header presentationId={presentation?.id || presentationId} />
+      <Header 
+        presentationId={presentation?.id || presentationId} 
+        showAttendance={settings?.showAttendance}
+      />
       
       <div className="flex flex-row flex-1 p-6 pb-2 gap-6 bg-slate-100 min-h-0 overflow-hidden">
         {/* Presenter View (Flexible, but takes most space) */}
@@ -440,6 +444,7 @@ function AppContent() {
             presentation={presentation} 
             logoUrl={settings?.theme.logoUrl} 
             presentationLoaded={presentationLoaded} 
+            showAttendance={settings?.showAttendance}
           />
         </div>
       </div>

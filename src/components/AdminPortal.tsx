@@ -50,6 +50,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
   const [activeInstitutionId, setActiveInstitutionId] = useState<string>('custom');
   const [activeInstitutionName, setActiveInstitutionName] = useState<string>('Custom / Active Theme');
   const [attendanceFilter, setAttendanceFilter] = useState<string>('all');
+  const [showAttendance, setShowAttendance] = useState<boolean>(false);
 
   // Attendance Tracker States
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(presentationId || null);
@@ -113,6 +114,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
         setActiveInstitutionId(data.activeInstitutionId || 'custom');
         setActiveInstitutionName(data.activeInstitutionName || 'Custom / Active Theme');
         setInstitutionDomain(data.activeInstitutionDomain || '');
+        setShowAttendance(data.showAttendance !== undefined ? data.showAttendance : false);
       }
       setLoadingInstitution(false);
     };
@@ -215,7 +217,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
           theme: themeData,
           activeInstitutionId,
           activeInstitutionName,
-          activeInstitutionDomain: domainVal
+          activeInstitutionDomain: domainVal,
+          showAttendance
         }, { merge: true });
         alert('Active Institution applied successfully! A new presentation session will now start.');
         sessionStorage.removeItem('activePresenterPresentationId');
@@ -1069,6 +1072,31 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                       placeholder="osu.edu (Optional)"
                       className="w-full h-11 rounded-xl bg-slate-950 border border-slate-800 text-sm px-4 text-white placeholder-slate-600 focus:outline-none focus:border-osu-orange" 
                     />
+                  </div>
+                </div>
+
+                {/* Feature Toggles */}
+                <div className="border-t border-slate-800/80 pt-6 mt-6 space-y-4">
+                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">
+                    Feature Configurations
+                  </h3>
+                  <div className="flex items-center justify-between bg-slate-950 p-4 rounded-xl border border-slate-800">
+                    <div>
+                      <div className="text-sm font-bold text-white">Enable Attendance Registry</div>
+                      <div className="text-[11px] text-slate-500">Show the attendance features and download options in the chat and header.</div>
+                    </div>
+                    <button
+                      onClick={() => setShowAttendance(!showAttendance)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                        showAttendance ? 'bg-osu-orange' : 'bg-slate-800'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          showAttendance ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
                   </div>
                 </div>
               </div>

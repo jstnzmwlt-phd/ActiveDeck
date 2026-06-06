@@ -1012,9 +1012,10 @@ interface ChatSidebarProps {
   presentation?: Presentation | null;
   logoUrl?: string;
   presentationLoaded?: boolean;
+  showAttendance?: boolean;
 }
 
-export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, presentation = null, logoUrl, presentationLoaded = true }) => {
+export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, presentation = null, logoUrl, presentationLoaded = true, showAttendance = false }) => {
   const [internalLogoUrl, setInternalLogoUrl] = useState<string | undefined | null>(null);
   const [secondaryColor, setSecondaryColor] = useState<string>('#ff3e00');
 
@@ -2914,21 +2915,23 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         <div className="flex items-center gap-1">
           {canModerate && (
             <>
-              <button 
-                onClick={handleToggleDisableAttendance}
-                className={cn(
-                  "px-2 py-1 rounded transition-colors flex items-center gap-1.5 text-xs font-medium",
-                  presentation?.disableAttendance 
-                    ? "text-red-400 hover:bg-slate-800 hover:text-red-300" 
-                    : "text-slate-400 hover:bg-slate-800 hover:text-white"
-                )}
-                title={presentation?.disableAttendance ? "Attendance Disabled (QR displays static join link)" : "Attendance Enabled (QR rotates dynamic tokens)"}
-              >
-                {presentation?.disableAttendance ? <ToggleRight className="w-4 h-4 text-red-400" /> : <ToggleLeft className="w-4 h-4" />}
-                <span className="hidden sm:inline">
-                  {presentation?.disableAttendance ? "Attendance Off" : "Attendance On"}
-                </span>
-              </button>
+              {showAttendance && (
+                <button 
+                  onClick={handleToggleDisableAttendance}
+                  className={cn(
+                    "px-2 py-1 rounded transition-colors flex items-center gap-1.5 text-xs font-medium",
+                    presentation?.disableAttendance 
+                      ? "text-red-400 hover:bg-slate-800 hover:text-red-300" 
+                      : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                  )}
+                  title={presentation?.disableAttendance ? "Attendance Disabled (QR displays static join link)" : "Attendance Enabled (QR rotates dynamic tokens)"}
+                >
+                  {presentation?.disableAttendance ? <ToggleRight className="w-4 h-4 text-red-400" /> : <ToggleLeft className="w-4 h-4" />}
+                  <span className="hidden sm:inline">
+                    {presentation?.disableAttendance ? "Attendance Off" : "Attendance On"}
+                  </span>
+                </button>
+              )}
               <button 
                 onClick={handleToggleHideComments}
                 className={cn(

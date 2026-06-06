@@ -18,6 +18,7 @@ export interface GlobalSettings {
   activeInstitutionId?: string;
   activeInstitutionName?: string;
   activeInstitutionDomain?: string;
+  showAttendance?: boolean;
 }
 
 export interface Presentation {

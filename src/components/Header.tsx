@@ -6,9 +6,10 @@ import { db } from '../firebase';
 
 interface HeaderProps {
   presentationId?: string | null;
+  showAttendance?: boolean;
 }
 
-export const Header: React.FC<HeaderProps> = ({ presentationId }) => {
+export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance }) => {
   const { isBridgeConnected, setUseWithoutBridge } = useBridge();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isWakeLockActive, setIsWakeLockActive] = useState(false);
@@ -279,7 +280,7 @@ export const Header: React.FC<HeaderProps> = ({ presentationId }) => {
         </div>
 
         <div className="flex items-center gap-4 z-10">
-          {presentationId && (
+          {presentationId && showAttendance && (
             <button
               onClick={() => setIsExportModalOpen(true)}
               className="flex items-center gap-2 px-3 py-1.5 bg-osu-orange hover:bg-[#c03900] text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-orange-500/10 active:scale-95 cursor-pointer"
