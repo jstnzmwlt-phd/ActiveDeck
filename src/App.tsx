@@ -24,12 +24,19 @@ window.onerror = (msg, url, lineNo, columnNo, error) => {
 const generateUniquePin = async (): Promise<string> => {
   let isUnique = false;
   let pin = '';
-  while (!isUnique) {
+  let attempts = 0;
+  while (!isUnique && attempts < 5) {
+    attempts++;
     pin = Math.floor(100000 + Math.random() * 900000).toString();
-    const pinRef = doc(db, 'sessionPins', pin);
-    const pinSnap = await getDoc(pinRef);
-    if (!pinSnap.exists()) {
-      isUnique = true;
+    try {
+      const pinRef = doc(db, 'sessionPins', pin);
+      const pinSnap = await getDoc(pinRef);
+      if (!pinSnap.exists()) {
+        isUnique = true;
+      }
+    } catch (err) {
+      console.warn('Failed to verify PIN uniqueness against Firestore, falling back to pure random PIN:', err);
+      isUnique = true; // Fallback to avoid infinite loop on permission errors
     }
   }
   return pin;
@@ -173,12 +180,16 @@ function AppContent() {
           try {
             const newPin = await generateUniquePin();
             await updateDoc(doc(db, 'presentations', presId), { pinCode: newPin });
-            await setDoc(doc(db, 'sessionPins', newPin), {
-              presentationId: presId,
-              createdAt: serverTimestamp(),
-              active: true
-            });
-            console.log(`v1.1 Migration: Generated PIN ${newPin} for presentation ${presId}`);
+            try {
+              await setDoc(doc(db, 'sessionPins', newPin), {
+                presentationId: presId,
+                createdAt: serverTimestamp(),
+                active: true
+              });
+              console.log(`v1.1 Migration: Generated PIN ${newPin} in sessionPins for presentation ${presId}`);
+            } catch (err) {
+              console.error('Failed to register PIN in sessionPins during migration:', err);
+            }
           } catch (err) {
             console.error('Error generating and saving PIN for existing presentation:', err);
           }
@@ -200,11 +211,15 @@ function AppContent() {
             pinCode: pinCode
           });
           
-          await setDoc(doc(db, 'sessionPins', pinCode), {
-            presentationId: docRef.id,
-            createdAt: serverTimestamp(),
-            active: true
-          });
+          try {
+            await setDoc(doc(db, 'sessionPins', pinCode), {
+              presentationId: docRef.id,
+              createdAt: serverTimestamp(),
+              active: true
+            });
+          } catch (err) {
+            console.error('Failed to register PIN in sessionPins during creation:', err);
+          }
           
           console.log('AppContent - New presentation created:', docRef.id, 'with PIN:', pinCode);
           sessionStorage.setItem('activePresenterPresentationId', docRef.id);
