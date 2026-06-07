@@ -2621,7 +2621,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     );
   }
 
-  if (isChatOnly && user?.isAnonymous && !hasJoined && (!presentation?.disableAttendance || !presentation?.allowAnonymousChat || urlToken)) {
+  if (isChatOnly && user?.isAnonymous && !hasJoined) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[100dvh] bg-slate-950 text-white p-4 md:p-8 relative overflow-y-auto w-screen">
         {/* OSU Logo Watermark */}
@@ -2793,28 +2793,28 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 <div className="space-y-4">
                   <div className="space-y-1.5">
                     <label className="block text-xs font-black uppercase tracking-wider text-slate-400">
-                      {urlToken ? "Full Name" : "Your Name (optional)"}
+                      Full Name
                     </label>
                     <input
                       type="text"
                       placeholder="John Doe"
                       value={joinNameInput}
                       onChange={(e) => setJoinNameInput(e.target.value)}
-                      required={!!urlToken}
+                      required
                       className="w-full h-11 bg-slate-950 border border-slate-800 rounded-xl px-4 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-osu-orange focus:ring-1 focus:ring-osu-orange transition-colors"
                     />
                   </div>
 
                   <div className="space-y-1.5">
                     <label className="block text-xs font-black uppercase tracking-wider text-slate-400">
-                      {urlToken ? "Email Address" : "Email Address (optional)"}
+                      Email Address
                     </label>
                     <input
                       type="email"
                       placeholder="john.doe@example.com"
                       value={joinEmailInput}
                       onChange={(e) => setJoinEmailInput(e.target.value)}
-                      required={!!urlToken}
+                      required
                       className="w-full h-11 bg-slate-950 border border-slate-800 rounded-xl px-4 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-osu-orange focus:ring-1 focus:ring-osu-orange transition-colors"
                     />
                   </div>
@@ -2822,7 +2822,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
                 <button
                   type="submit"
-                  disabled={isValidatingToken || (!!urlToken && (!joinNameInput.trim() || !joinEmailInput.trim()))}
+                  disabled={isValidatingToken || !joinNameInput.trim() || !joinEmailInput.trim()}
                   className="w-full h-12 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-[0.98] shadow-lg shadow-orange-500/10 flex items-center justify-center gap-2"
                 >
                   {isValidatingToken ? (
@@ -3363,7 +3363,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 Refresh Page
               </button>
             </div>
-          ) : user.isAnonymous && !hasJoined && (!presentation?.disableAttendance || !presentation?.allowAnonymousChat || urlToken) ? (
+          ) : user.isAnonymous && !hasJoined ? (
             <form onSubmit={handleJoin} className="p-4 flex flex-col gap-3">
               <div className="text-center mb-1">
                 <h3 className="text-sm font-bold text-slate-900">
@@ -3455,18 +3455,18 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
               <input
                 type="text"
-                placeholder={(!presentation?.disableAttendance || urlToken) ? "Your Name (required)" : "Your Name (optional)"}
+                placeholder="Your Name (required)"
                 value={joinNameInput}
                 onChange={(e) => setJoinNameInput(e.target.value)}
-                required={!presentation?.disableAttendance || !!urlToken}
+                required
                 className="w-full px-3 py-2 text-base border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-osu-orange"
               />
               <input
                 type="email"
-                placeholder={!presentation?.disableAttendance ? "Email address (required)" : "Email address (optional)"}
+                placeholder="Email address (required)"
                 value={joinEmailInput}
                 onChange={(e) => setJoinEmailInput(e.target.value)}
-                required={!presentation?.disableAttendance}
+                required
                 className="w-full px-3 py-2 text-base border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-osu-orange"
               />
               <button
