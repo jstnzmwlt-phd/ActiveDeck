@@ -124,7 +124,7 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
 
       {/* Controls Overlay - Only shown when capturing to allow stopping */}
       {isCapturing && (
-        <div className="absolute top-2 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 bg-slate-800/60 backdrop-blur-md border border-slate-700/30 rounded-full shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50">
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 bg-slate-900/95 border border-slate-700/50 rounded-full shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50">
           <button
             onClick={onStop}
             className="flex items-center gap-1.5 px-4 py-1.5 bg-red-600/90 hover:bg-red-500 text-white text-xs font-bold rounded-full transition-all active:scale-95 shadow-lg shadow-red-500/10"

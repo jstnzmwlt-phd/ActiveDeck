@@ -459,7 +459,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
       {/* Professional Remote Control Overlay - Only shown when bridge is connected */}
       {isBridgeConnected && (
-        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-2 p-1.5 bg-slate-900/60 backdrop-blur-md rounded-xl border border-slate-700/30 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 translate-y-2 group-hover:translate-y-0 z-50">
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-2 p-1.5 bg-slate-900/95 rounded-xl border border-slate-700/50 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 translate-y-2 group-hover:translate-y-0 z-50">
           <button
             onClick={() => handleSlideMove('prev')}
             className="flex items-center justify-center w-10 h-10 bg-slate-800/80 hover:bg-slate-700 text-white rounded-lg transition-all active:scale-95 border border-slate-700/50 group/btn"
