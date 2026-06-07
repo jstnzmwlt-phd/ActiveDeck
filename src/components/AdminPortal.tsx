@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc, addDoc, collection, onSnapshot, deleteDoc, query, orderBy, limit, Timestamp, getDocs, where, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Theme, SavedTheme, Message, Poll, WordCloud, OpenEndedQuestion } from '../types';
-import { Palette, UserCheck, Download, ArrowLeft, Loader2, Calendar, Database, AlertCircle, Trash2, Monitor, Plus, Mail } from 'lucide-react';
+import { Palette, UserCheck, Download, ArrowLeft, Loader2, Calendar, Database, AlertCircle, Trash2, Monitor, Plus, Mail, History, Copy, Check } from 'lucide-react';
 
 const formatHtmlTextWithLinks = (text: string): string => {
   if (!text) return '';
@@ -39,7 +39,7 @@ interface RecentPresentationRecord {
 }
 
 export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
-  const [activeTab, setActiveTab] = useState<'theme' | 'attendance' | 'presenters'>('theme');
+  const [activeTab, setActiveTab] = useState<'theme' | 'attendance' | 'presenters' | 'sessions'>('theme');
   const [primaryColor, setPrimaryColor] = useState('#FF6600');
   const [secondaryColor, setSecondaryColor] = useState('#000000');
   const [logoUrl, setLogoUrl] = useState('');
@@ -61,6 +61,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
   const [selectedSessionIdsForBulk, setSelectedSessionIdsForBulk] = useState<string[]>([]);
   const [isDeletingSessions, setIsDeletingSessions] = useState(false);
   const [isDownloadingChatLog, setIsDownloadingChatLog] = useState(false);
+  const [sessionSearch, setSessionSearch] = useState('');
+  const [downloadingSessionId, setDownloadingSessionId] = useState<string | null>(null);
 
   // Presenter Management States
   const [selectedPresenterKeysForBulk, setSelectedPresenterKeysForBulk] = useState<string[]>([]);
@@ -104,6 +106,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
       ? 'Current Active Session'
       : 'Retrieving Date...';
 
+  // Derived filtered session list for the Sessions Tab search capability
+  const filteredSessions = recentSessions.filter(s => {
+    const email = s.presenterEmail || '';
+    const name = email ? email.split('@')[0].replace(/[._]/g, ' ') : '';
+    const queryStr = sessionSearch.toLowerCase();
+    return s.id.toLowerCase().includes(queryStr) || 
+           email.toLowerCase().includes(queryStr) || 
+           name.toLowerCase().includes(queryStr);
+  });
+
   // Fetch Global Settings (Institution colors/logo) and Saved Institutions (Initial Load)
   useEffect(() => {
     const fetchSettings = async () => {
@@ -134,7 +146,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
 
   // Attendance & Presenter Stats: Fetch recent presentation sessions chronologically
   useEffect(() => {
-    if (activeTab !== 'attendance' && activeTab !== 'presenters') return;
+    if (activeTab !== 'attendance' && activeTab !== 'presenters' && activeTab !== 'sessions') return;
 
     setLoadingSessions(true);
     const qSessions = query(
@@ -529,15 +541,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
     link.click();
   };
 
-  const handleDownloadChatLog = async () => {
-    if (!selectedSessionId) return;
+  const handleDownloadChatLog = async (sessionId?: string) => {
+    const targetSessionId = sessionId || selectedSessionId;
+    if (!targetSessionId) return;
     setIsDownloadingChatLog(true);
+    setDownloadingSessionId(targetSessionId);
 
     try {
       // Query messages
       const msgsQuery = query(
         collection(db, 'messages'),
-        where('presentationId', '==', selectedSessionId)
+        where('presentationId', '==', targetSessionId)
       );
       const msgsSnap = await getDocs(msgsQuery);
       const msgs = msgsSnap.docs.map(doc => ({
@@ -555,7 +569,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
       // Query polls
       const pollsQuery = query(
         collection(db, 'polls'),
-        where('presentationId', '==', selectedSessionId)
+        where('presentationId', '==', targetSessionId)
       );
       const pollsSnap = await getDocs(pollsQuery);
       const ps = pollsSnap.docs.map(doc => ({
@@ -567,7 +581,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
       // Query word clouds
       const wcQuery = query(
         collection(db, 'wordClouds'),
-        where('presentationId', '==', selectedSessionId)
+        where('presentationId', '==', targetSessionId)
       );
       const wcSnap = await getDocs(wcQuery);
       const wcs = wcSnap.docs.map(doc => ({
@@ -579,7 +593,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
       // Query open ended questions
       const oeqQuery = query(
         collection(db, 'openEndedQuestions'),
-        where('presentationId', '==', selectedSessionId)
+        where('presentationId', '==', targetSessionId)
       );
       const oeqSnap = await getDocs(oeqQuery);
       const oeqs = oeqSnap.docs.map(doc => ({
@@ -776,7 +790,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
         <div class="header" style="border-bottom: 3px solid ${themeAccentColor}; padding-bottom: 20px; margin-bottom: 30px; text-align: center;">
           <h1 style="font-size: 26px; margin: 0 0 8px 0; color: #0f172a; font-weight: 800; text-align: center;">ActiveDeck Session Activity Log</h1>
           <p style="font-size: 13px; color: #64748b; margin: 0; text-align: center;">Generated on ${new Date().toLocaleString()}</p>
-          <p style="font-size: 10px; font-family: monospace; color: #94a3b8; margin-top: 4px; text-align: center;">Session ID: ${selectedSessionId}</p>
+          <p style="font-size: 10px; font-family: monospace; color: #94a3b8; margin-top: 4px; text-align: center;">Session ID: ${targetSessionId}</p>
         </div>`;
 
       const footer = "</td></tr></table></body></html>";
@@ -811,17 +825,12 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                   <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 6px; border-bottom: 2px solid #cbd5e1; text-align: center; width: 8%;">Slide</th>
                   <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 6px; border-bottom: 2px solid #cbd5e1; text-align: left; width: 13%;">Name</th>
                   <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 6px; border-bottom: 2px solid #cbd5e1; text-align: left; width: 17%;">Email</th>
-                  <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 6px; border-bottom: 2px solid #cbd5e1; text-align: center; width: 10%;">Type</th>
-                  <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 6px; border-bottom: 2px solid #cbd5e1; text-align: left; width: 30%;">Question / Message</th>
+                  <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 6px; border-bottom: 2px solid #cbd5e1; text-align: left; width: 40%;">Question / Message</th>
                 </tr>
               </thead>
               <tbody>`;
             isTableOpen = true;
           }
-
-          const typeBadge = m.isQuestion 
-            ? `<span class="badge badge-question" style="display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; background-color: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5;">Question</span>`
-            : `<span class="badge badge-message" style="display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; background-color: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd;">Message</span>`;
 
           const slideBadge = m.slide !== undefined && m.slide !== null
             ? `<span class="badge badge-slide" style="display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; background-color: #f1f5f9; color: #475569; border: 1px solid #cbd5e1;">Slide ${m.slide}</span>`
@@ -841,7 +850,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
             <td style="padding: 12px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: center; word-break: break-word; word-wrap: break-word;">${slideBadge}</td>
             <td style="padding: 12px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; font-weight: 600; text-align: left; word-break: break-word; word-wrap: break-word;">${m.userName}</td>
             <td style="padding: 12px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: left; word-break: break-all; word-wrap: break-word;">${emailLink}</td>
-            <td style="padding: 12px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: center; word-break: break-word; word-wrap: break-word;">${typeBadge}</td>
             <td style="padding: 12px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: left; word-break: break-word; word-wrap: break-word;"><strong>${formatHtmlTextWithLinks(m.text)}</strong>${likesBadge}</td>
           </tr>`;
         } else {
@@ -966,7 +974,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `chat-log-session-${selectedSessionId.substring(0, 8)}.doc`;
+      link.download = `chat-log-session-${targetSessionId.substring(0, 8)}.doc`;
       link.click();
       URL.revokeObjectURL(url);
     } catch (err) {
@@ -974,6 +982,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
       alert("Failed to download chat log: " + err);
     } finally {
       setIsDownloadingChatLog(false);
+      setDownloadingSessionId(null);
     }
   };
 
@@ -1031,6 +1040,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
             <Monitor className="w-4 h-4" />
             Presenters
           </button>
+          <button
+            onClick={() => setActiveTab('sessions')}
+            className={`flex items-center gap-2 px-5 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${
+              activeTab === 'sessions' 
+                ? 'bg-osu-orange text-white shadow-lg shadow-orange-500/10' 
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <History className="w-4 h-4" />
+            Sessions
+          </button>
         </div>
 
         {/* Return to App Button */}
@@ -1048,7 +1068,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
 
       {/* Main Workspace */}
       <main className="flex-1 p-8 flex justify-center overflow-y-auto">
-        <div className={`w-full transition-all duration-300 ${activeTab === 'attendance' ? 'max-w-[1450px]' : activeTab === 'presenters' ? 'max-w-[1100px]' : 'max-w-5xl'}`}>
+        <div className={`w-full transition-all duration-300 ${activeTab === 'attendance' ? 'max-w-[1450px]' : (activeTab === 'presenters' || activeTab === 'sessions') ? 'max-w-[1100px]' : 'max-w-5xl'}`}>
 
           {/* ========================================================
               TAB 1: INSTITUTIONS WORKSPACE
@@ -1455,7 +1475,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                           Export CSV Sheet
                         </button>
                         <button
-                          onClick={handleDownloadChatLog}
+                          onClick={() => handleDownloadChatLog()}
                           disabled={isDownloadingChatLog}
                           className="flex items-center gap-2 h-11 px-5 bg-slate-800 hover:bg-slate-750 disabled:bg-slate-900 disabled:text-slate-650 text-slate-200 text-xs font-black uppercase tracking-wider rounded-xl transition-all border border-slate-700/50 cursor-pointer"
                         >
@@ -1740,6 +1760,144 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                       </tbody>
                     </table>
                   </div>
+                </div>
+              </div>
+
+            </div>
+          )}
+
+          {/* ========================================================
+              TAB 4: SESSIONS WORKSPACE
+              ======================================================== */}
+          {activeTab === 'sessions' && (
+            <div className="space-y-6 animate-in fade-in duration-300">
+              
+              {/* Sessions Search and Header Card */}
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6">
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <h2 className="text-lg font-black uppercase tracking-wider text-white flex items-center gap-2.5">
+                      <History className="w-5 h-5 text-osu-orange" />
+                      Hosted Sessions Directory
+                    </h2>
+                    <p className="text-xs text-slate-400">
+                      View all active and historic presentation sessions and export their chat/activity logs.
+                    </p>
+                  </div>
+                  
+                  {/* Search Input */}
+                  <div className="w-full md:w-80 relative">
+                    <input 
+                      type="text"
+                      value={sessionSearch}
+                      onChange={(e) => setSessionSearch(e.target.value)}
+                      placeholder="Search by ID, email, or presenter..."
+                      className="w-full h-11 rounded-xl bg-slate-950 border border-slate-800 text-xs pl-4 pr-10 text-white placeholder-slate-600 focus:outline-none focus:border-osu-orange transition-all"
+                    />
+                    {sessionSearch && (
+                      <button 
+                        onClick={() => setSessionSearch('')}
+                        className="absolute right-3 top-3.5 text-[10px] uppercase tracking-wider font-black text-slate-500 hover:text-slate-300 transition-colors"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Sessions List Table Card */}
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-800 text-[10px] uppercase font-black tracking-widest text-slate-400 bg-slate-950/30">
+                        <th className="py-3 px-5">Session ID</th>
+                        <th className="py-3 px-5">Presenter Name</th>
+                        <th className="py-3 px-5">Presenter Email</th>
+                        <th className="py-3 px-5">Date Hosted</th>
+                        <th className="py-3 px-5">Time Hosted</th>
+                        <th className="py-3 px-5 text-right w-48">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loadingSessions && recentSessions.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="py-16 text-center">
+                            <Loader2 className="w-8 h-8 text-osu-orange animate-spin mx-auto mb-2" />
+                            <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500">Loading sessions directory...</span>
+                          </td>
+                        </tr>
+                      ) : filteredSessions.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="py-16 text-center text-slate-500 text-xs italic">
+                            No presentation sessions matched your search criteria.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredSessions.map((session, i) => {
+                          const presenterEmail = session.presenterEmail || '—';
+                          const displayHandle = session.presenterEmail 
+                            ? session.presenterEmail.split('@')[0].replace(/[._]/g, ' ') 
+                            : '—';
+                          
+                          const dateObj = session.createdAt ? new Date(session.createdAt.seconds * 1000) : null;
+                          const dateStr = dateObj ? dateObj.toLocaleDateString() : '—';
+                          const timeStr = dateObj ? dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+                          const isDownloadingThis = downloadingSessionId === session.id;
+
+                          return (
+                            <tr key={session.id} className="border-b border-slate-800/50 last:border-0 hover:bg-slate-900/40 text-sm transition-colors">
+                              <td className="py-4 px-5">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono text-xs text-osu-orange font-bold select-all">{session.id}</span>
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(session.id);
+                                    }}
+                                    className="p-1 rounded text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors cursor-pointer"
+                                    title="Copy Session ID"
+                                  >
+                                    <Copy className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                              <td className="py-4 px-5 font-bold text-white capitalize">{displayHandle}</td>
+                              <td className="py-4 px-5 text-slate-300 font-mono text-xs">{presenterEmail}</td>
+                              <td className="py-4 px-5 text-slate-400 text-xs">{dateStr}</td>
+                              <td className="py-4 px-5 text-slate-400 text-xs font-semibold">{timeStr}</td>
+                              <td className="py-4 px-5 text-right flex items-center justify-end gap-2.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownloadChatLog(session.id)}
+                                  disabled={isDownloadingChatLog}
+                                  className="flex items-center gap-1.5 h-9 px-3.5 bg-slate-800 hover:bg-slate-750 disabled:bg-slate-900 disabled:text-slate-650 text-slate-200 text-xs font-black uppercase tracking-wider rounded-xl transition-all border border-slate-700/50 cursor-pointer"
+                                  title="Download Chat Log"
+                                >
+                                  {isDownloadingThis ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  ) : (
+                                    <Download className="w-3.5 h-3.5 text-osu-orange" />
+                                  )}
+                                  Download Chat Log
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteSession(session.id)}
+                                  disabled={isDeletingSessions}
+                                  className="p-2 rounded-xl text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer"
+                                  title="Delete Session"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
 
