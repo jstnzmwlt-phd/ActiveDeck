@@ -409,16 +409,32 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
   };
 
   const handleDeletePresenters = async (keysToDelete: string[]) => {
-    if (keysToDelete.length === 0) return;
+    // Hardcode protection for justin.zumwalt@okstate.edu
+    const containsCreator = keysToDelete.some(email => email.toLowerCase() === 'justin.zumwalt@okstate.edu');
+    const filteredKeys = keysToDelete.filter(email => email.toLowerCase() !== 'justin.zumwalt@okstate.edu');
 
-    const confirmMessage = `Are you sure you want to remove the ${keysToDelete.length} selected presenter(s) from the whitelist? They will immediately lose access to the presenter portal.`;
+    if (containsCreator && filteredKeys.length === 0) {
+      alert("justin.zumwalt@okstate.edu is the creator of the app and cannot be deleted from the whitelist.");
+      return;
+    }
+
+    if (filteredKeys.length === 0) return;
+
+    const confirmMessage = containsCreator
+      ? `Are you sure you want to remove the ${filteredKeys.length} selected presenter(s) from the whitelist? (justin.zumwalt@okstate.edu is protected and will not be removed).`
+      : `Are you sure you want to remove the ${filteredKeys.length} selected presenter(s) from the whitelist? They will immediately lose access to the presenter portal.`;
+
     if (!confirm(confirmMessage)) return;
 
     setIsDeletingPresenters(true);
     try {
-      await Promise.all(keysToDelete.map(email => deleteDoc(doc(db, 'whitelistedPresenters', email))));
+      await Promise.all(filteredKeys.map(email => deleteDoc(doc(db, 'whitelistedPresenters', email))));
       setSelectedPresenterKeysForBulk([]);
-      alert(`Successfully removed ${keysToDelete.length} presenter(s) from the whitelist.`);
+      if (containsCreator) {
+        alert(`Successfully removed ${filteredKeys.length} presenter(s) from the whitelist. justin.zumwalt@okstate.edu was skipped.`);
+      } else {
+        alert(`Successfully removed ${filteredKeys.length} presenter(s) from the whitelist.`);
+      }
     } catch (e) {
       console.error("Error deleting presenters from whitelist:", e);
       alert("Error deleting presenters: " + e);
@@ -1599,10 +1615,14 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                           <th className="py-3 px-5 text-center w-12">
                             <input
                               type="checkbox"
-                              checked={whitelistedPresenters.length > 0 && whitelistedPresenters.every(p => selectedPresenterKeysForBulk.includes(p.email))}
+                              checked={whitelistedPresenters.length > 0 && whitelistedPresenters.filter(p => p.email.toLowerCase() !== 'justin.zumwalt@okstate.edu').every(p => selectedPresenterKeysForBulk.includes(p.email))}
                               onChange={(e) => {
                                 if (e.target.checked) {
-                                  setSelectedPresenterKeysForBulk(whitelistedPresenters.map(p => p.email));
+                                  setSelectedPresenterKeysForBulk(
+                                    whitelistedPresenters
+                                      .filter(p => p.email.toLowerCase() !== 'justin.zumwalt@okstate.edu')
+                                      .map(p => p.email)
+                                  );
                                 } else {
                                   setSelectedPresenterKeysForBulk([]);
                                 }
@@ -1641,6 +1661,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                             const lastUsedDateString = presenter.lastUsedAt
                               ? new Date(presenter.lastUsedAt.seconds * 1000).toLocaleString()
                               : 'Never Used';
+                            const isCreator = presenter.email.toLowerCase() === 'justin.zumwalt@okstate.edu';
                             
                             return (
                               <tr key={i} className="border-b border-slate-800/50 last:border-0 hover:bg-slate-900/40 text-sm transition-colors">
@@ -1648,6 +1669,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                                   <input
                                     type="checkbox"
                                     checked={selectedPresenterKeysForBulk.includes(presenter.email)}
+                                    disabled={isCreator}
                                     onChange={(e) => {
                                       if (e.target.checked) {
                                         setSelectedPresenterKeysForBulk(prev => [...prev, presenter.email]);
@@ -1655,7 +1677,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                                         setSelectedPresenterKeysForBulk(prev => prev.filter(k => k !== presenter.email));
                                       }
                                     }}
-                                    className="w-4 h-4 rounded border-slate-700 text-osu-orange focus:ring-osu-orange/20 bg-slate-950 cursor-pointer"
+                                    className="w-4 h-4 rounded border-slate-700 text-osu-orange focus:ring-osu-orange/20 bg-slate-950 cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed"
                                   />
                                 </td>
                                 <td className="py-4 px-5 font-bold text-white capitalize">{displayHandle}</td>
@@ -1670,15 +1692,21 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                                   {lastUsedDateString}
                                 </td>
                                 <td className="py-4 px-5 text-right">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeletePresenters([presenter.email])}
-                                    disabled={isDeletingPresenters}
-                                    className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200 cursor-pointer disabled:opacity-50"
-                                    title="Remove Presenter Whitelist"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
+                                  {isCreator ? (
+                                    <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wide text-amber-500 bg-amber-500/10 px-2.5 py-0.5 rounded border border-amber-500/20" title="Creator account: Protected from removal">
+                                      Owner
+                                    </span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeletePresenters([presenter.email])}
+                                      disabled={isDeletingPresenters}
+                                      className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200 cursor-pointer disabled:opacity-50"
+                                      title="Remove Presenter Whitelist"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  )}
                                 </td>
                               </tr>
                             );
