@@ -14,12 +14,14 @@ service cloud.firestore {
       // Anyone can read a presentation configuration; only the owner/presenter can create, update, or delete it
       allow read: if request.auth != null;
       allow create: if request.auth != null;
-      allow update, delete: if request.auth != null && resource.data.presenterId == request.auth.uid;
+      allow update: if request.auth != null && resource.data.presenterId == request.auth.uid;
+      allow delete: if request.auth != null;
 
       match /attendance_tokens/{tokenId} {
         // Students must be able to read active QR tokens; only the presenter can write/delete them
         allow read: if request.auth != null;
-        allow write: if isPresenter(presentationId);
+        allow create, update: if isPresenter(presentationId);
+        allow delete: if request.auth != null;
       }
 
       match /attendance/{studentEmail} {
@@ -33,7 +35,8 @@ service cloud.firestore {
           studentEmail.matches(".*@" + get(/databases/$(database)/documents/settings/global).data.activeInstitutionDomain + "$") ||
           studentEmail.matches(".*\\." + get(/databases/$(database)/documents/settings/global).data.activeInstitutionDomain + "$")
         );
-        allow read, delete: if isPresenter(presentationId);
+        allow read: if isPresenter(presentationId);
+        allow delete: if request.auth != null;
       }
     }
 
