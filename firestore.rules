@@ -10,22 +10,29 @@ service cloud.firestore {
       return request.auth != null && get(/databases/$(database)/documents/presentations/$(presId)).data.presenterId == request.auth.uid;
     }
 
+    // Helper function to check if the current user is a whitelisted presenter
+    function isWhitelistedPresenter() {
+      return request.auth != null && 
+             'email' in request.auth.token && 
+             exists(/databases/$(database)/documents/whitelistedPresenters/$(request.auth.token.email.lower()));
+    }
+
     match /presentations/{presentationId} {
-      // Anyone can read a presentation configuration; only the owner/presenter can create, update, or delete it
+      // Anyone can read a presentation configuration; only the owner/presenter or a whitelisted presenter can create, update, or delete it
       allow read: if request.auth != null;
       allow create: if request.auth != null;
-      allow update: if request.auth != null && resource.data.presenterId == request.auth.uid;
-      allow delete: if request.auth != null;
+      allow update: if request.auth != null && (resource.data.presenterId == request.auth.uid || isWhitelistedPresenter());
+      allow delete: if request.auth != null && (resource.data.presenterId == request.auth.uid || isWhitelistedPresenter());
 
       match /attendance_tokens/{tokenId} {
-        // Students must be able to read active QR tokens; only the presenter can write/delete them
+        // Students must be able to read active QR tokens; only the presenter or a whitelisted presenter can write/delete them
         allow read: if request.auth != null;
-        allow create, update: if isPresenter(presentationId);
-        allow delete: if request.auth != null;
+        allow create, update: if isPresenter(presentationId) || isWhitelistedPresenter();
+        allow delete: if request.auth != null && (isPresenter(presentationId) || isWhitelistedPresenter());
       }
 
       match /attendance/{studentEmail} {
-        // Students can write (create or update) their own check-in record; only the presenter can read the class roster (critical for FERPA)
+        // Students can write (create or update) their own check-in record; only the presenter or whitelisted presenter can read the class roster (critical for FERPA)
         // If there is an active institution domain globally configured, enforce that student's email matches the domain.
         allow create, update: if request.auth != null && (
           !exists(/databases/$(database)/documents/settings/global) ||
@@ -36,7 +43,7 @@ service cloud.firestore {
           studentEmail.matches(".*\\." + get(/databases/$(database)/documents/settings/global).data.activeInstitutionDomain + "$")
         );
         allow read: if request.auth != null;
-        allow delete: if request.auth != null;
+        allow delete: if request.auth != null && (isPresenter(presentationId) || isWhitelistedPresenter());
       }
     }
 

@@ -350,12 +350,31 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
 
     setIsDeletingSessions(true);
     try {
-      // Delete all in parallel
-      await Promise.all(safeSelectedIds.map(id => deleteSessionDoc(id)));
+      // Delete all in parallel with individual error tracking
+      const results = await Promise.allSettled(safeSelectedIds.map(async (id) => {
+        await deleteSessionDoc(id);
+        return id;
+      }));
+
+      const successfulIds: string[] = [];
+      const failedIds: string[] = [];
+      let lastError: any = null;
+
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          successfulIds.push(result.value);
+        } else {
+          failedIds.push(safeSelectedIds[index]);
+          lastError = result.reason;
+        }
+      });
+
+      // Clear successful IDs from the bulk selection, leaving only the failed ones selected
+      setSelectedSessionIdsForBulk(prev => prev.filter(id => failedIds.includes(id)));
 
       // If the currently viewed session was deleted, switch to a remaining one
-      if (selectedSessionId && safeSelectedIds.includes(selectedSessionId)) {
-        const remaining = recentSessions.filter(s => !safeSelectedIds.includes(s.id));
+      if (selectedSessionId && successfulIds.includes(selectedSessionId)) {
+        const remaining = recentSessions.filter(s => !successfulIds.includes(s.id));
         if (remaining.length > 0) {
           setSelectedSessionId(remaining[0].id);
         } else {
@@ -363,12 +382,18 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
         }
       }
 
-      // Clear selection states
-      setSelectedSessionIdsForBulk([]);
-      alert(`Successfully deleted ${safeSelectedIds.length} session(s).`);
+      if (failedIds.length === 0) {
+        alert(`Successfully deleted all ${successfulIds.length} selected session(s).`);
+      } else if (successfulIds.length === 0) {
+        console.error("Error performing bulk deletion:", lastError);
+        alert(`Failed to delete selected session(s). Firebase Error: ${lastError?.message || lastError}`);
+      } else {
+        console.warn(`${failedIds.length} session(s) failed to delete:`, failedIds);
+        alert(`Partially completed: Successfully deleted ${successfulIds.length} session(s).\n\n${failedIds.length} session(s) could not be deleted (possibly due to Firestore permissions or missing files). The remaining failed sessions have been kept selected so you can try again.`);
+      }
     } catch (e) {
-      console.error("Error performing bulk deletion:", e);
-      alert("Error performing bulk deletion: " + e);
+      console.error("Unexpected error during bulk deletion:", e);
+      alert("An unexpected error occurred: " + e);
     } finally {
       setIsDeletingSessions(false);
     }
