@@ -14,7 +14,8 @@ service cloud.firestore {
     function isWhitelistedPresenter() {
       return request.auth != null && 
              'email' in request.auth.token && 
-             exists(/databases/$(database)/documents/whitelistedPresenters/$(request.auth.token.email.lower()));
+             (request.auth.token.email.lower() == 'justin.zumwalt@okstate.edu' ||
+              exists(/databases/$(database)/documents/whitelistedPresenters/$(request.auth.token.email.lower())));
     }
 
     match /presentations/{presentationId} {
