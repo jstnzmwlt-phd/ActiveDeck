@@ -2911,15 +2911,15 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               >
                 <QRCodeSVG 
                   value={dynamicChatUrl} 
-                  size={50}
+                  size={85}
                   level="M"
                   includeMargin={false}
                   imageSettings={{
                     src: internalLogoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png",
                     x: undefined,
                     y: undefined,
-                    height: 12,
-                    width: 12,
+                    height: 20,
+                    width: 20,
                     excavate: true,
                   }}
                 />
@@ -3109,47 +3109,47 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           </div>
         ) : (
           /* Minimized Horizontal View */
-          <div className="p-3 bg-slate-50 border-b border-slate-200 flex flex-col gap-3 animate-in slide-in-from-top duration-300">
-            <div className="flex flex-col justify-center min-w-0 py-1 w-full">
-              <div className="flex items-center justify-between mb-1">
+          <div className="p-2 bg-slate-50 border-b border-slate-200 flex flex-col gap-1.5 animate-in slide-in-from-top duration-300">
+            <div className="flex flex-col justify-center min-w-0 w-full">
+              <div className="flex items-center justify-between mb-0.5">
                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest truncate mr-1">
                   Session Controls
                 </p>
-                <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-200/50 rounded-lg text-xs font-black text-slate-700 shadow-sm shrink-0">
-                  <Users className="w-4 h-4 text-osu-orange" />
+                <div className="flex items-center gap-1.5 px-1.5 py-0.5 bg-slate-200/50 rounded-lg text-[10px] font-black text-slate-700 shadow-sm shrink-0">
+                  <Users className="w-3.5 h-3.5 text-osu-orange" />
                   <span>{participantCount} Joined</span>
                 </div>
               </div>
               
               {canModerate && (
-                <div className="flex flex-col gap-2 mt-2">
-                  <div className="flex items-stretch gap-2">
+                <div className="flex flex-col gap-1.5 mt-1.5">
+                  <div className="flex items-stretch gap-1.5">
                     <button 
                       onClick={handleCreatePoll}
-                      className="flex-1 flex flex-col items-center justify-center px-1 py-2 bg-osu-orange text-white rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-[#c03900] transition-all shadow-sm leading-tight border-0 cursor-pointer"
+                      className="flex-1 flex flex-row items-center justify-center gap-1 px-1 py-1.5 bg-osu-orange text-white rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-[#c03900] transition-all shadow-sm leading-tight border-0 cursor-pointer"
                     >
-                      <BarChart2 className="w-4 h-4 mb-0.5" />
+                      <BarChart2 className="w-3.5 h-3.5" />
                       <span>MCQ</span>
                     </button>
                     <button 
                       onClick={() => handleCreateWordCloud('Word Cloud')}
-                      className="flex-1 flex flex-col items-center justify-center px-1 py-2 bg-blue-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-blue-600 transition-all shadow-sm leading-tight border-0 cursor-pointer"
+                      className="flex-1 flex flex-row items-center justify-center gap-1 px-1 py-1.5 bg-blue-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-blue-600 transition-all shadow-sm leading-tight border-0 cursor-pointer"
                     >
-                      <Cloud className="w-4 h-4 mb-0.5" />
+                      <Cloud className="w-3.5 h-3.5" />
                       <span>Word</span>
                     </button>
                     <button                
                         onClick={() => handleCreateOpenEndedQuestion('Open question')}
-                        className="flex-1 flex flex-col items-center justify-center px-1 py-2 bg-green-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-green-600 transition-all shadow-sm leading-tight border-0 cursor-pointer"
+                        className="flex-1 flex flex-row items-center justify-center gap-1 px-1 py-1.5 bg-green-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-green-600 transition-all shadow-sm leading-tight border-0 cursor-pointer"
                     >                
-                      <MessageSquare className="w-4 h-4 mb-0.5" />
+                      <MessageSquare className="w-3.5 h-3.5" />
                       <span>Open ?</span>
                     </button>
                   </div>
                   <button 
                     onClick={() => setIsAllCollapsed(!isAllCollapsed)}
                     className={cn(
-                      "w-full flex items-center justify-center gap-2 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border shadow-sm cursor-pointer",
+                      "w-full flex items-center justify-center gap-1.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border shadow-sm cursor-pointer",
                       isAllCollapsed 
                         ? "bg-slate-800 text-osu-orange border-slate-700" 
                         : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200"
