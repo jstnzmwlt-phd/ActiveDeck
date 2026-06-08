@@ -996,7 +996,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
   }
 
   return (
-    <div className="min-h-screen w-screen bg-slate-950 text-slate-100 flex flex-col">
+    <div className="h-screen w-screen bg-slate-950 text-slate-100 flex flex-col">
       
       {/* Premium Top Navigation Bar */}
       <header className="bg-slate-900 border-b border-slate-800 px-8 py-4 flex items-center justify-between">
