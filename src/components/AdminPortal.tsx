@@ -1269,7 +1269,26 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
               TAB 2: ATTENDANCE TRACKER WORKSPACE
               ======================================================== */}
           {activeTab === 'attendance' && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in duration-300 pb-12">
+            !showAttendance ? (
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-12 text-center flex flex-col items-center justify-center min-h-[400px] max-w-2xl mx-auto space-y-6 animate-in fade-in zoom-in-95 duration-300">
+                <div className="w-16 h-16 bg-red-500/10 border border-red-500/20 text-red-400 rounded-2xl flex items-center justify-center shadow-lg shadow-red-500/5">
+                  <AlertCircle className="w-8 h-8" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-xl font-black text-white uppercase tracking-wider">Attendance Registry Disabled</h3>
+                  <p className="text-xs text-slate-400 leading-relaxed max-w-md mx-auto">
+                    The Attendance Registry features are currently turned off. Historical session logs and live roster tracking are deactivated.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setActiveTab('theme')}
+                  className="px-6 py-3 bg-osu-orange hover:bg-[#c03900] text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-orange-500/10 active:scale-[0.98] cursor-pointer"
+                >
+                  Enable in Configurations
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in duration-300 pb-12">
               
               {/* Left Column: Chronological Session Logs */}
               <div className="lg:col-span-3 flex flex-col gap-6">
@@ -1571,9 +1590,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                   </div>
                 )}
               </div>
-
             </div>
-          )}
+          )
+        )}
 
           {/* ========================================================
               TAB 3: PRESENTERS WORKSPACE
