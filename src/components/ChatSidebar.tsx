@@ -2888,19 +2888,43 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               )}
             </div>
             
-            {/* Rotating Dynamic Icon Badge */}
-            {!presentation?.disableAttendance && (
-              <div className="flex flex-col items-center shrink-0 bg-slate-950 px-2.5 py-1.5 rounded-xl border border-slate-800 shadow-inner">
-                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">SCREEN ICON</span>
-                <div className="w-12 h-12 flex items-center justify-center mt-1.5 bg-slate-900/50 rounded-lg border border-slate-800/30">
-                  {presentation?.currentIcon ? (
-                    <MedicalIcon name={presentation.currentIcon} className="w-8 h-8 text-osu-orange" />
-                  ) : (
-                    <span className="text-slate-600 text-xs font-bold">---</span>
-                  )}
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Rotating Dynamic Icon Badge */}
+              {!presentation?.disableAttendance && (
+                <div className="flex flex-col items-center bg-slate-950 px-2 py-1.5 rounded-xl border border-slate-800 shadow-inner">
+                  <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest leading-none">ICON</span>
+                  <div className="w-8 h-8 flex items-center justify-center mt-1 bg-slate-900/50 rounded-lg border border-slate-800/30">
+                    {presentation?.currentIcon ? (
+                      <MedicalIcon name={presentation.currentIcon} className="w-5 h-5 text-osu-orange" />
+                    ) : (
+                      <span className="text-slate-600 text-[10px] font-bold">---</span>
+                    )}
+                  </div>
                 </div>
+              )}
+
+              {/* Clickable QR Code Thumbnail */}
+              <div 
+                onClick={() => setIsQRExpanded(!isQRExpanded)}
+                className="bg-white p-1 rounded-xl border border-slate-800 shadow-sm flex flex-col items-center justify-center cursor-pointer hover:border-osu-orange hover:shadow-md transition-all group/qr"
+                title={isQRExpanded ? "Click to minimize QR code" : "Click to expand QR code"}
+              >
+                <QRCodeSVG 
+                  value={dynamicChatUrl} 
+                  size={50}
+                  level="M"
+                  includeMargin={false}
+                  imageSettings={{
+                    src: internalLogoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png",
+                    x: undefined,
+                    y: undefined,
+                    height: 12,
+                    width: 12,
+                    excavate: true,
+                  }}
+                />
               </div>
-            )}
+            </div>
           </div>
         </div>
       )}
@@ -3085,49 +3109,18 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           </div>
         ) : (
           /* Minimized Horizontal View */
-          <div className="p-3 bg-slate-50 border-b border-slate-200 flex flex-row items-start gap-3 animate-in slide-in-from-top duration-300">
-            <div 
-              onClick={() => setIsQRExpanded(true)}
-              className="bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm shrink-0 flex flex-col items-center gap-1 cursor-pointer hover:border-osu-orange hover:shadow-md transition-all group/qr"
-              title="Click to expand QR code"
-            >
-              <QRCodeSVG 
-                value={dynamicChatUrl} 
-                size={120}
-                level="M"
-                includeMargin={true}
-                imageSettings={{
-                  src: internalLogoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png",
-                  x: undefined,
-                  y: undefined,
-                  height: 20,
-                  width: 20,
-                  excavate: true,
-                }}
-              />
-              {/* Progress countdown bar */}
-              {!presentation?.disableAttendance && (
-                <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden relative">
-                  <div 
-                    className="h-full bg-osu-orange transition-all duration-100 ease-linear"
-                    style={{ width: `${(timeLeft / 10) * 100}%` }}
-                  />
-                </div>
-              )}
-              <span className="text-[7px] text-slate-400 group-hover/qr:text-osu-orange font-bold uppercase tracking-wider leading-none mt-0.5">
-                Click to Expand
-              </span>
-            </div>
-            <div className="flex flex-col justify-center min-w-0 py-1 flex-1">
+          <div className="p-3 bg-slate-50 border-b border-slate-200 flex flex-col gap-3 animate-in slide-in-from-top duration-300">
+            <div className="flex flex-col justify-center min-w-0 py-1 w-full">
               <div className="flex items-center justify-between mb-1">
                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest truncate mr-1">
-                  {presentation?.disableAttendance ? "Scan to Join" : "Scan to Check-In"}
+                  Session Controls
                 </p>
                 <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-200/50 rounded-lg text-xs font-black text-slate-700 shadow-sm shrink-0">
                   <Users className="w-4 h-4 text-osu-orange" />
-                  <span>{participantCount}</span>
+                  <span>{participantCount} Joined</span>
                 </div>
               </div>
+              
               {canModerate && (
                 <div className="flex flex-col gap-2 mt-2">
                   <div className="flex items-stretch gap-2">
@@ -3162,7 +3155,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                         : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200"
                     )}
                   >
-                    {isAllCollapsed ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
+                    {isAllCollapsed ? <ChevronDown className="w-3 h-3 animate-bounce" /> : <ChevronUp className="w-3 h-3" />}
                     <span>{isAllCollapsed ? "Expand All Content" : "Collapse All Content"}</span>
                   </button>
                 </div>
