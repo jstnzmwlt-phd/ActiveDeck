@@ -1006,7 +1006,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
   }
 
   return (
-    <div className="h-screen w-screen bg-slate-950 text-slate-100 flex flex-col">
+    <div className="min-h-screen w-screen bg-slate-950 text-slate-100 flex flex-col">
       
       {/* Premium Top Navigation Bar */}
       <header className="bg-slate-900 border-b border-slate-800 px-8 py-4 flex items-center justify-between">
@@ -1279,26 +1279,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
               TAB 2: ATTENDANCE TRACKER WORKSPACE
               ======================================================== */}
           {activeTab === 'attendance' && (
-            !showAttendance ? (
-              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-12 text-center flex flex-col items-center justify-center min-h-[400px] max-w-2xl mx-auto space-y-6 animate-in fade-in zoom-in-95 duration-300">
-                <div className="w-16 h-16 bg-red-500/10 border border-red-500/20 text-red-400 rounded-2xl flex items-center justify-center shadow-lg shadow-red-500/5">
-                  <AlertCircle className="w-8 h-8" />
-                </div>
-                <div className="space-y-2">
-                  <h3 className="text-xl font-black text-white uppercase tracking-wider">Attendance Registry Disabled</h3>
-                  <p className="text-xs text-slate-400 leading-relaxed max-w-md mx-auto">
-                    The Attendance Registry features are currently turned off. Historical session logs and live roster tracking are deactivated.
-                  </p>
-                </div>
-                <button
-                  onClick={() => setActiveTab('theme')}
-                  className="px-6 py-3 bg-osu-orange hover:bg-[#c03900] text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-orange-500/10 active:scale-[0.98] cursor-pointer"
-                >
-                  Enable in Configurations
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in duration-300 pb-12">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in duration-300 pb-12">
               
               {/* Left Column: Chronological Session Logs */}
               <div className="lg:col-span-3 flex flex-col gap-6">
@@ -1600,9 +1581,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                   </div>
                 )}
               </div>
+
             </div>
-          )
-        )}
+          )}
 
           {/* ========================================================
               TAB 3: PRESENTERS WORKSPACE
@@ -1803,7 +1784,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
               
               {/* Sessions Search and Header Card */}
               <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6">
-                <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                   <div className="space-y-1">
                     <h2 className="text-lg font-black uppercase tracking-wider text-white flex items-center gap-2.5">
                       <History className="w-5 h-5 text-osu-orange" />
@@ -1814,182 +1795,119 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                     </p>
                   </div>
                   
-                  {/* Actions & Search */}
-                  <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-                    {selectedSessionIdsForBulk.length > 0 && (
-                      <button
-                        onClick={handleBulkDelete}
-                        disabled={isDeletingSessions}
-                        className="flex items-center gap-1.5 h-11 px-4 bg-red-950/40 hover:bg-red-900 border border-red-500/30 text-xs font-black uppercase tracking-wider text-red-400 hover:text-white rounded-xl transition-all cursor-pointer shrink-0 animate-in zoom-in-95 duration-205"
+                  {/* Search Input */}
+                  <div className="w-full md:w-80 relative">
+                    <input 
+                      type="text"
+                      value={sessionSearch}
+                      onChange={(e) => setSessionSearch(e.target.value)}
+                      placeholder="Search by ID, email, or presenter..."
+                      className="w-full h-11 rounded-xl bg-slate-950 border border-slate-800 text-xs pl-4 pr-10 text-white placeholder-slate-600 focus:outline-none focus:border-osu-orange transition-all"
+                    />
+                    {sessionSearch && (
+                      <button 
+                        onClick={() => setSessionSearch('')}
+                        className="absolute right-3 top-3.5 text-[10px] uppercase tracking-wider font-black text-slate-500 hover:text-slate-300 transition-colors"
                       >
-                        {isDeletingSessions ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="w-4 h-4" />
-                        )}
-                        Delete Selected ({selectedSessionIdsForBulk.length})
+                        Clear
                       </button>
                     )}
-                    
-                    <div className="relative w-full sm:w-64">
-                      <input 
-                        type="text"
-                        value={sessionSearch}
-                        onChange={(e) => setSessionSearch(e.target.value)}
-                        placeholder="Search sessions..."
-                        className="w-full h-11 rounded-xl bg-slate-950 border border-slate-800 text-xs pl-4 pr-10 text-white placeholder-slate-600 focus:outline-none focus:border-osu-orange transition-all"
-                      />
-                      {sessionSearch && (
-                        <button 
-                          onClick={() => setSessionSearch('')}
-                          className="absolute right-3 top-3.5 text-[10px] uppercase tracking-wider font-black text-slate-500 hover:text-slate-300 transition-colors"
-                        >
-                          Clear
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="bg-slate-950 px-4 py-1.5 border border-slate-800 rounded-xl text-center shrink-0">
-                      <span className="text-[8px] font-black uppercase tracking-widest text-slate-500 block leading-none">Sessions</span>
-                      <span className="text-sm font-black text-osu-orange leading-normal">{activeSessions.length}</span>
-                    </div>
                   </div>
                 </div>
               </div>
 
               {/* Sessions List Table Card */}
               <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 overflow-hidden">
-                <div className="border border-slate-800/80 rounded-2xl overflow-hidden bg-slate-950/40">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="bg-slate-950 border-b border-slate-800 text-[10px] uppercase font-black tracking-widest text-slate-400">
-                          <th className="py-3 px-5 text-center w-12">
-                            <input
-                              type="checkbox"
-                              checked={
-                                filteredSessions.length > 0 &&
-                                filteredSessions
-                                  .filter(s => s.id !== presentationId)
-                                  .every(s => selectedSessionIdsForBulk.includes(s.id))
-                              }
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setSelectedSessionIdsForBulk(
-                                    filteredSessions
-                                      .filter(s => s.id !== presentationId)
-                                      .map(s => s.id)
-                                  );
-                                } else {
-                                  setSelectedSessionIdsForBulk([]);
-                                }
-                              }}
-                              className="w-4 h-4 rounded border-slate-700 text-osu-orange focus:ring-osu-orange/20 bg-slate-950 cursor-pointer"
-                            />
-                          </th>
-                          <th className="py-3 px-5">Session ID</th>
-                          <th className="py-3 px-5">Presenter Name</th>
-                          <th className="py-3 px-5">Presenter Email</th>
-                          <th className="py-3 px-5">Date Hosted</th>
-                          <th className="py-3 px-5">Time Hosted</th>
-                          <th className="py-3 px-5 text-right w-48">Actions</th>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-800 text-[10px] uppercase font-black tracking-widest text-slate-400 bg-slate-950/30">
+                        <th className="py-3 px-5">Session ID</th>
+                        <th className="py-3 px-5">Presenter Name</th>
+                        <th className="py-3 px-5">Presenter Email</th>
+                        <th className="py-3 px-5">Date Hosted</th>
+                        <th className="py-3 px-5">Time Hosted</th>
+                        <th className="py-3 px-5 text-right w-48">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loadingSessions && activeSessions.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="py-16 text-center">
+                            <Loader2 className="w-8 h-8 text-osu-orange animate-spin mx-auto mb-2" />
+                            <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500">Loading sessions directory...</span>
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody>
-                        {loadingSessions && activeSessions.length === 0 ? (
-                          <tr>
-                            <td colSpan={7} className="py-16 text-center">
-                              <Loader2 className="w-8 h-8 text-osu-orange animate-spin mx-auto mb-2" />
-                              <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500">Loading sessions directory...</span>
-                            </td>
-                          </tr>
-                        ) : filteredSessions.length === 0 ? (
-                          <tr>
-                            <td colSpan={7} className="py-16 text-center text-slate-500 text-xs italic">
-                              No presentation sessions matched your search criteria.
-                            </td>
-                          </tr>
-                        ) : (
-                          filteredSessions.map((session, i) => {
-                            const presenterEmail = session.presenterEmail || '—';
-                            const displayHandle = session.presenterEmail 
-                              ? session.presenterEmail.split('@')[0].replace(/[._]/g, ' ') 
-                              : '—';
-                            
-                            const dateObj = session.createdAt ? new Date(session.createdAt.seconds * 1000) : null;
-                            const dateStr = dateObj ? dateObj.toLocaleDateString() : '—';
-                            const timeStr = dateObj ? dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
-                            const isDownloadingThis = downloadingSessionId === session.id;
-                            const isActiveSession = session.id === presentationId;
+                      ) : filteredSessions.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="py-16 text-center text-slate-500 text-xs italic">
+                            No presentation sessions matched your search criteria.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredSessions.map((session, i) => {
+                          const presenterEmail = session.presenterEmail || '—';
+                          const displayHandle = session.presenterEmail 
+                            ? session.presenterEmail.split('@')[0].replace(/[._]/g, ' ') 
+                            : '—';
+                          
+                          const dateObj = session.createdAt ? new Date(session.createdAt.seconds * 1000) : null;
+                          const dateStr = dateObj ? dateObj.toLocaleDateString() : '—';
+                          const timeStr = dateObj ? dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+                          const isDownloadingThis = downloadingSessionId === session.id;
 
-                            return (
-                              <tr key={session.id} className="border-b border-slate-800/50 last:border-0 hover:bg-slate-900/40 text-sm transition-colors">
-                                <td className="py-4 px-5 text-center">
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedSessionIdsForBulk.includes(session.id)}
-                                    disabled={isActiveSession}
-                                    onChange={(e) => {
-                                      if (e.target.checked) {
-                                        setSelectedSessionIdsForBulk(prev => [...prev, session.id]);
-                                      } else {
-                                        setSelectedSessionIdsForBulk(prev => prev.filter(id => id !== session.id));
-                                      }
+                          return (
+                            <tr key={session.id} className="border-b border-slate-800/50 last:border-0 hover:bg-slate-900/40 text-sm transition-colors">
+                              <td className="py-4 px-5">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono text-xs text-osu-orange font-bold select-all">{session.id}</span>
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(session.id);
                                     }}
-                                    className="w-4 h-4 rounded border-slate-700 text-osu-orange focus:ring-osu-orange/20 bg-slate-950 cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed"
-                                  />
-                                </td>
-                                <td className="py-4 px-5">
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-mono text-xs text-osu-orange font-bold select-all">{session.id}</span>
-                                    <button
-                                      onClick={() => {
-                                        navigator.clipboard.writeText(session.id);
-                                      }}
-                                      className="p-1 rounded text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors cursor-pointer"
-                                      title="Copy Session ID"
-                                    >
-                                      <Copy className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                </td>
-                                <td className="py-4 px-5 font-bold text-white capitalize">{displayHandle}</td>
-                                <td className="py-4 px-5 text-slate-300 font-mono text-xs">{presenterEmail}</td>
-                                <td className="py-4 px-5 text-slate-400 text-xs">{dateStr}</td>
-                                <td className="py-4 px-5 text-slate-400 text-xs font-semibold">{timeStr}</td>
-                                <td className="py-4 px-5 text-right flex items-center justify-end gap-2.5">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDownloadChatLog(session.id)}
-                                    disabled={isDownloadingChatLog}
-                                    className="flex items-center gap-1.5 h-9 px-3.5 bg-slate-800 hover:bg-slate-750 disabled:bg-slate-900 disabled:text-slate-650 text-slate-200 text-xs font-black uppercase tracking-wider rounded-xl transition-all border border-slate-700/50 cursor-pointer"
-                                    title="Download Chat Log"
+                                    className="p-1 rounded text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors cursor-pointer"
+                                    title="Copy Session ID"
                                   >
-                                    {isDownloadingThis ? (
-                                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                    ) : (
-                                      <Download className="w-3.5 h-3.5 text-osu-orange" />
-                                    )}
-                                    Download Chat Log
+                                    <Copy className="w-3.5 h-3.5" />
                                   </button>
+                                </div>
+                              </td>
+                              <td className="py-4 px-5 font-bold text-white capitalize">{displayHandle}</td>
+                              <td className="py-4 px-5 text-slate-300 font-mono text-xs">{presenterEmail}</td>
+                              <td className="py-4 px-5 text-slate-400 text-xs">{dateStr}</td>
+                              <td className="py-4 px-5 text-slate-400 text-xs font-semibold">{timeStr}</td>
+                              <td className="py-4 px-5 text-right flex items-center justify-end gap-2.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownloadChatLog(session.id)}
+                                  disabled={isDownloadingChatLog}
+                                  className="flex items-center gap-1.5 h-9 px-3.5 bg-slate-800 hover:bg-slate-750 disabled:bg-slate-900 disabled:text-slate-650 text-slate-200 text-xs font-black uppercase tracking-wider rounded-xl transition-all border border-slate-700/50 cursor-pointer"
+                                  title="Download Chat Log"
+                                >
+                                  {isDownloadingThis ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  ) : (
+                                    <Download className="w-3.5 h-3.5 text-osu-orange" />
+                                  )}
+                                  Download Chat Log
+                                </button>
 
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteSession(session.id)}
-                                    disabled={isDeletingSessions || isActiveSession}
-                                    className="p-2 rounded-xl text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed"
-                                    title={isActiveSession ? "Active Live Presentation Session (Cannot Delete)" : "Delete Session"}
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </td>
-                              </tr>
-                            );
-                          })
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteSession(session.id)}
+                                  disabled={isDeletingSessions}
+                                  className="p-2 rounded-xl text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer"
+                                  title="Delete Session"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
 

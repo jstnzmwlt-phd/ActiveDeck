@@ -161,7 +161,8 @@ function AppContent() {
             allowAnonymousChat: false,
             disableAttendance: false,
             hideComments: false,
-            presenterEmail: sessionStorage.getItem('activePresenterEmail') || ''
+            presenterEmail: sessionStorage.getItem('activePresenterEmail') || '',
+            hasActivity: false
           });
           
           console.log('AppContent - New presentation created:', docRef.id);

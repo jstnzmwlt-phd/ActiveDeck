@@ -223,7 +223,8 @@ function AppContent() {
             disableAttendance: true,
             hideComments: false,
             presenterEmail: sessionStorage.getItem('activePresenterEmail') || '',
-            pinCode: pinCode
+            pinCode: pinCode,
+            hasActivity: false
           });
           
           try {
