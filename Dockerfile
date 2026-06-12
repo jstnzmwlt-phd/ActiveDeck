@@ -1,6 +1,9 @@
 # Use the official lightweight Node.js 20 image
 FROM node:20-alpine
 
+# Update packages to resolve security vulnerabilities (like CVE-2026-34180 in openssl/libcrypto3)
+RUN apk update && apk upgrade --no-cache
+
 # Set working directory inside the container
 WORKDIR /app
 
