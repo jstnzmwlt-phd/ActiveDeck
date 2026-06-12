@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { AuthProvider, useAuth } from './components/AuthProvider';
 import { PresenterArea } from './components/PresenterArea';
 import { ChatSidebar } from './components/ChatSidebar';
@@ -48,6 +48,71 @@ function AppContent() {
   const [presentationLoaded, setPresentationLoaded] = useState(false);
   const [appError, setAppError] = useState<string | null>(null);
   const [hash, setHash] = useState(window.location.hash);
+  const activeUnsubscribeRef = useRef<(() => void) | null>(null);
+
+  const createNewPresentation = async () => {
+    console.log('AppContent - Creating new presentation for user:', user?.uid);
+    if (!user) return '';
+    try {
+      const pinCode = await generateUniquePin();
+      const docRef = await addDoc(collection(db, 'presentations'), {
+        presenterId: user.uid,
+        embedUrl: '',
+        createdAt: serverTimestamp(),
+        allowAnonymousChat: false,
+        disableAttendance: true,
+        hideComments: false,
+        presenterEmail: sessionStorage.getItem('activePresenterEmail') || '',
+        pinCode: pinCode,
+        hasActivity: false
+      });
+      
+      try {
+        await setDoc(doc(db, 'sessionPins', pinCode), {
+          presentationId: docRef.id,
+          createdAt: serverTimestamp(),
+          active: true
+        });
+      } catch (err) {
+        console.error('Failed to register PIN in sessionPins during creation:', err);
+      }
+      
+      console.log('AppContent - New presentation created:', docRef.id, 'with PIN:', pinCode);
+      sessionStorage.setItem('activePresenterPresentationId', docRef.id);
+      
+      // Update URL with the new ID without reloading the page
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.set('id', docRef.id);
+      window.history.replaceState({}, '', newUrl.toString());
+
+      setPresentationLoaded(false);
+
+      if (activeUnsubscribeRef.current) {
+        activeUnsubscribeRef.current();
+      }
+
+      const unsub = onSnapshot(docRef, (docSnap) => {
+        setPresentationLoaded(true);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          console.log('AppContent - New presentation snapshot received:', docSnap.id, data);
+          setPresentation({ id: docSnap.id, ...data } as Presentation);
+        } else {
+          setPresentation(null);
+        }
+      }, (error) => {
+        console.error("AppContent - New presentation snapshot error:", error);
+        setPresentationLoaded(true);
+      });
+
+      activeUnsubscribeRef.current = unsub;
+      return docRef.id;
+    } catch (error) {
+      console.error("AppContent - Error creating presentation:", error);
+      setPresentationLoaded(true);
+      throw error;
+    }
+  };
   const [emailDomainError, setEmailDomainError] = useState<string | null>(null);
   const [checkingEmailDomain, setCheckingEmailDomain] = useState(false);
   const [presenterEmail, setPresenterEmail] = useState<string>(() => sessionStorage.getItem('activePresenterEmail') || '');
@@ -187,8 +252,6 @@ function AppContent() {
       return;
     }
 
-    let unsubscribe: () => void;
-
     const loadPresentation = async () => {
       const ensurePresentationHasPin = async (presId: string, data: any) => {
         if (!data.pinCode && !isChatOnly && user) {
@@ -208,59 +271,6 @@ function AppContent() {
           } catch (err) {
             console.error('Error generating and saving PIN for existing presentation:', err);
           }
-        }
-      };
-
-      const createNewPresentation = async () => {
-        console.log('AppContent - Creating new presentation for user:', user.uid);
-        try {
-          const pinCode = await generateUniquePin();
-          const docRef = await addDoc(collection(db, 'presentations'), {
-            presenterId: user.uid,
-            embedUrl: '',
-            createdAt: serverTimestamp(),
-            allowAnonymousChat: false,
-            disableAttendance: true,
-            hideComments: false,
-            presenterEmail: sessionStorage.getItem('activePresenterEmail') || '',
-            pinCode: pinCode,
-            hasActivity: false
-          });
-          
-          try {
-            await setDoc(doc(db, 'sessionPins', pinCode), {
-              presentationId: docRef.id,
-              createdAt: serverTimestamp(),
-              active: true
-            });
-          } catch (err) {
-            console.error('Failed to register PIN in sessionPins during creation:', err);
-          }
-          
-          console.log('AppContent - New presentation created:', docRef.id, 'with PIN:', pinCode);
-          sessionStorage.setItem('activePresenterPresentationId', docRef.id);
-          
-          // Update URL with the new ID without reloading the page
-          const newUrl = new URL(window.location.href);
-          newUrl.searchParams.set('id', docRef.id);
-          window.history.replaceState({}, '', newUrl.toString());
-          
-          unsubscribe = onSnapshot(docRef, (docSnap) => {
-            setPresentationLoaded(true);
-            if (docSnap.exists()) {
-              const data = docSnap.data();
-              console.log('AppContent - New presentation snapshot received:', docSnap.id, data);
-              setPresentation({ id: docSnap.id, ...data } as Presentation);
-            } else {
-              setPresentation(null);
-            }
-          }, (error) => {
-            console.error("AppContent - New presentation snapshot error:", error);
-            setPresentationLoaded(true);
-          });
-        } catch (error) {
-          console.error("AppContent - Error creating presentation:", error);
-          setPresentationLoaded(true);
         }
       };
 
@@ -289,7 +299,7 @@ function AppContent() {
         
         // Listen to specific presentation
         const docRef = doc(db, 'presentations', presentationId);
-        unsubscribe = onSnapshot(docRef, (docSnap) => {
+        const unsub = onSnapshot(docRef, (docSnap) => {
           setPresentationLoaded(true);
           if (docSnap.exists()) {
             console.log('AppContent - Presentation data received:', docSnap.id);
@@ -310,13 +320,14 @@ function AppContent() {
           console.error("AppContent - Presentation snapshot error:", error);
           setPresentationLoaded(true);
         });
+        activeUnsubscribeRef.current = unsub;
       } else if (!isChatOnly && user && !isJoinRoute) {
         const cachedId = sessionStorage.getItem('activePresenterPresentationId');
         if (cachedId) {
           console.log('AppContent - Found cached presentation ID in sessionStorage:', cachedId);
           const docRef = doc(db, 'presentations', cachedId);
           let isFirstCallback = true;
-          unsubscribe = onSnapshot(docRef, (docSnap) => {
+          const unsub = onSnapshot(docRef, (docSnap) => {
             setPresentationLoaded(true);
             if (docSnap.exists()) {
               console.log('AppContent - Cached presentation exists in Firestore. Setting active:', docSnap.id);
@@ -338,21 +349,24 @@ function AppContent() {
                 isFirstCallback = false;
               }
             } else {
-              console.warn('AppContent - Cached presentation does not exist in Firestore. Cleaning cache and creating a new one.');
+              console.warn('AppContent - Cached presentation does not exist in Firestore. Cleaning cache.');
               sessionStorage.removeItem('activePresenterPresentationId');
-              if (unsubscribe) {
-                unsubscribe();
+              setPresentation(null);
+              if (activeUnsubscribeRef.current) {
+                activeUnsubscribeRef.current();
+                activeUnsubscribeRef.current = null;
               }
-              createNewPresentation();
             }
           }, (error) => {
             console.error("AppContent - Cached presentation snapshot error:", error);
             // If it's a permission or load error, clean up and fallback
             sessionStorage.removeItem('activePresenterPresentationId');
-            createNewPresentation();
+            setPresentation(null);
+            setPresentationLoaded(true);
           });
+          activeUnsubscribeRef.current = unsub;
         } else {
-          createNewPresentation();
+          setPresentationLoaded(true);
         }
       } else {
         console.log('AppContent - No presentation ID and not a presenter/chat-only');
@@ -363,9 +377,10 @@ function AppContent() {
     loadPresentation();
 
     return () => {
-      if (unsubscribe) {
+      if (activeUnsubscribeRef.current) {
         console.log('AppContent - Unsubscribing from presentation');
-        unsubscribe();
+        activeUnsubscribeRef.current();
+        activeUnsubscribeRef.current = null;
       }
     };
   }, [authLoading, user, presentationId, isChatOnly, isJoinRoute]);
@@ -524,7 +539,7 @@ function AppContent() {
       <div className="flex flex-row flex-1 p-6 pb-2 gap-6 bg-slate-100 min-h-0 overflow-hidden">
         {/* Presenter View (Flexible, but takes most space) */}
         <div className="flex-1 h-full min-w-0 rounded-xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.24)] border border-slate-300 bg-black">
-          <PresenterArea presentation={presentation} logoUrl={settings?.theme.logoUrl} />
+          <PresenterArea presentation={presentation} logoUrl={settings?.theme.logoUrl} onCreatePresentation={createNewPresentation} />
         </div>
 
         {/* Audience Chat (Fixed width sidebar) */}

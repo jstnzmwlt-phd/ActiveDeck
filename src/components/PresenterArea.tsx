@@ -9,9 +9,10 @@ import { doc, getDoc } from 'firebase/firestore';
 interface PresenterAreaProps {
   presentation: Presentation | null;
   logoUrl?: string;
+  onCreatePresentation?: () => Promise<string>;
 }
 
-export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logoUrl }) => {
+export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logoUrl, onCreatePresentation }) => {
   const { currentSlide, sendSlideCommand, isBridgeConnected, useWithoutBridge, setUseWithoutBridge } = useBridge();
   const [activeTab, setActiveTab] = useState<'single' | 'dual' | 'manual'>('single');
   const [secondaryColor, setSecondaryColor] = useState<string>('#ff3e00');
@@ -52,6 +53,20 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           }
         } catch (fullscreenErr) {
           console.error("ActiveDeck: Error attempting to enable full-screen mode:", fullscreenErr);
+        }
+
+        // Only create a new presentation session if one doesn't exist yet
+        if (!presentation && onCreatePresentation) {
+          try {
+            await onCreatePresentation();
+          } catch (createErr) {
+            console.error("ActiveDeck: Error creating presentation session:", createErr);
+            mediaStream.getTracks().forEach(track => track.stop());
+            setStream(null);
+            setIsCapturing(false);
+            setError("Failed to initialize presentation session in database.");
+            return;
+          }
         }
 
         mediaStream.getVideoTracks()[0].onended = () => {
