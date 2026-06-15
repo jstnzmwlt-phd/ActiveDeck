@@ -543,7 +543,7 @@ function AppContent() {
         </div>
 
         {/* Audience Chat (Fixed width sidebar) */}
-        <div className="w-[350px] h-full flex-shrink-0 rounded-xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.24)] border-2 border-osu-orange bg-white">
+        <div className="w-[300px] h-full flex-shrink-0 rounded-xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.24)] border-2 border-osu-orange bg-white">
           <ChatSidebar 
             presentation={presentation} 
             logoUrl={settings?.theme.logoUrl} 
