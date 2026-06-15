@@ -2902,7 +2902,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
             
             <div className="flex items-center gap-2 shrink-0">
               {/* Rotating Dynamic Icon Badge */}
-              {!presentation?.disableAttendance && (
+              {showAttendance && !presentation?.disableAttendance && (
                 <div className="flex flex-col items-center bg-slate-950 px-2 py-1.5 rounded-xl border border-slate-800 shadow-inner">
                   <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest leading-none">ICON</span>
                   <div className="w-8 h-8 flex items-center justify-center mt-1 bg-slate-900/50 rounded-lg border border-slate-800/30">
