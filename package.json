@@ -36,5 +36,8 @@
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^8.0.13"
+  },
+  "overrides": {
+    "protobufjs": "^7.6.3"
   }
 }
