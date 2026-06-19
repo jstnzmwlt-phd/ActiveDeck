@@ -300,7 +300,6 @@ function AppContent() {
         // Listen to specific presentation
         const docRef = doc(db, 'presentations', presentationId);
         const unsub = onSnapshot(docRef, (docSnap) => {
-          setPresentationLoaded(true);
           if (docSnap.exists()) {
             console.log('AppContent - Presentation data received:', docSnap.id);
             const data = docSnap.data();
@@ -316,6 +315,7 @@ function AppContent() {
             console.warn('AppContent - Presentation not found:', presentationId);
             setPresentation(null);
           }
+          setPresentationLoaded(true);
         }, (error) => {
           console.error("AppContent - Presentation snapshot error:", error);
           setPresentationLoaded(true);
@@ -328,7 +328,6 @@ function AppContent() {
           const docRef = doc(db, 'presentations', cachedId);
           let isFirstCallback = true;
           const unsub = onSnapshot(docRef, (docSnap) => {
-            setPresentationLoaded(true);
             if (docSnap.exists()) {
               console.log('AppContent - Cached presentation exists in Firestore. Setting active:', docSnap.id);
               const data = docSnap.data();
@@ -357,6 +356,7 @@ function AppContent() {
                 activeUnsubscribeRef.current = null;
               }
             }
+            setPresentationLoaded(true);
           }, (error) => {
             console.error("AppContent - Cached presentation snapshot error:", error);
             // If it's a permission or load error, clean up and fallback
@@ -533,6 +533,7 @@ function AppContent() {
     <div className="flex flex-col h-[100dvh] w-screen overflow-hidden bg-slate-100 font-sans antialiased">
       <Header 
         presentationId={presentation?.id || presentationId} 
+        presentation={presentation}
         showAttendance={settings?.showAttendance}
       />
       

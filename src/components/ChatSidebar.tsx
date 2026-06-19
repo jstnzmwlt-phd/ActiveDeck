@@ -1407,6 +1407,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   }, [chatOnlyUrl]);
 
   useEffect(() => {
+    if (!presentation?.id) return;
+
     // Test connection
     const testConnection = async () => {
       try {
@@ -1419,7 +1421,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
     const q = query(
       collection(db, 'messages'), 
-      where('presentationId', '==', presentation?.id || 'default')
+      where('presentationId', '==', presentation.id)
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const msgs = snapshot.docs.map(doc => ({
@@ -1442,7 +1444,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     // Listen to polls
     const pq = query(
       collection(db, 'polls'), 
-      where('presentationId', '==', presentation?.id || 'default')
+      where('presentationId', '==', presentation.id)
     );
     const pUnsubscribe = onSnapshot(pq, (snapshot) => {
       const ps = snapshot.docs.map(doc => ({
@@ -1458,7 +1460,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     // Listen to word clouds
     const wcq = query(
       collection(db, 'wordClouds'), 
-      where('presentationId', '==', presentation?.id || 'default')
+      where('presentationId', '==', presentation.id)
     );
     const wcUnsubscribe = onSnapshot(wcq, (snapshot) => {
       const wcs = snapshot.docs.map(doc => ({
@@ -1474,7 +1476,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     // Listen to open-ended questions
     const oeqq = query(
       collection(db, 'openEndedQuestions'), 
-      where('presentationId', '==', presentation?.id || 'default')
+      where('presentationId', '==', presentation.id)
     );
     const oeqUnsubscribe = onSnapshot(oeqq, (snapshot) => {
       const oeqs = snapshot.docs.map(doc => ({
@@ -1490,7 +1492,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     // Listen to participant count
     const pq_count = query(
       collection(db, 'participants'),
-      where('presentationId', '==', presentation?.id || 'default')
+      where('presentationId', '==', presentation.id)
     );
     const pCountUnsubscribe = onSnapshot(pq_count, (snapshot) => {
       setParticipantCount(snapshot.size);
