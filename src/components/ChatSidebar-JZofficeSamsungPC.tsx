@@ -2879,7 +2879,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
       {/* Join URL Bar - Only for Presenter/Main View */}
       {!isChatOnly && (
-        <div className="bg-slate-900 text-white px-3.5 py-2.5 border-b border-slate-800">
+        <div className="bg-slate-900 text-white px-3.5 py-3.5 border-b border-slate-800">
           <div className="flex items-center justify-between gap-2.5">
             <div className="flex flex-col min-w-0 flex-1 gap-1">
               <div className="flex items-center gap-1.5">
@@ -2892,7 +2892,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 {window.location.origin}/chat
               </div>
               {presentation?.pinCode && (
-                <div className="mt-0.5">
+                <div className="mt-2">
                   <span className="text-[24px] font-mono font-black tracking-wider text-osu-orange bg-osu-orange/10 border border-osu-orange/20 px-3 py-1 rounded-xl leading-none select-all shadow-sm inline-block">
                     {presentation.pinCode.replace(/(\d{3})(\d{3})/, '$1 $2')}
                   </span>
