@@ -1225,7 +1225,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
   // Student Token Validation Effect
   useEffect(() => {
-    if (!isChatOnly || !urlToken || !presentation?.id) return;
+    if (!isChatOnly || !urlToken || !presentation?.id || !showAttendance) return;
 
     const validateUrlToken = async () => {
       setIsValidatingToken(true);
@@ -1384,7 +1384,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   // Construct chat-only URL for QR code
   const baseUrl = window.location.origin + window.location.pathname;
   const chatOnlyUrl = presentation?.id ? `${baseUrl}?view=chat&id=${presentation.id}` : `${baseUrl}?view=chat`;
-  const dynamicChatUrl = presentation?.id && activeToken && !presentation?.disableAttendance
+  const dynamicChatUrl = presentation?.id && activeToken && !presentation?.disableAttendance && showAttendance
     ? `${window.location.origin}${window.location.pathname}?view=chat&id=${presentation.id}&token=${activeToken}`
     : chatOnlyUrl;
 
@@ -1689,7 +1689,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
   // Presenter Token Rotation and countdown effect (every 10s unified loop)
   useEffect(() => {
-    if (isChatOnly || !presentation?.id || presentation?.disableAttendance) {
+    if (isChatOnly || !presentation?.id || !showAttendance || presentation?.disableAttendance) {
       setActiveToken(null);
       return;
     }
@@ -1757,7 +1757,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     }
 
     // If manual attendance check is required
-    const isAttendanceJoin = !presentation?.disableAttendance;
+    const isAttendanceJoin = showAttendance && !presentation?.disableAttendance;
     if (isAttendanceJoin && !urlToken) {
       if (!presentation?.id) {
         setIsValidatingToken(false);
@@ -1827,7 +1827,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     }
 
     // If they joined with a urlToken, validate it (this is the original QR code track)
-    if (urlToken && presentation?.id && !presentation?.disableAttendance) {
+    if (urlToken && presentation?.id && showAttendance && !presentation?.disableAttendance) {
       setIsValidatingToken(true);
       try {
         const tokenRef = doc(db, 'presentations', presentation.id, 'attendance_tokens', urlToken);
@@ -3001,7 +3001,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       </div>
 
       {/* Attendance Status Banner for Student/Audience view */}
-      {isChatOnly && showAttendanceBanner && (urlToken || attendanceStatus === 'success' || attendanceStatus === 'error') && (
+      {isChatOnly && showAttendanceBanner && showAttendance && (urlToken || attendanceStatus === 'success' || attendanceStatus === 'error') && (
         <div className={cn(
           "px-4 py-2 border-b text-xs flex items-start gap-2.5 transition-all duration-300 animate-in slide-in-from-top z-40",
           attendanceStatus === 'success' && "bg-green-50 text-green-800 border-green-200",

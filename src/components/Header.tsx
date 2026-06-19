@@ -254,7 +254,7 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance }
             {isBridgeConnected ? 'Bridge Online' : 'Bridge Offline'}
           </button>
 
-          {presentationId && (
+          {(presentationId || sessionStorage.getItem('activePresenterEmail')) && (
             <button
               onClick={handleNewSession}
               className="flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-800 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 cursor-pointer"
