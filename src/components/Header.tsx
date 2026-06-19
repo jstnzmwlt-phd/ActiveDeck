@@ -3,15 +3,13 @@ import { Monitor, Clock, Maximize, Minimize, Link2, Link2Off, Sun, Moon, Loader2
 import { useBridge } from '../contexts/BridgeContext';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Presentation } from '../types';
 
 interface HeaderProps {
   presentationId?: string | null;
   showAttendance?: boolean;
-  presentation?: Presentation | null;
 }
 
-export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, presentation }) => {
+export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance }) => {
   const { isBridgeConnected, setUseWithoutBridge } = useBridge();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isWakeLockActive, setIsWakeLockActive] = useState(false);
@@ -291,15 +289,6 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
               <Download className="w-3.5 h-3.5" />
               <span>Download Attendance</span>
             </button>
-          )}
-
-          {presentation?.pinCode && (
-            <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-xl text-[11px] font-black uppercase text-osu-orange select-all h-[36px]">
-              <span className="text-[9px] text-slate-400 font-bold tracking-wider">Join Code:</span>
-              <span className="font-mono text-sm leading-none font-extrabold tracking-widest text-white">
-                {presentation.pinCode.replace(/(\d{3})(\d{3})/, '$1 $2')}
-              </span>
-            </div>
           )}
 
           <div className="flex items-center gap-2 text-lg font-mono font-bold text-slate-800 bg-white px-3 py-1 rounded-lg border-2 border-osu-orange shadow-sm">

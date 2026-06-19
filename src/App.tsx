@@ -528,7 +528,6 @@ function AppContent() {
     <div className="flex flex-col h-[100dvh] w-screen overflow-hidden bg-slate-100 font-sans antialiased">
       <Header 
         presentationId={presentation?.id || presentationId} 
-        presentation={presentation}
         showAttendance={settings?.showAttendance}
       />
       
