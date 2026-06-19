@@ -274,22 +274,10 @@ function AppContent() {
         }
       };
 
-      // Determine if we should load the presentation ID from the URL or if it's a stale autocomplete
+      // Determine if we should load the presentation ID from the URL
       let shouldLoadUrlId = false;
       if (presentationId) {
-        if (isChatOnly) {
-          // Audience members/students must ALWAYS load the exact ID in the URL to join the correct session
-          shouldLoadUrlId = true;
-        } else if (user) {
-          // Presenter: only load the URL ID if it matches our active tab session in sessionStorage.
-          // This prevents browser autocomplete from loading a previous session when opening a new tab.
-          const cachedId = sessionStorage.getItem('activePresenterPresentationId');
-          if (cachedId === presentationId) {
-            shouldLoadUrlId = true;
-          } else {
-            console.log('AppContent - Presenter loaded URL with ID but sessionStorage is empty or has a different ID. Treating URL ID as stale/autocomplete.', { presentationId, cachedId });
-          }
-        }
+        shouldLoadUrlId = true;
       }
 
       if (shouldLoadUrlId && presentationId) {
@@ -365,6 +353,13 @@ function AppContent() {
             setPresentationLoaded(true);
           });
           activeUnsubscribeRef.current = unsub;
+        } else if (presenterEmail) {
+          // No cached presentation, but presenter is logged in! Auto-create a session so they have a PIN and can use chat immediately.
+          console.log('AppContent - No cached presentation, but presenter is logged in. Auto-creating session...');
+          createNewPresentation().catch(err => {
+            console.error('AppContent - Failed to auto-create presentation:', err);
+            setPresentationLoaded(true);
+          });
         } else {
           setPresentationLoaded(true);
         }
@@ -383,7 +378,7 @@ function AppContent() {
         activeUnsubscribeRef.current = null;
       }
     };
-  }, [authLoading, user, presentationId, isChatOnly, isJoinRoute]);
+  }, [authLoading, user, presentationId, isChatOnly, isJoinRoute, presenterEmail]);
 
   const isLoading = authLoading;
 
