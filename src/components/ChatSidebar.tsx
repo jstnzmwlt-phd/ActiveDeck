@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { auth, db } from '../firebase';
+import { auth, db, storage } from '../firebase';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, getDoc, getDocFromServer, doc, deleteDoc, updateDoc, arrayUnion, arrayRemove, increment, where, writeBatch, Timestamp, setDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Message, Presentation, Poll, WordCloud, OpenEndedQuestion, GlobalSettings } from '../types';
 import { useAuth } from './AuthProvider';
 import { useBridge } from '../contexts/BridgeContext';
-import { Send, HelpCircle, MessageSquare, Trash2, ThumbsUp, Download, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud, Eye, EyeOff, Timer, Users, ChevronDown, ChevronUp, Pin, Loader2, AlertCircle, Presentation as PresentationIcon } from 'lucide-react';
+import { Send, HelpCircle, MessageSquare, Trash2, ThumbsUp, Download, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud, Eye, EyeOff, Timer, Users, ChevronDown, ChevronUp, Pin, Loader2, AlertCircle, Presentation as PresentationIcon, Paperclip } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { QRCodeSVG } from 'qrcode.react';
@@ -822,6 +823,15 @@ const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, 
   );
 };
 
+const formatFileSize = (bytes?: number) => {
+  if (bytes === undefined || bytes === null) return '';
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+};
+
 interface MessageCardProps {
   msg: Message;
   user: any;
@@ -979,8 +989,41 @@ const MessageCard: React.FC<MessageCardProps> = ({
       </div>
       {!isCollapsed && (
         <>
-          <p className="text-sm text-slate-800 leading-relaxed">
-            <span className="font-bold">{renderTextWithLinks(msg.text)}</span>
+          <div className="text-sm text-slate-800 leading-relaxed">
+            {msg.text && (
+              <span className="font-bold">{renderTextWithLinks(msg.text)}</span>
+            )}
+            {msg.fileUrl && (
+              <div className="mt-2.5 p-3 bg-white/95 rounded-xl border border-slate-200/80 flex items-center justify-between gap-3 shadow-sm hover:border-indigo-400 hover:shadow-md transition-all group/doc">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg group-hover/doc:bg-indigo-100 group-hover/doc:text-indigo-700 transition-colors flex items-center justify-center shrink-0">
+                    <Download className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0 flex flex-col items-start">
+                    <span className="text-xs font-bold text-slate-800 truncate block w-full max-w-[130px]" title={msg.fileName}>
+                      {msg.fileName || "Shared Document"}
+                    </span>
+                    {msg.fileSize !== undefined && msg.fileSize !== null && (
+                      <span className="text-[9px] text-slate-500 font-semibold mt-0.5 block">
+                        {formatFileSize(msg.fileSize)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <a
+                  href={msg.fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  download={msg.fileName || "download"}
+                  className="shrink-0 px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.97] text-white rounded-lg transition-all shadow-sm flex items-center justify-center gap-1 text-[10px] font-extrabold uppercase tracking-wide select-none"
+                  title="Download Document"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Download className="w-3 h-3" />
+                  <span>Get</span>
+                </a>
+              </div>
+            )}
             {(msg.slide !== undefined && msg.slide !== null) && (
               <span className={cn(
                 "inline-flex items-center ml-1.5 px-2.5 py-1 rounded-full text-[11px] font-normal text-white border-2 border-white uppercase tracking-wider",
@@ -997,7 +1040,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
                 (No slide data)
               </span>
             )}
-          </p>
+          </div>
           <div className="mt-2 text-[9px] text-slate-400 text-right">
             {msg.timestamp?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </div>
@@ -1050,6 +1093,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [wordClouds, setWordClouds] = useState<WordCloud[]>([]);
   const [openEndedQuestions, setOpenEndedQuestions] = useState<OpenEndedQuestion[]>([]);
   const [inputText, setInputText] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isAllCollapsed, setIsAllCollapsed] = useState(false);
   const [isQRExpanded, setIsQRExpanded] = useState(false);
@@ -1591,6 +1636,73 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       setInputText('');
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'messages');
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    // 50MB file size limit
+    const MAX_SIZE = 50 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      alert("File is too large. Maximum size is 50MB.");
+      return;
+    }
+
+    try {
+      setIsUploadingFile(true);
+
+      const presentationId = presentation?.id || 'default';
+      const fileId = generateUUID();
+      const storagePath = `presentations/${presentationId}/documents/${fileId}_${file.name}`;
+      const storageRef = ref(storage, storagePath);
+
+      // Upload file to Firebase Storage
+      await uploadBytes(storageRef, file);
+
+      // Get public download URL
+      const downloadUrl = await getDownloadURL(storageRef);
+
+      const emailToSave = user.isAnonymous ? guestEmail : user.email;
+      let userName = user.isAnonymous 
+        ? (guestName || (guestEmail ? guestEmail.split('@')[0] : `Guest ${user.uid.slice(0, 4)}`)) 
+        : (user.displayName || user.email?.split('@')[0] || 'Presenter');
+
+      // Create special document share message in Firestore messages collection
+      const messageData: any = {
+        text: `Shared a document: ${file.name}`,
+        userId: user.uid,
+        userName: userName,
+        timestamp: serverTimestamp(),
+        isQuestion: false,
+        presentationId: presentationId,
+        presenterId: presentation?.presenterId || 'default',
+        fileUrl: downloadUrl,
+        fileName: file.name,
+        fileSize: file.size,
+      };
+
+      const slideToSend = currentSlide !== null ? currentSlide : presentation?.currentSlide;
+      if (slideToSend !== undefined && slideToSend !== null) {
+        messageData.slide = slideToSend;
+      }
+
+      if (emailToSave) {
+        messageData.userEmail = emailToSave;
+      }
+
+      await addDoc(collection(db, 'messages'), messageData);
+
+      // Reset file input element
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    } catch (error) {
+      console.error("Error uploading document:", error);
+      alert("Failed to upload document. Please try again.");
+    } finally {
+      setIsUploadingFile(false);
     }
   };
 
@@ -3557,6 +3669,29 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       {!isChatOnly && user && (
         <div className="bg-white border-t border-slate-200 shrink-0 p-3" style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom))' }}>
           <form onSubmit={handleSendMessage} className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploadingFile}
+              className={`shrink-0 p-1.5 rounded-md border border-slate-300 transition-colors flex items-center justify-center ${
+                isUploadingFile 
+                  ? "bg-slate-50 cursor-not-allowed" 
+                  : "bg-white hover:bg-slate-50 text-slate-600 hover:text-indigo-600"
+              }`}
+              title="Upload Document"
+            >
+              {isUploadingFile ? (
+                <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
+              ) : (
+                <Paperclip className="w-4 h-4" />
+              )}
+            </button>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              className="hidden"
+            />
             <input
               type="text"
               placeholder="Post as presenter..."
