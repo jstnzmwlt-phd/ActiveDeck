@@ -907,12 +907,8 @@ const MessageCard: React.FC<MessageCardProps> = ({
       transition={{ duration: 2, ease: "easeInOut" }}
       className={cn(
         isPresenter
-          ? msg.isPinned
-            ? "p-3 rounded-xl border-2 border-indigo-600 bg-indigo-50/95 shadow-lg transition-all relative"
-            : "p-3 rounded-xl border-2 border-indigo-500 bg-indigo-50 shadow-md transition-all relative"
-          : msg.isPinned 
-            ? "p-3 rounded-xl border-2 border-amber-500 bg-amber-50 shadow-lg transition-all relative"
-            : "p-3 rounded-xl border border-orange-200 bg-orange-50 shadow-md transition-all relative",
+          ? "p-3 rounded-xl border-2 border-indigo-500 bg-indigo-50 shadow-md transition-all relative"
+          : "p-3 rounded-xl border border-orange-200 bg-orange-50 shadow-md transition-all relative",
         isCollapsed && "py-2"
       )}
     >
@@ -938,11 +934,6 @@ const MessageCard: React.FC<MessageCardProps> = ({
               {isPresenter && (
                 <span className="inline-flex items-center gap-0.5 bg-indigo-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider shrink-0">
                   Presenter
-                </span>
-              )}
-              {msg.isPinned && (
-                <span className="inline-flex items-center gap-0.5 bg-amber-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider shrink-0">
-                  <Pin className="w-2 h-2 fill-current rotate-45" /> Pinned
                 </span>
               )}
             </span>
@@ -3318,7 +3309,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
         {/* Sticky Pinned Messages Banner */}
         {pinnedMessages.length > 0 && !presentation?.hideComments && (
-          <div className="bg-blue-100/80 border-b border-blue-200 p-2.5 space-y-2 shrink-0 z-20 shadow-sm relative max-h-[160px] overflow-y-auto">
+          <div className="bg-blue-100/80 border-b border-blue-200 p-2.5 space-y-2 shrink-0 z-20 shadow-sm relative max-h-[350px] overflow-y-auto">
             <div className="flex items-center gap-1.5 px-1 mb-1">
               <Pin className="w-3 h-3 text-blue-600 fill-current rotate-45" />
               <span className="text-[9px] font-black uppercase tracking-wider text-blue-800">Pinned Messages</span>
