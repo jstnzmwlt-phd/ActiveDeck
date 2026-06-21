@@ -1667,6 +1667,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         ? (guestName || (guestEmail ? guestEmail.split('@')[0] : `Guest ${user.uid.slice(0, 4)}`)) 
         : (user.displayName || user.email?.split('@')[0] || 'Presenter');
 
+      if (!isChatOnly) {
+        const presenterEmail = sessionStorage.getItem('activePresenterEmail');
+        userName = presenterEmail ? presenterEmail.split('@')[0] : (user.displayName || 'Host');
+      }
+
+
       // Create special document share message in Firestore messages collection
       const messageData: any = {
         text: `Shared a document: ${file.name}`,
