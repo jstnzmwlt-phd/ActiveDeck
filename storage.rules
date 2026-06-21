@@ -1,0 +1,33 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Global, public app logo.
+    // Anyone can read this file, but only SuperAdmins can write it.
+    match /public/app_logo.png {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.token.email == 'jstnzmwlt@gmail.com';
+    }
+
+    // Match the path for institution logos
+    match /logos/{institutionId}/logo.png {
+
+      // Allow any authenticated user to read (view) the logos.
+      // This is necessary for the app to display them.
+      allow read: if request.auth != null;
+
+      // Allow writes (create, update, delete) only for Super Admins.
+      // This rule uses the same logic as your firestore.rules to identify a Super Admin.
+      allow write: if request.auth != null && request.auth.token.email == 'jstnzmwlt@gmail.com';
+    }
+
+    // Match the path for presentation documents
+    match /presentations/{presentationId}/documents/{fileName} {
+      // Allow any authenticated user to read (download)
+      allow read: if request.auth != null;
+      // Allow any authenticated user to upload
+      allow write: if request.auth != null;
+    }
+  }
+}
