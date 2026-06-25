@@ -5,7 +5,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Message, Presentation, Poll, WordCloud, OpenEndedQuestion, GlobalSettings } from '../types';
 import { useAuth } from './AuthProvider';
 import { useBridge } from '../contexts/BridgeContext';
-import { Send, HelpCircle, MessageSquare, Trash2, ThumbsUp, Download, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud, Eye, EyeOff, Timer, Users, ChevronDown, ChevronUp, Pin, Loader2, AlertCircle, Presentation as PresentationIcon, Paperclip, Maximize2, Minimize2 } from 'lucide-react';
+import { Send, HelpCircle, MessageSquare, Trash2, ThumbsUp, Download, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud, Eye, EyeOff, Timer, Users, ChevronDown, ChevronUp, Pin, Loader2, AlertCircle, Presentation as PresentationIcon, Paperclip, Maximize2, Minimize2, X } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { QRCodeSVG } from 'qrcode.react';
@@ -944,6 +944,7 @@ interface MessageCardProps {
   initialCollapsed?: boolean;
   isInitiallyNew?: boolean;
   isPresenter?: boolean;
+  onFocus?: (msg: Message) => void;
 }
 
 const MessageCard: React.FC<MessageCardProps> = ({ 
@@ -955,10 +956,10 @@ const MessageCard: React.FC<MessageCardProps> = ({
   onTogglePin, 
   initialCollapsed = false, 
   isInitiallyNew = false,
-  isPresenter = false
+  isPresenter = false,
+  onFocus
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : initialCollapsed);
-  const [isEnlarged, setIsEnlarged] = useState(false);
   const prevInitialCollapsedRef = useRef(initialCollapsed);
 
   useEffect(() => {
@@ -973,7 +974,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
 
   const handleCardClick = () => {
     if (canModerate) {
-      setIsEnlarged(!isEnlarged);
+      onFocus?.(msg);
     }
   };
 
@@ -1015,55 +1016,38 @@ const MessageCard: React.FC<MessageCardProps> = ({
       } : false}
       transition={{ duration: 2, ease: "easeInOut" }}
       onClick={handleCardClick}
-      title={canModerate ? (isEnlarged ? "Click to minimize" : "Click to enlarge / read easily") : undefined}
+      title={canModerate ? "Click to spotlight / enlarge" : undefined}
       className={cn(
         "transition-all relative duration-300",
         canModerate && "cursor-pointer select-none",
-        isEnlarged
-          ? (isPresenter
-              ? "p-5 md:p-6 rounded-2xl border-2 border-indigo-600 bg-indigo-50/95 ring-4 ring-indigo-500/30 shadow-2xl z-20"
-              : "p-5 md:p-6 rounded-2xl border-2 border-indigo-500 bg-white ring-4 ring-indigo-500/30 shadow-2xl z-20"
-            )
-          : (isPresenter
-              ? "p-3 rounded-xl border-2 border-indigo-500 bg-indigo-50 shadow-md hover:border-indigo-600 hover:shadow-lg"
-              : "p-3 rounded-xl border border-orange-200 bg-orange-50 shadow-md hover:border-orange-400 hover:shadow-lg"
-            ),
-        (isCollapsed && !isEnlarged) && "py-2"
+        isPresenter
+          ? "p-3 rounded-xl border-2 border-indigo-500 bg-indigo-50 shadow-md hover:border-indigo-600 hover:shadow-lg"
+          : "p-3 rounded-xl border border-orange-200 bg-orange-50 shadow-md hover:border-orange-400 hover:shadow-lg",
+        isCollapsed && "py-2"
       )}
     >
       <div className="flex items-center justify-between gap-2 mb-1">
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
-          {!isEnlarged && (
-            <button 
-              onClick={(e) => { e.stopPropagation(); setIsCollapsed(!isCollapsed); }}
-              className={cn(
-                "p-1 -ml-1 rounded transition-colors text-slate-400 focus:outline-none",
-                isPresenter 
-                  ? "hover:bg-indigo-100 hover:text-indigo-600" 
-                  : "hover:bg-orange-100 hover:text-osu-orange"
-              )}
-            >
-              {isCollapsed ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
-            </button>
-          )}
+          <button 
+            onClick={(e) => { e.stopPropagation(); setIsCollapsed(!isCollapsed); }}
+            className={cn(
+              "p-1 -ml-1 rounded transition-colors text-slate-400 focus:outline-none",
+              isPresenter 
+                ? "hover:bg-indigo-100 hover:text-indigo-600" 
+                : "hover:bg-orange-100 hover:text-osu-orange"
+            )}
+          >
+            {isCollapsed ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
+          </button>
           <div className="flex flex-col min-w-0 flex-1">
             <span className={cn(
               "text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 flex-wrap transition-all duration-300",
-              isEnlarged ? "text-xs" : "text-[10px]",
               isPresenter ? "text-indigo-700" : "text-slate-500"
             )}>
-              <span className={cn("truncate", isEnlarged ? "max-w-[200px]" : "max-w-[120px]")}>{msg.userName}</span>
+              <span className="truncate max-w-[120px]">{msg.userName}</span>
               {isPresenter && (
-                <span className={cn(
-                  "inline-flex items-center gap-0.5 bg-indigo-600 text-white font-black rounded-full uppercase tracking-wider shrink-0 transition-all duration-300",
-                  isEnlarged ? "text-[9px] px-2 py-1" : "text-[8px] px-1.5 py-0.5"
-                )}>
+                <span className="inline-flex items-center gap-0.5 bg-indigo-600 text-white font-black rounded-full uppercase tracking-wider shrink-0 text-[8px] px-1.5 py-0.5">
                   Presenter
-                </span>
-              )}
-              {isEnlarged && (
-                <span className="inline-flex items-center gap-1 bg-amber-500 text-slate-950 text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider shadow-sm animate-pulse shrink-0">
-                  <Minimize2 className="w-2.5 h-2.5" /> Focused View
                 </span>
               )}
             </span>
@@ -1108,31 +1092,22 @@ const MessageCard: React.FC<MessageCardProps> = ({
           )}
         </div>
       </div>
-      {(!isCollapsed || isEnlarged) && (
+      {!isCollapsed && (
         <>
-          <div className={cn(
-            "text-slate-800 leading-relaxed transition-all duration-300",
-            isEnlarged ? "text-lg md:text-xl font-medium py-3" : "text-sm"
-          )}>
+          <div className="text-slate-800 leading-relaxed transition-all duration-300 text-sm">
             {msg.text && (
-              <span className={cn(isEnlarged ? "font-semibold text-slate-900" : "font-bold")}>
+              <span className="font-bold">
                 {renderTextWithLinks(msg.text)}
               </span>
             )}
             {msg.fileUrl && (
-              <div className={cn(
-                "mt-2.5 p-3 bg-white/95 rounded-xl border border-slate-200/80 flex items-center justify-between gap-3 shadow-sm hover:border-indigo-400 hover:shadow-md transition-all group/doc",
-                isEnlarged && "p-4 border-indigo-200 bg-indigo-50/30"
-              )}>
+              <div className="mt-2.5 p-3 bg-white/95 rounded-xl border border-slate-200/80 flex items-center justify-between gap-3 shadow-sm hover:border-indigo-400 hover:shadow-md transition-all group/doc">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg group-hover/doc:bg-indigo-100 group-hover/doc:text-indigo-700 transition-colors flex items-center justify-center shrink-0">
                     <Download className="w-4 h-4" />
                   </div>
                   <div className="min-w-0 flex flex-col items-start">
-                    <span className={cn(
-                      "font-bold text-slate-800 truncate block w-full",
-                      isEnlarged ? "text-sm max-w-[200px]" : "text-xs max-w-[130px]"
-                    )} title={msg.fileName}>
+                    <span className="font-bold text-slate-800 truncate block w-full text-xs max-w-[130px]" title={msg.fileName}>
                       {msg.fileName || "Shared Document"}
                     </span>
                     {msg.fileSize !== undefined && msg.fileSize !== null && (
@@ -1159,7 +1134,6 @@ const MessageCard: React.FC<MessageCardProps> = ({
             {(msg.slide !== undefined && msg.slide !== null) && (
               <span className={cn(
                 "inline-flex items-center ml-1.5 px-2.5 py-1 rounded-full text-[11px] font-normal text-white border-2 border-white uppercase tracking-wider transition-all duration-300",
-                isEnlarged ? "text-xs px-3.5 py-1.5 font-bold animate-bounce" : "text-[11px]",
                 isPresenter 
                   ? "bg-indigo-600 shadow-[0_2px_4px_rgba(79,70,229,0.3)]"
                   : "bg-[#ff3e00] shadow-[0_2px_4px_rgba(255,62,0,0.3)]"
@@ -1174,10 +1148,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
               </span>
             )}
           </div>
-          <div className={cn(
-            "mt-2 text-slate-450 text-right transition-all duration-300",
-            isEnlarged ? "text-xs font-semibold" : "text-[9px]"
-          )}>
+          <div className="mt-2 text-slate-450 text-[9px] text-right">
             {msg.timestamp?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </div>
         </>
@@ -1240,6 +1211,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [openEndedQuestionPrompt, setOpenEndedQuestionPrompt] = useState('');
   const [pollDuration, setPollDuration] = useState(60); // Default 60 seconds
   const [participantCount, setParticipantCount] = useState(0);
+  const [focusedMessage, setFocusedMessage] = useState<Message | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const hasActiveInteractive = 
@@ -3474,6 +3446,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 initialCollapsed={isAllCollapsed}
                 isInitiallyNew={false}
                 isPresenter={msg.userId === presentation?.presenterId}
+                onFocus={(msg) => setFocusedMessage(focusedMessage?.id === msg.id ? null : msg)}
               />
             ))}
           </div>
@@ -3608,6 +3581,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                   initialCollapsed={isAllCollapsed}
                   isInitiallyNew={isInitiallyNew}
                   isPresenter={msg.userId === presentation?.presenterId}
+                  onFocus={(msg) => setFocusedMessage(focusedMessage?.id === msg.id ? null : msg)}
                 />
               );
             })}
@@ -3944,6 +3918,112 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Spotlight Floating Modal Overlay */}
+      {focusedMessage !== null && canModerate && (
+        <div 
+          className="fixed inset-0 bg-slate-950/75 backdrop-blur-md z-[9999] flex items-center justify-center p-4 md:p-6 cursor-pointer select-none animate-in fade-in duration-200"
+          onClick={() => setFocusedMessage(null)}
+        >
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }} 
+            animate={{ scale: 1, opacity: 1 }} 
+            transition={{ type: "spring", duration: 0.4 }} 
+            className={cn(
+              "bg-white rounded-3xl shadow-2xl relative max-w-2xl w-full p-8 md:p-10 border-4 overflow-hidden text-slate-800 cursor-default",
+              focusedMessage.userId === presentation?.presenterId ? "border-indigo-600 shadow-indigo-500/10" : "border-orange-500 shadow-orange-500/10"
+            )}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button 
+              onClick={() => setFocusedMessage(null)}
+              className="absolute top-6 right-6 p-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors focus:outline-none"
+              title="Close Spotlight"
+            >
+              <X className="w-6 h-6" />
+            </button>
+
+            {/* Avatar & Header */}
+            <div className="flex flex-col items-center text-center">
+              <div className={cn(
+                "w-16 h-16 rounded-full flex items-center justify-center text-xl font-black text-white shadow-lg mb-3",
+                focusedMessage.userId === presentation?.presenterId
+                  ? "bg-gradient-to-br from-indigo-500 to-purple-600 shadow-indigo-500/30" 
+                  : "bg-gradient-to-br from-orange-400 to-[#ff3e00] shadow-orange-500/30"
+              )}>
+                {focusedMessage.userName ? focusedMessage.userName.slice(0, 2).toUpperCase() : "G"}
+              </div>
+              <h4 className="text-lg font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
+                {focusedMessage.userName || "Guest Participant"}
+                {focusedMessage.userId === presentation?.presenterId && (
+                  <span className="bg-indigo-600 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                    Presenter
+                  </span>
+                )}
+              </h4>
+            </div>
+
+            {/* Message Body */}
+            {focusedMessage.text && (
+              <div className="text-2xl md:text-3xl font-black text-slate-900 leading-relaxed text-center my-6 md:my-8 break-words select-text">
+                {renderTextWithLinks(focusedMessage.text)}
+              </div>
+            )}
+
+            {/* File Upload / Shared Document inside Spotlight */}
+            {focusedMessage.fileUrl && (
+              <div className="p-4 rounded-2xl bg-indigo-50/40 border-2 border-indigo-100/70 flex items-center justify-between gap-4 max-w-md mx-auto my-4 transition-all shadow-sm">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="p-2.5 bg-indigo-100 text-indigo-700 rounded-xl flex items-center justify-center shrink-0">
+                    <Download className="w-5 h-5 animate-pulse" />
+                  </div>
+                  <div className="min-w-0 flex flex-col items-start text-left">
+                    <span className="font-extrabold text-slate-800 truncate block text-sm max-w-[200px]" title={focusedMessage.fileName}>
+                      {focusedMessage.fileName || "Shared Document"}
+                    </span>
+                    {focusedMessage.fileSize !== undefined && focusedMessage.fileSize !== null && (
+                      <span className="text-[10px] text-slate-500 font-bold mt-0.5 block">
+                        {formatFileSize(focusedMessage.fileSize)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <a
+                  href={focusedMessage.fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  download={focusedMessage.fileName || "download"}
+                  className="shrink-0 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.97] text-white rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 text-xs font-black uppercase tracking-wide select-none"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download</span>
+                </a>
+              </div>
+            )}
+
+            {/* Metadata Footer */}
+            <div className="flex flex-wrap items-center justify-center gap-3 border-t border-slate-100 pt-6 mt-6">
+              {(focusedMessage.slide !== undefined && focusedMessage.slide !== null) && (
+                <span className={cn(
+                  "inline-flex items-center gap-1 px-4 py-1.5 rounded-full text-xs font-black text-white uppercase tracking-wider shadow-md",
+                  focusedMessage.userId === presentation?.presenterId ? "bg-indigo-600 shadow-indigo-600/20" : "bg-[#ff3e00] shadow-[#ff3e00]/20"
+                )}>
+                  Slide {focusedMessage.slide}
+                </span>
+              )}
+              <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-black bg-yellow-400 text-slate-900 shadow-md">
+                <ThumbsUp className="w-3.5 h-3.5 fill-current" />
+                {focusedMessage.likes || 0} Likes
+              </span>
+              <span className="inline-flex items-center gap-1 px-4 py-1.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-500">
+                {focusedMessage.timestamp?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            </div>
+          </motion.div>
         </div>
       )}
     </div>
