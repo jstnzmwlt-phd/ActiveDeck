@@ -4021,28 +4021,23 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           {/* Close Button */}
           <button 
             onClick={() => setFocusedMessage(null)}
-            className="absolute top-4 right-4 p-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors focus:outline-none z-10"
+            className="absolute top-4 right-4 p-2 bg-slate-100 hover:bg-red-500 hover:text-white text-slate-500 hover:rotate-90 rounded-full transition-all duration-200 shadow-md focus:outline-none z-10 active:scale-95"
             title="Close Spotlight"
           >
-            <X className="w-5 h-5" />
+            <X className="w-6 h-6 stroke-[3]" />
           </button>
 
           {/* Scrollable Content Wrapper */}
           <div className="pt-6 overflow-y-auto max-h-[60vh]">
-            {/* Avatar & Header */}
-            <div className="flex flex-col items-center text-center">
-              <div className={cn(
-                "w-16 h-16 rounded-full flex items-center justify-center text-xl font-black text-white shadow-lg mb-3",
-                focusedMessage.userId === presentation?.presenterId
-                  ? "bg-gradient-to-br from-indigo-500 to-purple-600 shadow-indigo-500/30" 
-                  : "bg-gradient-to-br from-orange-400 to-[#ff3e00] shadow-orange-500/30"
-              )}>
-                {focusedMessage.userName ? focusedMessage.userName.slice(0, 2).toUpperCase() : "G"}
-              </div>
-              <h4 className="text-lg font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
+            {/* Streamlined Sender Metadata Subtitle (Circular Avatar Removed) */}
+            <div className="flex items-center justify-center gap-1.5 mb-4 text-center">
+              <span className="text-xs font-black uppercase tracking-wider text-slate-400">
+                Sent by:
+              </span>
+              <h4 className="text-sm font-black text-slate-700 uppercase tracking-tight flex items-center gap-1.5">
                 {focusedMessage.userName || "Guest Participant"}
                 {focusedMessage.userId === presentation?.presenterId && (
-                  <span className="bg-indigo-600 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                  <span className="bg-indigo-600 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
                     Presenter
                   </span>
                 )}
