@@ -3365,30 +3365,27 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                   <div className="flex items-stretch gap-1.5">
                     <button 
                       onClick={handleCreatePoll}
-                      className="flex-1 flex flex-row items-center justify-center gap-1 px-1 py-1.5 bg-osu-orange text-white rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-[#c03900] transition-all shadow-sm leading-tight border-0 cursor-pointer"
+                      className="flex-1 flex items-center justify-center py-2.5 bg-osu-orange text-white rounded-lg text-xs font-black uppercase tracking-wider hover:bg-[#c03900] transition-all shadow-sm border-0 cursor-pointer"
                     >
-                      <BarChart2 className="w-3.5 h-3.5" />
                       <span>MCQ</span>
                     </button>
                     <button 
                       onClick={() => handleCreateWordCloud('Word Cloud')}
-                      className="flex-1 flex flex-row items-center justify-center gap-1 px-1 py-1.5 bg-blue-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-blue-600 transition-all shadow-sm leading-tight border-0 cursor-pointer"
+                      className="flex-1 flex items-center justify-center py-2.5 bg-blue-500 text-white rounded-lg text-xs font-black uppercase tracking-wider hover:bg-blue-600 transition-all shadow-sm border-0 cursor-pointer"
                     >
-                      <Cloud className="w-3.5 h-3.5" />
                       <span>Word</span>
                     </button>
                     <button                
-                        onClick={() => handleCreateOpenEndedQuestion('Open question')}
-                        className="flex-1 flex flex-row items-center justify-center gap-1 px-1 py-1.5 bg-green-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-green-600 transition-all shadow-sm leading-tight border-0 cursor-pointer"
+                      onClick={() => handleCreateOpenEndedQuestion('Open question')}
+                      className="flex-1 flex items-center justify-center py-2.5 bg-green-500 text-white rounded-lg text-xs font-black uppercase tracking-wider hover:bg-green-600 transition-all shadow-sm border-0 cursor-pointer"
                     >                
-                      <MessageSquare className="w-3.5 h-3.5" />
                       <span>Open ?</span>
                     </button>
                   </div>
                   <button 
                     onClick={() => setIsAllCollapsed(!isAllCollapsed)}
                     className={cn(
-                      "w-full flex items-center justify-center gap-1.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border shadow-sm cursor-pointer",
+                      "w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all border shadow-sm cursor-pointer",
                       isAllCollapsed 
                         ? "bg-slate-800 text-osu-orange border-slate-700" 
                         : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200"
