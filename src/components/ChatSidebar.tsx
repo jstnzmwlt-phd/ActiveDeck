@@ -5,7 +5,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Message, Presentation, Poll, WordCloud, OpenEndedQuestion, GlobalSettings } from '../types';
 import { useAuth } from './AuthProvider';
 import { useBridge } from '../contexts/BridgeContext';
-import { Send, HelpCircle, MessageSquare, Trash2, ThumbsUp, Download, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud, Eye, EyeOff, Timer, Users, ChevronDown, ChevronUp, Pin, Loader2, AlertCircle, Presentation as PresentationIcon, Paperclip } from 'lucide-react';
+import { Send, HelpCircle, MessageSquare, Trash2, ThumbsUp, Download, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud, Eye, EyeOff, Timer, Users, ChevronDown, ChevronUp, Pin, Loader2, AlertCircle, Presentation as PresentationIcon, Paperclip, Maximize2, Minimize2 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { QRCodeSVG } from 'qrcode.react';
@@ -958,6 +958,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
   isPresenter = false
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : initialCollapsed);
+  const [isEnlarged, setIsEnlarged] = useState(false);
   const prevInitialCollapsedRef = useRef(initialCollapsed);
 
   useEffect(() => {
@@ -969,6 +970,12 @@ const MessageCard: React.FC<MessageCardProps> = ({
 
   // Determine if this is a "new" message (within last 10 seconds) to trigger pulsation
   const isPulsingNew = !msg.timestamp || (Date.now() - msg.timestamp.toMillis() < 10000);
+
+  const handleCardClick = () => {
+    if (canModerate) {
+      setIsEnlarged(!isEnlarged);
+    }
+  };
 
   return (
     <motion.div 
@@ -1007,35 +1014,56 @@ const MessageCard: React.FC<MessageCardProps> = ({
             ]
       } : false}
       transition={{ duration: 2, ease: "easeInOut" }}
+      onClick={handleCardClick}
+      title={canModerate ? (isEnlarged ? "Click to minimize" : "Click to enlarge / read easily") : undefined}
       className={cn(
-        isPresenter
-          ? "p-3 rounded-xl border-2 border-indigo-500 bg-indigo-50 shadow-md transition-all relative"
-          : "p-3 rounded-xl border border-orange-200 bg-orange-50 shadow-md transition-all relative",
-        isCollapsed && "py-2"
+        "transition-all relative duration-300",
+        canModerate && "cursor-pointer select-none",
+        isEnlarged
+          ? (isPresenter
+              ? "p-5 md:p-6 rounded-2xl border-2 border-indigo-600 bg-indigo-50/95 ring-4 ring-indigo-500/30 shadow-2xl z-20"
+              : "p-5 md:p-6 rounded-2xl border-2 border-indigo-500 bg-white ring-4 ring-indigo-500/30 shadow-2xl z-20"
+            )
+          : (isPresenter
+              ? "p-3 rounded-xl border-2 border-indigo-500 bg-indigo-50 shadow-md hover:border-indigo-600 hover:shadow-lg"
+              : "p-3 rounded-xl border border-orange-200 bg-orange-50 shadow-md hover:border-orange-400 hover:shadow-lg"
+            ),
+        (isCollapsed && !isEnlarged) && "py-2"
       )}
     >
       <div className="flex items-center justify-between gap-2 mb-1">
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
-          <button 
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className={cn(
-              "p-1 -ml-1 rounded transition-colors text-slate-400 focus:outline-none",
-              isPresenter 
-                ? "hover:bg-indigo-100 hover:text-indigo-600" 
-                : "hover:bg-orange-100 hover:text-osu-orange"
-            )}
-          >
-            {isCollapsed ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
-          </button>
+          {!isEnlarged && (
+            <button 
+              onClick={(e) => { e.stopPropagation(); setIsCollapsed(!isCollapsed); }}
+              className={cn(
+                "p-1 -ml-1 rounded transition-colors text-slate-400 focus:outline-none",
+                isPresenter 
+                  ? "hover:bg-indigo-100 hover:text-indigo-600" 
+                  : "hover:bg-orange-100 hover:text-osu-orange"
+              )}
+            >
+              {isCollapsed ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
+            </button>
+          )}
           <div className="flex flex-col min-w-0 flex-1">
             <span className={cn(
-              "text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 flex-wrap",
+              "text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 flex-wrap transition-all duration-300",
+              isEnlarged ? "text-xs" : "text-[10px]",
               isPresenter ? "text-indigo-700" : "text-slate-500"
             )}>
-              <span className="truncate max-w-[120px]">{msg.userName}</span>
+              <span className={cn("truncate", isEnlarged ? "max-w-[200px]" : "max-w-[120px]")}>{msg.userName}</span>
               {isPresenter && (
-                <span className="inline-flex items-center gap-0.5 bg-indigo-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider shrink-0">
+                <span className={cn(
+                  "inline-flex items-center gap-0.5 bg-indigo-600 text-white font-black rounded-full uppercase tracking-wider shrink-0 transition-all duration-300",
+                  isEnlarged ? "text-[9px] px-2 py-1" : "text-[8px] px-1.5 py-0.5"
+                )}>
                   Presenter
+                </span>
+              )}
+              {isEnlarged && (
+                <span className="inline-flex items-center gap-1 bg-amber-500 text-slate-950 text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider shadow-sm animate-pulse shrink-0">
+                  <Minimize2 className="w-2.5 h-2.5" /> Focused View
                 </span>
               )}
             </span>
@@ -1043,7 +1071,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
         </div>
         <div className="flex items-center gap-1 shrink-0 ml-2">
           <button
-            onClick={() => onLike(msg)}
+            onClick={(e) => { e.stopPropagation(); onLike(msg); }}
             className={cn(
               "flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold transition-colors border focus:outline-none",
               (msg.likes || 0) > 0 
@@ -1057,7 +1085,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
           </button>
           {canModerate && (
             <button
-              onClick={() => onTogglePin?.(msg)}
+              onClick={(e) => { e.stopPropagation(); onTogglePin?.(msg); }}
               className={cn(
                 "p-1 rounded-md transition-colors flex-shrink-0 focus:outline-none hover:bg-black/5",
                 msg.isPinned 
@@ -1071,7 +1099,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
           )}
           {(user?.uid === msg.userId || canModerate) && (
             <button
-              onClick={() => onDelete(msg.id)}
+              onClick={(e) => { e.stopPropagation(); onDelete(msg.id); }}
               className="p-1 rounded-md text-slate-350 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0 focus:outline-none"
               title="Delete Message"
             >
@@ -1080,20 +1108,31 @@ const MessageCard: React.FC<MessageCardProps> = ({
           )}
         </div>
       </div>
-      {!isCollapsed && (
+      {(!isCollapsed || isEnlarged) && (
         <>
-          <div className="text-sm text-slate-800 leading-relaxed">
+          <div className={cn(
+            "text-slate-800 leading-relaxed transition-all duration-300",
+            isEnlarged ? "text-lg md:text-xl font-medium py-3" : "text-sm"
+          )}>
             {msg.text && (
-              <span className="font-bold">{renderTextWithLinks(msg.text)}</span>
+              <span className={cn(isEnlarged ? "font-semibold text-slate-900" : "font-bold")}>
+                {renderTextWithLinks(msg.text)}
+              </span>
             )}
             {msg.fileUrl && (
-              <div className="mt-2.5 p-3 bg-white/95 rounded-xl border border-slate-200/80 flex items-center justify-between gap-3 shadow-sm hover:border-indigo-400 hover:shadow-md transition-all group/doc">
+              <div className={cn(
+                "mt-2.5 p-3 bg-white/95 rounded-xl border border-slate-200/80 flex items-center justify-between gap-3 shadow-sm hover:border-indigo-400 hover:shadow-md transition-all group/doc",
+                isEnlarged && "p-4 border-indigo-200 bg-indigo-50/30"
+              )}>
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg group-hover/doc:bg-indigo-100 group-hover/doc:text-indigo-700 transition-colors flex items-center justify-center shrink-0">
                     <Download className="w-4 h-4" />
                   </div>
                   <div className="min-w-0 flex flex-col items-start">
-                    <span className="text-xs font-bold text-slate-800 truncate block w-full max-w-[130px]" title={msg.fileName}>
+                    <span className={cn(
+                      "font-bold text-slate-800 truncate block w-full",
+                      isEnlarged ? "text-sm max-w-[200px]" : "text-xs max-w-[130px]"
+                    )} title={msg.fileName}>
                       {msg.fileName || "Shared Document"}
                     </span>
                     {msg.fileSize !== undefined && msg.fileSize !== null && (
@@ -1119,7 +1158,8 @@ const MessageCard: React.FC<MessageCardProps> = ({
             )}
             {(msg.slide !== undefined && msg.slide !== null) && (
               <span className={cn(
-                "inline-flex items-center ml-1.5 px-2.5 py-1 rounded-full text-[11px] font-normal text-white border-2 border-white uppercase tracking-wider",
+                "inline-flex items-center ml-1.5 px-2.5 py-1 rounded-full text-[11px] font-normal text-white border-2 border-white uppercase tracking-wider transition-all duration-300",
+                isEnlarged ? "text-xs px-3.5 py-1.5 font-bold animate-bounce" : "text-[11px]",
                 isPresenter 
                   ? "bg-indigo-600 shadow-[0_2px_4px_rgba(79,70,229,0.3)]"
                   : "bg-[#ff3e00] shadow-[0_2px_4px_rgba(255,62,0,0.3)]"
@@ -1134,7 +1174,10 @@ const MessageCard: React.FC<MessageCardProps> = ({
               </span>
             )}
           </div>
-          <div className="mt-2 text-[9px] text-slate-400 text-right">
+          <div className={cn(
+            "mt-2 text-slate-450 text-right transition-all duration-300",
+            isEnlarged ? "text-xs font-semibold" : "text-[9px]"
+          )}>
             {msg.timestamp?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </div>
         </>
