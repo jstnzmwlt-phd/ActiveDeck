@@ -300,7 +300,7 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance }
   }, [isWakeLockActive]);
 
   return (
-    <div className={`p-4 bg-white border-b border-slate-200 h-12 py-1 relative w-full flex-shrink-0 ${(isAdminModalOpen || isExportModalOpen) ? 'z-[200]' : 'z-50'}`}>
+    <div className={`p-4 bg-white border-b border-slate-200 h-14 py-1.5 relative w-full flex-shrink-0 ${(isAdminModalOpen || isExportModalOpen) ? 'z-[200]' : 'z-50'}`}>
       <div className="flex items-center justify-between relative h-full">
         <div className="flex items-center gap-4 z-10">
           <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
@@ -349,9 +349,9 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance }
 
         <div className="flex items-center gap-4 z-10">
           {/* Join URL Display */}
-          <div className="flex items-center gap-1.5 bg-slate-100 px-3.5 py-1.5 rounded-xl border border-slate-200 shadow-sm text-sm font-bold text-slate-700 select-none">
-            <span className="text-slate-500 font-extrabold uppercase text-[10px] tracking-wider">Join Here:</span>
-            <span className="text-osu-orange select-all font-mono font-black">{window.location.origin}/chat</span>
+          <div className="flex items-center gap-2 bg-slate-100 px-4 py-1 rounded-xl border-2 border-slate-205 shadow-sm select-none">
+            <span className="text-slate-550 font-black uppercase text-[12px] tracking-wider">Join Here:</span>
+            <span className="text-osu-orange select-all font-mono font-black text-[18px]">{window.location.origin}/chat</span>
           </div>
 
           {presentationId && showAttendance && (

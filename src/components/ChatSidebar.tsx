@@ -3109,15 +3109,15 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         <div className="bg-slate-900 text-white px-3.5 py-3.5 border-b border-slate-800">
           <div className="flex items-center justify-between gap-2.5">
             <div className="flex flex-col min-w-0 flex-1 gap-1.5">
-              <div className="flex items-center gap-1.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-osu-orange animate-pulse" />
-                <span className="text-[10px] font-black text-osu-orange uppercase tracking-widest">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-osu-orange animate-pulse" />
+                <span className="text-xs font-black text-osu-orange uppercase tracking-wider">
                   Join Code:
                 </span>
               </div>
               {presentation?.pinCode && (
-                <div className="mt-1">
-                  <span className="text-[28px] font-mono font-black tracking-wider text-osu-orange bg-osu-orange/10 border border-osu-orange/20 px-3.5 py-1.5 rounded-xl leading-none select-all shadow-sm inline-block">
+                <div className="mt-1.5">
+                  <span className="text-[32px] font-mono font-black tracking-wider text-osu-orange bg-osu-orange/10 border border-osu-orange/20 px-4 py-2 rounded-2xl leading-none select-all shadow-sm inline-block">
                     {presentation.pinCode.replace(/(\d{3})(\d{3})/, '$1 $2')}
                   </span>
                 </div>
