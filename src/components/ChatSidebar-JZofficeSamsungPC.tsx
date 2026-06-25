@@ -1110,6 +1110,72 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [pollDuration, setPollDuration] = useState(60); // Default 60 seconds
   const [participantCount, setParticipantCount] = useState(0);
   const [focusedMessage, setFocusedMessage] = useState<Message | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      setDragPosition((prev) => ({
+        x: prev.x + e.clientX - dragStart.x,
+        y: prev.y + e.clientY - dragStart.y,
+      }));
+      setDragStart({ x: e.clientX, y: e.clientY });
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 0) return;
+      const touch = e.touches[0];
+      setDragPosition((prev) => ({
+        x: prev.x + touch.clientX - dragStart.x,
+        y: prev.y + touch.clientY - dragStart.y,
+      }));
+      setDragStart({ x: touch.clientX, y: touch.clientY });
+    };
+
+    const handleTouchEnd = () => {
+      setIsDragging(false);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('touchmove', handleTouchMove);
+    window.addEventListener('touchend', handleTouchEnd);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [isDragging, dragStart]);
+
+  // Reset drag position back to centered when focused message changes
+  useEffect(() => {
+    if (focusedMessage === null) {
+      setDragPosition({ x: 0, y: 0 });
+    }
+  }, [focusedMessage]);
+
+  const handleDragMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    setIsDragging(true);
+    setDragStart({ x: e.clientX, y: e.clientY });
+    e.preventDefault(); // Prevent text highlighting while dragging
+  };
+
+  const handleDragTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 0) return;
+    setIsDragging(true);
+    setDragStart({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+  };
+
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const hasActiveInteractive = 
@@ -3815,31 +3881,48 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         </div>
       )}
 
-      {/* Spotlight Floating Modal Overlay */}
+      {/* Spotlight Floating Draggable Panel */}
       {focusedMessage !== null && canModerate && (
-        <div 
-          className="fixed inset-0 bg-slate-950/75 backdrop-blur-md z-[9999] flex items-center justify-center p-4 md:p-6 cursor-pointer select-none animate-in fade-in duration-200"
-          onClick={() => setFocusedMessage(null)}
+        <motion.div 
+          initial={{ scale: 0.9, opacity: 0, x: "-50%", y: "-50%" }} 
+          animate={{ scale: 1, opacity: 1, x: "-50%", y: "-50%" }} 
+          transition={{ type: "spring", duration: 0.4 }} 
+          style={{
+            left: `calc(50% + ${dragPosition.x}px)`,
+            top: `calc(50% + ${dragPosition.y}px)`,
+          }}
+          className={cn(
+            "fixed z-[9999] bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border-4 overflow-hidden text-slate-800 max-w-xl w-[90vw] md:w-full flex flex-col p-6 select-none",
+            focusedMessage.userId === presentation?.presenterId ? "border-indigo-600/90 shadow-indigo-500/15" : "border-orange-500/90 shadow-orange-500/15"
+          )}
         >
-          <motion.div 
-            initial={{ scale: 0.9, opacity: 0 }} 
-            animate={{ scale: 1, opacity: 1 }} 
-            transition={{ type: "spring", duration: 0.4 }} 
+          {/* Drag Handle Top Bar */}
+          <div 
+            onMouseDown={handleDragMouseDown}
+            onTouchStart={handleDragTouchStart}
             className={cn(
-              "bg-white rounded-3xl shadow-2xl relative max-w-2xl w-full p-8 md:p-10 border-4 overflow-hidden text-slate-800 cursor-default",
-              focusedMessage.userId === presentation?.presenterId ? "border-indigo-600 shadow-indigo-500/10" : "border-orange-500 shadow-orange-500/10"
+              "w-full pt-1 pb-4 flex flex-col items-center justify-center cursor-grab border-b border-slate-100 active:cursor-grabbing shrink-0",
+              isDragging && "cursor-grabbing"
             )}
-            onClick={(e) => e.stopPropagation()}
+            title="Drag to reposition spotlight window"
           >
-            {/* Close Button */}
-            <button 
-              onClick={() => setFocusedMessage(null)}
-              className="absolute top-6 right-6 p-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors focus:outline-none"
-              title="Close Spotlight"
-            >
-              <X className="w-6 h-6" />
-            </button>
+            <div className="w-12 h-1.5 bg-slate-300 hover:bg-slate-400 transition-colors rounded-full mb-1.5" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              Floating Spotlight (Drag)
+            </span>
+          </div>
 
+          {/* Close Button */}
+          <button 
+            onClick={() => setFocusedMessage(null)}
+            className="absolute top-4 right-4 p-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors focus:outline-none z-10"
+            title="Close Spotlight"
+          >
+            <X className="w-5 h-5" />
+          </button>
+
+          {/* Scrollable Content Wrapper */}
+          <div className="pt-6 overflow-y-auto max-h-[60vh]">
             {/* Avatar & Header */}
             <div className="flex flex-col items-center text-center">
               <div className={cn(
@@ -3917,8 +4000,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 {focusedMessage.timestamp?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
             </div>
-          </motion.div>
-        </div>
+          </div>
+        </motion.div>
       )}
     </div>
   );
