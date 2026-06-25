@@ -348,6 +348,12 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance }
         </div>
 
         <div className="flex items-center gap-4 z-10">
+          {/* Join URL Display */}
+          <div className="flex items-center gap-1.5 bg-slate-100 px-3.5 py-1.5 rounded-xl border border-slate-200 shadow-sm text-sm font-bold text-slate-700 select-none">
+            <span className="text-slate-500 font-extrabold uppercase text-[10px] tracking-wider">Join Here:</span>
+            <span className="text-osu-orange select-all font-mono font-black">{window.location.origin}/chat</span>
+          </div>
+
           {presentationId && showAttendance && (
             <button
               onClick={() => setIsExportModalOpen(true)}
