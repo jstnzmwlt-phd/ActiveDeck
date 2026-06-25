@@ -384,7 +384,7 @@ function AppContent() {
 
   if (appError) {
     return (
-      <div className="h-screen w-screen flex flex-col items-center justify-center bg-red-900 text-white p-8 text-center">
+      <div className="h-full w-full flex flex-col items-center justify-center bg-red-900 text-white p-8 text-center">
         <AlertCircle className="w-12 h-12 mb-4" />
         <h1 className="text-xl font-bold mb-2">Application Error</h1>
         <pre className="text-xs bg-black/30 p-4 rounded-lg mb-6 max-w-full overflow-auto whitespace-pre-wrap">
@@ -403,7 +403,7 @@ function AppContent() {
   if (isLoading) {
     console.log('AppContent - Rendering Loading State. Auth:', authLoading);
     return (
-      <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-900 text-white">
+      <div className="h-full w-full flex flex-col items-center justify-center bg-slate-900 text-white">
         <Loader2 className="w-12 h-12 text-osu-orange animate-spin mb-4" />
         <p className="text-sm font-black uppercase tracking-[0.3em] opacity-50">Initializing ActiveDeck</p>
       </div>
@@ -435,7 +435,7 @@ function AppContent() {
   // Ask for presenter's email before letting them proceed to the presenter screen
   if (!isChatOnly && !presenterEmail) {
     return (
-      <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-950 text-white p-6">
+      <div className="h-full w-full flex flex-col items-center justify-center bg-slate-950 text-white p-6">
         <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl shadow-orange-500/5 text-center space-y-6 animate-in zoom-in-95 duration-200">
           <div className="w-16 h-16 bg-osu-orange/10 border border-osu-orange/20 text-osu-orange rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-orange-500/10">
             <PresentationIcon className="w-8 h-8 animate-pulse" />
@@ -512,7 +512,7 @@ function AppContent() {
   // Chat-only view for audience members who scanned the QR code
   if (isChatOnly) {
     return (
-      <div className="h-[100dvh] w-screen bg-white font-sans antialiased overflow-hidden">
+      <div className="h-full w-full bg-white font-sans antialiased overflow-hidden">
         <ChatSidebar 
           isChatOnly={true} 
           presentation={presentation} 
@@ -525,7 +525,7 @@ function AppContent() {
   }
 
   return (
-    <div className="flex flex-col h-[100dvh] w-screen overflow-hidden bg-slate-100 font-sans antialiased">
+    <div className="flex flex-col h-full w-full overflow-hidden bg-slate-100 font-sans antialiased">
       <Header 
         presentationId={presentation?.id || presentationId} 
         showAttendance={settings?.showAttendance}

@@ -26,11 +26,54 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance }
   });
 
   useEffect(() => {
+    // Clean up any zoom property on html or body from previous versions
     if (document.body && (document.body.style as any).zoom) {
       (document.body.style as any).zoom = '';
     }
-    (document.documentElement.style as any).zoom = zoom.toString();
+    if (document.documentElement && (document.documentElement.style as any).zoom) {
+      (document.documentElement.style as any).zoom = '';
+    }
+
+    const html = document.documentElement;
+    const body = document.body;
+    const root = document.getElementById('root');
+
+    if (html) {
+      html.style.transform = `scale(${zoom})`;
+      html.style.transformOrigin = 'top left';
+      html.style.width = `${100 / zoom}%`;
+      html.style.height = `${100 / zoom}%`;
+    }
+
+    if (body) {
+      body.style.width = '100%';
+      body.style.height = '100%';
+    }
+
+    if (root) {
+      root.style.width = '100%';
+      root.style.height = '100%';
+    }
+
     localStorage.setItem('activeDeckZoom', zoom.toString());
+
+    return () => {
+      // Clean up styles on unmount
+      if (html) {
+        html.style.transform = '';
+        html.style.transformOrigin = '';
+        html.style.width = '';
+        html.style.height = '';
+      }
+      if (body) {
+        body.style.width = '';
+        body.style.height = '';
+      }
+      if (root) {
+        root.style.width = '';
+        root.style.height = '';
+      }
+    };
   }, [zoom]);
 
   const handleZoomIn = () => {
