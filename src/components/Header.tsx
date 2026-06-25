@@ -26,7 +26,10 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance }
   });
 
   useEffect(() => {
-    (document.body.style as any).zoom = zoom.toString();
+    if (document.body && (document.body.style as any).zoom) {
+      (document.body.style as any).zoom = '';
+    }
+    (document.documentElement.style as any).zoom = zoom.toString();
     localStorage.setItem('activeDeckZoom', zoom.toString());
   }, [zoom]);
 
