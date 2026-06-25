@@ -97,6 +97,8 @@ export interface WordCloud {
   started?: boolean;
   showResults?: boolean;
   slide?: number;
+  expiresAt?: Timestamp;
+  duration?: number;
 }
 
 export interface WhitelistedPresenter {
