@@ -945,6 +945,7 @@ interface MessageCardProps {
   isInitiallyNew?: boolean;
   isPresenter?: boolean;
   onFocus?: (msg: Message) => void;
+  forceCollapsed?: boolean;
 }
 
 const MessageCard: React.FC<MessageCardProps> = ({ 
@@ -957,7 +958,8 @@ const MessageCard: React.FC<MessageCardProps> = ({
   initialCollapsed = false, 
   isInitiallyNew = false,
   isPresenter = false,
-  onFocus
+  onFocus,
+  forceCollapsed = false
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : initialCollapsed);
   const prevInitialCollapsedRef = useRef(initialCollapsed);
@@ -968,6 +970,12 @@ const MessageCard: React.FC<MessageCardProps> = ({
       prevInitialCollapsedRef.current = initialCollapsed;
     }
   }, [initialCollapsed]);
+
+  useEffect(() => {
+    if (forceCollapsed) {
+      setIsCollapsed(true);
+    }
+  }, [forceCollapsed]);
 
   // Determine if this is a "new" message (within last 10 seconds) to trigger pulsation
   const isPulsingNew = !msg.timestamp || (Date.now() - msg.timestamp.toMillis() < 10000);
@@ -1212,6 +1220,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [pollDuration, setPollDuration] = useState(60); // Default 60 seconds
   const [participantCount, setParticipantCount] = useState(0);
   const [focusedMessage, setFocusedMessage] = useState<Message | null>(null);
+  const [collapsedMessageIds, setCollapsedMessageIds] = useState<Record<string, boolean>>({});
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
@@ -3512,7 +3521,17 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 initialCollapsed={isAllCollapsed}
                 isInitiallyNew={false}
                 isPresenter={msg.userId === presentation?.presenterId}
-                onFocus={(msg) => setFocusedMessage(focusedMessage?.id === msg.id ? null : msg)}
+                onFocus={(msg) => {
+                  const isAlreadyFocused = focusedMessage?.id === msg.id;
+                  if (isAlreadyFocused) {
+                    setCollapsedMessageIds(prev => ({ ...prev, [msg.id]: true }));
+                    setFocusedMessage(null);
+                  } else {
+                    setCollapsedMessageIds(prev => ({ ...prev, [msg.id]: false }));
+                    setFocusedMessage(msg);
+                  }
+                }}
+                forceCollapsed={!!collapsedMessageIds[msg.id]}
               />
             ))}
           </div>
@@ -3647,7 +3666,17 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                   initialCollapsed={isAllCollapsed}
                   isInitiallyNew={isInitiallyNew}
                   isPresenter={msg.userId === presentation?.presenterId}
-                  onFocus={(msg) => setFocusedMessage(focusedMessage?.id === msg.id ? null : msg)}
+                  onFocus={(msg) => {
+                    const isAlreadyFocused = focusedMessage?.id === msg.id;
+                    if (isAlreadyFocused) {
+                      setCollapsedMessageIds(prev => ({ ...prev, [msg.id]: true }));
+                      setFocusedMessage(null);
+                    } else {
+                      setCollapsedMessageIds(prev => ({ ...prev, [msg.id]: false }));
+                      setFocusedMessage(msg);
+                    }
+                  }}
+                  forceCollapsed={!!collapsedMessageIds[msg.id]}
                 />
               );
             })}
@@ -4020,8 +4049,13 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
           {/* Close Button */}
           <button 
-            onClick={() => setFocusedMessage(null)}
-            className="absolute top-4 right-4 p-2 bg-slate-100 hover:bg-red-500 hover:text-white text-slate-500 hover:rotate-90 rounded-full transition-all duration-200 shadow-md focus:outline-none z-10 active:scale-95"
+            onClick={() => {
+              if (focusedMessage) {
+                setCollapsedMessageIds(prev => ({ ...prev, [focusedMessage.id]: true }));
+              }
+              setFocusedMessage(null);
+            }}
+            className="absolute top-4 right-4 p-2 bg-red-500 hover:bg-red-600 text-white hover:rotate-90 rounded-full transition-all duration-200 shadow-md focus:outline-none z-10 active:scale-95"
             title="Close Spotlight"
           >
             <X className="w-6 h-6 stroke-[3]" />
