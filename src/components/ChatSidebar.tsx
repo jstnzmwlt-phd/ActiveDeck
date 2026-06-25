@@ -3117,7 +3117,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               </div>
               {presentation?.pinCode && (
                 <div className="mt-1.5">
-                  <span className="text-[32px] font-mono font-black tracking-wider text-osu-orange bg-osu-orange/10 border border-osu-orange/20 px-4 py-2 rounded-2xl leading-none select-all shadow-sm inline-block">
+                  <span className="text-[26px] font-mono font-black tracking-tight text-osu-orange bg-osu-orange/10 border border-osu-orange/20 px-3 py-1.5 rounded-xl leading-none select-all shadow-sm inline-block whitespace-nowrap">
                     {presentation.pinCode.replace(/(\d{3})(\d{3})/, '$1 $2')}
                   </span>
                 </div>
