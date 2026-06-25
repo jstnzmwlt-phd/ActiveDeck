@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Monitor, Clock, Maximize, Minimize, Link2, Link2Off, Sun, Moon, Loader2, AlertCircle, Eye, EyeOff, Download, ShieldAlert, X } from 'lucide-react';
+import { Monitor, Clock, Maximize, Minimize, Link2, Link2Off, Sun, Moon, Loader2, AlertCircle, Eye, EyeOff, Download, ShieldAlert, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { useBridge } from '../contexts/BridgeContext';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -19,6 +19,28 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance }
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isDownloading, setIsDownloading] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+
+  const [zoom, setZoom] = useState(() => {
+    const savedZoom = localStorage.getItem('activeDeckZoom');
+    return savedZoom ? parseFloat(savedZoom) : 1.0;
+  });
+
+  useEffect(() => {
+    (document.body.style as any).zoom = zoom.toString();
+    localStorage.setItem('activeDeckZoom', zoom.toString());
+  }, [zoom]);
+
+  const handleZoomIn = () => {
+    setZoom(prev => Math.min(2.0, parseFloat((prev + 0.05).toFixed(2))));
+  };
+
+  const handleZoomOut = () => {
+    setZoom(prev => Math.max(0.5, parseFloat((prev - 0.05).toFixed(2))));
+  };
+
+  const handleZoomReset = () => {
+    setZoom(1.0);
+  };
 
   const fetchAttendanceRecords = async () => {
     if (!presentationId) return null;
@@ -305,6 +327,35 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance }
                 {wakeLockError}
               </div>
             )}
+            
+            {/* Zoom Controls */}
+            <div className="flex items-center gap-1.5 border-r border-slate-200 pr-3 mr-1">
+              <button
+                type="button"
+                onClick={handleZoomOut}
+                className="p-1 hover:bg-slate-100 rounded-md transition-all text-slate-500 hover:text-osu-orange flex items-center justify-center cursor-pointer border-0 bg-transparent"
+                title="Zoom Out"
+              >
+                <ZoomOut className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={handleZoomReset}
+                className="px-1.5 py-0.5 hover:bg-slate-100 hover:text-osu-orange rounded text-[10px] font-mono font-black text-slate-500 transition-all cursor-pointer bg-transparent border-0"
+                title="Reset Zoom to 100%"
+              >
+                {Math.round(zoom * 100)}%
+              </button>
+              <button
+                type="button"
+                onClick={handleZoomIn}
+                className="p-1 hover:bg-slate-100 rounded-md transition-all text-slate-500 hover:text-osu-orange flex items-center justify-center cursor-pointer border-0 bg-transparent"
+                title="Zoom In"
+              >
+                <ZoomIn className="w-4 h-4" />
+              </button>
+            </div>
+
             <button 
               onClick={toggleWakeLock}
               disabled={isWakeLockLoading}
