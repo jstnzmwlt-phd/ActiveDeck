@@ -83,7 +83,9 @@ function AppContent() {
       // Update URL with the new ID without reloading the page
       const newUrl = new URL(window.location.href);
       newUrl.searchParams.set('id', docRef.id);
-      window.history.replaceState({}, '', newUrl.toString());
+      if (window.history && typeof window.history.replaceState === 'function') {
+        window.history.replaceState({}, '', newUrl.toString());
+      }
 
       setPresentationLoaded(false);
 
@@ -342,7 +344,9 @@ function AppContent() {
                 // Update URL parameter without reloading
                 const newUrl = new URL(window.location.href);
                 newUrl.searchParams.set('id', docSnap.id);
-                window.history.replaceState({}, '', newUrl.toString());
+                if (window.history && typeof window.history.replaceState === 'function') {
+                  window.history.replaceState({}, '', newUrl.toString());
+                }
                 isFirstCallback = false;
               }
             } else {
