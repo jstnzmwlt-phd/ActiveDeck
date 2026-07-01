@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 
+  ActiveDeck PowerPoint Add-in Manifest
+  ====================================
+  This file registers ActiveDeck as an Office Add-in inside PowerPoint.
+  It works across PowerPoint on Web, Desktop (Windows/Mac), and iPad.
+  
+  To use this manifest:
+  1. Open PowerPoint Web (office.com).
+  2. Go to Insert -> Add-ins -> Upload My Add-in.
+  3. Select this XML file.
+  
+  Note: PowerPoint requires HTTPS for all URLs. If you are developing locally, 
+  ensure you run your dev server with HTTPS (e.g. using @vitejs/plugin-basic-ssl) 
+  and update the URL mappings in the <Resources> block below.
+-->
+<OfficeApp 
+  xmlns="http://schemas.microsoft.com/office/appshere/1.1" 
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+  xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0" 
+  xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides" 
+  xsi:type="TaskPaneApp"
+>
+  <!-- Basic Identification -->
+  <Id>d3b07384-d113-4482-b7fd-8cb312e03bf3</Id>
+  <Version>1.0.0.0</Version>
+  <ProviderName>ActiveDeck</ProviderName>
+  <DefaultLocale>en-US</DefaultLocale>
+  
+  <!-- Display Name & Description (shown in Office Add-in Store / My Add-ins) -->
+  <DisplayName DefaultValue="ActiveDeck Presenter" />
+  <Description DefaultValue="Interactive presentation controls, audience Q&amp;A, polls, and live word clouds directly inside your PowerPoint sidebar." />
+  
+  <!-- Icons for the Add-in in menus -->
+  <IconUrl DefaultValue="https://active-deck.app/assets/logo-32.png" />
+  <HighResolutionIconUrl DefaultValue="https://active-deck.app/assets/logo-80.png" />
+  
+  <!-- Target Application Host -->
+  <Hosts>
+    <Host Name="Presentation" /> <!-- PowerPoint -->
+  </Hosts>
+  
+  <!-- Default settings for basic loading (without Ribbon overrides) -->
+  <DefaultSettings>
+    <SourceLocation DefaultValue="https://active-deck.app/" />
+    <RequestedWidth>350</RequestedWidth>
+  </DefaultSettings>
+  
+  <!-- Permissions requested by ActiveDeck -->
+  <Permissions>ReadWriteDocument</Permissions>
+
+  <!-- Modern Ribbon / UI Customization Overrides -->
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
+    <Hosts>
+      <Host xsi:type="Presentation">
+        <DesktopFormFactor>
+          <!-- Custom Ribbon Tab and Button Configuration -->
+          <ExtensionPoint xsi:type="PrimaryCommandSurface">
+            <CustomTab id="ActiveDeck.Tab">
+              <Label DefaultValue="ActiveDeck" />
+              <Group id="ActiveDeck.Group">
+                <Label DefaultValue="Session Controls" />
+                <!-- Button to Open Presenter Chat Sidebar -->
+                <Control xsi:type="Button" id="ActiveDeck.ShowPresenter">
+                  <Label DefaultValue="Presenter Chat" />
+                  <SuperTip>
+                    <Title DefaultValue="Presenter Sidebar" />
+                    <Description DefaultValue="Launch the ActiveDeck interactive presenter sidebar to moderate questions, manage polls, and view attendance." />
+                  </SuperTip>
+                  <Icon>
+                    <bt:Image size="16" resid="ActiveDeck.Logo16" />
+                    <bt:Image size="32" resid="ActiveDeck.Logo32" />
+                    <bt:Image size="80" resid="ActiveDeck.Logo80" />
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <TaskpaneId>ActiveDeck.PresenterPane</TaskpaneId>
+                    <SourceLocation resid="ActiveDeck.PresenterUrl" />
+                  </Action>
+                </Control>
+              </Group>
+            </CustomTab>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+    </Hosts>
+
+    <!-- Resource mappings for localized string assets and secure URLs -->
+    <Resources>
+      <bt:Images>
+        <bt:Image id="ActiveDeck.Logo16" DefaultValue="https://active-deck.app/assets/logo-16.png" />
+        <bt:Image id="ActiveDeck.Logo32" DefaultValue="https://active-deck.app/assets/logo-32.png" />
+        <bt:Image id="ActiveDeck.Logo80" DefaultValue="https://active-deck.app/assets/logo-80.png" />
+      </bt:Images>
+      
+      <bt:Urls>
+        <!-- 
+          URL Resource configuration. 
+          To test locally during development, change the DefaultValue below to:
+          https://localhost:5173/ (or your local HTTPS dev server URL).
+        -->
+        <bt:Url id="ActiveDeck.PresenterUrl" DefaultValue="https://active-deck.app/" />
+      </bt:Urls>
+    </Resources>
+  </VersionOverrides>
+</OfficeApp>
