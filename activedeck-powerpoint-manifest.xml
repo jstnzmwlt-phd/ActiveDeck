@@ -9,13 +9,9 @@
   1. Open PowerPoint Web (office.com).
   2. Go to Insert -> Add-ins -> Upload My Add-in.
   3. Select this XML file.
-  
-  Note: PowerPoint requires HTTPS for all URLs. If you are developing locally, 
-  ensure you run your dev server with HTTPS (e.g. using @vitejs/plugin-basic-ssl) 
-  and update the URL mappings in the <Resources> block below.
 -->
 <OfficeApp 
-  xmlns="http://schemas.microsoft.com/office/appshere/1.1" 
+  xmlns="http://schemas.microsoft.com/office/appforoffice/1.1" 
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
   xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0" 
   xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides" 
@@ -34,6 +30,7 @@
   <!-- Icons for the Add-in in menus -->
   <IconUrl DefaultValue="https://active-deck.app/assets/logo-32.png" />
   <HighResolutionIconUrl DefaultValue="https://active-deck.app/assets/logo-80.png" />
+  <SupportUrl DefaultValue="https://active-deck.app/support" />
   
   <!-- Target Application Host -->
   <Hosts>
@@ -43,7 +40,6 @@
   <!-- Default settings for basic loading (without Ribbon overrides) -->
   <DefaultSettings>
     <SourceLocation DefaultValue="https://active-deck.app/" />
-    <RequestedWidth>350</RequestedWidth>
   </DefaultSettings>
   
   <!-- Permissions requested by ActiveDeck -->
@@ -57,16 +53,20 @@
           <!-- Custom Ribbon Tab and Button Configuration -->
           <ExtensionPoint xsi:type="PrimaryCommandSurface">
             <CustomTab id="ActiveDeck.Tab">
-              <Label DefaultValue="ActiveDeck" />
               <Group id="ActiveDeck.Group">
-                <Label DefaultValue="Session Controls" />
+                <Label resid="ActiveDeck.GroupLabel" />
+                <Icon>
+                  <bt:Image size="16" resid="ActiveDeck.Logo16" />
+                  <bt:Image size="32" resid="ActiveDeck.Logo32" />
+                  <bt:Image size="80" resid="ActiveDeck.Logo80" />
+                </Icon>
                 <!-- Button to Open Presenter Chat Sidebar -->
                 <Control xsi:type="Button" id="ActiveDeck.ShowPresenter">
-                  <Label DefaultValue="Presenter Chat" />
-                  <SuperTip>
-                    <Title DefaultValue="Presenter Sidebar" />
-                    <Description DefaultValue="Launch the ActiveDeck interactive presenter sidebar to moderate questions, manage polls, and view attendance." />
-                  </SuperTip>
+                  <Label resid="ActiveDeck.ButtonLabel" />
+                  <Supertip>
+                    <Title resid="ActiveDeck.SuperTipTitle" />
+                    <Description resid="ActiveDeck.SuperTipDesc" />
+                  </Supertip>
                   <Icon>
                     <bt:Image size="16" resid="ActiveDeck.Logo16" />
                     <bt:Image size="32" resid="ActiveDeck.Logo32" />
@@ -78,6 +78,7 @@
                   </Action>
                 </Control>
               </Group>
+              <Label resid="ActiveDeck.TabLabel" />
             </CustomTab>
           </ExtensionPoint>
         </DesktopFormFactor>
@@ -93,13 +94,19 @@
       </bt:Images>
       
       <bt:Urls>
-        <!-- 
-          URL Resource configuration. 
-          To test locally during development, change the DefaultValue below to:
-          https://localhost:5173/ (or your local HTTPS dev server URL).
-        -->
         <bt:Url id="ActiveDeck.PresenterUrl" DefaultValue="https://active-deck.app/" />
       </bt:Urls>
+
+      <bt:ShortStrings>
+        <bt:String id="ActiveDeck.GroupLabel" DefaultValue="ActiveDeck Controls" />
+        <bt:String id="ActiveDeck.ButtonLabel" DefaultValue="Presenter Chat" />
+        <bt:String id="ActiveDeck.TabLabel" DefaultValue="ActiveDeck" />
+        <bt:String id="ActiveDeck.SuperTipTitle" DefaultValue="Show Sidebar" />
+      </bt:ShortStrings>
+
+      <bt:LongStrings>
+        <bt:String id="ActiveDeck.SuperTipDesc" DefaultValue="Launch the ActiveDeck interactive sidebar to manage chats, polls, and live questions directly in PowerPoint." />
+      </bt:LongStrings>
     </Resources>
   </VersionOverrides>
 </OfficeApp>
