@@ -246,6 +246,16 @@ function AppContent() {
     }
   }, []);
 
+  // Initialize Microsoft Office Add-in context handshake to ensure focus & keyboard entry works
+  useEffect(() => {
+    const Office = (window as any).Office;
+    if (Office) {
+      Office.onReady((info: any) => {
+        console.log('AppContent - Office.js initialized. Host:', info.host, 'Platform:', info.platform);
+      });
+    }
+  }, []);
+
   useEffect(() => {
     if (authLoading) {
       console.log('AppContent - Still loading auth...');
