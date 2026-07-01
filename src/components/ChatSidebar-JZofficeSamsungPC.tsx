@@ -3354,7 +3354,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                       className="flex-1 flex flex-col items-center justify-center px-1 py-2 bg-blue-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-blue-600 transition-all shadow-sm leading-tight border-0 cursor-pointer"
                     >
                       <Cloud className="w-4 h-4 mb-0.5" />
-                      <span>Word</span>
+                      <span>Cloud</span>
                     </button>
                     <button                
                         onClick={() => handleCreateOpenEndedQuestion('Open question')}

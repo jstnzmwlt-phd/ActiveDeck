@@ -3460,7 +3460,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                       onClick={() => handleCreateWordCloud('Word Cloud')}
                       className="flex-1 flex items-center justify-center py-2.5 bg-blue-500 text-white rounded-lg text-xs font-black uppercase tracking-wider hover:bg-blue-600 transition-all shadow-sm border-0 cursor-pointer"
                     >
-                      <span>Word</span>
+                      <span>Cloud</span>
                     </button>
                     <button                
                       onClick={() => handleCreateOpenEndedQuestion('Open question')}
