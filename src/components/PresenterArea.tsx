@@ -120,16 +120,19 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   };
 
   useEffect(() => {
+    if (stream) {
+      (window as any).activeDeckStream = stream;
+    }
     return () => {
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
+        (window as any).activeDeckStream = null;
+        try {
+          const channel = new BroadcastChannel('activedeck-stream');
+          channel.postMessage({ type: 'stream-stopped' });
+          channel.close();
+        } catch (e) {}
       }
-      (window as any).activeDeckStream = null;
-      try {
-        const channel = new BroadcastChannel('activedeck-stream');
-        channel.postMessage({ type: 'stream-stopped' });
-        channel.close();
-      } catch (e) {}
     };
   }, [stream]);
 
