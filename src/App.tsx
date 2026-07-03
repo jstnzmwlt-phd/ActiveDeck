@@ -230,6 +230,19 @@ function AppContent() {
   // Check for view parameter
   const urlParams = new URLSearchParams(window.location.search);
   const isChatOnly = urlParams.get('view') === 'chat';
+
+  // Handle force new session flag to strip old ID and prevent re-locking
+  const isForceNewSession = sessionStorage.getItem('activeDeckForceNewSession') === 'true';
+  if (isForceNewSession) {
+    sessionStorage.removeItem('activeDeckForceNewSession');
+    urlParams.delete('id');
+    if (window.history && typeof window.history.replaceState === 'function') {
+      const cleanUrl = new URL(window.location.href);
+      cleanUrl.searchParams.delete('id');
+      window.history.replaceState({}, '', cleanUrl.toString());
+    }
+  }
+
   const presentationId = urlParams.get('id');
   const pathname = window.location.pathname;
   

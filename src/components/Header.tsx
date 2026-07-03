@@ -157,7 +157,7 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance }
 
   const executeNewSession = () => {
     sessionStorage.removeItem('activePresenterPresentationId');
-    sessionStorage.removeItem('activePresenterEmail');
+    sessionStorage.setItem('activeDeckForceNewSession', 'true');
     const targetUrl = window.location.origin + window.location.pathname;
     if (window.location.href === targetUrl) {
       window.location.reload();
