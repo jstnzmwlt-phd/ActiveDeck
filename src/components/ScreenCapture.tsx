@@ -8,6 +8,7 @@ interface ScreenCaptureProps {
   onStart: () => void;
   onStop: () => void;
   logoUrl?: string;
+  isProjectorMode?: boolean;
 }
 
 export const ScreenCapture: React.FC<ScreenCaptureProps> = ({ 
@@ -16,7 +17,8 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
   error, 
   onStart, 
   onStop,
-  logoUrl
+  logoUrl,
+  isProjectorMode = false
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -123,7 +125,7 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
       </div>
 
       {/* Controls Overlay - Only shown when capturing to allow stopping */}
-      {isCapturing && (
+      {isCapturing && !isProjectorMode && (
         <div className="absolute top-2 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 bg-slate-900/95 border border-slate-700/50 rounded-full shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50">
           <button
             onClick={onStop}

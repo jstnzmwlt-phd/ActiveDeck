@@ -48,6 +48,18 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         setStream(mediaStream);
         setIsCapturing(true);
 
+        // Expose mediaStream globally so the projector window can access it
+        (window as any).activeDeckStream = mediaStream;
+
+        // Broadcast that stream has started
+        try {
+          const channel = new BroadcastChannel('activedeck-stream');
+          channel.postMessage({ type: 'stream-started' });
+          channel.close();
+        } catch (bcErr) {
+          console.error("ActiveDeck: Error broadcasting stream-started:", bcErr);
+        }
+
         // Automatically go into full screen mode
         try {
           if (!document.fullscreenElement) {
@@ -95,6 +107,16 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       setStream(null);
     }
     setIsCapturing(false);
+    (window as any).activeDeckStream = null;
+
+    // Broadcast that stream has stopped
+    try {
+      const channel = new BroadcastChannel('activedeck-stream');
+      channel.postMessage({ type: 'stream-stopped' });
+      channel.close();
+    } catch (bcErr) {
+      console.error("ActiveDeck: Error broadcasting stream-stopped:", bcErr);
+    }
   };
 
   useEffect(() => {
@@ -102,8 +124,64 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
       }
+      (window as any).activeDeckStream = null;
+      try {
+        const channel = new BroadcastChannel('activedeck-stream');
+        channel.postMessage({ type: 'stream-stopped' });
+        channel.close();
+      } catch (e) {}
     };
   }, [stream]);
+
+  // Synchronize stream for projector mode
+  useEffect(() => {
+    if (!isProjectorMode) return;
+
+    const channel = new BroadcastChannel('activedeck-stream');
+
+    const checkParentStream = () => {
+      try {
+        if (window.opener && !window.opener.closed) {
+          const parentStream = window.opener.activeDeckStream;
+          if (parentStream) {
+            setStream(parentStream);
+            setIsCapturing(true);
+            setError(null);
+          } else {
+            setStream(null);
+            setIsCapturing(false);
+          }
+        } else {
+          // Parent window was closed, stop presentation
+          setStream(null);
+          setIsCapturing(false);
+        }
+      } catch (err) {
+        console.error("ActiveDeck: Error accessing presenter window memory:", err);
+      }
+    };
+
+    // 1. Check parent stream immediately on mount (or reload)
+    checkParentStream();
+
+    // 2. Set up BroadcastChannel listener for real-time start/stop
+    channel.onmessage = (event) => {
+      if (event.data?.type === 'stream-started') {
+        checkParentStream();
+      } else if (event.data?.type === 'stream-stopped') {
+        setStream(null);
+        setIsCapturing(false);
+      }
+    };
+
+    // 3. Fallback interval check (polling every 1 second) in case of missed events or parent closing
+    const intervalId = setInterval(checkParentStream, 1000);
+
+    return () => {
+      channel.close();
+      clearInterval(intervalId);
+    };
+  }, [isProjectorMode]);
 
   return (
     <div className="flex flex-col h-full bg-black relative group">
@@ -128,6 +206,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           onStart={startCapture} 
           onStop={stopCapture} 
           logoUrl={logoUrl}
+          isProjectorMode={isProjectorMode}
         />
         
         {/* Floating Setup Instructions Bubble - Shown in the top-left when not capturing */}
