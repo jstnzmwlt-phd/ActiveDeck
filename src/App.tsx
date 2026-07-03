@@ -50,6 +50,42 @@ function AppContent() {
   const [hash, setHash] = useState(window.location.hash);
   const activeUnsubscribeRef = useRef<(() => void) | null>(null);
 
+  // Initialize and capture the active presentation ID state
+  const [activePresentationId, setActivePresentationId] = useState<string | null>(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const isChatOnly = urlParams.get('view') === 'chat';
+
+    if (!isChatOnly) {
+      const urlId = urlParams.get('id');
+      if (urlId) {
+        console.log('AppContent - Capturing URL presentation ID and stripping from URL:', urlId);
+        sessionStorage.setItem('activePresenterPresentationId', urlId);
+        urlParams.delete('id');
+        if (window.history && typeof window.history.replaceState === 'function') {
+          const cleanUrl = new URL(window.location.href);
+          cleanUrl.searchParams.delete('id');
+          window.history.replaceState({}, '', cleanUrl.toString());
+        }
+      }
+    }
+
+    const isForceNewSession = sessionStorage.getItem('activeDeckForceNewSession') === 'true';
+    if (isForceNewSession) {
+      sessionStorage.removeItem('activeDeckForceNewSession');
+      sessionStorage.removeItem('activePresenterPresentationId');
+      urlParams.delete('id');
+      if (window.history && typeof window.history.replaceState === 'function') {
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete('id');
+        window.history.replaceState({}, '', cleanUrl.toString());
+      }
+    }
+
+    return isChatOnly 
+      ? urlParams.get('id') 
+      : (sessionStorage.getItem('activePresenterPresentationId') || urlParams.get('id'));
+  });
+
   const createNewPresentation = async () => {
     console.log('AppContent - Creating new presentation for user:', user?.uid);
     if (!user) return '';
@@ -80,34 +116,9 @@ function AppContent() {
       console.log('AppContent - New presentation created:', docRef.id, 'with PIN:', pinCode);
       sessionStorage.setItem('activePresenterPresentationId', docRef.id);
       
-      // For presenter, we keep the URL clean to avoid PowerPoint WebView re-locking bugs.
-      // The session ID is stored and managed strictly via sessionStorage.
-
-      setPresentationLoaded(false);
-
-      if (activeUnsubscribeRef.current) {
-        activeUnsubscribeRef.current();
-      }
-
-      const unsub = onSnapshot(docRef, (docSnap) => {
-        setPresentationLoaded(true);
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          console.log('AppContent - New presentation snapshot received:', docSnap.id, data);
-          setPresentation({ id: docSnap.id, ...data } as Presentation);
-        } else {
-          setPresentation(null);
-        }
-      }, (error) => {
-        console.error("AppContent - New presentation snapshot error:", error);
-        setPresentationLoaded(true);
-      });
-
-      activeUnsubscribeRef.current = unsub;
       return docRef.id;
     } catch (error) {
       console.error("AppContent - Error creating presentation:", error);
-      setPresentationLoaded(true);
       throw error;
     }
   };
@@ -122,21 +133,34 @@ function AppContent() {
       activeUnsubscribeRef.current = null;
     }
 
-    // 2. Clear presenter's presentation ID cache in sessionStorage
+    // 2. Deactivate the old presentation PIN code so students can no longer join it
+    if (presentation && presentation.pinCode) {
+      try {
+        await updateDoc(doc(db, 'sessionPins', presentation.pinCode), {
+          active: false,
+          deactivatedAt: serverTimestamp()
+        });
+        console.log(`AppContent - Deactivated old PIN: ${presentation.pinCode}`);
+      } catch (err) {
+        console.error('AppContent - Failed to deactivate old PIN in sessionPins:', err);
+      }
+    }
+
+    // 3. Clear presenter's presentation ID cache in sessionStorage
     sessionStorage.removeItem('activePresenterPresentationId');
 
-    // 3. Reset local states to trigger loading indicators/views
+    // 4. Reset local states to trigger loading indicators/views
     setPresentation(null);
     setPresentationLoaded(false);
+    setActivePresentationId(null);
+  };
 
-    // 4. Create new presentation (this generates unique PIN, registers PIN, creates Firestore doc, and listens to it)
-    try {
-      await createNewPresentation();
-      console.log('AppContent - In-memory new session creation successful');
-    } catch (err) {
-      console.error('AppContent - Failed to create new presentation in-memory:', err);
-      setAppError('Failed to start a new presentation session. Please check your network connection.');
+  const handleCreatePresentationForArea = async () => {
+    const newId = await createNewPresentation();
+    if (newId) {
+      setActivePresentationId(newId);
     }
+    return newId;
   };
 
   const [emailDomainError, setEmailDomainError] = useState<string | null>(null);
@@ -255,47 +279,13 @@ function AppContent() {
   const urlParams = new URLSearchParams(window.location.search);
   const isChatOnly = urlParams.get('view') === 'chat';
 
-  // For presenter (not chat only), we completely avoid keeping ?id=... in the URL.
-  // This prevents PowerPoint/WebView from caching and re-injecting the old ID on reload.
-  // We synchronously capture any ?id=... from the URL on mount, save it to sessionStorage, and strip it from the URL.
-  if (!isChatOnly) {
-    const urlId = urlParams.get('id');
-    if (urlId) {
-      console.log('AppContent - Capturing URL presentation ID and stripping from URL:', urlId);
-      sessionStorage.setItem('activePresenterPresentationId', urlId);
-      urlParams.delete('id');
-      if (window.history && typeof window.history.replaceState === 'function') {
-        const cleanUrl = new URL(window.location.href);
-        cleanUrl.searchParams.delete('id');
-        window.history.replaceState({}, '', cleanUrl.toString());
-      }
-    }
-  }
-
-  // Handle force new session flag to strip old ID and prevent re-locking
-  const isForceNewSession = sessionStorage.getItem('activeDeckForceNewSession') === 'true';
-  if (isForceNewSession) {
-    sessionStorage.removeItem('activeDeckForceNewSession');
-    sessionStorage.removeItem('activePresenterPresentationId'); // Double ensure deleted
-    urlParams.delete('id');
-    if (window.history && typeof window.history.replaceState === 'function') {
-      const cleanUrl = new URL(window.location.href);
-      cleanUrl.searchParams.delete('id');
-      window.history.replaceState({}, '', cleanUrl.toString());
-    }
-  }
-
-  // For students, we get ID from the URL. For presenters, we get it from sessionStorage or fallback to URL if needed.
-  const presentationId = isChatOnly 
-    ? urlParams.get('id') 
-    : (sessionStorage.getItem('activePresenterPresentationId') || urlParams.get('id'));
   const pathname = window.location.pathname;
   
   // Smart routing to handle students forgetting "/chat" in the URL and landing on root "/"
   const isJoinRoute = 
-    ((pathname === '/chat' || pathname === '/chat/') && !presentationId);
+    ((pathname === '/chat' || pathname === '/chat/') && !activePresentationId);
 
-  console.log('AppContent Render - AuthLoading:', authLoading, 'User:', user?.uid, 'PresentationId:', presentationId, 'isChatOnly:', isChatOnly, 'isJoinRoute:', isJoinRoute, 'presenterEmail:', presenterEmail);
+  console.log('AppContent Render - AuthLoading:', authLoading, 'User:', user?.uid, 'ActivePresentationId:', activePresentationId, 'isChatOnly:', isChatOnly, 'isJoinRoute:', isJoinRoute, 'presenterEmail:', presenterEmail);
 
   useEffect(() => {
     // Hide static loader once React mounts
@@ -346,17 +336,15 @@ function AppContent() {
 
       // Determine if we should load the presentation ID from the URL (students/chat-only only)
       let shouldLoadUrlId = false;
-      if (isChatOnly && presentationId) {
+      if (isChatOnly && activePresentationId) {
         shouldLoadUrlId = true;
       }
 
-      if (shouldLoadUrlId && presentationId) {
-        console.log('AppContent - Loading existing presentation from URL ID:', presentationId);
-        // Sync to cache
-        sessionStorage.setItem('activePresenterPresentationId', presentationId);
+      if (shouldLoadUrlId && activePresentationId) {
+        console.log('AppContent - Loading existing presentation from URL ID:', activePresentationId);
         
         // Listen to specific presentation
-        const docRef = doc(db, 'presentations', presentationId);
+        const docRef = doc(db, 'presentations', activePresentationId);
         const unsub = onSnapshot(docRef, (docSnap) => {
           if (docSnap.exists()) {
             console.log('AppContent - Presentation data received:', docSnap.id);
@@ -370,7 +358,7 @@ function AppContent() {
               );
             }
           } else {
-            console.warn('AppContent - Presentation not found:', presentationId);
+            console.warn('AppContent - Presentation not found:', activePresentationId);
             setPresentation(null);
           }
           setPresentationLoaded(true);
@@ -380,11 +368,9 @@ function AppContent() {
         });
         activeUnsubscribeRef.current = unsub;
       } else if (!isChatOnly && user && !isJoinRoute) {
-        const cachedId = sessionStorage.getItem('activePresenterPresentationId');
-        if (cachedId) {
-          console.log('AppContent - Found cached presentation ID in sessionStorage:', cachedId);
-          const docRef = doc(db, 'presentations', cachedId);
-          let isFirstCallback = true;
+        if (activePresentationId) {
+          console.log('AppContent - Found active presentation ID:', activePresentationId);
+          const docRef = doc(db, 'presentations', activePresentationId);
           const unsub = onSnapshot(docRef, (docSnap) => {
             if (docSnap.exists()) {
               console.log('AppContent - Cached presentation exists in Firestore. Setting active:', docSnap.id);
@@ -397,33 +383,34 @@ function AppContent() {
                   console.error('Failed to sync local email to cached presentation:', err)
                 );
               }
-              
-              // For presenter, we manage session strictly in sessionStorage and keep URL parameter empty.
             } else {
               console.warn('AppContent - Cached presentation does not exist in Firestore. Cleaning cache.');
               sessionStorage.removeItem('activePresenterPresentationId');
+              setActivePresentationId(null);
               setPresentation(null);
-              if (activeUnsubscribeRef.current) {
-                activeUnsubscribeRef.current();
-                activeUnsubscribeRef.current = null;
-              }
             }
             setPresentationLoaded(true);
           }, (error) => {
             console.error("AppContent - Cached presentation snapshot error:", error);
             // If it's a permission or load error, clean up and fallback
             sessionStorage.removeItem('activePresenterPresentationId');
+            setActivePresentationId(null);
             setPresentation(null);
             setPresentationLoaded(true);
           });
           activeUnsubscribeRef.current = unsub;
         } else if (presenterEmail) {
-          // No cached presentation, but presenter is logged in! Auto-create a session so they have a PIN and can use chat immediately.
+          // No active presentation, but presenter is logged in! Auto-create a session.
           console.log('AppContent - No cached presentation, but presenter is logged in. Auto-creating session...');
-          createNewPresentation().catch(err => {
+          try {
+            const newId = await createNewPresentation();
+            if (newId) {
+              setActivePresentationId(newId);
+            }
+          } catch (err) {
             console.error('AppContent - Failed to auto-create presentation:', err);
             setPresentationLoaded(true);
-          });
+          }
         } else {
           setPresentationLoaded(true);
         }
@@ -442,7 +429,7 @@ function AppContent() {
         activeUnsubscribeRef.current = null;
       }
     };
-  }, [authLoading, user, presentationId, isChatOnly, isJoinRoute, presenterEmail]);
+  }, [authLoading, user, activePresentationId, isChatOnly, isJoinRoute, presenterEmail]);
 
   const isLoading = authLoading;
 
@@ -475,7 +462,7 @@ function AppContent() {
   }
 
   if (hash === '#admin') {
-    return <AdminPortal presentationId={presentationId} />;
+    return <AdminPortal presentationId={activePresentationId} />;
   }
 
   // Handle SPA path routing for Student Attendance
@@ -602,7 +589,7 @@ function AppContent() {
   return (
     <div className="flex flex-col h-full w-full overflow-hidden bg-slate-100 font-sans antialiased">
       <Header 
-        presentationId={presentation?.id || presentationId} 
+        presentationId={presentation?.id || activePresentationId} 
         showAttendance={settings?.showAttendance}
         onNewSession={handleStartNewSession}
       />
@@ -610,7 +597,7 @@ function AppContent() {
       <div className="flex flex-row flex-1 p-6 pb-2 gap-6 bg-slate-100 min-h-0 overflow-hidden">
         {/* Presenter View (Flexible, but takes most space) */}
         <div className="flex-1 h-full min-w-0 rounded-xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.24)] border border-slate-300 bg-black">
-          <PresenterArea presentation={presentation} logoUrl={settings?.theme.logoUrl} onCreatePresentation={createNewPresentation} />
+          <PresenterArea presentation={presentation} logoUrl={settings?.theme.logoUrl} onCreatePresentation={handleCreatePresentationForArea} />
         </div>
 
         {/* Audience Chat (Fixed width sidebar) */}
