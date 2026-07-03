@@ -55,6 +55,23 @@ function AppContent() {
     const urlParams = new URLSearchParams(window.location.search);
     const isChatOnly = urlParams.get('view') === 'chat';
 
+    // 1. Check for URL-based explicit new session parameter (highly robust across all browsers/frames)
+    const isNewSessionParam = urlParams.get('new_session') === 'true';
+    if (isNewSessionParam) {
+      console.log('AppContent - URL-based new_session parameter detected. Resetting all cached session IDs.');
+      sessionStorage.removeItem('activePresenterPresentationId');
+      sessionStorage.removeItem('activeDeckForceNewSession');
+      urlParams.delete('new_session');
+      urlParams.delete('id');
+      if (window.history && typeof window.history.replaceState === 'function') {
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete('new_session');
+        cleanUrl.searchParams.delete('id');
+        window.history.replaceState({}, '', cleanUrl.toString());
+      }
+      return null;
+    }
+
     if (!isChatOnly) {
       const urlId = urlParams.get('id');
       if (urlId) {
@@ -124,7 +141,7 @@ function AppContent() {
   };
 
   const handleStartNewSession = async () => {
-    console.log('AppContent - Starting new presentation session and forcing page reload...');
+    console.log('AppContent - Starting new presentation session strictly in-memory (preserving WebRTC capture and active screen share)...');
     
     // 1. Unsubscribe from any active snapshot listener to avoid memory leaks or stale updates
     if (activeUnsubscribeRef.current) {
@@ -146,18 +163,23 @@ function AppContent() {
       }
     }
 
-    // 3. Clear presenter's presentation ID cache in sessionStorage
-    sessionStorage.removeItem('activePresenterPresentationId');
+    // 3. Clear the local React presentation state to reset UI while transitioning
+    setPresentation(null);
+    setPresentationLoaded(false);
 
-    // 4. Set force-new-session flag so initializer starts fresh on reload
-    sessionStorage.setItem('activeDeckForceNewSession', 'true');
-
-    // 5. Force full page reload to clean up all embedded browser webview state
-    const targetUrl = window.location.origin + window.location.pathname;
-    if (window.location.href === targetUrl) {
-      window.location.reload();
-    } else {
-      window.location.href = targetUrl;
+    // 4. Create the brand-new presentation and PIN in Firestore synchronously
+    try {
+      const newId = await createNewPresentation();
+      if (newId) {
+        console.log('AppContent - New presentation created in-memory:', newId);
+        // 5. Update the unified state to mount and subscribe to the new session
+        setActivePresentationId(newId);
+      } else {
+        throw new Error('Created presentation ID was empty.');
+      }
+    } catch (err) {
+      console.error('AppContent - Failed to start a new presentation session in-memory:', err);
+      setAppError('Failed to start a new presentation session. Please try again.');
     }
   };
 
