@@ -6,7 +6,7 @@ import { Header } from './components/Header';
 import { Presentation, GlobalSettings } from './types';
 import { db } from './firebase';
 import { collection, query, orderBy, limit, onSnapshot, doc, addDoc, serverTimestamp, updateDoc, getDoc, setDoc, increment } from 'firebase/firestore';
-import { Presentation as PresentationIcon, Loader2, AlertCircle } from 'lucide-react';
+import { Presentation as PresentationIcon, Loader2, AlertCircle, ZoomIn, ZoomOut } from 'lucide-react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { BridgeProvider } from './contexts/BridgeContext';
 import { AdminPortal } from './components/AdminPortal';
@@ -313,6 +313,55 @@ function AppContent() {
   const urlParams = new URLSearchParams(window.location.search);
   const isChatOnly = urlParams.get('view') === 'chat';
   const isProjector = urlParams.get('view') === 'projector';
+
+  const [projectorZoom, setProjectorZoom] = useState(() => {
+    const savedZoom = localStorage.getItem('activeDeckProjectorZoom');
+    return savedZoom ? parseFloat(savedZoom) : 1.0;
+  });
+
+  useEffect(() => {
+    if (!isProjector) return;
+
+    const html = document.documentElement;
+    const body = document.body;
+    const root = document.getElementById('root');
+
+    if (html) {
+      html.style.transform = `scale(${projectorZoom})`;
+      html.style.transformOrigin = 'top left';
+      html.style.width = `${100 / projectorZoom}%`;
+      html.style.height = `${100 / projectorZoom}%`;
+    }
+
+    if (body) {
+      body.style.width = '100%';
+      body.style.height = '100%';
+    }
+
+    if (root) {
+      root.style.width = '100%';
+      root.style.height = '100%';
+    }
+
+    localStorage.setItem('activeDeckProjectorZoom', projectorZoom.toString());
+
+    return () => {
+      if (html) {
+        html.style.transform = '';
+        html.style.transformOrigin = '';
+        html.style.width = '';
+        html.style.height = '';
+      }
+      if (body) {
+        body.style.width = '';
+        body.style.height = '';
+      }
+      if (root) {
+        root.style.width = '';
+        root.style.height = '';
+      }
+    };
+  }, [projectorZoom, isProjector]);
 
   const pathname = window.location.pathname;
   
@@ -644,7 +693,7 @@ function AppContent() {
   // Synced Projector Mode Layout
   if (isProjector) {
     return (
-      <div className="flex flex-row h-screen w-screen overflow-hidden bg-slate-950 font-sans antialiased p-6 gap-6">
+      <div className="flex flex-row h-screen w-screen overflow-hidden bg-slate-950 font-sans antialiased p-6 gap-6 relative group">
         {/* Giant Slide Presentation Area */}
         <div className="flex-1 h-full min-w-0 rounded-2xl overflow-hidden border border-slate-800 bg-slate-900 shadow-2xl">
           <PresenterArea 
@@ -664,6 +713,38 @@ function AppContent() {
             isProjector={true}
             isChatOnly={true} // Acts as student but read-only
           />
+        </div>
+
+        {/* Sleek Floating Zoom Pill for Projector Mode - Fades in on hover */}
+        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-3 px-4 py-2 bg-slate-900/95 border border-slate-800/80 rounded-2xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 translate-y-2 group-hover:translate-y-0 z-50 backdrop-blur-md">
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setProjectorZoom(prev => Math.max(0.5, parseFloat((prev - 0.05).toFixed(2))))}
+              className="p-1.5 hover:bg-slate-800 rounded-lg transition-all text-slate-400 hover:text-osu-orange flex items-center justify-center cursor-pointer border-0 bg-transparent active:scale-95"
+              title="Zoom Out"
+            >
+              <ZoomOut className="w-4 h-4" />
+            </button>
+            
+            <button
+              type="button"
+              onClick={() => setProjectorZoom(1.0)}
+              className="px-2.5 py-1 hover:bg-slate-800 hover:text-osu-orange rounded-lg text-xs font-mono font-black text-slate-400 transition-all cursor-pointer bg-transparent border-0 active:scale-95"
+              title="Reset Zoom to 100%"
+            >
+              {Math.round(projectorZoom * 100)}%
+            </button>
+            
+            <button
+              type="button"
+              onClick={() => setProjectorZoom(prev => Math.min(2.0, parseFloat((prev + 0.05).toFixed(2))))}
+              className="p-1.5 hover:bg-slate-800 rounded-lg transition-all text-slate-400 hover:text-osu-orange flex items-center justify-center cursor-pointer border-0 bg-transparent active:scale-95"
+              title="Zoom In"
+            >
+              <ZoomIn className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
     );

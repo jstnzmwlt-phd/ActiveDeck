@@ -1243,6 +1243,34 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isAllCollapsed, setIsAllCollapsed] = useState(false);
   const [isQRExpanded, setIsQRExpanded] = useState(false);
+
+  // Synchronize QR code enlargement across tabs via BroadcastChannel
+  useEffect(() => {
+    const channel = new BroadcastChannel('activedeck-ui-sync');
+
+    const handleMessage = (event: MessageEvent) => {
+      if (isProjector && event.data?.type === 'qr-expanded-change') {
+        setIsQRExpanded(event.data.isExpanded);
+      }
+    };
+
+    channel.addEventListener('message', handleMessage);
+
+    return () => {
+      channel.removeEventListener('message', handleMessage);
+      channel.close();
+    };
+  }, [isProjector]);
+
+  useEffect(() => {
+    // Only the presenter (canModerate) should broadcast their local QR expanded state
+    if (canModerate) {
+      const channel = new BroadcastChannel('activedeck-ui-sync');
+      channel.postMessage({ type: 'qr-expanded-change', isExpanded: isQRExpanded });
+      channel.close();
+    }
+  }, [isQRExpanded, canModerate]);
+
   const [showWordCloudModal, setShowWordCloudModal] = useState(false);
   const [showOpenEndedQuestionModal, setShowOpenEndedQuestionModal] = useState(false);
   const [wordCloudPrompt, setWordCloudPrompt] = useState('');
