@@ -5,7 +5,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Message, Presentation, Poll, WordCloud, OpenEndedQuestion, GlobalSettings } from '../types';
 import { useAuth } from './AuthProvider';
 import { useBridge } from '../contexts/BridgeContext';
-import { Send, HelpCircle, MessageSquare, Trash2, ThumbsUp, Download, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud, Eye, EyeOff, Timer, Users, ChevronDown, ChevronUp, Pin, Loader2, AlertCircle, Presentation as PresentationIcon, Paperclip, Maximize2, Minimize2, X } from 'lucide-react';
+import { Send, HelpCircle, MessageSquare, Trash2, ThumbsUp, Download, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud, Eye, EyeOff, Timer, Users, ChevronDown, ChevronUp, Pin, Loader2, AlertCircle, Presentation as PresentationIcon, Paperclip, Maximize2, Minimize2, X, Square } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { QRCodeSVG } from 'qrcode.react';
@@ -217,8 +217,12 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
           {canModerate && (
             <>
               {q.active ? (
-                <button onClick={() => onClose(q.id)} className="p-1 text-slate-400 hover:text-red-500" title="Close Question">
-                  <XCircle className="w-4 h-4" />
+                <button 
+                  onClick={() => onClose(q.id)} 
+                  className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors" 
+                  title="Stop Interaction (End Submissions)"
+                >
+                  <Square className="w-3.5 h-3.5 fill-current" />
                 </button>
               ) : isDraft ? (
                 <span className="text-[8px] font-bold text-green-500 uppercase">Draft</span>
@@ -486,8 +490,12 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
                 {poll.showResults ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
               </button>
               {poll.active ? (
-                <button onClick={() => onClose(poll.id)} className="p-1 text-slate-400 hover:text-red-500" title="Close Poll">
-                  <XCircle className="w-4 h-4" />
+                <button 
+                  onClick={() => onClose(poll.id)} 
+                  className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors" 
+                  title="Stop Interaction (End Submissions)"
+                >
+                  <Square className="w-3.5 h-3.5 fill-current" />
                 </button>
               ) : isDraft ? (
                 <span className="text-[8px] font-bold text-orange-500 uppercase">Draft</span>
@@ -788,8 +796,12 @@ const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, 
                 {cloud.showResults ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
               </button>
               {cloud.active ? (
-                <button onClick={() => onClose(cloud.id)} className="p-1 text-slate-400 hover:text-red-500" title="Close Word Cloud">
-                  <XCircle className="w-4 h-4" />
+                <button 
+                  onClick={() => onClose(cloud.id)} 
+                  className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors" 
+                  title="Stop Interaction (End Submissions)"
+                >
+                  <Square className="w-3.5 h-3.5 fill-current" />
                 </button>
               ) : isDraft ? (
                 <span className="text-[8px] font-bold text-blue-500 uppercase">Draft</span>
