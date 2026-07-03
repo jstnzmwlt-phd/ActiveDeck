@@ -158,7 +158,12 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance }
   const executeNewSession = () => {
     sessionStorage.removeItem('activePresenterPresentationId');
     sessionStorage.removeItem('activePresenterEmail');
-    window.location.href = window.location.origin + window.location.pathname;
+    const targetUrl = window.location.origin + window.location.pathname;
+    if (window.location.href === targetUrl) {
+      window.location.reload();
+    } else {
+      window.location.href = targetUrl;
+    }
   };
 
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
