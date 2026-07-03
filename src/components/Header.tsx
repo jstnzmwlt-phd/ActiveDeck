@@ -19,6 +19,7 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance }
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isDownloading, setIsDownloading] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isNewSessionConfirmOpen, setIsNewSessionConfirmOpen] = useState(false);
 
   const [zoom, setZoom] = useState(() => {
     const savedZoom = localStorage.getItem('activeDeckZoom');
@@ -151,12 +152,13 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance }
 
 
   const handleNewSession = () => {
-    const confirmNew = window.confirm("Are you sure you want to start a new session? This will redirect to a new URL, clear the chat, and reset the attendance list.");
-    if (confirmNew) {
-      sessionStorage.removeItem('activePresenterPresentationId');
-      sessionStorage.removeItem('activePresenterEmail');
-      window.location.href = window.location.origin + window.location.pathname;
-    }
+    setIsNewSessionConfirmOpen(true);
+  };
+
+  const executeNewSession = () => {
+    sessionStorage.removeItem('activePresenterPresentationId');
+    sessionStorage.removeItem('activePresenterEmail');
+    window.location.href = window.location.origin + window.location.pathname;
   };
 
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
@@ -566,6 +568,41 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance }
                 className="px-4 py-2 text-xs font-medium text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg transition-colors"
               >
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Session Confirmation Modal */}
+      {isNewSessionConfirmOpen && (
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+          onClick={() => setIsNewSessionConfirmOpen(false)}
+        >
+          <div 
+            className="bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-6 max-w-sm w-full text-slate-100 animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold text-white mb-2">Start New Session?</h3>
+            <p className="text-xs text-slate-400 mb-6 leading-relaxed">
+              Are you sure you want to start a new session? This will redirect to a new URL, clear the chat, and reset the attendance list.
+            </p>
+            
+            <div className="flex justify-end gap-3 pt-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setIsNewSessionConfirmOpen(false)}
+                className="px-4 py-2 text-xs font-medium text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={executeNewSession}
+                className="px-4 py-2 text-xs font-bold text-white bg-osu-orange hover:bg-[#c03900] rounded-lg transition-colors shadow-lg shadow-orange-500/15"
+              >
+                Start New Session
               </button>
             </div>
           </div>
