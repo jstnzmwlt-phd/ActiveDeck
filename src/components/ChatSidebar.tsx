@@ -3225,7 +3225,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       )}
 
       {/* Join Code Bar - Only for Presenter/Main View */}
-      {!isChatOnly && (
+      {(!isChatOnly || isProjector) && (
         <div className="bg-slate-900 text-white px-3.5 py-3.5 border-b border-slate-800">
           <div className="flex items-center justify-between gap-2.5">
             <div className="flex flex-col min-w-0 flex-1 gap-1.5">
@@ -3413,7 +3413,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       )}
 
       {/* Embedded QR Code Section */}
-      {!isChatOnly && (
+      {(!isChatOnly || isProjector) && (
         isQRExpanded ? (
           /* Expanded Card View */
           <div 
@@ -3469,7 +3469,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
             <div className="flex flex-col justify-center min-w-0 w-full">
               <div className="flex items-center justify-between mb-0.5">
                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest truncate mr-1">
-                  Session Controls
+                  {canModerate ? "Session Controls" : "Live Session"}
                 </p>
                 <div className="flex items-center gap-1.5 px-1.5 py-0.5 bg-slate-200/50 rounded-lg text-[10px] font-black text-slate-700 shadow-sm shrink-0">
                   <Users className="w-3.5 h-3.5 text-osu-orange" />
