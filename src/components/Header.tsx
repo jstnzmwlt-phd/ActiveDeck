@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Monitor, Clock, Maximize, Minimize, Link2, Link2Off, Sun, Moon, Loader2, AlertCircle, Eye, EyeOff, Download, ShieldAlert, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { Monitor, Clock, Maximize, Minimize, Link2, Link2Off, Sun, Moon, Loader2, AlertCircle, Eye, EyeOff, Download, ShieldAlert, X, ZoomIn, ZoomOut, Tv } from 'lucide-react';
 import { useBridge } from '../contexts/BridgeContext';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -8,9 +8,10 @@ interface HeaderProps {
   presentationId?: string | null;
   showAttendance?: boolean;
   onNewSession?: () => Promise<void>;
+  pinCode?: string | null;
 }
 
-export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, onNewSession }) => {
+export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, onNewSession, pinCode }) => {
   const { isBridgeConnected, setUseWithoutBridge } = useBridge();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isWakeLockActive, setIsWakeLockActive] = useState(false);
@@ -350,6 +351,26 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
             >
               <Monitor className="w-3.5 h-3.5 text-osu-orange" />
               <span>New Session</span>
+            </button>
+          )}
+
+          {presentationId && (
+            <button
+              onClick={() => {
+                if (!presentationId) return;
+                const url = new URL(window.location.href);
+                url.searchParams.set('id', presentationId);
+                if (pinCode) {
+                  url.searchParams.set('pin', pinCode);
+                }
+                url.searchParams.set('view', 'projector');
+                window.open(url.toString(), '_blank');
+              }}
+              className="flex items-center gap-2 px-3 py-1.5 bg-osu-orange hover:bg-[#c03900] text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 cursor-pointer"
+              title="Launch Projector Mode in a new tab"
+            >
+              <Tv className="w-3.5 h-3.5 text-white" />
+              <span>Projector Mode</span>
             </button>
           )}
         </div>

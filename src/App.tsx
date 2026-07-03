@@ -54,6 +54,7 @@ function AppContent() {
   const [activePresentationId, setActivePresentationId] = useState<string | null>(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const isChatOnly = urlParams.get('view') === 'chat';
+    const isProjector = urlParams.get('view') === 'projector';
 
     // 1. Check for URL-based explicit new session parameter (highly robust across all browsers/frames)
     const isNewSessionParam = urlParams.get('new_session') === 'true';
@@ -72,7 +73,7 @@ function AppContent() {
       return null;
     }
 
-    if (!isChatOnly) {
+    if (!isChatOnly && !isProjector) {
       const urlId = urlParams.get('id');
       if (urlId) {
         console.log('AppContent - Capturing URL presentation ID and stripping from URL:', urlId);
@@ -98,7 +99,7 @@ function AppContent() {
       }
     }
 
-    return isChatOnly 
+    return (isChatOnly || isProjector) 
       ? urlParams.get('id') 
       : (sessionStorage.getItem('activePresenterPresentationId') || urlParams.get('id'));
   });
@@ -311,6 +312,7 @@ function AppContent() {
   // Check for view parameter
   const urlParams = new URLSearchParams(window.location.search);
   const isChatOnly = urlParams.get('view') === 'chat';
+  const isProjector = urlParams.get('view') === 'projector';
 
   const pathname = window.location.pathname;
   
@@ -328,6 +330,49 @@ function AppContent() {
       loader.style.display = 'none';
     }
   }, []);
+
+  // Reactive PIN-to-ID resolver for Projector Mode
+  useEffect(() => {
+    if (!isProjector || activePresentationId) return;
+
+    const currentUrlParams = new URLSearchParams(window.location.search);
+    const pin = currentUrlParams.get('pin');
+    if (!pin) return;
+
+    const resolvePin = async () => {
+      console.log('AppContent - Projector Mode: Resolving PIN:', pin);
+      try {
+        const pinRef = doc(db, 'sessionPins', pin);
+        const pinSnap = await getDoc(pinRef);
+        if (pinSnap.exists() && pinSnap.data().active) {
+          const presId = pinSnap.data().presentationId;
+          if (presId) {
+            console.log('AppContent - PIN resolved successfully to presentationId:', presId);
+            setActivePresentationId(presId);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('AppContent - Error reading PIN from sessionPins:', err);
+      }
+
+      // Direct fallback query
+      try {
+        const { query, collection, where, getDocs, limit } = await import('firebase/firestore');
+        const q = query(collection(db, 'presentations'), where('pinCode', '==', pin), limit(1));
+        const querySnap = await getDocs(q);
+        if (!querySnap.empty) {
+          const presId = querySnap.docs[0].id;
+          console.log('AppContent - Fallback direct query resolved PIN to presentationId:', presId);
+          setActivePresentationId(presId);
+        }
+      } catch (err) {
+        console.error('AppContent - Direct presentations query fallback failed:', err);
+      }
+    };
+
+    resolvePin();
+  }, [isProjector, activePresentationId]);
 
 
 
@@ -596,6 +641,34 @@ function AppContent() {
 
   console.log('AppContent - Rendering Main State. isChatOnly:', isChatOnly);
 
+  // Synced Projector Mode Layout
+  if (isProjector) {
+    return (
+      <div className="flex flex-row h-screen w-screen overflow-hidden bg-slate-950 font-sans antialiased p-6 gap-6">
+        {/* Giant Slide Presentation Area */}
+        <div className="flex-1 h-full min-w-0 rounded-2xl overflow-hidden border border-slate-800 bg-slate-900 shadow-2xl">
+          <PresenterArea 
+            presentation={presentation} 
+            logoUrl={settings?.theme.logoUrl} 
+            isProjectorMode={true}
+          />
+        </div>
+
+        {/* Expanded Read-Only Sidebar Q&A Display */}
+        <div className="w-[380px] h-full flex-shrink-0 rounded-2xl overflow-hidden border-2 border-osu-orange bg-slate-900 shadow-2xl">
+          <ChatSidebar 
+            presentation={presentation} 
+            logoUrl={settings?.theme.logoUrl} 
+            presentationLoaded={presentationLoaded} 
+            showAttendance={settings?.showAttendance}
+            isProjector={true}
+            isChatOnly={true} // Acts as student but read-only
+          />
+        </div>
+      </div>
+    );
+  }
+
   // Chat-only view for audience members who scanned the QR code
   if (isChatOnly) {
     return (
@@ -617,6 +690,7 @@ function AppContent() {
         presentationId={presentation?.id || activePresentationId} 
         showAttendance={settings?.showAttendance}
         onNewSession={handleStartNewSession}
+        pinCode={presentation?.pinCode}
       />
       
       <div className="flex flex-row flex-1 p-6 pb-2 gap-6 bg-slate-100 min-h-0 overflow-hidden">

@@ -5,14 +5,16 @@ import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as
 import { useBridge } from '../contexts/BridgeContext';
 import { auth, db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import { QRCodeSVG } from 'qrcode.react';
 
 interface PresenterAreaProps {
   presentation: Presentation | null;
   logoUrl?: string;
   onCreatePresentation?: () => Promise<string>;
+  isProjectorMode?: boolean;
 }
 
-export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logoUrl, onCreatePresentation }) => {
+export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logoUrl, onCreatePresentation, isProjectorMode = false }) => {
   const { currentSlide, sendSlideCommand, isBridgeConnected, useWithoutBridge, setUseWithoutBridge } = useBridge();
   const [activeTab, setActiveTab] = useState<'single' | 'dual' | 'manual'>('single');
   const [secondaryColor, setSecondaryColor] = useState<string>('#ff3e00');
@@ -129,7 +131,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         />
         
         {/* Floating Setup Instructions Bubble - Shown in the top-left when not capturing */}
-        {!isCapturing && !error && (
+        {!isCapturing && !error && !isProjectorMode && (
           <button 
             onClick={() => setShowInstructions(true)}
             className="absolute top-4 left-4 z-[70] flex items-center gap-2 px-3 py-1.5 bg-slate-900/90 hover:bg-slate-800 border border-slate-700/50 text-white text-xs font-bold rounded-full shadow-lg transition-all hover:scale-105 active:scale-95 cursor-pointer backdrop-blur-sm"
@@ -141,7 +143,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         )}
 
         {/* Setup Bridge Card - Shown when not capturing and no error */}
-        {!isCapturing && !error && (
+        {!isCapturing && !error && !isProjectorMode && (
           <div className="absolute inset-0 z-[60] flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4">
             <div className="bg-slate-900/90 border border-slate-800 rounded-3xl shadow-2xl p-8 max-w-sm w-full text-center flex flex-col items-center justify-center relative">
               <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 transition-all duration-500 shadow-lg ${
@@ -200,6 +202,56 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     </div>
                   </>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Stunning Classroom Welcome & Join Hub - Shown in projector mode when offline */}
+        {!isCapturing && isProjectorMode && (
+          <div className="absolute inset-0 z-[65] flex flex-col items-center justify-center bg-slate-950 p-8 text-center text-white">
+            <div className="max-w-2xl w-full flex flex-col items-center gap-8 animate-in fade-in zoom-in-95 duration-500">
+              {/* Logo / Brand Header */}
+              <div className="flex flex-col items-center gap-3">
+                {logoUrl ? (
+                  <img src={logoUrl} alt="ActiveDeck" className="h-16 object-contain animate-pulse" />
+                ) : (
+                  <div className="flex items-center gap-3 text-3xl font-black uppercase tracking-wider text-osu-orange">
+                    <MonitorPlay className="w-10 h-10 animate-pulse" />
+                    <span>ActiveDeck</span>
+                  </div>
+                )}
+                <p className="text-slate-400 text-lg font-semibold tracking-wide">
+                  Welcome! The presentation is about to begin.
+                </p>
+              </div>
+
+              {/* Huge QR Code Card */}
+              <div className="bg-white p-6 rounded-3xl shadow-2xl flex flex-col items-center justify-center border-4 border-osu-orange/20 hover:scale-102 transition-transform duration-300">
+                <QRCodeSVG
+                  value={`${window.location.origin}/chat?pin=${presentation?.pinCode || ''}`}
+                  size={260}
+                  level="H"
+                  includeMargin={false}
+                />
+              </div>
+
+              {/* Giant PIN & Connection Info */}
+              <div className="space-y-4">
+                <div className="text-slate-400 text-sm font-black uppercase tracking-widest">
+                  Scan to Join, or Go to:
+                </div>
+                <div className="text-2xl font-extrabold text-white bg-slate-900 border border-slate-800 px-6 py-3 rounded-2xl inline-block tracking-wide shadow-inner">
+                  {window.location.origin}/chat
+                </div>
+                <div className="flex flex-col items-center gap-1 pt-2">
+                  <div className="text-slate-400 text-sm font-black uppercase tracking-widest">
+                    Enter Join Code (PIN):
+                  </div>
+                  <div className="text-7xl font-black tracking-wider text-osu-orange select-all font-mono">
+                    {presentation?.pinCode ? presentation.pinCode.replace(/(\d{3})(?=\d)/g, '$1 ') : '--- ---'}
+                  </div>
+                </div>
               </div>
             </div>
           </div>

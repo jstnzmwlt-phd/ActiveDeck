@@ -122,9 +122,10 @@ interface OpenEndedQuestionCardProps {
   initialCollapsed?: boolean;
   isInitiallyNew?: boolean;
   secondaryColor?: string;
+  isProjector?: boolean;
 }
 
-const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, canModerate, onClose, onDelete, onStart, onSubmit, onToggleResults, onAdjustDuration, initialCollapsed = false, isInitiallyNew = false, secondaryColor }) => {
+const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, canModerate, onClose, onDelete, onStart, onSubmit, onToggleResults, onAdjustDuration, initialCollapsed = false, isInitiallyNew = false, secondaryColor, isProjector = false }) => {
   const [response, setResponse] = useState('');
   const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : initialCollapsed);
   const prevInitialCollapsedRef = useRef(initialCollapsed);
@@ -314,7 +315,7 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
             </div>
           ) : (
             <>
-              {q.active && !canModerate ? (
+              {q.active && !canModerate && !isProjector ? (
                 <form onSubmit={handleSubmit} className="flex gap-2 mb-2">
                   <input
                     type="text"
@@ -377,9 +378,10 @@ interface PollCardProps {
   initialCollapsed?: boolean;
   isInitiallyNew?: boolean;
   secondaryColor?: string;
+  isProjector?: boolean;
 }
 
-const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate, onVote, onToggleResults, onClose, onDelete, onStart, onAdjustDuration, onMarkCorrect, initialCollapsed = false, isInitiallyNew = false, secondaryColor }) => {
+const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate, onVote, onToggleResults, onClose, onDelete, onStart, onAdjustDuration, onMarkCorrect, initialCollapsed = false, isInitiallyNew = false, secondaryColor, isProjector = false }) => {
   const totalVotes = Object.values(poll.votes || {}).reduce((a, b) => a + b, 0);
   const userVote = user && poll.voters ? poll.voters[user.uid] : null;
   const [timeLeft, setTimeLeft] = useState<number | null>(() => {
@@ -587,8 +589,9 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
                 return (
                   <div key={opt} className="relative">
                     <button
-                      disabled={(!poll.active && !canMarkCorrect) || (poll.active && (!!userVote || !isChatOnly))}
+                      disabled={isProjector || (!poll.active && !canMarkCorrect) || (poll.active && (!!userVote || !isChatOnly))}
                       onClick={() => {
+                        if (isProjector) return;
                         if (canMarkCorrect) {
                           onMarkCorrect(poll.id, opt);
                         } else {
@@ -598,6 +601,7 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
                       className={cn(
                         "w-full relative overflow-hidden flex items-center justify-between px-4 py-2 rounded-lg border transition-all",
                         isSelected ? "border-osu-orange bg-orange-50" : "border-slate-200 hover:border-osu-orange/50 bg-white",
+                        isProjector && "cursor-default pointer-events-none hover:border-slate-200 bg-white",
                         !poll.active && !canMarkCorrect && "opacity-80 cursor-default",
                         hasCorrectAnswer && isCorrect && "border-green-500 bg-green-50/30 ring-2 ring-green-500/20",
                         hasCorrectAnswer && !isCorrect && "border-red-500/50 grayscale-[0.5] opacity-70",
@@ -670,9 +674,10 @@ interface WordCloudCardProps {
   initialCollapsed?: boolean;
   isInitiallyNew?: boolean;
   secondaryColor?: string;
+  isProjector?: boolean;
 }
 
-const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, canModerate, onSubmit, onToggleResults, onClose, onDelete, onStart, onAdjustDuration, initialCollapsed = false, isInitiallyNew = false, secondaryColor }) => {
+const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, canModerate, onSubmit, onToggleResults, onClose, onDelete, onStart, onAdjustDuration, initialCollapsed = false, isInitiallyNew = false, secondaryColor, isProjector = false }) => {
   const [word, setWord] = useState('');
   const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : initialCollapsed);
   const prevInitialCollapsedRef = useRef(initialCollapsed);
@@ -882,7 +887,7 @@ const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, 
             </div>
           ) : (
             <>
-              {cloud.active && !hasParticipated && isChatOnly && (
+              {cloud.active && !hasParticipated && isChatOnly && !isProjector && (
                 <form onSubmit={handleSubmit} className="flex gap-2 mb-2">
                   <input
                     type="text"
@@ -898,7 +903,7 @@ const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, 
                 </form>
               )}
 
-              {hasParticipated && cloud.active && isChatOnly && (
+              {hasParticipated && cloud.active && isChatOnly && !isProjector && (
                 <div className="text-xs text-slate-500 italic mb-2">You have submitted your response.</div>
               )}
 
@@ -1186,9 +1191,10 @@ interface ChatSidebarProps {
   logoUrl?: string;
   presentationLoaded?: boolean;
   showAttendance?: boolean;
+  isProjector?: boolean;
 }
 
-export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, presentation = null, logoUrl, presentationLoaded = true, showAttendance = false }) => {
+export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, presentation = null, logoUrl, presentationLoaded = true, showAttendance = false, isProjector = false }) => {
   const [internalLogoUrl, setInternalLogoUrl] = useState<string | undefined | null>(null);
   const [secondaryColor, setSecondaryColor] = useState<string>('#ff3e00');
 
@@ -1214,8 +1220,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
   const { user } = useAuth();
   const { currentSlide } = useBridge();
-  const canModerate = !isChatOnly; // Only the person in the main view (presenter) can moderate
-  const canModerateChat = !isChatOnly; // Only the person in the main view can moderate chat
+  const canModerate = !isChatOnly && !isProjector; // Only the person in the main view (presenter) can moderate
+  const canModerateChat = !isChatOnly && !isProjector; // Only the person in the main view can moderate chat
 
   console.log('ChatSidebar Render - User:', user?.email || 'Guest');
   const [messages, setMessages] = useState<Message[]>([]);
@@ -3622,6 +3628,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                     initialCollapsed={isAllCollapsed}
                     isInitiallyNew={isInitiallyNew}
                     secondaryColor={secondaryColor}
+                    isProjector={isProjector}
                   />
                 );
               } else if (item.type === 'wordCloud') {
@@ -3645,6 +3652,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                     initialCollapsed={isAllCollapsed}
                     isInitiallyNew={isInitiallyNew}
                     secondaryColor={secondaryColor}
+                    isProjector={isProjector}
                   />
                 );
               } else if (item.type === 'openEndedQuestion') {
@@ -3667,6 +3675,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                     initialCollapsed={isAllCollapsed}
                     isInitiallyNew={isInitiallyNew}
                     secondaryColor={secondaryColor}
+                    isProjector={isProjector}
                   />
                 );
               }
@@ -3708,7 +3717,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   </div>
 
       {/* Input Area - Only visible for audience members (isChatOnly) */}
-      {isChatOnly && (
+      {isChatOnly && !isProjector && (
         <div className="bg-white border-t border-slate-200 shrink-0 pb-[env(safe-area-inset-bottom)]">
           {!user ? (
             <div className="p-4 text-center">
@@ -3910,7 +3919,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       )}
 
       {/* Presenter-only Bottom Chat Input Area */}
-      {!isChatOnly && user && (
+      {!isChatOnly && !isProjector && user && (
         <div className="bg-white border-t border-slate-200 shrink-0 p-3" style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom))' }}>
           <form onSubmit={handleSendMessage} className="flex gap-2">
             <button
