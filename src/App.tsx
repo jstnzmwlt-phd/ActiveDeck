@@ -526,22 +526,6 @@ function AppContent() {
             >
               Looking for Chat? Join Session
             </button>
-
-            {/* PowerPoint Helper Info Box */}
-            {((window as any).Office || window.location.href.includes('powerpoint') || navigator.userAgent.includes('PowerPoint')) && (
-              <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-[10px] text-left text-slate-400 space-y-2 animate-in fade-in duration-300">
-                <p className="font-black text-slate-200 uppercase tracking-widest flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-osu-orange animate-pulse" />
-                  PowerPoint Add-in Helper Guide
-                </p>
-                <p className="leading-normal">
-                  <span className="font-bold text-slate-300">Keyboard Focus:</span> If clicking inside the input doesn't let you type, click on the neutral presentation background first, then click back here. Press <span className="font-mono text-white">Ctrl + F5</span> inside the sidebar to force-reload focus if it gets locked by PowerPoint.
-                </p>
-                <p className="leading-normal">
-                  <span className="font-bold text-slate-300">Slide Show Mode workaround:</span> PowerPoint automatically closes taskpane sidebars during full-screen presentations. To present slide content side-by-side with your active chat sidebar, collapse PowerPoint's left slide list and double-click the <span className="font-bold text-white">Home tab</span> to hide the top toolbar in normal edit view.
-                </p>
-              </div>
-            )}
           </form>
         </div>
       </div>
