@@ -80,12 +80,8 @@ function AppContent() {
       console.log('AppContent - New presentation created:', docRef.id, 'with PIN:', pinCode);
       sessionStorage.setItem('activePresenterPresentationId', docRef.id);
       
-      // Update URL with the new ID without reloading the page
-      const newUrl = new URL(window.location.href);
-      newUrl.searchParams.set('id', docRef.id);
-      if (window.history && typeof window.history.replaceState === 'function') {
-        window.history.replaceState({}, '', newUrl.toString());
-      }
+      // For presenter, we keep the URL clean to avoid PowerPoint WebView re-locking bugs.
+      // The session ID is stored and managed strictly via sessionStorage.
 
       setPresentationLoaded(false);
 
@@ -231,10 +227,28 @@ function AppContent() {
   const urlParams = new URLSearchParams(window.location.search);
   const isChatOnly = urlParams.get('view') === 'chat';
 
+  // For presenter (not chat only), we completely avoid keeping ?id=... in the URL.
+  // This prevents PowerPoint/WebView from caching and re-injecting the old ID on reload.
+  // We synchronously capture any ?id=... from the URL on mount, save it to sessionStorage, and strip it from the URL.
+  if (!isChatOnly) {
+    const urlId = urlParams.get('id');
+    if (urlId) {
+      console.log('AppContent - Capturing URL presentation ID and stripping from URL:', urlId);
+      sessionStorage.setItem('activePresenterPresentationId', urlId);
+      urlParams.delete('id');
+      if (window.history && typeof window.history.replaceState === 'function') {
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete('id');
+        window.history.replaceState({}, '', cleanUrl.toString());
+      }
+    }
+  }
+
   // Handle force new session flag to strip old ID and prevent re-locking
   const isForceNewSession = sessionStorage.getItem('activeDeckForceNewSession') === 'true';
   if (isForceNewSession) {
     sessionStorage.removeItem('activeDeckForceNewSession');
+    sessionStorage.removeItem('activePresenterPresentationId'); // Double ensure deleted
     urlParams.delete('id');
     if (window.history && typeof window.history.replaceState === 'function') {
       const cleanUrl = new URL(window.location.href);
@@ -243,7 +257,10 @@ function AppContent() {
     }
   }
 
-  const presentationId = urlParams.get('id');
+  // For students, we get ID from the URL. For presenters, we get it from sessionStorage or fallback to URL if needed.
+  const presentationId = isChatOnly 
+    ? urlParams.get('id') 
+    : (sessionStorage.getItem('activePresenterPresentationId') || urlParams.get('id'));
   const pathname = window.location.pathname;
   
   // Smart routing to handle students forgetting "/chat" in the URL and landing on root "/"
@@ -299,9 +316,9 @@ function AppContent() {
         }
       };
 
-      // Determine if we should load the presentation ID from the URL
+      // Determine if we should load the presentation ID from the URL (students/chat-only only)
       let shouldLoadUrlId = false;
-      if (presentationId) {
+      if (isChatOnly && presentationId) {
         shouldLoadUrlId = true;
       }
 
@@ -353,15 +370,7 @@ function AppContent() {
                 );
               }
               
-              if (isFirstCallback) {
-                // Update URL parameter without reloading
-                const newUrl = new URL(window.location.href);
-                newUrl.searchParams.set('id', docSnap.id);
-                if (window.history && typeof window.history.replaceState === 'function') {
-                  window.history.replaceState({}, '', newUrl.toString());
-                }
-                isFirstCallback = false;
-              }
+              // For presenter, we manage session strictly in sessionStorage and keep URL parameter empty.
             } else {
               console.warn('AppContent - Cached presentation does not exist in Firestore. Cleaning cache.');
               sessionStorage.removeItem('activePresenterPresentationId');
