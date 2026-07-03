@@ -124,7 +124,7 @@ function AppContent() {
   };
 
   const handleStartNewSession = async () => {
-    console.log('AppContent - Starting new presentation session in-memory...');
+    console.log('AppContent - Starting new presentation session and forcing page reload...');
     
     // 1. Unsubscribe from any active snapshot listener to avoid memory leaks or stale updates
     if (activeUnsubscribeRef.current) {
@@ -149,10 +149,16 @@ function AppContent() {
     // 3. Clear presenter's presentation ID cache in sessionStorage
     sessionStorage.removeItem('activePresenterPresentationId');
 
-    // 4. Reset local states to trigger loading indicators/views
-    setPresentation(null);
-    setPresentationLoaded(false);
-    setActivePresentationId(null);
+    // 4. Set force-new-session flag so initializer starts fresh on reload
+    sessionStorage.setItem('activeDeckForceNewSession', 'true');
+
+    // 5. Force full page reload to clean up all embedded browser webview state
+    const targetUrl = window.location.origin + window.location.pathname;
+    if (window.location.href === targetUrl) {
+      window.location.reload();
+    } else {
+      window.location.href = targetUrl;
+    }
   };
 
   const handleCreatePresentationForArea = async () => {
