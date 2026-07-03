@@ -28,28 +28,22 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
   });
 
   useEffect(() => {
-    // Clean up any zoom property on html or body from previous versions
-    if (document.body && (document.body.style as any).zoom) {
-      (document.body.style as any).zoom = '';
-    }
-    if (document.documentElement && (document.documentElement.style as any).zoom) {
-      (document.documentElement.style as any).zoom = '';
-    }
-
     const html = document.documentElement;
     const body = document.body;
     const root = document.getElementById('root');
 
+    // Clean up scale transform
     if (html) {
-      html.style.transform = `scale(${zoom})`;
-      html.style.transformOrigin = 'top left';
-      html.style.width = `${100 / zoom}%`;
-      html.style.height = `${100 / zoom}%`;
+      html.style.transform = '';
+      html.style.transformOrigin = '';
+      html.style.width = '';
+      html.style.height = '';
     }
 
     if (body) {
-      body.style.width = '100%';
-      body.style.height = '100%';
+      (body.style as any).zoom = zoom.toString();
+      body.style.width = `calc(100% / ${zoom})`;
+      body.style.height = `calc(100% / ${zoom})`;
     }
 
     if (root) {
@@ -61,13 +55,8 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
 
     return () => {
       // Clean up styles on unmount
-      if (html) {
-        html.style.transform = '';
-        html.style.transformOrigin = '';
-        html.style.width = '';
-        html.style.height = '';
-      }
       if (body) {
+        (body.style as any).zoom = '';
         body.style.width = '';
         body.style.height = '';
       }

@@ -326,16 +326,18 @@ function AppContent() {
     const body = document.body;
     const root = document.getElementById('root');
 
+    // Clean up transform scale styles
     if (html) {
-      html.style.transform = `scale(${projectorZoom})`;
-      html.style.transformOrigin = 'top left';
-      html.style.width = `${100 / projectorZoom}%`;
-      html.style.height = `${100 / projectorZoom}%`;
+      html.style.transform = '';
+      html.style.transformOrigin = '';
+      html.style.width = '';
+      html.style.height = '';
     }
 
     if (body) {
-      body.style.width = '100%';
-      body.style.height = '100%';
+      (body.style as any).zoom = projectorZoom.toString();
+      body.style.width = `calc(100% / ${projectorZoom})`;
+      body.style.height = `calc(100% / ${projectorZoom})`;
     }
 
     if (root) {
@@ -346,13 +348,8 @@ function AppContent() {
     localStorage.setItem('activeDeckProjectorZoom', projectorZoom.toString());
 
     return () => {
-      if (html) {
-        html.style.transform = '';
-        html.style.transformOrigin = '';
-        html.style.width = '';
-        html.style.height = '';
-      }
       if (body) {
+        (body.style as any).zoom = '';
         body.style.width = '';
         body.style.height = '';
       }
@@ -693,7 +690,7 @@ function AppContent() {
   // Synced Projector Mode Layout
   if (isProjector) {
     return (
-      <div className="flex flex-row h-screen w-screen overflow-hidden bg-slate-950 font-sans antialiased p-6 gap-6 relative group">
+      <div className="flex flex-row h-full w-full overflow-hidden bg-slate-950 font-sans antialiased p-6 gap-6 relative group">
         {/* Giant Slide Presentation Area */}
         <div className="flex-1 h-full min-w-0 rounded-2xl overflow-hidden border border-slate-800 bg-slate-900 shadow-2xl">
           <PresenterArea 
