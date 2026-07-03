@@ -457,21 +457,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 )}
               </div>
               
-              {/* PowerPoint Add-in specific tips (only visible if running inside PowerPoint Add-in context) */}
-              {((window as any).Office || window.location.href.includes('powerpoint') || navigator.userAgent.includes('PowerPoint')) && (
-                <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-xl text-[10px] text-slate-500 text-left space-y-1.5 leading-normal">
-                  <p className="font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#ff3e00] animate-pulse" />
-                    PowerPoint Add-in Presenting Layout
-                  </p>
-                  <p>
-                    By design, PowerPoint automatically hides taskpane sidebars when transitioning to full-screen Slide Show.
-                  </p>
-                  <p className="font-medium text-slate-600">
-                    <span className="font-bold">Recommended Layout:</span> Double-click PowerPoint's <span className="font-bold">Home tab</span> to hide the ribbon toolbar, and collapse the slide thumbnail list on the left. This presents a massive slide in the center while maintaining your active chat sidebar!
-                  </p>
-                </div>
-              )}
+
               
               <div className="pt-4 border-t border-slate-100 flex items-center justify-center gap-2 text-slate-400">
                 <div className={`w-2 h-2 rounded-full animate-pulse ${isBridgeConnected || activeTab === 'manual' ? 'bg-green-500' : 'bg-red-500'}`} />
