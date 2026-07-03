@@ -137,27 +137,40 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   useEffect(() => {
     if (!isProjectorMode) return;
 
+    console.log("ActiveDeck Projector: Sync stream effect mounted");
     const channel = new BroadcastChannel('activedeck-stream');
 
     const checkParentStream = () => {
+      console.log("ActiveDeck Projector: checkParentStream invoked");
       try {
-        if (window.opener && !window.opener.closed) {
-          const parentStream = window.opener.activeDeckStream;
-          if (parentStream) {
-            setStream(parentStream);
-            setIsCapturing(true);
-            setError(null);
+        console.log("ActiveDeck Projector: window.opener =", window.opener);
+        if (window.opener) {
+          console.log("ActiveDeck Projector: window.opener.closed =", window.opener.closed);
+          if (!window.opener.closed) {
+            const parentStream = window.opener.activeDeckStream;
+            console.log("ActiveDeck Projector: window.opener.activeDeckStream =", parentStream);
+            if (parentStream) {
+              console.log("ActiveDeck Projector: Stream found. Active tracks:", parentStream.getTracks().map((t: any) => ({ label: t.label, enabled: t.enabled, readyState: t.readyState })));
+              setStream(parentStream);
+              setIsCapturing(true);
+              setError(null);
+            } else {
+              console.log("ActiveDeck Projector: Opener exists but activeDeckStream is null or undefined");
+              setStream(null);
+              setIsCapturing(false);
+            }
           } else {
+            console.log("ActiveDeck Projector: window.opener is closed");
             setStream(null);
             setIsCapturing(false);
           }
         } else {
-          // Parent window was closed, stop presentation
+          console.log("ActiveDeck Projector: window.opener is NULL/undefined");
           setStream(null);
           setIsCapturing(false);
         }
       } catch (err) {
-        console.error("ActiveDeck: Error accessing presenter window memory:", err);
+        console.error("ActiveDeck Projector: Error accessing presenter window memory:", err);
       }
     };
 
@@ -166,9 +179,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
     // 2. Set up BroadcastChannel listener for real-time start/stop
     channel.onmessage = (event) => {
+      console.log("ActiveDeck Projector: BroadcastChannel message received:", event.data);
       if (event.data?.type === 'stream-started') {
         checkParentStream();
       } else if (event.data?.type === 'stream-stopped') {
+        console.log("ActiveDeck Projector: Stream stopped message received");
         setStream(null);
         setIsCapturing(false);
       }
@@ -178,6 +193,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     const intervalId = setInterval(checkParentStream, 1000);
 
     return () => {
+      console.log("ActiveDeck Projector: Sync stream effect unmounting");
       channel.close();
       clearInterval(intervalId);
     };
