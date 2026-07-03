@@ -111,6 +111,34 @@ function AppContent() {
       throw error;
     }
   };
+
+  const handleStartNewSession = async () => {
+    console.log('AppContent - Starting new presentation session in-memory...');
+    
+    // 1. Unsubscribe from any active snapshot listener to avoid memory leaks or stale updates
+    if (activeUnsubscribeRef.current) {
+      console.log('AppContent - Unsubscribing from current presentation listener');
+      activeUnsubscribeRef.current();
+      activeUnsubscribeRef.current = null;
+    }
+
+    // 2. Clear presenter's presentation ID cache in sessionStorage
+    sessionStorage.removeItem('activePresenterPresentationId');
+
+    // 3. Reset local states to trigger loading indicators/views
+    setPresentation(null);
+    setPresentationLoaded(false);
+
+    // 4. Create new presentation (this generates unique PIN, registers PIN, creates Firestore doc, and listens to it)
+    try {
+      await createNewPresentation();
+      console.log('AppContent - In-memory new session creation successful');
+    } catch (err) {
+      console.error('AppContent - Failed to create new presentation in-memory:', err);
+      setAppError('Failed to start a new presentation session. Please check your network connection.');
+    }
+  };
+
   const [emailDomainError, setEmailDomainError] = useState<string | null>(null);
   const [checkingEmailDomain, setCheckingEmailDomain] = useState(false);
   const [presenterEmail, setPresenterEmail] = useState<string>(() => sessionStorage.getItem('activePresenterEmail') || '');
@@ -576,6 +604,7 @@ function AppContent() {
       <Header 
         presentationId={presentation?.id || presentationId} 
         showAttendance={settings?.showAttendance}
+        onNewSession={handleStartNewSession}
       />
       
       <div className="flex flex-row flex-1 p-6 pb-2 gap-6 bg-slate-100 min-h-0 overflow-hidden">

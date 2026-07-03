@@ -7,9 +7,10 @@ import { db } from '../firebase';
 interface HeaderProps {
   presentationId?: string | null;
   showAttendance?: boolean;
+  onNewSession?: () => Promise<void>;
 }
 
-export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance }) => {
+export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, onNewSession }) => {
   const { isBridgeConnected, setUseWithoutBridge } = useBridge();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isWakeLockActive, setIsWakeLockActive] = useState(false);
@@ -155,14 +156,23 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance }
     setIsNewSessionConfirmOpen(true);
   };
 
-  const executeNewSession = () => {
-    sessionStorage.removeItem('activePresenterPresentationId');
-    sessionStorage.setItem('activeDeckForceNewSession', 'true');
-    const targetUrl = window.location.origin + window.location.pathname;
-    if (window.location.href === targetUrl) {
-      window.location.reload();
+  const executeNewSession = async () => {
+    setIsNewSessionConfirmOpen(false);
+    if (onNewSession) {
+      try {
+        await onNewSession();
+      } catch (err) {
+        console.error("Header: Error starting new session:", err);
+      }
     } else {
-      window.location.href = targetUrl;
+      sessionStorage.removeItem('activePresenterPresentationId');
+      sessionStorage.setItem('activeDeckForceNewSession', 'true');
+      const targetUrl = window.location.origin + window.location.pathname;
+      if (window.location.href === targetUrl) {
+        window.location.reload();
+      } else {
+        window.location.href = targetUrl;
+      }
     }
   };
 

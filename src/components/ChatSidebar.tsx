@@ -1222,6 +1222,15 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [polls, setPolls] = useState<Poll[]>([]);
   const [wordClouds, setWordClouds] = useState<WordCloud[]>([]);
   const [openEndedQuestions, setOpenEndedQuestions] = useState<OpenEndedQuestion[]>([]);
+
+  // Reset all arrays when the presentation ID changes to ensure no visual lingering
+  useEffect(() => {
+    setMessages([]);
+    setPolls([]);
+    setWordClouds([]);
+    setOpenEndedQuestions([]);
+    setParticipantCount(0);
+  }, [presentation?.id]);
   const [inputText, setInputText] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
