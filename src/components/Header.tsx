@@ -364,7 +364,7 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
                   url.searchParams.set('pin', pinCode);
                 }
                 url.searchParams.set('view', 'projector');
-                window.open(url.toString(), '_blank');
+                window.open(url.toString(), '_blank', 'opener');
               }}
               className="flex items-center gap-2 px-3 py-1.5 bg-osu-orange hover:bg-[#c03900] text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 cursor-pointer"
               title="Launch Projector Mode in a new tab"

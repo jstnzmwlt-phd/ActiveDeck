@@ -2974,7 +2974,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     );
   }
 
-  if (isChatOnly && user?.isAnonymous && !hasJoined) {
+  if (isChatOnly && !isProjector && user?.isAnonymous && !hasJoined) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[100dvh] bg-slate-950 text-white p-4 md:p-8 relative overflow-y-auto w-screen">
         {/* OSU Logo Watermark */}
