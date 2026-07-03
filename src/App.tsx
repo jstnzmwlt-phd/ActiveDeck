@@ -141,7 +141,7 @@ function AppContent() {
   };
 
   const handleStartNewSession = async () => {
-    console.log('AppContent - Starting new presentation session strictly in-memory (preserving WebRTC capture and active screen share)...');
+    console.log('AppContent - Starting a brand-new presentation session with page-reload...');
     
     // 1. Unsubscribe from any active snapshot listener to avoid memory leaks or stale updates
     if (activeUnsubscribeRef.current) {
@@ -163,22 +163,27 @@ function AppContent() {
       }
     }
 
-    // 3. Clear the local React presentation state to reset UI while transitioning
+    // 3. Clear local states
     setPresentation(null);
     setPresentationLoaded(false);
 
-    // 4. Create the brand-new presentation and PIN in Firestore synchronously
+    // 4. Create the brand-new presentation and PIN in Firestore
     try {
       const newId = await createNewPresentation();
       if (newId) {
-        console.log('AppContent - New presentation created in-memory:', newId);
-        // 5. Update the unified state to mount and subscribe to the new session
-        setActivePresentationId(newId);
+        console.log('AppContent - New presentation created successfully:', newId);
+        // 5. Store in sessionStorage
+        sessionStorage.setItem('activePresenterPresentationId', newId);
+        
+        // 6. Perform a clean full page reload/redirect to clear parameters and reset capturing state
+        const cleanUrl = window.location.origin + window.location.pathname;
+        console.log('AppContent - Redirecting cleanly to:', cleanUrl);
+        window.location.href = cleanUrl;
       } else {
         throw new Error('Created presentation ID was empty.');
       }
     } catch (err) {
-      console.error('AppContent - Failed to start a new presentation session in-memory:', err);
+      console.error('AppContent - Failed to start a new presentation session:', err);
       setAppError('Failed to start a new presentation session. Please try again.');
     }
   };
