@@ -384,7 +384,7 @@ function AppContent() {
 
     const loadPresentation = async () => {
       const ensurePresentationHasPin = async (presId: string, data: any) => {
-        if (!data.pinCode && !isChatOnly && user) {
+        if (!data.pinCode && !isChatOnly && !isProjector && user) {
           try {
             const newPin = await generateUniquePin();
             await updateDoc(doc(db, 'presentations', presId), { pinCode: newPin });
@@ -404,9 +404,9 @@ function AppContent() {
         }
       };
 
-      // Determine if we should load the presentation ID from the URL (students/chat-only only)
+      // Determine if we should load the presentation ID from the URL (students/chat-only or projector)
       let shouldLoadUrlId = false;
-      if (isChatOnly && activePresentationId) {
+      if ((isChatOnly || isProjector) && activePresentationId) {
         shouldLoadUrlId = true;
       }
 
@@ -553,8 +553,8 @@ function AppContent() {
     return <JoinScreen />;
   }
 
-  // Ask for presenter's email before letting them proceed to the presenter screen
-  if (!isChatOnly && !presenterEmail) {
+  // Ask for presenter's email before letting them proceed to the presenter screen (bypass for chat & projector)
+  if (!isChatOnly && !isProjector && !presenterEmail) {
     return (
       <div className="h-full w-full flex flex-col items-center justify-center bg-slate-950 text-white p-6">
         <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl shadow-orange-500/5 text-center space-y-6 animate-in zoom-in-95 duration-200">
