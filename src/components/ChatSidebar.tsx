@@ -216,26 +216,27 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
           )}
           {canModerate && (
             <>
+              <button 
+                onClick={() => onToggleResults(q.id, !!q.showResults)}                
+                className={`p-1 ${q.showResults ? 'text-green-500' : 'text-slate-400'} hover:text-green-500 mr-1.5`}
+                title={q.showResults ? "Hide Results from Audience" : "Show Results to Audience"}
+              >
+                {q.showResults ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+              </button>
               {q.active ? (
                 <button 
                   onClick={() => onClose(q.id)} 
-                  className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors" 
+                  className="flex flex-col items-center p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors" 
                   title="Stop Interaction (End Submissions)"
                 >
                   <Square className="w-3.5 h-3.5 fill-current" />
+                  <span className="text-[8px] font-black uppercase tracking-wider mt-0.5 leading-none">Stop</span>
                 </button>
               ) : isDraft ? (
                 <span className="text-[8px] font-bold text-green-500 uppercase">Draft</span>
               ) : (
                 <span className="text-[8px] font-bold text-red-500 uppercase">Closed</span>
               )}
-                <button 
-                  onClick={() => onToggleResults(q.id, !!q.showResults)}                
-                  className={`p-1 ${q.showResults ? 'text-green-500' : 'text-slate-400'} hover:text-green-500`}
-                  title={q.showResults ? "Hide Results from Audience" : "Show Results to Audience"}
-                >
-                  {q.showResults ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                </button>
               {isDraft && (
                 <button onClick={() => onDelete(q.id)} className="p-1 text-slate-400 hover:text-red-500" title="Delete Question">
                   <Trash2 className="w-4 h-4" />
@@ -480,7 +481,7 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
               <button 
                 onClick={() => onToggleResults(poll.id, !!poll.showResults)}
                 className={cn(
-                  "p-1 rounded transition-colors",
+                  "p-1 rounded transition-colors mr-1.5",
                   poll.showResults 
                     ? "text-green-600 hover:text-green-700" 
                     : "text-red-500 hover:text-red-600"
@@ -492,10 +493,11 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
               {poll.active ? (
                 <button 
                   onClick={() => onClose(poll.id)} 
-                  className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors" 
+                  className="flex flex-col items-center p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors" 
                   title="Stop Interaction (End Submissions)"
                 >
                   <Square className="w-3.5 h-3.5 fill-current" />
+                  <span className="text-[8px] font-black uppercase tracking-wider mt-0.5 leading-none">Stop</span>
                 </button>
               ) : isDraft ? (
                 <span className="text-[8px] font-bold text-orange-500 uppercase">Draft</span>
@@ -786,7 +788,7 @@ const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, 
               <button 
                 onClick={() => onToggleResults(cloud.id, !!cloud.showResults)}
                 className={cn(
-                  "p-1 rounded transition-colors",
+                  "p-1 rounded transition-colors mr-1.5",
                   cloud.showResults 
                     ? "text-green-600 hover:text-green-700" 
                     : "text-red-500 hover:text-red-600"
@@ -798,10 +800,11 @@ const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, 
               {cloud.active ? (
                 <button 
                   onClick={() => onClose(cloud.id)} 
-                  className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors" 
+                  className="flex flex-col items-center p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors" 
                   title="Stop Interaction (End Submissions)"
                 >
                   <Square className="w-3.5 h-3.5 fill-current" />
+                  <span className="text-[8px] font-black uppercase tracking-wider mt-0.5 leading-none">Stop</span>
                 </button>
               ) : isDraft ? (
                 <span className="text-[8px] font-bold text-blue-500 uppercase">Draft</span>
