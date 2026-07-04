@@ -60,14 +60,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           console.error("ActiveDeck: Error broadcasting stream-started:", bcErr);
         }
 
-        // Automatically go into full screen mode
-        try {
-          if (!document.fullscreenElement) {
-            await document.documentElement.requestFullscreen();
-          }
-        } catch (fullscreenErr) {
-          console.error("ActiveDeck: Error attempting to enable full-screen mode:", fullscreenErr);
-        }
+
 
         // Only create a new presentation session if one doesn't exist yet
         if (!presentation && onCreatePresentation) {

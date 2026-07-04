@@ -157,25 +157,35 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
     return () => clearInterval(timer);
   }, []);
 
+  // Listen for projector's fullscreen state broadcast
   useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
+    const channel = new BroadcastChannel('activedeck-fullscreen');
+    
+    channel.onmessage = (event) => {
+      if (event.data?.type === 'projector-fullscreen-changed') {
+        console.log("Header - Received projector fullscreen state:", event.data.isFullscreen);
+        setIsFullscreen(event.data.isFullscreen);
+      }
     };
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+
+    return () => {
+      channel.close();
+    };
   }, []);
 
-  const toggleFullscreen = async () => {
-    if (!document.fullscreenElement) {
-      try {
-        await document.documentElement.requestFullscreen();
-      } catch (err) {
-        console.error("Error attempting to enable fullscreen:", err);
-      }
-    } else {
-      if (document.exitFullscreen) {
-        await document.exitFullscreen();
-      }
+  const toggleFullscreen = () => {
+    const nextState = !isFullscreen;
+    console.log("Header - Requesting projector fullscreen state to become:", nextState);
+    setIsFullscreen(nextState);
+    try {
+      const channel = new BroadcastChannel('activedeck-fullscreen');
+      channel.postMessage({
+        type: 'set-fullscreen',
+        value: nextState
+      });
+      channel.close();
+    } catch (err) {
+      console.error("Header: Error broadcasting fullscreen request:", err);
     }
   };
 
@@ -379,7 +389,7 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
             <button 
               onClick={toggleFullscreen}
               className="p-1.5 hover:bg-slate-100 rounded-md transition-colors text-slate-600"
-              title={isFullscreen ? "Exit Full Screen" : "Full Screen"}
+              title={isFullscreen ? "Exit Projector Full Screen" : "Projector Full Screen"}
             >
               {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
             </button>
