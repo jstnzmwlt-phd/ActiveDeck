@@ -157,35 +157,28 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
     return () => clearInterval(timer);
   }, []);
 
-  // Listen for projector's fullscreen state broadcast
+  // Listen for local document fullscreen changes
   useEffect(() => {
-    const channel = new BroadcastChannel('activedeck-fullscreen');
-    
-    channel.onmessage = (event) => {
-      if (event.data?.type === 'projector-fullscreen-changed') {
-        console.log("Header - Received projector fullscreen state:", event.data.isFullscreen);
-        setIsFullscreen(event.data.isFullscreen);
-      }
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
     };
-
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => {
-      channel.close();
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
     };
   }, []);
 
-  const toggleFullscreen = () => {
-    const nextState = !isFullscreen;
-    console.log("Header - Requesting projector fullscreen state to become:", nextState);
-    setIsFullscreen(nextState);
-    try {
-      const channel = new BroadcastChannel('activedeck-fullscreen');
-      channel.postMessage({
-        type: 'set-fullscreen',
-        value: nextState
-      });
-      channel.close();
-    } catch (err) {
-      console.error("Header: Error broadcasting fullscreen request:", err);
+  const toggleFullscreen = async () => {
+    if (!document.fullscreenElement) {
+      try {
+        await document.documentElement.requestFullscreen();
+      } catch (err) {
+        console.error("Error attempting to enable fullscreen:", err);
+      }
+    } else {
+      if (document.exitFullscreen) {
+        await document.exitFullscreen();
+      }
     }
   };
 
@@ -389,7 +382,7 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
             <button 
               onClick={toggleFullscreen}
               className="p-1.5 hover:bg-slate-100 rounded-md transition-colors text-slate-600"
-              title={isFullscreen ? "Exit Projector Full Screen" : "Projector Full Screen"}
+              title={isFullscreen ? "Exit Full Screen" : "Full Screen"}
             >
               {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
             </button>
