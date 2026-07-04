@@ -754,7 +754,7 @@ function AppContent() {
   // Synced Projector Mode Layout
   if (isProjector) {
     return (
-      <div className="flex flex-row h-screen w-screen overflow-hidden bg-slate-950 font-sans antialiased p-6 gap-3 relative group">
+      <div className="flex flex-row h-full w-full overflow-hidden bg-slate-950 font-sans antialiased p-6 gap-3 relative group">
         {/* Giant Slide Presentation Area */}
         <div className="flex-1 h-full min-w-0 rounded-2xl overflow-hidden border border-slate-800 bg-slate-900 shadow-2xl">
           <PresenterArea 
