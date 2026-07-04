@@ -22,6 +22,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
+  const [laserEnabled, setLaserEnabled] = useState(true);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const lastUpdateRef = useRef<number>(0);
@@ -91,7 +92,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (isProjectorMode || !presentation?.id || !isCapturing) return;
+    if (isProjectorMode || !presentation?.id || !isCapturing || !laserEnabled) return;
     const container = containerRef.current;
     if (!container) return;
 
@@ -316,6 +317,28 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           logoUrl={logoUrl}
           isProjectorMode={isProjectorMode}
         />
+
+        {/* Presenter-only Laser Pointer Toggle Switch */}
+        {isCapturing && !isProjectorMode && (
+          <button
+            onClick={() => {
+              const newEnabled = !laserEnabled;
+              setLaserEnabled(newEnabled);
+              if (!newEnabled) {
+                updateLaserPosition(0, 0, false);
+              }
+            }}
+            className={`absolute top-2 left-14 z-50 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all duration-200 shadow-lg cursor-pointer hover:scale-105 active:scale-95 ${
+              laserEnabled 
+                ? 'bg-red-600 border-red-500 text-white hover:bg-red-700 hover:border-red-600 shadow-red-500/10' 
+                : 'bg-slate-900/90 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800 hover:border-slate-600 shadow-slate-950/25'
+            }`}
+            title="Toggle Laser Pointer"
+          >
+            <div className={`w-1.5 h-1.5 rounded-full ${laserEnabled ? 'bg-white animate-pulse' : 'bg-slate-500'}`} />
+            <span>Laser {laserEnabled ? 'ON' : 'OFF'}</span>
+          </button>
+        )}
 
         {/* Real-time Virtual Laser Pointer Dot */}
         {isProjectorMode && presentation?.laserActive && presentation.laserX !== undefined && presentation.laserY !== undefined && (

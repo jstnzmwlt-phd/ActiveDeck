@@ -326,72 +326,65 @@ function AppContent() {
 
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // 1. Keep track of local fullscreen changes on the Projector Mode screen
+  // Bidirectional Fullscreen Synchronization between Presenter and Projector
   useEffect(() => {
-    if (!isProjector) return;
-
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
-
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-    };
-  }, [isProjector]);
-
-  // 2. Presenter Screen: Broadcast fullscreen transitions to other windows
-  useEffect(() => {
-    if (isProjector || isChatOnly) return;
-
-    const channel = new BroadcastChannel('activedeck-fullscreen');
-    
-    const handlePresenterFullscreenChange = () => {
+    const handleLocalFullscreenChange = () => {
       const isCurrentlyFullscreen = !!document.fullscreenElement;
-      console.log("AppContent - Presenter screen fullscreen changed:", isCurrentlyFullscreen);
+      setIsFullscreen(isCurrentlyFullscreen);
+      
+      if (isChatOnly) return;
+      
+      const channel = new BroadcastChannel('activedeck-fullscreen');
+      console.log(`AppContent - ${isProjector ? 'Projector' : 'Presenter'} screen fullscreen changed locally:`, isCurrentlyFullscreen);
       channel.postMessage({
-        type: isCurrentlyFullscreen ? 'enter-fullscreen' : 'exit-fullscreen'
+        type: isCurrentlyFullscreen ? 'enter-fullscreen' : 'exit-fullscreen',
+        source: isProjector ? 'projector' : 'presenter'
       });
+      channel.close();
     };
 
-    document.addEventListener('fullscreenchange', handlePresenterFullscreenChange);
+    document.addEventListener('fullscreenchange', handleLocalFullscreenChange);
     return () => {
-      document.removeEventListener('fullscreenchange', handlePresenterFullscreenChange);
-      channel.close();
+      document.removeEventListener('fullscreenchange', handleLocalFullscreenChange);
     };
   }, [isProjector, isChatOnly]);
 
-  // 3. Projector Screen: Listen for presenter's fullscreen broadcast commands
   useEffect(() => {
-    if (!isProjector) return;
+    if (isChatOnly) return;
 
     const channel = new BroadcastChannel('activedeck-fullscreen');
 
-    channel.onmessage = async (event) => {
-      console.log("AppContent - Projector received fullscreen event:", event.data);
-      if (event.data?.type === 'enter-fullscreen') {
+    const handleBroadcastMessage = async (event: MessageEvent) => {
+      const { type, source } = event.data || {};
+      if ((isProjector && source === 'projector') || (!isProjector && source === 'presenter')) return;
+
+      console.log(`AppContent - ${isProjector ? 'Projector' : 'Presenter'} received fullscreen sync event:`, event.data);
+
+      if (type === 'enter-fullscreen') {
         if (!document.fullscreenElement) {
           try {
             await document.documentElement.requestFullscreen();
           } catch (err) {
-            console.warn("Projector failed to auto-fullscreen on presenter command (requires active user gesture on page):", err);
+            console.warn(`AppContent - Failed to auto-fullscreen on broadcast command (requires active user gesture):`, err);
           }
         }
-      } else if (event.data?.type === 'exit-fullscreen') {
+      } else if (type === 'exit-fullscreen') {
         if (document.fullscreenElement && document.exitFullscreen) {
           try {
             await document.exitFullscreen();
           } catch (err) {
-            console.warn("Projector failed to auto-exit-fullscreen on presenter command:", err);
+            console.warn(`AppContent - Failed to auto-exit-fullscreen on broadcast command:`, err);
           }
         }
       }
     };
 
+    channel.addEventListener('message', handleBroadcastMessage);
     return () => {
+      channel.removeEventListener('message', handleBroadcastMessage);
       channel.close();
     };
-  }, [isProjector]);
+  }, [isProjector, isChatOnly]);
 
   const toggleFullscreen = async () => {
     if (!document.fullscreenElement) {
