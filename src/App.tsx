@@ -319,36 +319,67 @@ function AppContent() {
     return saved ? parseInt(saved, 10) : 380;
   });
 
-  const isDraggingRef = useRef(false);
+  const [presenterSidebarWidth, setPresenterSidebarWidth] = useState(() => {
+    const saved = localStorage.getItem('activeDeckPresenterSidebarWidth');
+    return saved ? parseInt(saved, 10) : 300;
+  });
 
-  const handleMouseDown = (e: React.MouseEvent) => {
+  const isDraggingProjectorRef = useRef(false);
+  const isDraggingPresenterRef = useRef(false);
+
+  const handleMouseDownProjector = (e: React.MouseEvent) => {
     e.preventDefault();
-    isDraggingRef.current = true;
+    isDraggingProjectorRef.current = true;
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
   };
 
-  const handleDoubleClick = () => {
+  const handleMouseDownPresenter = (e: React.MouseEvent) => {
+    e.preventDefault();
+    isDraggingPresenterRef.current = true;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+
+  const handleDoubleClickProjector = () => {
     setSidebarWidth(380);
     localStorage.setItem('activeDeckProjectorSidebarWidth', '380');
   };
 
-  useEffect(() => {
-    if (!isProjector) return;
+  const handleDoubleClickPresenter = () => {
+    setPresenterSidebarWidth(300);
+    localStorage.setItem('activeDeckPresenterSidebarWidth', '300');
+  };
 
+  useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isDraggingRef.current) return;
-      const containerPadding = 24; // p-6 is 24px
-      const calculatedWidth = window.innerWidth - e.clientX - containerPadding;
-      // Constrain sidebar width between 260px and 600px
-      const constrainedWidth = Math.max(260, Math.min(600, calculatedWidth));
-      setSidebarWidth(constrainedWidth);
-      localStorage.setItem('activeDeckProjectorSidebarWidth', constrainedWidth.toString());
+      // 1. Projector Sidebar Dragging
+      if (isDraggingProjectorRef.current) {
+        const containerPadding = 24; // p-6 is 24px
+        const calculatedWidth = window.innerWidth - e.clientX - containerPadding;
+        const constrainedWidth = Math.max(260, Math.min(600, calculatedWidth));
+        setSidebarWidth(constrainedWidth);
+        localStorage.setItem('activeDeckProjectorSidebarWidth', constrainedWidth.toString());
+      }
+
+      // 2. Presenter Sidebar Dragging
+      if (isDraggingPresenterRef.current) {
+        const containerPadding = 24; // p-6 is 24px
+        const calculatedWidth = window.innerWidth - e.clientX - containerPadding;
+        const constrainedWidth = Math.max(200, Math.min(500, calculatedWidth));
+        setPresenterSidebarWidth(constrainedWidth);
+        localStorage.setItem('activeDeckPresenterSidebarWidth', constrainedWidth.toString());
+      }
     };
 
     const handleMouseUp = () => {
-      if (isDraggingRef.current) {
-        isDraggingRef.current = false;
+      if (isDraggingProjectorRef.current) {
+        isDraggingProjectorRef.current = false;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      }
+      if (isDraggingPresenterRef.current) {
+        isDraggingPresenterRef.current = false;
         document.body.style.cursor = '';
         document.body.style.userSelect = '';
       }
@@ -360,7 +391,7 @@ function AppContent() {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isProjector]);
+  }, []);
 
 
 
@@ -706,8 +737,8 @@ function AppContent() {
 
         {/* Interactive Drag Splitter */}
         <div 
-          onMouseDown={handleMouseDown}
-          onDoubleClick={handleDoubleClick}
+          onMouseDown={handleMouseDownProjector}
+          onDoubleClick={handleDoubleClickProjector}
           className="w-3 h-full cursor-col-resize flex items-center justify-center flex-shrink-0 group/splitter select-none"
           title="Drag to resize sidebar (double-click to reset)"
         >
@@ -756,14 +787,27 @@ function AppContent() {
         pinCode={presentation?.pinCode}
       />
       
-      <div className="flex flex-row flex-1 p-6 pb-2 gap-6 bg-slate-100 min-h-0 overflow-hidden">
+      <div className="flex flex-row flex-1 p-6 pb-2 gap-3 bg-slate-100 min-h-0 overflow-hidden">
         {/* Presenter View (Flexible, but takes most space) */}
         <div className="flex-1 h-full min-w-0 rounded-xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.24)] border border-slate-300 bg-black">
           <PresenterArea presentation={presentation} logoUrl={settings?.theme.logoUrl} onCreatePresentation={handleCreatePresentationForArea} />
         </div>
 
-        {/* Audience Chat (Fixed width sidebar) */}
-        <div className="w-[300px] h-full flex-shrink-0 rounded-xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.24)] border-2 border-osu-orange bg-white">
+        {/* Interactive Drag Splitter */}
+        <div 
+          onMouseDown={handleMouseDownPresenter}
+          onDoubleClick={handleDoubleClickPresenter}
+          className="w-3 h-full cursor-col-resize flex items-center justify-center flex-shrink-0 group/splitter select-none"
+          title="Drag to resize sidebar (double-click to reset)"
+        >
+          <div className="w-[3px] h-20 bg-slate-300 group-hover/splitter:bg-osu-orange/70 group-active/splitter:bg-osu-orange rounded-full transition-all duration-200" />
+        </div>
+
+        {/* Audience Chat (Resizable sidebar) */}
+        <div 
+          style={{ width: `${presenterSidebarWidth}px` }}
+          className="h-full flex-shrink-0 rounded-xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.24)] border-2 border-osu-orange bg-white"
+        >
           <ChatSidebar 
             presentation={presentation} 
             logoUrl={settings?.theme.logoUrl} 

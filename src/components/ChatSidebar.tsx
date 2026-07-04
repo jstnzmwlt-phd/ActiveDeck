@@ -1244,13 +1244,16 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [isAllCollapsed, setIsAllCollapsed] = useState(false);
   const [isQRExpanded, setIsQRExpanded] = useState(false);
 
-  // Synchronize QR code enlargement across tabs via BroadcastChannel
+  // Synchronize QR code enlargement and expand/collapse state across tabs via BroadcastChannel
   useEffect(() => {
     const channel = new BroadcastChannel('activedeck-ui-sync');
 
     const handleMessage = (event: MessageEvent) => {
       if (isProjector && event.data?.type === 'qr-expanded-change') {
         setIsQRExpanded(event.data.isExpanded);
+      }
+      if (isProjector && event.data?.type === 'expand-collapse-change') {
+        setIsAllCollapsed(event.data.isAllCollapsed);
       }
     };
 
@@ -1270,6 +1273,15 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       channel.close();
     }
   }, [isQRExpanded, canModerate]);
+
+  useEffect(() => {
+    // Only the presenter (canModerate) should broadcast their local expand/collapse state
+    if (canModerate) {
+      const channel = new BroadcastChannel('activedeck-ui-sync');
+      channel.postMessage({ type: 'expand-collapse-change', isAllCollapsed });
+      channel.close();
+    }
+  }, [isAllCollapsed, canModerate]);
 
   const [showWordCloudModal, setShowWordCloudModal] = useState(false);
   const [showOpenEndedQuestionModal, setShowOpenEndedQuestionModal] = useState(false);
