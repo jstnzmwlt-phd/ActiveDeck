@@ -314,6 +314,54 @@ function AppContent() {
   const isChatOnly = urlParams.get('view') === 'chat';
   const isProjector = urlParams.get('view') === 'projector';
 
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const saved = localStorage.getItem('activeDeckProjectorSidebarWidth');
+    return saved ? parseInt(saved, 10) : 380;
+  });
+
+  const isDraggingRef = useRef(false);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    isDraggingRef.current = true;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+
+  const handleDoubleClick = () => {
+    setSidebarWidth(380);
+    localStorage.setItem('activeDeckProjectorSidebarWidth', '380');
+  };
+
+  useEffect(() => {
+    if (!isProjector) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDraggingRef.current) return;
+      const containerPadding = 24; // p-6 is 24px
+      const calculatedWidth = window.innerWidth - e.clientX - containerPadding;
+      // Constrain sidebar width between 260px and 600px
+      const constrainedWidth = Math.max(260, Math.min(600, calculatedWidth));
+      setSidebarWidth(constrainedWidth);
+      localStorage.setItem('activeDeckProjectorSidebarWidth', constrainedWidth.toString());
+    };
+
+    const handleMouseUp = () => {
+      if (isDraggingRef.current) {
+        isDraggingRef.current = false;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      }
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isProjector]);
+
 
 
   const pathname = window.location.pathname;
@@ -646,7 +694,7 @@ function AppContent() {
   // Synced Projector Mode Layout
   if (isProjector) {
     return (
-      <div className="flex flex-row h-screen w-screen overflow-hidden bg-slate-950 font-sans antialiased p-6 gap-6 relative group">
+      <div className="flex flex-row h-screen w-screen overflow-hidden bg-slate-950 font-sans antialiased p-6 gap-3 relative group">
         {/* Giant Slide Presentation Area */}
         <div className="flex-1 h-full min-w-0 rounded-2xl overflow-hidden border border-slate-800 bg-slate-900 shadow-2xl">
           <PresenterArea 
@@ -656,8 +704,21 @@ function AppContent() {
           />
         </div>
 
+        {/* Interactive Drag Splitter */}
+        <div 
+          onMouseDown={handleMouseDown}
+          onDoubleClick={handleDoubleClick}
+          className="w-3 h-full cursor-col-resize flex items-center justify-center flex-shrink-0 group/splitter select-none"
+          title="Drag to resize sidebar (double-click to reset)"
+        >
+          <div className="w-[3px] h-20 bg-slate-800 group-hover/splitter:bg-osu-orange/70 group-active/splitter:bg-osu-orange rounded-full transition-all duration-200" />
+        </div>
+
         {/* Expanded Read-Only Sidebar Q&A Display */}
-        <div className="w-[380px] h-full flex-shrink-0 rounded-2xl overflow-hidden border-2 border-osu-orange bg-slate-900 shadow-2xl">
+        <div 
+          style={{ width: `${sidebarWidth}px` }}
+          className="h-full flex-shrink-0 rounded-2xl overflow-hidden border-2 border-osu-orange bg-slate-900 shadow-2xl"
+        >
           <ChatSidebar 
             presentation={presentation} 
             logoUrl={settings?.theme.logoUrl} 
