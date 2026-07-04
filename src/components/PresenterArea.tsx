@@ -328,7 +328,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 updateLaserPosition(0, 0, false);
               }
             }}
-            className={`absolute top-2 left-14 z-50 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all duration-200 shadow-lg cursor-pointer hover:scale-105 active:scale-95 ${
+            className={`absolute top-2 right-20 z-50 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all duration-200 shadow-lg cursor-pointer hover:scale-105 active:scale-95 ${
               laserEnabled 
                 ? 'bg-red-600 border-red-500 text-white hover:bg-red-700 hover:border-red-600 shadow-red-500/10' 
                 : 'bg-slate-900/90 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800 hover:border-slate-600 shadow-slate-950/25'

@@ -328,31 +328,20 @@ function AppContent() {
 
   // Bidirectional Fullscreen Synchronization between Presenter and Projector
   useEffect(() => {
+    const channel = !isChatOnly ? new BroadcastChannel('activedeck-fullscreen') : null;
+
     const handleLocalFullscreenChange = () => {
       const isCurrentlyFullscreen = !!document.fullscreenElement;
       setIsFullscreen(isCurrentlyFullscreen);
       
-      if (isChatOnly) return;
-      
-      const channel = new BroadcastChannel('activedeck-fullscreen');
-      console.log(`AppContent - ${isProjector ? 'Projector' : 'Presenter'} screen fullscreen changed locally:`, isCurrentlyFullscreen);
-      channel.postMessage({
-        type: isCurrentlyFullscreen ? 'enter-fullscreen' : 'exit-fullscreen',
-        source: isProjector ? 'projector' : 'presenter'
-      });
-      channel.close();
+      if (channel) {
+        console.log(`AppContent - ${isProjector ? 'Projector' : 'Presenter'} screen fullscreen changed locally:`, isCurrentlyFullscreen);
+        channel.postMessage({
+          type: isCurrentlyFullscreen ? 'enter-fullscreen' : 'exit-fullscreen',
+          source: isProjector ? 'projector' : 'presenter'
+        });
+      }
     };
-
-    document.addEventListener('fullscreenchange', handleLocalFullscreenChange);
-    return () => {
-      document.removeEventListener('fullscreenchange', handleLocalFullscreenChange);
-    };
-  }, [isProjector, isChatOnly]);
-
-  useEffect(() => {
-    if (isChatOnly) return;
-
-    const channel = new BroadcastChannel('activedeck-fullscreen');
 
     const handleBroadcastMessage = async (event: MessageEvent) => {
       const { type, source } = event.data || {};
@@ -379,10 +368,17 @@ function AppContent() {
       }
     };
 
-    channel.addEventListener('message', handleBroadcastMessage);
+    document.addEventListener('fullscreenchange', handleLocalFullscreenChange);
+    if (channel) {
+      channel.addEventListener('message', handleBroadcastMessage);
+    }
+
     return () => {
-      channel.removeEventListener('message', handleBroadcastMessage);
-      channel.close();
+      document.removeEventListener('fullscreenchange', handleLocalFullscreenChange);
+      if (channel) {
+        channel.removeEventListener('message', handleBroadcastMessage);
+        channel.close();
+      }
     };
   }, [isProjector, isChatOnly]);
 
