@@ -37,6 +37,9 @@ export interface Presentation {
   iconRotatedAt?: number;
   lastManualActivityAt?: number;
   hasActivity?: boolean;
+  laserX?: number;
+  laserY?: number;
+  laserActive?: boolean;
 }
 
 export interface Message {

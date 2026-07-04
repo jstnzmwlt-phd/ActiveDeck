@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Presentation } from '../types';
 import { ScreenCapture } from './ScreenCapture';
 import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play, X } from 'lucide-react';
 import { useBridge } from '../contexts/BridgeContext';
 import { auth, db } from '../firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { QRCodeSVG } from 'qrcode.react';
 
 interface PresenterAreaProps {
@@ -22,6 +22,90 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const lastUpdateRef = useRef<number>(0);
+  const throttleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingCoordsRef = useRef<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (throttleTimeoutRef.current) {
+        clearTimeout(throttleTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const updateLaserPositionInFirebase = async (x: number, y: number, active: boolean) => {
+    if (!presentation?.id) return;
+    try {
+      await updateDoc(doc(db, 'presentations', presentation.id), {
+        laserX: Number(x.toFixed(2)),
+        laserY: Number(y.toFixed(2)),
+        laserActive: active
+      });
+    } catch (err) {
+      console.warn("Error updating laser position in Firebase:", err);
+    }
+  };
+
+  const updateLaserPosition = (x: number, y: number, active: boolean) => {
+    const now = Date.now();
+    const timeSinceLastUpdate = now - lastUpdateRef.current;
+
+    if (!active) {
+      if (throttleTimeoutRef.current) {
+        clearTimeout(throttleTimeoutRef.current);
+        throttleTimeoutRef.current = null;
+      }
+      pendingCoordsRef.current = null;
+      lastUpdateRef.current = now;
+      updateLaserPositionInFirebase(x, y, false);
+      return;
+    }
+
+    if (timeSinceLastUpdate >= 100) {
+      if (throttleTimeoutRef.current) {
+        clearTimeout(throttleTimeoutRef.current);
+        throttleTimeoutRef.current = null;
+      }
+      pendingCoordsRef.current = null;
+      lastUpdateRef.current = now;
+      updateLaserPositionInFirebase(x, y, true);
+    } else {
+      pendingCoordsRef.current = { x, y };
+
+      if (!throttleTimeoutRef.current) {
+        const remaining = 100 - timeSinceLastUpdate;
+        throttleTimeoutRef.current = setTimeout(() => {
+          throttleTimeoutRef.current = null;
+          if (pendingCoordsRef.current) {
+            const { x: px, y: py } = pendingCoordsRef.current;
+            pendingCoordsRef.current = null;
+            lastUpdateRef.current = Date.now();
+            updateLaserPositionInFirebase(px, py, true);
+          }
+        }, remaining);
+      }
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (isProjectorMode || !presentation?.id || !isCapturing) return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    const rect = container.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+
+    updateLaserPosition(x, y, true);
+  };
+
+  const handleMouseLeave = () => {
+    if (isProjectorMode || !presentation?.id) return;
+    updateLaserPosition(0, 0, false);
+  };
 
   useEffect(() => {
     const fetchTheme = async () => {
@@ -217,7 +301,12 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       )}
 
       {/* Main Content Area */}
-      <div className="flex-1 relative bg-black overflow-hidden flex items-center justify-center">
+      <div 
+        ref={containerRef}
+        onMouseMove={!isProjectorMode ? handleMouseMove : undefined}
+        onMouseLeave={!isProjectorMode ? handleMouseLeave : undefined}
+        className="flex-1 relative bg-black overflow-hidden flex items-center justify-center"
+      >
         <ScreenCapture 
           isCapturing={isCapturing} 
           stream={stream} 
@@ -227,6 +316,26 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           logoUrl={logoUrl}
           isProjectorMode={isProjectorMode}
         />
+
+        {/* Real-time Virtual Laser Pointer Dot */}
+        {isProjectorMode && presentation?.laserActive && presentation.laserX !== undefined && presentation.laserY !== undefined && (
+          <div 
+            style={{
+              left: `${presentation.laserX}%`,
+              top: `${presentation.laserY}%`,
+              transform: 'translate(-50%, -50%)',
+              width: '15px',
+              height: '15px',
+              borderRadius: '50%',
+              backgroundColor: 'red',
+              boxShadow: '0 0 8px 3px rgba(255, 0, 0, 0.8), 0 0 15px 5px rgba(255, 0, 0, 0.4)',
+              position: 'absolute',
+              pointerEvents: 'none',
+              zIndex: 80,
+              transition: 'top 0.1s linear, left 0.1s linear'
+            }}
+          />
+        )}
         
         {/* Floating Setup Instructions Bubble - Shown in the top-left when not capturing */}
         {!isCapturing && !error && !isProjectorMode && (
