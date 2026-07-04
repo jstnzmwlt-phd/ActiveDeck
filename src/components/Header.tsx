@@ -32,7 +32,7 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
     const body = document.body;
     const root = document.getElementById('root');
 
-    // Clean up scale transform
+    // Clean up scale transform and body zoom styles
     if (html) {
       html.style.transform = '';
       html.style.transformOrigin = '';
@@ -41,26 +41,23 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
     }
 
     if (body) {
-      (body.style as any).zoom = zoom.toString();
-      body.style.width = `calc(100% / ${zoom})`;
-      body.style.height = `calc(100% / ${zoom})`;
+      (body.style as any).zoom = '';
+      body.style.width = '';
+      body.style.height = '';
     }
 
     if (root) {
-      root.style.width = '100%';
-      root.style.height = '100%';
+      (root.style as any).zoom = zoom.toString();
+      root.style.width = `calc(100% / ${zoom})`;
+      root.style.height = `calc(100% / ${zoom})`;
     }
 
     localStorage.setItem('activeDeckZoom', zoom.toString());
 
     return () => {
       // Clean up styles on unmount
-      if (body) {
-        (body.style as any).zoom = '';
-        body.style.width = '';
-        body.style.height = '';
-      }
       if (root) {
+        (root.style as any).zoom = '';
         root.style.width = '';
         root.style.height = '';
       }

@@ -326,7 +326,7 @@ function AppContent() {
     const body = document.body;
     const root = document.getElementById('root');
 
-    // Clean up transform scale styles
+    // Clean up transform scale and body zoom styles
     if (html) {
       html.style.transform = '';
       html.style.transformOrigin = '';
@@ -335,25 +335,22 @@ function AppContent() {
     }
 
     if (body) {
-      (body.style as any).zoom = projectorZoom.toString();
-      body.style.width = `calc(100% / ${projectorZoom})`;
-      body.style.height = `calc(100% / ${projectorZoom})`;
+      (body.style as any).zoom = '';
+      body.style.width = '';
+      body.style.height = '';
     }
 
     if (root) {
-      root.style.width = '100%';
-      root.style.height = '100%';
+      (root.style as any).zoom = projectorZoom.toString();
+      root.style.width = `calc(100% / ${projectorZoom})`;
+      root.style.height = `calc(100% / ${projectorZoom})`;
     }
 
     localStorage.setItem('activeDeckProjectorZoom', projectorZoom.toString());
 
     return () => {
-      if (body) {
-        (body.style as any).zoom = '';
-        body.style.width = '';
-        body.style.height = '';
-      }
       if (root) {
+        (root.style as any).zoom = '';
         root.style.width = '';
         root.style.height = '';
       }
