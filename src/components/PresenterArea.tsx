@@ -154,7 +154,17 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             console.log("ActiveDeck Projector: window.opener.activeDeckStream =", parentStream);
             if (parentStream) {
               console.log("ActiveDeck Projector: Stream found. Active tracks:", parentStream.getTracks().map((t: any) => ({ label: t.label, enabled: t.enabled, readyState: t.readyState })));
-              setStream(parentStream);
+              
+              setStream((prevStream) => {
+                if (!prevStream && !document.fullscreenElement) {
+                  console.log("ActiveDeck Projector: PPT mirroring started, requesting auto-fullscreen");
+                  document.documentElement.requestFullscreen().catch((err) => {
+                    console.log("ActiveDeck Projector: Auto-fullscreen blocked or not supported by browser security policy:", err);
+                  });
+                }
+                return parentStream;
+              });
+
               setIsCapturing(true);
               setError(null);
             } else {
