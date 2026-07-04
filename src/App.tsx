@@ -326,6 +326,7 @@ function AppContent() {
 
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  // 1. Keep track of local fullscreen changes on the Projector Mode screen
   useEffect(() => {
     if (!isProjector) return;
 
@@ -336,6 +337,59 @@ function AppContent() {
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => {
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, [isProjector]);
+
+  // 2. Presenter Screen: Broadcast fullscreen transitions to other windows
+  useEffect(() => {
+    if (isProjector || isChatOnly) return;
+
+    const channel = new BroadcastChannel('activedeck-fullscreen');
+    
+    const handlePresenterFullscreenChange = () => {
+      const isCurrentlyFullscreen = !!document.fullscreenElement;
+      console.log("AppContent - Presenter screen fullscreen changed:", isCurrentlyFullscreen);
+      channel.postMessage({
+        type: isCurrentlyFullscreen ? 'enter-fullscreen' : 'exit-fullscreen'
+      });
+    };
+
+    document.addEventListener('fullscreenchange', handlePresenterFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handlePresenterFullscreenChange);
+      channel.close();
+    };
+  }, [isProjector, isChatOnly]);
+
+  // 3. Projector Screen: Listen for presenter's fullscreen broadcast commands
+  useEffect(() => {
+    if (!isProjector) return;
+
+    const channel = new BroadcastChannel('activedeck-fullscreen');
+
+    channel.onmessage = async (event) => {
+      console.log("AppContent - Projector received fullscreen event:", event.data);
+      if (event.data?.type === 'enter-fullscreen') {
+        if (!document.fullscreenElement) {
+          try {
+            await document.documentElement.requestFullscreen();
+          } catch (err) {
+            console.warn("Projector failed to auto-fullscreen on presenter command (requires active user gesture on page):", err);
+          }
+        }
+      } else if (event.data?.type === 'exit-fullscreen') {
+        if (document.fullscreenElement && document.exitFullscreen) {
+          try {
+            await document.exitFullscreen();
+          } catch (err) {
+            console.warn("Projector failed to auto-exit-fullscreen on presenter command:", err);
+          }
+        }
+      }
+    };
+
+    return () => {
+      channel.close();
     };
   }, [isProjector]);
 
