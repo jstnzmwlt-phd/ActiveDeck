@@ -966,6 +966,7 @@ interface MessageCardProps {
   isPresenter?: boolean;
   onFocus?: (msg: Message) => void;
   forceCollapsed?: boolean;
+  onToggleCollapse?: (msgId: string, collapsed: boolean) => void;
 }
 
 const MessageCard: React.FC<MessageCardProps> = ({ 
@@ -979,7 +980,8 @@ const MessageCard: React.FC<MessageCardProps> = ({
   isInitiallyNew = false,
   isPresenter = false,
   onFocus,
-  forceCollapsed = false
+  forceCollapsed,
+  onToggleCollapse
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : initialCollapsed);
   const prevInitialCollapsedRef = useRef(initialCollapsed);
@@ -992,8 +994,8 @@ const MessageCard: React.FC<MessageCardProps> = ({
   }, [initialCollapsed]);
 
   useEffect(() => {
-    if (forceCollapsed) {
-      setIsCollapsed(true);
+    if (forceCollapsed !== undefined) {
+      setIsCollapsed(forceCollapsed);
     }
   }, [forceCollapsed]);
 
@@ -1057,7 +1059,12 @@ const MessageCard: React.FC<MessageCardProps> = ({
       <div className="flex items-center justify-between gap-2 mb-1">
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
           <button 
-            onClick={(e) => { e.stopPropagation(); setIsCollapsed(!isCollapsed); }}
+            onClick={(e) => { 
+              e.stopPropagation(); 
+              const nextCollapsed = !isCollapsed;
+              setIsCollapsed(nextCollapsed); 
+              onToggleCollapse?.(msg.id, nextCollapsed);
+            }}
             className={cn(
               "p-1 -ml-1 rounded transition-colors text-slate-400 focus:outline-none",
               isPresenter 
@@ -1243,6 +1250,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isAllCollapsed, setIsAllCollapsed] = useState(false);
   const [isQRExpanded, setIsQRExpanded] = useState(false);
+  const [collapsedMessageIds, setCollapsedMessageIds] = useState<Record<string, boolean>>({});
+  const prevCollapsedRef = useRef<Record<string, boolean>>({});
 
   // Synchronize QR code enlargement and expand/collapse state across tabs via BroadcastChannel
   useEffect(() => {
@@ -1254,6 +1263,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       }
       if (isProjector && event.data?.type === 'expand-collapse-change') {
         setIsAllCollapsed(event.data.isAllCollapsed);
+      }
+      if (isProjector && event.data?.type === 'message-collapse-change') {
+        const { msgId, isCollapsed } = event.data;
+        setCollapsedMessageIds(prev => ({ ...prev, [msgId]: isCollapsed }));
       }
     };
 
@@ -1283,6 +1296,48 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     }
   }, [isAllCollapsed, canModerate]);
 
+  useEffect(() => {
+    // Only the presenter (canModerate) should broadcast their local individual message collapse state
+    if (!canModerate) return;
+
+    // Find any key that changed or was added
+    const currentKeys = Object.keys(collapsedMessageIds);
+    for (const key of currentKeys) {
+      if (collapsedMessageIds[key] !== prevCollapsedRef.current[key]) {
+        const channel = new BroadcastChannel('activedeck-ui-sync');
+        channel.postMessage({
+          type: 'message-collapse-change',
+          msgId: key,
+          isCollapsed: collapsedMessageIds[key]
+        });
+        channel.close();
+        break;
+      }
+    }
+
+    // Also check if any key was deleted (re-expanded to default)
+    const prevKeys = Object.keys(prevCollapsedRef.current);
+    for (const key of prevKeys) {
+      if (collapsedMessageIds[key] === undefined && prevCollapsedRef.current[key] !== undefined) {
+        const channel = new BroadcastChannel('activedeck-ui-sync');
+        channel.postMessage({
+          type: 'message-collapse-change',
+          msgId: key,
+          isCollapsed: false
+        });
+        channel.close();
+        break;
+      }
+    }
+
+    prevCollapsedRef.current = { ...collapsedMessageIds };
+  }, [collapsedMessageIds, canModerate]);
+
+  // When bulk collapse/expand state changes, clear individual message overrides
+  useEffect(() => {
+    setCollapsedMessageIds({});
+  }, [isAllCollapsed]);
+
   const [showWordCloudModal, setShowWordCloudModal] = useState(false);
   const [showOpenEndedQuestionModal, setShowOpenEndedQuestionModal] = useState(false);
   const [wordCloudPrompt, setWordCloudPrompt] = useState('');
@@ -1290,7 +1345,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [pollDuration, setPollDuration] = useState(60); // Default 60 seconds
   const [participantCount, setParticipantCount] = useState(0);
   const [focusedMessage, setFocusedMessage] = useState<Message | null>(null);
-  const [collapsedMessageIds, setCollapsedMessageIds] = useState<Record<string, boolean>>({});
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
@@ -3601,7 +3655,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                     setFocusedMessage(msg);
                   }
                 }}
-                forceCollapsed={!!collapsedMessageIds[msg.id]}
+                forceCollapsed={collapsedMessageIds[msg.id]}
+                onToggleCollapse={(msgId, collapsed) => {
+                  setCollapsedMessageIds(prev => ({ ...prev, [msgId]: collapsed }));
+                }}
               />
             ))}
           </div>
@@ -3749,7 +3806,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                       setFocusedMessage(msg);
                     }
                   }}
-                  forceCollapsed={!!collapsedMessageIds[msg.id]}
+                  forceCollapsed={collapsedMessageIds[msg.id]}
+                  onToggleCollapse={(msgId, collapsed) => {
+                    setCollapsedMessageIds(prev => ({ ...prev, [msgId]: collapsed }));
+                  }}
                 />
               );
             })}
