@@ -321,7 +321,7 @@ function AppContent() {
 
   const [presenterSidebarWidth, setPresenterSidebarWidth] = useState(() => {
     const saved = localStorage.getItem('activeDeckPresenterSidebarWidth');
-    return saved ? parseInt(saved, 10) : 300;
+    return saved ? Math.max(270, parseInt(saved, 10)) : 300;
   });
 
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -438,7 +438,7 @@ function AppContent() {
       if (isDraggingPresenterRef.current) {
         const containerPadding = 24; // p-6 is 24px
         const calculatedWidth = window.innerWidth - e.clientX - containerPadding;
-        const constrainedWidth = Math.max(200, Math.min(500, calculatedWidth));
+        const constrainedWidth = Math.max(270, Math.min(500, calculatedWidth));
         setPresenterSidebarWidth(constrainedWidth);
         localStorage.setItem('activeDeckPresenterSidebarWidth', constrainedWidth.toString());
       }
@@ -887,7 +887,7 @@ function AppContent() {
 
         {/* Audience Chat (Resizable sidebar) */}
         <div 
-          style={{ width: `${presenterSidebarWidth}px` }}
+          style={{ width: `${presenterSidebarWidth}px`, minWidth: '270px' }}
           className="h-full flex-shrink-0 rounded-xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.24)] border-2 border-osu-orange bg-white"
         >
           <ChatSidebar 
