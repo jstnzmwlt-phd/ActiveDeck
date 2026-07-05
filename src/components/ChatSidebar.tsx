@@ -3384,7 +3384,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         <div className="flex items-center gap-2">
           <MessageSquare className="w-5 h-5 text-osu-orange" />
           <div className="flex flex-col">
-            <h2 className="font-bold tracking-tight uppercase text-sm leading-none">ActiveDeck Chat</h2>
+            <h2 className={cn(
+              "font-bold tracking-tight text-sm leading-none",
+              isProjector ? "normal-case text-osu-orange text-xs select-all font-mono" : "uppercase"
+            )}>
+              {isProjector ? "https://active-deck.app/chat" : "ActiveDeck Chat"}
+            </h2>
           </div>
         </div>
         <div className="flex items-center gap-1">
