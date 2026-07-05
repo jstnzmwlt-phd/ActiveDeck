@@ -444,10 +444,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               {/* Logo / Brand Header */}
               <div className="flex flex-col items-center gap-3">
                 {logoUrl ? (
-                  <img src={logoUrl} alt="ActiveDeck" className="h-16 object-contain animate-pulse" />
+                  <img src={logoUrl} alt="ActiveDeck" className="h-16 object-contain" />
                 ) : (
                   <div className="flex items-center gap-3 text-3xl font-black uppercase tracking-wider text-osu-orange">
-                    <MonitorPlay className="w-10 h-10 animate-pulse" />
+                    <MonitorPlay className="w-10 h-10" />
                     <span>ActiveDeck</span>
                   </div>
                 )}
