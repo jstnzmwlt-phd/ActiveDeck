@@ -76,6 +76,7 @@ export interface Poll {
   showResults?: boolean;
   slide?: number;
   correctAnswer?: string;
+  fileUrl?: string;
 }
 
 export interface OpenEndedQuestion {
@@ -90,6 +91,7 @@ export interface OpenEndedQuestion {
   expiresAt?: Timestamp;
   duration?: number;
   slide?: number;
+  fileUrl?: string;
 }
 
 export interface WordCloud {

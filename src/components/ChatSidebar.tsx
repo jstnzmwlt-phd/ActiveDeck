@@ -124,9 +124,10 @@ interface OpenEndedQuestionCardProps {
   isInitiallyNew?: boolean;
   secondaryColor?: string;
   isProjector?: boolean;
+  onOpenImageLightbox?: (imageUrl: string, title: string) => void;
 }
 
-const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, canModerate, onClose, onDelete, onStart, onSubmit, onToggleResults, onAdjustDuration, initialCollapsed = false, isInitiallyNew = false, secondaryColor, isProjector = false }) => {
+const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, canModerate, onClose, onDelete, onStart, onSubmit, onToggleResults, onAdjustDuration, initialCollapsed = false, isInitiallyNew = false, secondaryColor, isProjector = false, onOpenImageLightbox }) => {
   const [response, setResponse] = useState('');
   const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : initialCollapsed);
   const prevInitialCollapsedRef = useRef(initialCollapsed);
@@ -255,6 +256,29 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
             <h4 className="font-bold text-slate-800 text-lg">{q.prompt}</h4>
           </div>
 
+          {q.fileUrl && (
+            <div 
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenImageLightbox?.(q.fileUrl!, `Slide Capture for Question: "${q.prompt}"`);
+              }}
+              className="mb-4 overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 shadow-md hover:shadow-lg hover:border-green-500/50 transition-all cursor-pointer relative group/qimg max-w-xl mx-auto w-full aspect-video flex flex-col justify-between"
+            >
+              <div className="flex-1 w-full p-2.5 relative flex items-center justify-center bg-slate-950 overflow-hidden">
+                <img 
+                  src={q.fileUrl} 
+                  alt="Pushed Slide" 
+                  className="max-w-full max-h-full object-contain opacity-90 group-hover/qimg:opacity-100 transition-opacity duration-200" 
+                />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/qimg:opacity-100 transition-opacity duration-200 flex items-center justify-center">
+                  <span className="px-3 py-1.5 bg-slate-900/90 text-white text-[10px] font-black uppercase tracking-wider rounded-lg border border-white/10 shadow-lg select-none">
+                    Click to Inspect / Zoom
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {q.active && timeLeft !== null && (
             <div className="mb-4 flex items-center justify-center gap-2.5 py-3 px-4 bg-green-50 border border-green-200/40 rounded-2xl shadow-sm animate-pulse">
               <Timer className={`w-6 h-6 ${timeLeft > 10 ? 'text-green-600' : 'text-red-500 animate-spin'}`} />
@@ -380,9 +404,10 @@ interface PollCardProps {
   isInitiallyNew?: boolean;
   secondaryColor?: string;
   isProjector?: boolean;
+  onOpenImageLightbox?: (imageUrl: string, title: string) => void;
 }
 
-const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate, onVote, onToggleResults, onClose, onDelete, onStart, onAdjustDuration, onMarkCorrect, initialCollapsed = false, isInitiallyNew = false, secondaryColor, isProjector = false }) => {
+const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate, onVote, onToggleResults, onClose, onDelete, onStart, onAdjustDuration, onMarkCorrect, initialCollapsed = false, isInitiallyNew = false, secondaryColor, isProjector = false, onOpenImageLightbox }) => {
   const totalVotes = Object.values(poll.votes || {}).reduce((a, b) => a + b, 0);
   const userVote = user && poll.voters ? poll.voters[user.uid] : null;
   const [timeLeft, setTimeLeft] = useState<number | null>(() => {
@@ -519,6 +544,29 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
 
       {!isCollapsed && (
         <>
+          {poll.fileUrl && (
+            <div 
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenImageLightbox?.(poll.fileUrl!, `Slide Capture for MCQ Poll`);
+              }}
+              className="mb-3.5 overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 shadow-md hover:shadow-lg hover:border-osu-orange/50 transition-all cursor-pointer relative group/pollimg max-w-xl mx-auto w-full aspect-video flex flex-col justify-between"
+            >
+              <div className="flex-1 w-full p-2.5 relative flex items-center justify-center bg-slate-950 overflow-hidden">
+                <img 
+                  src={poll.fileUrl} 
+                  alt="Pushed Slide" 
+                  className="max-w-full max-h-full object-contain opacity-90 group-hover/pollimg:opacity-100 transition-opacity duration-200" 
+                />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/pollimg:opacity-100 transition-opacity duration-200 flex items-center justify-center">
+                  <span className="px-3 py-1.5 bg-slate-900/90 text-white text-[10px] font-black uppercase tracking-wider rounded-lg border border-white/10 shadow-lg select-none">
+                    Click to Inspect / Zoom
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {isDraft && canModerate ? (
             <div className="space-y-4 py-2">
               <div className="flex flex-col items-center gap-3">
@@ -1378,6 +1426,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [pollDuration, setPollDuration] = useState(60); // Default 60 seconds
   const [participantCount, setParticipantCount] = useState(0);
   const [focusedMessage, setFocusedMessage] = useState<Message | null>(null);
+  const [attachSlide, setAttachSlide] = useState(false);
+  const [isLaunchingInteraction, setIsLaunchingInteraction] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
@@ -1455,10 +1505,64 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
   // ... (some code)
 
+  const captureAndUploadSlide = async (): Promise<string | undefined> => {
+    const video = document.querySelector('video');
+    if (!video) {
+      console.warn("No active video element found to capture slide from.");
+      return undefined;
+    }
+
+    return new Promise((resolve) => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth || 1280;
+        canvas.height = video.videoHeight || 720;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(undefined);
+          return;
+        }
+
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        canvas.toBlob(async (blob) => {
+          if (!blob) {
+            resolve(undefined);
+            return;
+          }
+
+          try {
+            const fileId = Math.random().toString(36).substring(2, 11);
+            const timestamp = Date.now();
+            const fileName = `Slide_Capture_Interaction_${timestamp}.jpg`;
+            const storagePath = `presentations/${presentation?.id}/documents/${fileId}_${fileName}`;
+            const storageRef = ref(storage, storagePath);
+
+            await uploadBytes(storageRef, blob);
+            const downloadUrl = await getDownloadURL(storageRef);
+            resolve(downloadUrl);
+          } catch (error) {
+            console.error("Failed to upload interaction slide capture:", error);
+            resolve(undefined);
+          }
+        }, 'image/jpeg', 0.85);
+      } catch (error) {
+        console.error("Error capturing slide frame for interaction:", error);
+        resolve(undefined);
+      }
+    });
+  };
+
   const handleCreateOpenEndedQuestion = async (customPrompt?: string) => {
     const promptToUse = customPrompt || openEndedQuestionPrompt.trim();
     if (!presentation?.id || !canModerate || !promptToUse) return;
+    setIsLaunchingInteraction(true);
     try {
+      let fileUrl: string | undefined = undefined;
+      if (attachSlide) {
+        fileUrl = await captureAndUploadSlide();
+      }
+
       await addDoc(collection(db, 'openEndedQuestions'), {
         presentationId: presentation.id,
         prompt: promptToUse,
@@ -1466,12 +1570,15 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         showResults: false,
         active: false,
         createdAt: serverTimestamp(),
-        slide: currentSlide !== null ? currentSlide : (presentation.currentSlide || 0)
+        slide: currentSlide !== null ? currentSlide : (presentation.currentSlide || 0),
+        ...(fileUrl ? { fileUrl } : {})
       });
       setShowOpenEndedQuestionModal(false);
       setOpenEndedQuestionPrompt('');
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'openEndedQuestions');
+    } finally {
+      setIsLaunchingInteraction(false);
     }
   };
 
@@ -2988,7 +3095,13 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
   const handleCreatePoll = async () => {
     if (!presentation?.id || !canModerate) return;
+    setIsLaunchingInteraction(true);
     try {
+      let fileUrl: string | undefined = undefined;
+      if (attachSlide) {
+        fileUrl = await captureAndUploadSlide();
+      }
+
       await addDoc(collection(db, 'polls'), {
         presentationId: presentation.id,
         options: ['A', 'B', 'C', 'D', 'E'],
@@ -2999,10 +3112,13 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         active: false,
         started: false,
         showResults: false,
-        slide: currentSlide !== null ? currentSlide : (presentation.currentSlide || 0)
+        slide: currentSlide !== null ? currentSlide : (presentation.currentSlide || 0),
+        ...(fileUrl ? { fileUrl } : {})
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'polls');
+    } finally {
+      setIsLaunchingInteraction(false);
     }
   };
 
@@ -3611,24 +3727,44 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               
               {canModerate && (
                 <div className="flex flex-col gap-1.5 mt-1.5">
+                  {/* Attach Slide Checkbox */}
+                  <div className="flex items-center gap-2 mb-1 px-1.5 select-none cursor-pointer">
+                    <input 
+                      type="checkbox"
+                      id="attach-slide-checkbox"
+                      checked={attachSlide}
+                      onChange={(e) => setAttachSlide(e.target.checked)}
+                      disabled={isLaunchingInteraction}
+                      className="w-3.5 h-3.5 rounded border-slate-300 text-osu-orange focus:ring-osu-orange cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    />
+                    <label htmlFor="attach-slide-checkbox" className="text-[9px] font-black text-slate-550 uppercase tracking-wider cursor-pointer select-none disabled:opacity-50 disabled:cursor-not-allowed">
+                      Attach Slide Screenshot
+                    </label>
+                  </div>
+
                   <div className="flex items-stretch gap-1.5">
                     <button 
                       onClick={handleCreatePoll}
-                      className="flex-1 flex items-center justify-center py-2.5 bg-osu-orange text-white rounded-lg text-xs font-black uppercase tracking-wider hover:bg-[#c03900] transition-all shadow-sm border-0 cursor-pointer"
+                      disabled={isLaunchingInteraction}
+                      className="flex-1 flex items-center justify-center py-2.5 bg-osu-orange disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white rounded-lg text-xs font-black uppercase tracking-wider hover:bg-[#c03900] transition-all shadow-sm border-0 cursor-pointer"
+                      title={attachSlide ? "Launch MCQ and attach slide screenshot" : "Launch MCQ"}
                     >
-                      <span>MCQ</span>
+                      {isLaunchingInteraction ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <span>MCQ</span>}
                     </button>
                     <button 
                       onClick={() => handleCreateWordCloud('Word Cloud')}
-                      className="flex-1 flex items-center justify-center py-2.5 bg-blue-500 text-white rounded-lg text-xs font-black uppercase tracking-wider hover:bg-blue-600 transition-all shadow-sm border-0 cursor-pointer"
+                      disabled={isLaunchingInteraction}
+                      className="flex-1 flex items-center justify-center py-2.5 bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white rounded-lg text-xs font-black uppercase tracking-wider hover:bg-blue-600 transition-all shadow-sm border-0 cursor-pointer"
                     >
                       <span>Cloud</span>
                     </button>
                     <button                
                       onClick={() => handleCreateOpenEndedQuestion('Open question')}
-                      className="flex-1 flex items-center justify-center py-2.5 bg-green-500 text-white rounded-lg text-xs font-black uppercase tracking-wider hover:bg-green-600 transition-all shadow-sm border-0 cursor-pointer"
+                      disabled={isLaunchingInteraction}
+                      className="flex-1 flex items-center justify-center py-2.5 bg-green-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white rounded-lg text-xs font-black uppercase tracking-wider hover:bg-green-600 transition-all shadow-sm border-0 cursor-pointer"
+                      title={attachSlide ? "Launch Open question and attach slide screenshot" : "Launch Open question"}
                     >                
-                      <span>Open ?</span>
+                      {isLaunchingInteraction ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <span>Open ?</span>}
                     </button>
                   </div>
                   <button 
@@ -3769,6 +3905,11 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                     isInitiallyNew={isInitiallyNew}
                     secondaryColor={secondaryColor}
                     isProjector={isProjector}
+                    onOpenImageLightbox={(imageUrl, title) => {
+                      setLightboxImageUrl(imageUrl);
+                      setLightboxTitle(title);
+                      setLightboxOpen(true);
+                    }}
                   />
                 );
               } else if (item.type === 'wordCloud') {
@@ -3816,6 +3957,11 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                     isInitiallyNew={isInitiallyNew}
                     secondaryColor={secondaryColor}
                     isProjector={isProjector}
+                    onOpenImageLightbox={(imageUrl, title) => {
+                      setLightboxImageUrl(imageUrl);
+                      setLightboxTitle(title);
+                      setLightboxOpen(true);
+                    }}
                   />
                 );
               }
