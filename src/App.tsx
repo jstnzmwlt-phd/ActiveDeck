@@ -848,14 +848,76 @@ function AppContent() {
   // Chat-only view for audience members who scanned the QR code
   if (isChatOnly) {
     return (
-      <div className="h-full w-full bg-white font-sans antialiased overflow-hidden">
-        <ChatSidebar 
-          isChatOnly={true} 
-          presentation={presentation} 
-          logoUrl={settings?.theme.logoUrl} 
-          presentationLoaded={presentationLoaded} 
-          showAttendance={settings?.showAttendance}
-        />
+      <div className="h-full w-full flex flex-col lg:flex-row bg-slate-950 font-sans antialiased overflow-hidden">
+        {/* Left Side: Premium Welcome Panel (Desktop/Laptop only) */}
+        <div className="hidden lg:flex lg:w-1/2 h-full flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 border-r border-slate-800/80 p-12 text-center relative select-none">
+          {/* Ambient lighting glow */}
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-osu-orange/5 rounded-full blur-[100px] pointer-events-none" />
+          
+          <div className="max-w-md space-y-8 relative z-10 animate-in fade-in zoom-in-95 duration-500">
+            {/* Logo Wrapper */}
+            <div className="w-24 h-24 mx-auto p-4 bg-white/5 rounded-3xl border border-white/10 shadow-2xl flex items-center justify-center">
+              <img 
+                src={settings?.theme.logoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png"} 
+                alt="Logo" 
+                className="max-w-full max-h-full object-contain"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+
+            {/* Title / Description */}
+            <div className="space-y-3">
+              <h1 className="text-3xl font-black uppercase tracking-wider text-white">ActiveDeck Chat</h1>
+              <p className="text-sm text-slate-400 leading-relaxed">
+                Join the interactive discussion, ask questions, participate in polls, and assess slides in real-time.
+              </p>
+            </div>
+
+            {/* Session Stats Card */}
+            {presentation && (
+              <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 text-left space-y-3 shadow-xl backdrop-blur-sm">
+                <div className="flex items-center justify-between border-b border-white/5 pb-2.5">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Active Session</span>
+                  <span className="flex items-center gap-1.5 px-2 py-0.5 bg-green-500/15 text-green-400 text-[9px] font-black uppercase tracking-wider rounded border border-green-500/25">
+                    <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
+                    Live
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4 pt-1">
+                  <div>
+                    <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Presenter</span>
+                    <span className="text-sm font-bold text-slate-200 truncate block">
+                      {presentation.presenterEmail ? presentation.presenterEmail.split('@')[0] : 'Presenter'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Session PIN</span>
+                    <span className="text-sm font-mono font-bold text-osu-orange">
+                      {presentation.pinCode || 'N/A'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Footer watermark */}
+          <span className="absolute bottom-6 text-[10px] font-black tracking-widest text-slate-600 uppercase">
+            ActiveDeck &copy; {new Date().getFullYear()}
+          </span>
+        </div>
+
+        {/* Right Side: The Chat Sidebar */}
+        <div className="w-full lg:w-1/2 h-full bg-white relative">
+          <ChatSidebar 
+            isChatOnly={true} 
+            presentation={presentation} 
+            logoUrl={settings?.theme.logoUrl} 
+            presentationLoaded={presentationLoaded} 
+            showAttendance={settings?.showAttendance}
+          />
+        </div>
       </div>
     );
   }
