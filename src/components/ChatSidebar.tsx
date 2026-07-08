@@ -1145,19 +1145,21 @@ const MessageCard: React.FC<MessageCardProps> = ({
                     e.stopPropagation(); 
                     onOpenImageLightbox?.(msg.fileUrl!, msg.text || "Pushed Slide"); 
                   }}
-                  className="mt-2.5 overflow-hidden rounded-xl border border-slate-200/85 bg-slate-950 shadow-sm hover:shadow-md hover:border-osu-orange/50 transition-all cursor-pointer relative group/img max-w-full"
+                  className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 shadow-md hover:shadow-lg hover:border-osu-orange/50 transition-all cursor-pointer relative group/img max-w-xl mx-auto w-full aspect-video flex flex-col justify-between"
                 >
-                  <img 
-                    src={msg.fileUrl} 
-                    alt="Pushed Slide" 
-                    className="w-full h-auto max-h-48 object-cover opacity-90 group-hover/img:opacity-100 transition-opacity" 
-                  />
-                  <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center">
-                    <span className="px-3 py-1.5 bg-slate-900/90 text-white text-[10px] font-black uppercase tracking-wider rounded-lg border border-white/10 shadow-lg">
-                      Click to Inspect / Zoom
-                    </span>
+                  <div className="flex-1 w-full relative flex items-center justify-center bg-slate-950 overflow-hidden">
+                    <img 
+                      src={msg.fileUrl} 
+                      alt="Pushed Slide" 
+                      className="max-w-full max-h-full w-full h-full object-contain opacity-90 group-hover/img:opacity-100 transition-opacity duration-200" 
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity duration-200 flex items-center justify-center">
+                      <span className="px-3 py-1.5 bg-slate-900/90 text-white text-[10px] font-black uppercase tracking-wider rounded-lg border border-white/10 shadow-lg select-none">
+                        Click to Inspect / Zoom
+                      </span>
+                    </div>
                   </div>
-                  <div className="p-2 bg-slate-900 border-t border-white/5 flex items-center justify-between text-white select-none">
+                  <div className="p-2.5 bg-slate-900 border-t border-white/5 flex items-center justify-between text-white select-none shrink-0">
                     <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Pushed Slide Preview</span>
                     <span className="text-[9px] text-osu-orange font-bold uppercase tracking-wider group-hover/img:underline">Zoom In</span>
                   </div>
@@ -4273,19 +4275,21 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                     setLightboxTitle(focusedMessage.text || "Pushed Slide");
                     setLightboxOpen(true);
                   }}
-                  className="max-w-md mx-auto my-4 overflow-hidden rounded-2xl border-2 border-osu-orange bg-slate-950 shadow-md hover:shadow-lg transition-all cursor-pointer relative group/spotimg"
+                  className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 shadow-md hover:shadow-lg hover:border-osu-orange/50 transition-all cursor-pointer relative group/spotimg max-w-xl mx-auto w-full aspect-video flex flex-col justify-between"
                 >
-                  <img 
-                    src={focusedMessage.fileUrl} 
-                    alt="Pushed Slide" 
-                    className="w-full h-auto max-h-80 object-cover opacity-90 group-hover/spotimg:opacity-100 transition-opacity" 
-                  />
-                  <div className="absolute inset-0 bg-black/35 opacity-0 group-hover/spotimg:opacity-100 transition-opacity flex items-center justify-center">
-                    <span className="px-4 py-2 bg-slate-900/90 text-white text-xs font-black uppercase tracking-wider rounded-xl border border-white/10 shadow-lg">
-                      Click to Inspect / Zoom
-                    </span>
+                  <div className="flex-1 w-full relative flex items-center justify-center bg-slate-950 overflow-hidden">
+                    <img 
+                      src={focusedMessage.fileUrl} 
+                      alt="Pushed Slide" 
+                      className="max-w-full max-h-full w-full h-full object-contain opacity-90 group-hover/spotimg:opacity-100 transition-opacity duration-200" 
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/spotimg:opacity-100 transition-opacity duration-200 flex items-center justify-center">
+                      <span className="px-3 py-1.5 bg-slate-900/90 text-white text-[10px] font-black uppercase tracking-wider rounded-lg border border-white/10 shadow-lg select-none">
+                        Click to Inspect / Zoom
+                      </span>
+                    </div>
                   </div>
-                  <div className="p-3 bg-slate-900 border-t border-white/5 flex items-center justify-between text-white select-none text-left">
+                  <div className="p-2.5 bg-slate-900 border-t border-white/5 flex items-center justify-between text-white select-none shrink-0 text-left">
                     <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Pushed Slide Preview</span>
                     <span className="text-xs text-osu-orange font-bold uppercase tracking-wider group-hover/spotimg:underline">Zoom In</span>
                   </div>

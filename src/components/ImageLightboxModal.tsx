@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, ZoomIn, ZoomOut, RotateCcw, Download } from 'lucide-react';
+import { X, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 
 interface ImageLightboxModalProps {
   isOpen: boolean;
@@ -107,17 +107,7 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
         </div>
         
         <div className="flex items-center gap-2">
-          {/* Download button */}
-          <a
-            href={imageUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            download="pushed_slide.jpg"
-            className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-350 hover:text-white transition-colors flex items-center justify-center"
-            title="Open original image / Download"
-          >
-            <Download className="w-5 h-5" />
-          </a>
+          {/* Download option disabled */}
           
           <button
             onClick={onClose}
