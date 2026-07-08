@@ -1147,11 +1147,11 @@ const MessageCard: React.FC<MessageCardProps> = ({
                   }}
                   className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 shadow-md hover:shadow-lg hover:border-osu-orange/50 transition-all cursor-pointer relative group/img max-w-xl mx-auto w-full aspect-video flex flex-col justify-between"
                 >
-                  <div className="flex-1 w-full relative flex items-center justify-center bg-slate-950 overflow-hidden">
+                  <div className="flex-1 w-full p-3.5 relative flex items-center justify-center bg-slate-950 overflow-hidden">
                     <img 
                       src={msg.fileUrl} 
                       alt="Pushed Slide" 
-                      className="max-w-full max-h-full w-full h-full object-contain opacity-90 group-hover/img:opacity-100 transition-opacity duration-200" 
+                      className="max-w-full max-h-full object-contain opacity-90 group-hover/img:opacity-100 transition-opacity duration-200" 
                     />
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity duration-200 flex items-center justify-center">
                       <span className="px-3 py-1.5 bg-slate-900/90 text-white text-[10px] font-black uppercase tracking-wider rounded-lg border border-white/10 shadow-lg select-none">
@@ -4277,11 +4277,11 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                   }}
                   className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 shadow-md hover:shadow-lg hover:border-osu-orange/50 transition-all cursor-pointer relative group/spotimg max-w-xl mx-auto w-full aspect-video flex flex-col justify-between"
                 >
-                  <div className="flex-1 w-full relative flex items-center justify-center bg-slate-950 overflow-hidden">
+                  <div className="flex-1 w-full p-3.5 relative flex items-center justify-center bg-slate-950 overflow-hidden">
                     <img 
                       src={focusedMessage.fileUrl} 
                       alt="Pushed Slide" 
-                      className="max-w-full max-h-full w-full h-full object-contain opacity-90 group-hover/spotimg:opacity-100 transition-opacity duration-200" 
+                      className="max-w-full max-h-full object-contain opacity-90 group-hover/spotimg:opacity-100 transition-opacity duration-200" 
                     />
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/spotimg:opacity-100 transition-opacity duration-200 flex items-center justify-center">
                       <span className="px-3 py-1.5 bg-slate-900/90 text-white text-[10px] font-black uppercase tracking-wider rounded-lg border border-white/10 shadow-lg select-none">
