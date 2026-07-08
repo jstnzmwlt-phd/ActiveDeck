@@ -564,10 +564,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 </p>
               </div>
 
-              {/* QR Code Card */}
+               {/* QR Code Card */}
               <div className="bg-white p-4 rounded-2xl shadow-xl flex flex-col items-center justify-center border-2 border-osu-orange/20 hover:scale-102 transition-transform duration-300">
                 <QRCodeSVG
-                  value={`${window.location.origin}/chat?pin=${presentation?.pinCode || ''}`}
+                  value={`https://active-deck.app/chat?pin=${presentation?.pinCode || ''}`}
                   size={190}
                   level="H"
                   includeMargin={false}
@@ -581,7 +581,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     Scan to Join, or Go to:
                   </div>
                   <div className="text-lg md:text-xl font-extrabold text-white bg-slate-900 border border-slate-800 px-5 py-2.5 rounded-xl inline-block tracking-wide shadow-inner">
-                    {window.location.origin.replace(/^https?:\/\//, '')}/chat
+                    active-deck.app/chat
                   </div>
                 </div>
                 

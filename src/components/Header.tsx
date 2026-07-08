@@ -327,7 +327,7 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
           {/* Join URL Display */}
           <div className="flex items-center gap-2 bg-slate-100 px-4 py-1 rounded-xl border-2 border-slate-205 shadow-sm select-none">
             <span className="text-slate-550 font-black uppercase text-[12px] tracking-wider">Join Here:</span>
-            <span className="text-osu-orange select-all font-mono font-black text-[18px]">{window.location.origin}/chat</span>
+            <span className="text-osu-orange select-all font-mono font-black text-[18px]">active-deck.app/chat</span>
           </div>
 
           {presentationId && showAttendance && (
