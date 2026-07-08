@@ -54,6 +54,7 @@ export interface Message {
   likedBy?: string[];
   slide?: number;
   isPinned?: boolean;
+  isPushedSlide?: boolean;
   fileUrl?: string;
   fileName?: string;
   fileSize?: number;

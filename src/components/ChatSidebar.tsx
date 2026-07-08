@@ -11,6 +11,7 @@ import { twMerge } from 'tailwind-merge';
 import { QRCodeSVG } from 'qrcode.react';
 import { motion } from 'motion/react';
 import { MEDICAL_ICONS, MedicalIcon, generateIconGrid } from './MedicalIcon';
+import { ImageLightboxModal } from './ImageLightboxModal';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -967,6 +968,7 @@ interface MessageCardProps {
   onFocus?: (msg: Message) => void;
   forceCollapsed?: boolean;
   onToggleCollapse?: (msgId: string, collapsed: boolean) => void;
+  onOpenImageLightbox?: (imageUrl: string, title?: string) => void;
 }
 
 const MessageCard: React.FC<MessageCardProps> = ({ 
@@ -981,7 +983,8 @@ const MessageCard: React.FC<MessageCardProps> = ({
   isPresenter = false,
   onFocus,
   forceCollapsed,
-  onToggleCollapse
+  onToggleCollapse,
+  onOpenImageLightbox
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : initialCollapsed);
   const prevInitialCollapsedRef = useRef(initialCollapsed);
@@ -1136,35 +1139,60 @@ const MessageCard: React.FC<MessageCardProps> = ({
               </span>
             )}
             {msg.fileUrl && (
-              <div className="mt-2.5 p-3 bg-white/95 rounded-xl border border-slate-200/80 flex items-center justify-between gap-3 shadow-sm hover:border-indigo-400 hover:shadow-md transition-all group/doc">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg group-hover/doc:bg-indigo-100 group-hover/doc:text-indigo-700 transition-colors flex items-center justify-center shrink-0">
-                    <Download className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0 flex flex-col items-start">
-                    <span className="font-bold text-slate-800 truncate block w-full text-xs max-w-[130px]" title={msg.fileName}>
-                      {msg.fileName || "Shared Document"}
+              msg.isPushedSlide ? (
+                <div 
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    onOpenImageLightbox?.(msg.fileUrl!, msg.text || "Pushed Slide"); 
+                  }}
+                  className="mt-2.5 overflow-hidden rounded-xl border border-slate-200/85 bg-slate-950 shadow-sm hover:shadow-md hover:border-osu-orange/50 transition-all cursor-pointer relative group/img max-w-full"
+                >
+                  <img 
+                    src={msg.fileUrl} 
+                    alt="Pushed Slide" 
+                    className="w-full h-auto max-h-48 object-cover opacity-90 group-hover/img:opacity-100 transition-opacity" 
+                  />
+                  <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center">
+                    <span className="px-3 py-1.5 bg-slate-900/90 text-white text-[10px] font-black uppercase tracking-wider rounded-lg border border-white/10 shadow-lg">
+                      Click to Inspect / Zoom
                     </span>
-                    {msg.fileSize !== undefined && msg.fileSize !== null && (
-                      <span className="text-[9px] text-slate-500 font-semibold mt-0.5 block">
-                        {formatFileSize(msg.fileSize)}
-                      </span>
-                    )}
+                  </div>
+                  <div className="p-2 bg-slate-900 border-t border-white/5 flex items-center justify-between text-white select-none">
+                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Pushed Slide Preview</span>
+                    <span className="text-[9px] text-osu-orange font-bold uppercase tracking-wider group-hover/img:underline">Zoom In</span>
                   </div>
                 </div>
-                <a
-                  href={msg.fileUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  download={msg.fileName || "download"}
-                  className="shrink-0 px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.97] text-white rounded-lg transition-all shadow-sm flex items-center justify-center gap-1 text-[10px] font-extrabold uppercase tracking-wide select-none"
-                  title="Download Document"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Download className="w-3 h-3" />
-                  <span>Get</span>
-                </a>
-              </div>
+              ) : (
+                <div className="mt-2.5 p-3 bg-white/95 rounded-xl border border-slate-200/80 flex items-center justify-between gap-3 shadow-sm hover:border-indigo-400 hover:shadow-md transition-all group/doc">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg group-hover/doc:bg-indigo-100 group-hover/doc:text-indigo-700 transition-colors flex items-center justify-center shrink-0">
+                      <Download className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex flex-col items-start">
+                      <span className="font-bold text-slate-800 truncate block w-full text-xs max-w-[130px]" title={msg.fileName}>
+                        {msg.fileName || "Shared Document"}
+                      </span>
+                      {msg.fileSize !== undefined && msg.fileSize !== null && (
+                        <span className="text-[9px] text-slate-500 font-semibold mt-0.5 block">
+                          {formatFileSize(msg.fileSize)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <a
+                    href={msg.fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    download={msg.fileName || "download"}
+                    className="shrink-0 px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.97] text-white rounded-lg transition-all shadow-sm flex items-center justify-center gap-1 text-[10px] font-extrabold uppercase tracking-wide select-none"
+                    title="Download Document"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Download className="w-3 h-3" />
+                    <span>Get</span>
+                  </a>
+                </div>
+              )
             )}
             {(msg.slide !== undefined && msg.slide !== null) && (
               <span className={cn(
@@ -1227,6 +1255,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
   const { user } = useAuth();
   const { currentSlide } = useBridge();
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxImageUrl, setLightboxImageUrl] = useState('');
+  const [lightboxTitle, setLightboxTitle] = useState('');
   const canModerate = !isChatOnly && !isProjector; // Only the person in the main view (presenter) can moderate
   const canModerateChat = !isChatOnly && !isProjector; // Only the person in the main view can moderate chat
 
@@ -3664,6 +3695,11 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 onToggleCollapse={(msgId, collapsed) => {
                   setCollapsedMessageIds(prev => ({ ...prev, [msgId]: collapsed }));
                 }}
+                onOpenImageLightbox={(url, title) => {
+                  setLightboxImageUrl(url);
+                  setLightboxTitle(title || "Pushed Slide");
+                  setLightboxOpen(true);
+                }}
               />
             ))}
           </div>
@@ -3814,6 +3850,11 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                   forceCollapsed={collapsedMessageIds[msg.id]}
                   onToggleCollapse={(msgId, collapsed) => {
                     setCollapsedMessageIds(prev => ({ ...prev, [msgId]: collapsed }));
+                  }}
+                  onOpenImageLightbox={(url, title) => {
+                    setLightboxImageUrl(url);
+                    setLightboxTitle(title || "Pushed Slide");
+                    setLightboxOpen(true);
                   }}
                 />
               );
@@ -4225,34 +4266,60 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
             {/* File Upload / Shared Document inside Spotlight */}
             {focusedMessage.fileUrl && (
-              <div className="p-4 rounded-2xl bg-indigo-50/40 border-2 border-indigo-100/70 flex items-center justify-between gap-4 max-w-md mx-auto my-4 transition-all shadow-sm">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="p-2.5 bg-indigo-100 text-indigo-700 rounded-xl flex items-center justify-center shrink-0">
-                    <Download className="w-5 h-5 animate-pulse" />
-                  </div>
-                  <div className="min-w-0 flex flex-col items-start text-left">
-                    <span className="font-extrabold text-slate-800 truncate block text-sm max-w-[200px]" title={focusedMessage.fileName}>
-                      {focusedMessage.fileName || "Shared Document"}
+              focusedMessage.isPushedSlide ? (
+                <div 
+                  onClick={() => {
+                    setLightboxImageUrl(focusedMessage.fileUrl!);
+                    setLightboxTitle(focusedMessage.text || "Pushed Slide");
+                    setLightboxOpen(true);
+                  }}
+                  className="max-w-md mx-auto my-4 overflow-hidden rounded-2xl border-2 border-osu-orange bg-slate-950 shadow-md hover:shadow-lg transition-all cursor-pointer relative group/spotimg"
+                >
+                  <img 
+                    src={focusedMessage.fileUrl} 
+                    alt="Pushed Slide" 
+                    className="w-full h-auto max-h-80 object-cover opacity-90 group-hover/spotimg:opacity-100 transition-opacity" 
+                  />
+                  <div className="absolute inset-0 bg-black/35 opacity-0 group-hover/spotimg:opacity-100 transition-opacity flex items-center justify-center">
+                    <span className="px-4 py-2 bg-slate-900/90 text-white text-xs font-black uppercase tracking-wider rounded-xl border border-white/10 shadow-lg">
+                      Click to Inspect / Zoom
                     </span>
-                    {focusedMessage.fileSize !== undefined && focusedMessage.fileSize !== null && (
-                      <span className="text-[10px] text-slate-500 font-bold mt-0.5 block">
-                        {formatFileSize(focusedMessage.fileSize)}
-                      </span>
-                    )}
+                  </div>
+                  <div className="p-3 bg-slate-900 border-t border-white/5 flex items-center justify-between text-white select-none text-left">
+                    <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Pushed Slide Preview</span>
+                    <span className="text-xs text-osu-orange font-bold uppercase tracking-wider group-hover/spotimg:underline">Zoom In</span>
                   </div>
                 </div>
-                <a
-                  href={focusedMessage.fileUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  download={focusedMessage.fileName || "download"}
-                  className="shrink-0 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.97] text-white rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 text-xs font-black uppercase tracking-wide select-none"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Download className="w-4 h-4" />
-                  <span>Download</span>
-                </a>
-              </div>
+              ) : (
+                <div className="p-4 rounded-2xl bg-indigo-50/40 border-2 border-indigo-100/70 flex items-center justify-between gap-4 max-w-md mx-auto my-4 transition-all shadow-sm">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="p-2.5 bg-indigo-100 text-indigo-700 rounded-xl flex items-center justify-center shrink-0">
+                      <Download className="w-5 h-5 animate-pulse" />
+                    </div>
+                    <div className="min-w-0 flex flex-col items-start text-left">
+                      <span className="font-extrabold text-slate-800 truncate block text-sm max-w-[200px]" title={focusedMessage.fileName}>
+                        {focusedMessage.fileName || "Shared Document"}
+                      </span>
+                      {focusedMessage.fileSize !== undefined && focusedMessage.fileSize !== null && (
+                        <span className="text-[10px] text-slate-500 font-bold mt-0.5 block">
+                          {formatFileSize(focusedMessage.fileSize)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <a
+                    href={focusedMessage.fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    download={focusedMessage.fileName || "download"}
+                    className="shrink-0 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.97] text-white rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 text-xs font-black uppercase tracking-wide select-none"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Download</span>
+                  </a>
+                </div>
+              )
             )}
 
             {/* Metadata Footer */}
@@ -4276,6 +4343,13 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           </div>
         </motion.div>
       )}
+      {/* Pushed Slide Lightbox Modal */}
+      <ImageLightboxModal
+        isOpen={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+        imageUrl={lightboxImageUrl}
+        title={lightboxTitle}
+      />
     </div>
   );
 };
