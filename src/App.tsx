@@ -849,8 +849,19 @@ function AppContent() {
   if (isChatOnly) {
     return (
       <div className="h-full w-full flex flex-col lg:flex-row bg-slate-950 font-sans antialiased overflow-hidden">
-        {/* Left Side: Premium Welcome Panel (Desktop/Laptop only) */}
-        <div className="hidden lg:flex lg:w-1/2 h-full flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 border-r border-slate-800/80 p-12 text-center relative select-none">
+        {/* Left Side: The Chat Sidebar */}
+        <div className="w-full lg:w-1/2 h-full bg-white relative">
+          <ChatSidebar 
+            isChatOnly={true} 
+            presentation={presentation} 
+            logoUrl={settings?.theme.logoUrl} 
+            presentationLoaded={presentationLoaded} 
+            showAttendance={settings?.showAttendance}
+          />
+        </div>
+
+        {/* Right Side: Premium Welcome Panel (Desktop/Laptop only) */}
+        <div className="hidden lg:flex lg:w-1/2 h-full flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 border-l border-slate-800/80 p-12 text-center relative select-none">
           {/* Ambient lighting glow */}
           <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-osu-orange/5 rounded-full blur-[100px] pointer-events-none" />
           
@@ -906,17 +917,6 @@ function AppContent() {
           <span className="absolute bottom-6 text-[10px] font-black tracking-widest text-slate-600 uppercase">
             ActiveDeck &copy; {new Date().getFullYear()}
           </span>
-        </div>
-
-        {/* Right Side: The Chat Sidebar */}
-        <div className="w-full lg:w-1/2 h-full bg-white relative">
-          <ChatSidebar 
-            isChatOnly={true} 
-            presentation={presentation} 
-            logoUrl={settings?.theme.logoUrl} 
-            presentationLoaded={presentationLoaded} 
-            showAttendance={settings?.showAttendance}
-          />
         </div>
       </div>
     );
