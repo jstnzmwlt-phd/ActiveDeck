@@ -547,46 +547,49 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
         {/* Stunning Classroom Welcome & Join Hub - Shown in projector mode when offline */}
         {!isCapturing && isProjectorMode && (
-          <div className="absolute inset-0 z-[65] flex flex-col items-center justify-center bg-slate-950 p-8 text-center text-white">
-            <div className="max-w-2xl w-full flex flex-col items-center gap-8 animate-in fade-in zoom-in-95 duration-500">
+          <div className="absolute inset-0 z-[65] flex flex-col items-center justify-center bg-slate-950 p-6 text-center text-white overflow-hidden">
+            <div className="max-w-xl w-full flex flex-col items-center gap-5 md:gap-6 animate-in fade-in zoom-in-95 duration-500">
               {/* Logo / Brand Header */}
-              <div className="flex flex-col items-center gap-3">
+              <div className="flex flex-col items-center gap-2">
                 {logoUrl ? (
-                  <img src={logoUrl} alt="ActiveDeck" className="h-16 object-contain" />
+                  <img src={logoUrl} alt="ActiveDeck" className="h-12 md:h-14 object-contain max-h-[56px]" />
                 ) : (
-                  <div className="flex items-center gap-3 text-3xl font-black uppercase tracking-wider text-osu-orange">
-                    <MonitorPlay className="w-10 h-10" />
+                  <div className="flex items-center gap-2.5 text-2xl md:text-3xl font-black uppercase tracking-wider text-osu-orange">
+                    <MonitorPlay className="w-8 h-8 md:w-9 md:h-9" />
                     <span>ActiveDeck</span>
                   </div>
                 )}
-                <p className="text-slate-400 text-lg font-semibold tracking-wide">
+                <p className="text-slate-400 text-sm md:text-base font-semibold tracking-wide mt-1">
                   Welcome! The presentation is about to begin.
                 </p>
               </div>
 
-              {/* Huge QR Code Card */}
-              <div className="bg-white p-6 rounded-3xl shadow-2xl flex flex-col items-center justify-center border-4 border-osu-orange/20 hover:scale-102 transition-transform duration-300">
+              {/* QR Code Card */}
+              <div className="bg-white p-4 rounded-2xl shadow-xl flex flex-col items-center justify-center border-2 border-osu-orange/20 hover:scale-102 transition-transform duration-300">
                 <QRCodeSVG
                   value={`${window.location.origin}/chat?pin=${presentation?.pinCode || ''}`}
-                  size={260}
+                  size={190}
                   level="H"
                   includeMargin={false}
                 />
               </div>
 
-              {/* Giant PIN & Connection Info */}
-              <div className="space-y-4">
-                <div className="text-slate-400 text-sm font-black uppercase tracking-widest">
-                  Scan to Join, or Go to:
+              {/* PIN & Connection Info */}
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <div className="text-slate-500 text-[10px] md:text-xs font-black uppercase tracking-widest">
+                    Scan to Join, or Go to:
+                  </div>
+                  <div className="text-lg md:text-xl font-extrabold text-white bg-slate-900 border border-slate-800 px-5 py-2.5 rounded-xl inline-block tracking-wide shadow-inner">
+                    {window.location.origin.replace(/^https?:\/\//, '')}/chat
+                  </div>
                 </div>
-                <div className="text-2xl font-extrabold text-white bg-slate-900 border border-slate-800 px-6 py-3 rounded-2xl inline-block tracking-wide shadow-inner">
-                  {window.location.origin}/chat
-                </div>
-                <div className="flex flex-col items-center gap-1 pt-2">
-                  <div className="text-slate-400 text-sm font-black uppercase tracking-widest">
+                
+                <div className="flex flex-col items-center gap-0.5 pt-1">
+                  <div className="text-slate-500 text-[10px] md:text-xs font-black uppercase tracking-widest">
                     Enter Join Code (PIN):
                   </div>
-                  <div className="text-7xl font-black tracking-wider text-osu-orange select-all font-mono">
+                  <div className="text-5xl md:text-6xl font-black tracking-wider text-osu-orange select-all font-mono">
                     {presentation?.pinCode ? presentation.pinCode.replace(/(\d{3})(?=\d)/g, '$1 ') : '--- ---'}
                   </div>
                 </div>
