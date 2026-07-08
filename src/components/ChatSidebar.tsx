@@ -3085,9 +3085,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     }
   };
 
-  if (isChatOnly && presentationLoaded && presentation === null) {
+  if (presentation?.isEnded) {
     return (
-      <div className="flex flex-col items-center justify-center h-full min-h-[100dvh] bg-slate-950 text-white p-6">
+      <div className="flex flex-col items-center justify-center h-full w-full bg-slate-950 text-white p-6">
         <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl text-center flex flex-col items-center animate-in fade-in zoom-in-95 duration-300">
           <div className="w-16 h-16 bg-osu-orange/10 text-osu-orange rounded-full flex items-center justify-center mb-6 border border-osu-orange/20 animate-pulse">
             <PresentationIcon className="w-8 h-8" />
@@ -3103,7 +3103,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
   if (isChatOnly && !isProjector && user?.isAnonymous && !hasJoined) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[100dvh] bg-slate-950 text-white p-4 md:p-8 relative overflow-y-auto w-screen">
+      <div className="flex flex-col items-center justify-center h-full w-full bg-slate-950 text-white p-4 md:p-6 relative overflow-y-auto">
         {/* OSU Logo Watermark */}
         {internalLogoUrl !== null && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-5 z-0">
@@ -3116,7 +3116,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           </div>
         )}
 
-        <div className="w-full bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-10 shadow-2xl z-10 animate-in fade-in zoom-in-95 duration-300 relative max-w-md md:max-w-5xl">
+        <div className="w-full bg-slate-900 border border-slate-800 rounded-3xl p-5 md:p-8 shadow-2xl z-10 animate-in fade-in zoom-in-95 duration-300 relative max-w-md lg:max-w-3xl">
           <form onSubmit={handleJoin} className="space-y-6">
             
             {/* If we need manual attendance check, show responsive 2-column grid */}

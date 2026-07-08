@@ -41,6 +41,7 @@ export interface Presentation {
   laserY?: number;
   laserActive?: boolean;
   presenterEmail?: string;
+  isEnded?: boolean;
 }
 
 export interface Message {
