@@ -399,52 +399,53 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           isProjectorMode={isProjectorMode}
         />
 
-        {/* Presenter-only Laser Pointer Toggle Switch */}
+        {/* Presenter-only Controls: Push Slide & Laser Toggle */}
         {isCapturing && !isProjectorMode && (
-          <button
-            onClick={() => {
-              const newEnabled = !laserEnabled;
-              setLaserEnabled(newEnabled);
-              if (!newEnabled) {
-                updateLaserPosition(0, 0, false);
-              }
-            }}
-            className={`absolute top-2 right-20 z-50 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all duration-200 shadow-lg cursor-pointer hover:scale-105 active:scale-95 ${
-              laserEnabled 
-                ? 'bg-red-600 border-red-500 text-white hover:bg-red-700 hover:border-red-600 shadow-red-500/10' 
-                : 'bg-slate-900/90 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800 hover:border-slate-600 shadow-slate-950/25'
-            }`}
-            title="Toggle Laser Pointer"
-          >
-            <div className={`w-1.5 h-1.5 rounded-full ${laserEnabled ? 'bg-white animate-pulse' : 'bg-slate-500'}`} />
-            <span>Laser {laserEnabled ? 'ON' : 'OFF'}</span>
-          </button>
-        )}
+          <div className="absolute top-2 right-20 z-50 flex items-center gap-2">
+            {/* Push Slide to Chat Button */}
+            <button
+              onClick={pushSlideToChat}
+              disabled={isPushingSlide}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all duration-200 shadow-lg cursor-pointer hover:scale-105 active:scale-95 ${
+                isPushingSlide 
+                  ? 'bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed' 
+                  : 'bg-osu-orange border-orange-655 text-white hover:bg-[#c03900] shadow-orange-500/10'
+              }`}
+              title="Push current slide image to students' chat"
+            >
+              {isPushingSlide ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Pushing...</span>
+                </>
+              ) : (
+                <>
+                  <Tv className="w-3.5 h-3.5 text-white" />
+                  <span>Push Slide</span>
+                </>
+              )}
+            </button>
 
-        {/* Push Slide to Chat Button */}
-        {isCapturing && !isProjectorMode && (
-          <button
-            onClick={pushSlideToChat}
-            disabled={isPushingSlide}
-            className={`absolute top-2 right-40 z-50 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all duration-200 shadow-lg cursor-pointer hover:scale-105 active:scale-95 ${
-              isPushingSlide 
-                ? 'bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed' 
-                : 'bg-osu-orange border-orange-650 text-white hover:bg-[#c03900] shadow-orange-500/10'
-            }`}
-            title="Push current slide image to students' chat"
-          >
-            {isPushingSlide ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                <span>Pushing...</span>
-              </>
-            ) : (
-              <>
-                <Tv className="w-3.5 h-3.5 text-white" />
-                <span>Push Slide</span>
-              </>
-            )}
-          </button>
+            {/* Laser Pointer Toggle Switch */}
+            <button
+              onClick={() => {
+                const newEnabled = !laserEnabled;
+                setLaserEnabled(newEnabled);
+                if (!newEnabled) {
+                  updateLaserPosition(0, 0, false);
+                }
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all duration-200 shadow-lg cursor-pointer hover:scale-105 active:scale-95 ${
+                laserEnabled 
+                  ? 'bg-red-600 border-red-500 text-white hover:bg-red-700 hover:border-red-600 shadow-red-500/10' 
+                  : 'bg-slate-900/90 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800 hover:border-slate-600 shadow-slate-955/25'
+              }`}
+              title="Toggle Laser Pointer"
+            >
+              <div className={`w-1.5 h-1.5 rounded-full ${laserEnabled ? 'bg-white animate-pulse' : 'bg-slate-500'}`} />
+              <span>Laser {laserEnabled ? 'ON' : 'OFF'}</span>
+            </button>
+          </div>
         )}
 
         {/* Real-time Virtual Laser Pointer Dot */}
