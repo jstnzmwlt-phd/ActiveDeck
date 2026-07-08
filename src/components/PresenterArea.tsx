@@ -73,7 +73,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           const fileId = Math.random().toString(36).substring(2, 11);
           const timestamp = Date.now();
           const fileName = `Slide_Capture_${currentSlide !== null ? `Slide_${currentSlide}` : 'Manual'}_${timestamp}.jpg`;
-          const storagePath = `presentations/${presentation.id}/pushed_slides/${fileId}_${fileName}`;
+          const storagePath = `presentations/${presentation.id}/documents/${fileId}_${fileName}`;
           const storageRef = ref(storage, storagePath);
 
           await uploadBytes(storageRef, blob);
