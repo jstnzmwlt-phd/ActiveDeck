@@ -356,16 +356,29 @@ function AppContent() {
       console.log(`AppContent - ${isProjector ? 'Projector' : 'Presenter'} received fullscreen sync event:`, event.data);
 
       if (type === 'enter-fullscreen') {
-        setIsFullscreen(true); // Decouple layout state so edge-to-edge applies programmatically
         if (!document.fullscreenElement) {
           try {
             await document.documentElement.requestFullscreen();
           } catch (err) {
-            console.warn(`AppContent - Failed to auto-fullscreen on broadcast command (requires active user gesture):`, err);
+            console.warn(`AppContent - Failed to auto-fullscreen on broadcast command (requires active user gesture). Registering click-to-fullscreen fallback:`, err);
+            
+            // Safe fallback: Since browser security blocks programmatic fullscreen without direct interaction,
+            // we attach a one-time document-wide click listener. The very next click anywhere in this window 
+            // will seamlessly fulfill the gesture requirement and enter fullscreen.
+            const handleOneTimeClickFullscreen = async () => {
+              document.removeEventListener('click', handleOneTimeClickFullscreen);
+              if (!document.fullscreenElement) {
+                try {
+                  await document.documentElement.requestFullscreen();
+                } catch (clickErr) {
+                  console.error("AppContent - Fallback click-to-fullscreen failed:", clickErr);
+                }
+              }
+            };
+            document.addEventListener('click', handleOneTimeClickFullscreen);
           }
         }
       } else if (type === 'exit-fullscreen') {
-        setIsFullscreen(false); // Restore layout state programmatically
         if (document.fullscreenElement && document.exitFullscreen) {
           try {
             await document.exitFullscreen();
@@ -805,13 +818,9 @@ function AppContent() {
   // Synced Projector Mode Layout
   if (isProjector) {
     return (
-      <div className={`flex flex-row h-full w-full overflow-hidden bg-slate-950 font-sans antialiased relative group transition-all duration-300 ${
-        isFullscreen ? 'p-0 gap-0' : 'p-6 gap-3'
-      }`}>
+      <div className="flex flex-row h-full w-full overflow-hidden bg-slate-950 font-sans antialiased p-6 gap-3 relative group">
         {/* Giant Slide Presentation Area */}
-        <div className={`flex-1 h-full min-w-0 bg-slate-900 shadow-2xl transition-all duration-300 ${
-          isFullscreen ? 'rounded-none border-0' : 'rounded-2xl border border-slate-800'
-        }`}>
+        <div className="flex-1 h-full min-w-0 rounded-2xl overflow-hidden border border-slate-800 bg-slate-900 shadow-2xl">
           <PresenterArea 
             presentation={presentation} 
             logoUrl={settings?.theme.logoUrl} 
@@ -826,17 +835,13 @@ function AppContent() {
           className="w-3 h-full cursor-col-resize flex items-center justify-center flex-shrink-0 group/splitter select-none"
           title="Drag to resize sidebar (double-click to reset)"
         >
-          <div className={`w-[3px] h-20 group-hover/splitter:bg-osu-orange/70 group-active/splitter:bg-osu-orange rounded-full transition-all duration-200 ${
-            isFullscreen ? 'bg-slate-900' : 'bg-slate-800'
-          }`} />
+          <div className="w-[3px] h-20 bg-slate-800 group-hover/splitter:bg-osu-orange/70 group-active/splitter:bg-osu-orange rounded-full transition-all duration-200" />
         </div>
 
         {/* Expanded Read-Only Sidebar Q&A Display */}
         <div 
           style={{ width: `${sidebarWidth}px` }}
-          className={`h-full flex-shrink-0 overflow-hidden bg-slate-900 shadow-2xl transition-all duration-300 ${
-            isFullscreen ? 'rounded-none border-0 border-l border-slate-850' : 'rounded-2xl border-2 border-osu-orange'
-          }`}
+          className="h-full flex-shrink-0 rounded-2xl overflow-hidden border-2 border-osu-orange bg-slate-900 shadow-2xl"
         >
           <ChatSidebar 
             presentation={presentation} 
