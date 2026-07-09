@@ -169,18 +169,6 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
   }, []);
 
   const toggleFullscreen = async () => {
-    const isCurrentlyFullscreen = !!document.fullscreenElement;
-    try {
-      const channel = new BroadcastChannel('activedeck-fullscreen');
-      channel.postMessage({
-        type: isCurrentlyFullscreen ? 'manual-exit-fullscreen' : 'manual-enter-fullscreen',
-        source: 'presenter'
-      });
-      channel.close();
-    } catch (e) {
-      console.warn("Header - Failed to broadcast manual fullscreen toggle:", e);
-    }
-
     if (!document.fullscreenElement) {
       try {
         await document.documentElement.requestFullscreen();

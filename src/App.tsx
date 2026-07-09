@@ -326,96 +326,20 @@ function AppContent() {
 
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Bidirectional Fullscreen Synchronization between Presenter and Projector
+  // Manage local fullscreen change state
   useEffect(() => {
-    const channel = !isChatOnly ? new BroadcastChannel('activedeck-fullscreen') : null;
-
     const handleLocalFullscreenChange = () => {
       const isCurrentlyFullscreen = !!document.fullscreenElement;
       setIsFullscreen(isCurrentlyFullscreen);
-      
-      const isChoosingFile = localStorage.getItem('activeDeckIsChoosingFile') === 'true';
-      if (isChoosingFile) {
-        console.log(`AppContent - ${isProjector ? 'Projector' : 'Presenter'} screen fullscreen changed locally but ignored because user is choosing a file.`);
-        return;
-      }
-      
-      if (channel) {
-        console.log(`AppContent - ${isProjector ? 'Projector' : 'Presenter'} screen fullscreen changed locally:`, isCurrentlyFullscreen);
-        channel.postMessage({
-          type: isCurrentlyFullscreen ? 'enter-fullscreen' : 'exit-fullscreen',
-          source: isProjector ? 'projector' : 'presenter'
-        });
-      }
-    };
-
-    const handleBroadcastMessage = async (event: MessageEvent) => {
-      const { type, source } = event.data || {};
-      if ((isProjector && source === 'projector') || (!isProjector && source === 'presenter')) return;
-
-      console.log(`AppContent - ${isProjector ? 'Projector' : 'Presenter'} received fullscreen sync event:`, event.data);
-
-      if (type === 'enter-fullscreen' || type === 'manual-enter-fullscreen') {
-        if (!document.fullscreenElement) {
-          try {
-            await document.documentElement.requestFullscreen();
-          } catch (err) {
-            console.warn(`AppContent - Failed to auto-fullscreen on broadcast command (requires active user gesture). Registering click-to-fullscreen fallback:`, err);
-            
-            // Safe fallback: Since browser security blocks programmatic fullscreen without direct interaction,
-            // we attach a one-time document-wide click listener. The very next click anywhere in this window 
-            // will seamlessly fulfill the gesture requirement and enter fullscreen.
-            const handleOneTimeClickFullscreen = async () => {
-              document.removeEventListener('click', handleOneTimeClickFullscreen);
-              if (!document.fullscreenElement) {
-                try {
-                  await document.documentElement.requestFullscreen();
-                } catch (clickErr) {
-                  console.error("AppContent - Fallback click-to-fullscreen failed:", clickErr);
-                }
-              }
-            };
-            document.addEventListener('click', handleOneTimeClickFullscreen);
-          }
-        }
-      } else if (type === 'manual-exit-fullscreen') {
-        if (document.fullscreenElement && document.exitFullscreen) {
-          try {
-            await document.exitFullscreen();
-          } catch (err) {
-            console.warn(`AppContent - Failed to auto-exit-fullscreen on broadcast command:`, err);
-          }
-        }
-      }
     };
 
     document.addEventListener('fullscreenchange', handleLocalFullscreenChange);
-    if (channel) {
-      channel.addEventListener('message', handleBroadcastMessage);
-    }
-
     return () => {
       document.removeEventListener('fullscreenchange', handleLocalFullscreenChange);
-      if (channel) {
-        channel.removeEventListener('message', handleBroadcastMessage);
-        channel.close();
-      }
     };
-  }, [isProjector, isChatOnly]);
+  }, []);
 
   const toggleFullscreen = async () => {
-    const isCurrentlyFullscreen = !!document.fullscreenElement;
-    try {
-      const channel = new BroadcastChannel('activedeck-fullscreen');
-      channel.postMessage({
-        type: isCurrentlyFullscreen ? 'manual-exit-fullscreen' : 'manual-enter-fullscreen',
-        source: isProjector ? 'projector' : 'presenter'
-      });
-      channel.close();
-    } catch (e) {
-      console.warn("AppContent - Failed to broadcast manual fullscreen toggle:", e);
-    }
-
     if (!document.fullscreenElement) {
       try {
         await document.documentElement.requestFullscreen();
