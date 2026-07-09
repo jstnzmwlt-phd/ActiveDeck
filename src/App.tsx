@@ -242,22 +242,80 @@ function AppContent() {
       return;
     }
     const title = notesTitle.trim() || `Session_${presentation?.pinCode || 'Notes'}`;
-    const filename = `ActiveDeck_Notes_${title.replace(/[^a-z0-9_-]/gi, '_')}.txt`;
+    const filename = `ActiveDeck_Notes_${title.replace(/[^a-z0-9_-]/gi, '_')}.doc`;
     
     const presenterName = presentation?.presenterEmail ? presentation.presenterEmail.split('@')[0] : 'Presenter';
     const pin = presentation?.pinCode || 'N/A';
     
-    const content = `ActiveDeck Presentation Notes
-==============================
-Presenter: ${presenterName}
-Session PIN: ${pin}
-Title: ${title}
-Date: ${new Date().toLocaleDateString()}
-==============================
+    // Escape HTML characters to prevent breaking Word's rendering
+    const escapedNotesText = notesText
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;")
+      .replace(/\n/g, '<br/>');
 
-${notesText}`;
+    const docHtml = `
+      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+      <head>
+        <!--[if gte mso 9]>
+        <xml>
+          <w:WordDocument>
+            <w:View>Print</w:View>
+            <w:Zoom>100</w:Zoom>
+          </w:WordDocument>
+        </xml>
+        <![endif]-->
+        <style>
+          body {
+            font-family: 'Arial', sans-serif;
+            font-size: 11pt;
+            line-height: 1.5;
+            color: #333333;
+          }
+          h2 {
+            font-family: 'Arial', sans-serif;
+            font-size: 16pt;
+            color: #eb5d00; /* OSU Orange */
+            border-bottom: 2px solid #eb5d00;
+            padding-bottom: 4px;
+            margin-top: 0;
+          }
+          .metadata-box {
+            background-color: #f8f9fa;
+            border-left: 4px solid #eb5d00;
+            padding: 10px 15px;
+            margin-bottom: 20px;
+            font-size: 10pt;
+            color: #555555;
+          }
+          .metadata-label {
+            font-weight: bold;
+            color: #111111;
+          }
+          .notes-container {
+            font-size: 11pt;
+            color: #222222;
+          }
+        </style>
+      </head>
+      <body>
+        <h2>ActiveDeck Study Notes</h2>
+        <div class="metadata-box">
+          <span class="metadata-label">Presenter:</span> ${presenterName}<br/>
+          <span class="metadata-label">Session PIN:</span> ${pin}<br/>
+          <span class="metadata-label">Notes Title:</span> ${title}<br/>
+          <span class="metadata-label">Date:</span> ${new Date().toLocaleDateString()}<br/>
+        </div>
+        <div class="notes-container">
+          ${escapedNotesText}
+        </div>
+      </body>
+      </html>
+    `;
 
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const blob = new Blob(['\ufeff' + docHtml], { type: 'application/msword;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -1007,7 +1065,7 @@ ${notesText}`;
                   disabled={!notesText.trim()}
                   className="h-10 border border-slate-800 hover:border-osu-orange/30 bg-slate-950/40 hover:bg-slate-950/80 disabled:bg-slate-950/20 disabled:text-slate-700 disabled:border-slate-900 disabled:cursor-not-allowed text-slate-300 hover:text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  Download (.txt)
+                  Download (.doc)
                 </button>
                 <button
                   type="button"
