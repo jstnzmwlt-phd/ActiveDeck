@@ -116,7 +116,7 @@ interface OpenEndedQuestionCardProps {
   canModerate: boolean;
   onClose: (id: string) => void;
   onDelete: (id: string) => void;
-  onStart: (id: string, duration: number) => void;
+  onStart: (id: string, duration: number, attachSlide: boolean) => void;
   onSubmit: (id: string, response: string) => void;
   onToggleResults: (id: string, visible: boolean) => void;
   onAdjustDuration: (id: string, duration: number) => void;
@@ -125,11 +125,13 @@ interface OpenEndedQuestionCardProps {
   secondaryColor?: string;
   isProjector?: boolean;
   onOpenImageLightbox?: (imageUrl: string, title: string) => void;
+  isStarting?: boolean;
 }
 
-const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, canModerate, onClose, onDelete, onStart, onSubmit, onToggleResults, onAdjustDuration, initialCollapsed = false, isInitiallyNew = false, secondaryColor, isProjector = false, onOpenImageLightbox }) => {
+const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, canModerate, onClose, onDelete, onStart, onSubmit, onToggleResults, onAdjustDuration, initialCollapsed = false, isInitiallyNew = false, secondaryColor, isProjector = false, onOpenImageLightbox, isStarting }) => {
   const [response, setResponse] = useState('');
   const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : initialCollapsed);
+  const [attachSlide, setAttachSlide] = useState(false);
   const prevInitialCollapsedRef = useRef(initialCollapsed);
   const responsesData = q.responses || {};
   const isDraft = q.started === false || (!q.started && !q.active && Object.values(q.responses || {}).length === 0);
@@ -295,8 +297,9 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
                 <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Set Duration</span>
                 <div className="flex items-center gap-4">
                   <button 
+                    disabled={isStarting}
                     onClick={() => onAdjustDuration(q.id, Math.max(15, (q.duration || 60) - 15))}
-                    className="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-full text-slate-600 transition-colors"
+                    className="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 disabled:opacity-50 rounded-full text-slate-600 transition-colors"
                   >
                     -
                   </button>
@@ -304,38 +307,58 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
                     {Math.floor((q.duration || 60) / 60)}:{((q.duration || 60) % 60).toString().padStart(2, '0')}
                   </span>
                   <button 
+                    disabled={isStarting}
                     onClick={() => onAdjustDuration(q.id, Math.min(180, (q.duration || 60) + 15))}
-                    className="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-full text-slate-600 transition-colors"
+                    className="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 disabled:opacity-50 rounded-full text-slate-600 transition-colors"
                   >
                     +
                   </button>
                 </div>
                 <div className="flex gap-2 mt-1">
                   <button 
+                    disabled={isStarting}
                     onClick={() => onAdjustDuration(q.id, 60)}
-                    className="px-2 py-1 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 rounded text-slate-600 transition-colors border border-slate-200"
+                    className="px-2 py-1 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 disabled:opacity-50 rounded text-slate-600 transition-colors border border-slate-200"
                   >
                     1:00
                   </button>
                   <button 
+                    disabled={isStarting}
                     onClick={() => onAdjustDuration(q.id, 120)}
-                    className="px-2 py-1 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 rounded text-slate-600 transition-colors border border-slate-200"
+                    className="px-2 py-1 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 disabled:opacity-50 rounded text-slate-600 transition-colors border border-slate-200"
                   >
                     2:00
                   </button>
                   <button 
+                    disabled={isStarting}
                     onClick={() => onAdjustDuration(q.id, 180)}
-                    className="px-2 py-1 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 rounded text-slate-600 transition-colors border border-slate-200"
+                    className="px-2 py-1 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 disabled:opacity-50 rounded text-slate-600 transition-colors border border-slate-200"
                   >
                     3:00
                   </button>
                 </div>
+
+                {/* Attach Slide Checkbox */}
+                <div className="flex items-center gap-2 mt-1 px-1.5 select-none cursor-pointer">
+                  <input 
+                    type="checkbox"
+                    id={`open-attach-slide-${q.id}`}
+                    checked={attachSlide}
+                    onChange={(e) => setAttachSlide(e.target.checked)}
+                    disabled={isStarting}
+                    className="w-3.5 h-3.5 rounded border-slate-300 text-osu-orange focus:ring-osu-orange cursor-pointer disabled:opacity-50"
+                  />
+                  <label htmlFor={`open-attach-slide-${q.id}`} className="text-[10px] font-black text-slate-550 uppercase tracking-wider cursor-pointer select-none">
+                    Attach Slide Screenshot
+                  </label>
+                </div>
               </div>
               <button 
-                onClick={() => onStart(q.id, q.duration || 60)}
-                className="w-full py-3 bg-green-500 text-white font-black uppercase tracking-widest rounded-xl hover:bg-green-600 transition-all shadow-lg shadow-green-500/20 active:scale-95"
+                onClick={() => onStart(q.id, q.duration || 60, attachSlide)}
+                disabled={isStarting}
+                className="w-full py-3 bg-green-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-black uppercase tracking-widest rounded-xl hover:bg-green-600 transition-all shadow-lg shadow-green-500/20 active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                Start Question Now
+                {isStarting ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Start Question Now</span>}
               </button>
             </div>
           ) : (
@@ -397,7 +420,7 @@ interface PollCardProps {
   onToggleResults: (pollId: string, currentShow: boolean) => void;
   onClose: (pollId: string) => void;
   onDelete: (pollId: string) => void;
-  onStart: (pollId: string, duration: number) => void;
+  onStart: (pollId: string, duration: number, attachSlide: boolean) => void;
   onAdjustDuration: (pollId: string, newDuration: number) => void;
   onMarkCorrect: (pollId: string, option: string) => void;
   initialCollapsed?: boolean;
@@ -405,11 +428,13 @@ interface PollCardProps {
   secondaryColor?: string;
   isProjector?: boolean;
   onOpenImageLightbox?: (imageUrl: string, title: string) => void;
+  isStarting?: boolean;
 }
 
-const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate, onVote, onToggleResults, onClose, onDelete, onStart, onAdjustDuration, onMarkCorrect, initialCollapsed = false, isInitiallyNew = false, secondaryColor, isProjector = false, onOpenImageLightbox }) => {
+const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate, onVote, onToggleResults, onClose, onDelete, onStart, onAdjustDuration, onMarkCorrect, initialCollapsed = false, isInitiallyNew = false, secondaryColor, isProjector = false, onOpenImageLightbox, isStarting }) => {
   const totalVotes = Object.values(poll.votes || {}).reduce((a, b) => a + b, 0);
   const userVote = user && poll.voters ? poll.voters[user.uid] : null;
+  const [attachSlide, setAttachSlide] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number | null>(() => {
     if (!poll.active || !poll.expiresAt) return null;
     const now = Date.now();
@@ -573,8 +598,9 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
                 <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Set Duration</span>
                 <div className="flex items-center gap-4">
                   <button 
+                    disabled={isStarting}
                     onClick={() => onAdjustDuration(poll.id, Math.max(15, (poll.duration || 60) - 15))}
-                    className="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-full text-slate-600 transition-colors"
+                    className="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 disabled:opacity-50 rounded-full text-slate-600 transition-colors"
                   >
                     -
                   </button>
@@ -582,38 +608,58 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
                     {formatTime(poll.duration || 60)}
                   </span>
                   <button 
+                    disabled={isStarting}
                     onClick={() => onAdjustDuration(poll.id, Math.min(180, (poll.duration || 60) + 15))}
-                    className="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-full text-slate-600 transition-colors"
+                    className="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 disabled:opacity-50 rounded-full text-slate-600 transition-colors"
                   >
                     +
                   </button>
                 </div>
                 <div className="flex gap-2 mt-1">
                   <button 
+                    disabled={isStarting}
                     onClick={() => onAdjustDuration(poll.id, 60)}
-                    className="px-2 py-1 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 rounded text-slate-600 transition-colors border border-slate-200"
+                    className="px-2 py-1 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 disabled:opacity-50 rounded text-slate-600 transition-colors border border-slate-200"
                   >
                     1:00
                   </button>
                   <button 
+                    disabled={isStarting}
                     onClick={() => onAdjustDuration(poll.id, 120)}
-                    className="px-2 py-1 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 rounded text-slate-600 transition-colors border border-slate-200"
+                    className="px-2 py-1 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 disabled:opacity-50 rounded text-slate-600 transition-colors border border-slate-200"
                   >
                     2:00
                   </button>
                   <button 
+                    disabled={isStarting}
                     onClick={() => onAdjustDuration(poll.id, 180)}
-                    className="px-2 py-1 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 rounded text-slate-600 transition-colors border border-slate-200"
+                    className="px-2 py-1 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 disabled:opacity-50 rounded text-slate-600 transition-colors border border-slate-200"
                   >
                     3:00
                   </button>
                 </div>
+
+                {/* Attach Slide Checkbox */}
+                <div className="flex items-center gap-2 mt-1 px-1.5 select-none cursor-pointer">
+                  <input 
+                    type="checkbox"
+                    id={`poll-attach-slide-${poll.id}`}
+                    checked={attachSlide}
+                    onChange={(e) => setAttachSlide(e.target.checked)}
+                    disabled={isStarting}
+                    className="w-3.5 h-3.5 rounded border-slate-350 text-osu-orange focus:ring-osu-orange cursor-pointer disabled:opacity-50"
+                  />
+                  <label htmlFor={`poll-attach-slide-${poll.id}`} className="text-[10px] font-black text-slate-550 uppercase tracking-wider cursor-pointer select-none">
+                    Attach Slide Screenshot
+                  </label>
+                </div>
               </div>
               <button 
-                onClick={() => onStart(poll.id, poll.duration || 60)}
-                className="w-full py-3 bg-osu-orange text-white font-black uppercase tracking-widest rounded-xl hover:bg-[#c03900] transition-all shadow-lg shadow-orange-500/20 active:scale-95"
+                onClick={() => onStart(poll.id, poll.duration || 60, attachSlide)}
+                disabled={isStarting}
+                className="w-full py-3 bg-osu-orange disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-black uppercase tracking-widest rounded-xl hover:bg-[#c03900] transition-all shadow-lg shadow-orange-500/20 active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                Start Poll Now
+                {isStarting ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Start MCQ Now</span>}
               </button>
             </div>
           ) : (
@@ -1426,7 +1472,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [pollDuration, setPollDuration] = useState(60); // Default 60 seconds
   const [participantCount, setParticipantCount] = useState(0);
   const [focusedMessage, setFocusedMessage] = useState<Message | null>(null);
-  const [attachSlide, setAttachSlide] = useState(false);
   const [isLaunchingInteraction, setIsLaunchingInteraction] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -1558,11 +1603,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     if (!presentation?.id || !canModerate || !promptToUse) return;
     setIsLaunchingInteraction(true);
     try {
-      let fileUrl: string | undefined = undefined;
-      if (attachSlide) {
-        fileUrl = await captureAndUploadSlide();
-      }
-
       await addDoc(collection(db, 'openEndedQuestions'), {
         presentationId: presentation.id,
         prompt: promptToUse,
@@ -1570,8 +1610,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         showResults: false,
         active: false,
         createdAt: serverTimestamp(),
-        slide: currentSlide !== null ? currentSlide : (presentation.currentSlide || 0),
-        ...(fileUrl ? { fileUrl } : {})
+        slide: currentSlide !== null ? currentSlide : (presentation.currentSlide || 0)
       });
       setShowOpenEndedQuestionModal(false);
       setOpenEndedQuestionPrompt('');
@@ -3033,17 +3072,30 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     }
   };
 
-  const handleStartOpenEndedQuestion = async (id: string, duration: number) => {
+  const handleStartOpenEndedQuestion = async (id: string, duration: number, attachSlide: boolean) => {
     if (!canModerate) return;
+    setIsLaunchingInteraction(true);
     try {
+      let fileUrl: string | undefined = undefined;
+      if (attachSlide) {
+        fileUrl = await captureAndUploadSlide();
+      }
+
       const expiresAt = new Date(Date.now() + duration * 1000);
-      await updateDoc(doc(db, 'openEndedQuestions', id), { 
+      const updateData: any = { 
         active: true, 
         started: true,
         expiresAt: Timestamp.fromDate(expiresAt)
-      });
+      };
+      if (fileUrl) {
+        updateData.fileUrl = fileUrl;
+        updateData.slide = currentSlide !== null ? currentSlide : (presentation?.currentSlide || 0);
+      }
+      await updateDoc(doc(db, 'openEndedQuestions', id), updateData);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `openEndedQuestions/${id}`);
+    } finally {
+      setIsLaunchingInteraction(false);
     }
   };
 
@@ -3099,11 +3151,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     if (!presentation?.id || !canModerate) return;
     setIsLaunchingInteraction(true);
     try {
-      let fileUrl: string | undefined = undefined;
-      if (attachSlide) {
-        fileUrl = await captureAndUploadSlide();
-      }
-
       await addDoc(collection(db, 'polls'), {
         presentationId: presentation.id,
         options: ['A', 'B', 'C', 'D', 'E'],
@@ -3114,8 +3161,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         active: false,
         started: false,
         showResults: false,
-        slide: currentSlide !== null ? currentSlide : (presentation.currentSlide || 0),
-        ...(fileUrl ? { fileUrl } : {})
+        slide: currentSlide !== null ? currentSlide : (presentation.currentSlide || 0)
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'polls');
@@ -3124,17 +3170,30 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     }
   };
 
-  const handleStartPoll = async (pollId: string, duration: number) => {
+  const handleStartPoll = async (pollId: string, duration: number, attachSlide: boolean) => {
     if (!canModerate) return;
+    setIsLaunchingInteraction(true);
     try {
+      let fileUrl: string | undefined = undefined;
+      if (attachSlide) {
+        fileUrl = await captureAndUploadSlide();
+      }
+
       const expiresAt = new Date(Date.now() + duration * 1000);
-      await updateDoc(doc(db, 'polls', pollId), {
+      const updateData: any = {
         active: true,
         started: true,
         expiresAt: Timestamp.fromDate(expiresAt)
-      });
+      };
+      if (fileUrl) {
+        updateData.fileUrl = fileUrl;
+        updateData.slide = currentSlide !== null ? currentSlide : (presentation?.currentSlide || 0);
+      }
+      await updateDoc(doc(db, 'polls', pollId), updateData);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `polls/${pollId}`);
+    } finally {
+      setIsLaunchingInteraction(false);
     }
   };
 
@@ -3729,27 +3788,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               
               {canModerate && (
                 <div className="flex flex-col gap-1.5 mt-1.5">
-                  {/* Attach Slide Checkbox */}
-                  <div className="flex items-center gap-2 mb-1 px-1.5 select-none cursor-pointer">
-                    <input 
-                      type="checkbox"
-                      id="attach-slide-checkbox"
-                      checked={attachSlide}
-                      onChange={(e) => setAttachSlide(e.target.checked)}
-                      disabled={isLaunchingInteraction}
-                      className="w-3.5 h-3.5 rounded border-slate-300 text-osu-orange focus:ring-osu-orange cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                    />
-                    <label htmlFor="attach-slide-checkbox" className="text-[9px] font-black text-slate-550 uppercase tracking-wider cursor-pointer select-none disabled:opacity-50 disabled:cursor-not-allowed">
-                      Attach Slide Screenshot
-                    </label>
-                  </div>
-
                   <div className="flex items-stretch gap-1.5">
                     <button 
                       onClick={handleCreatePoll}
                       disabled={isLaunchingInteraction}
                       className="flex-1 flex items-center justify-center py-2.5 bg-osu-orange disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white rounded-lg text-xs font-black uppercase tracking-wider hover:bg-[#c03900] transition-all shadow-sm border-0 cursor-pointer"
-                      title={attachSlide ? "Launch MCQ and attach slide screenshot" : "Launch MCQ"}
+                      title="Launch MCQ"
                     >
                       {isLaunchingInteraction ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <span>MCQ</span>}
                     </button>
@@ -3764,7 +3808,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                       onClick={() => handleCreateOpenEndedQuestion('Open question')}
                       disabled={isLaunchingInteraction}
                       className="flex-1 flex items-center justify-center py-2.5 bg-green-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white rounded-lg text-xs font-black uppercase tracking-wider hover:bg-green-600 transition-all shadow-sm border-0 cursor-pointer"
-                      title={attachSlide ? "Launch Open question and attach slide screenshot" : "Launch Open question"}
+                      title="Launch Open question"
                     >                
                       {isLaunchingInteraction ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <span>Open ?</span>}
                     </button>
@@ -3912,6 +3956,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                       setLightboxTitle(title);
                       setLightboxOpen(true);
                     }}
+                    isStarting={isLaunchingInteraction}
                   />
                 );
               } else if (item.type === 'wordCloud') {
@@ -3964,6 +4009,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                       setLightboxTitle(title);
                       setLightboxOpen(true);
                     }}
+                    isStarting={isLaunchingInteraction}
                   />
                 );
               }
