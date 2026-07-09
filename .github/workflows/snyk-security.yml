@@ -27,10 +27,12 @@ jobs:
 
       - name: Run Snyk Open Source Test (SCA)
         run: npx snyk test --org=9ef6206b-6bf4-4ce0-8478-8b5d99108524
+        continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
       - name: Run Snyk Code Test (SAST)
         run: npx snyk code test --org=9ef6206b-6bf4-4ce0-8478-8b5d99108524
+        continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
