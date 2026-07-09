@@ -370,38 +370,26 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
   return (
     <div className="flex flex-col h-full bg-black relative group">
-      {/* Slide Indicator - Matches Chat Badge Style (OSU Orange) */}
-      {(currentSlide !== null || presentation?.currentSlide !== undefined) && (
-        <div className="absolute top-2 right-2 z-[70] pointer-events-none">
-          <div className="bg-[#ff3e00]/90 text-white px-2 py-1 rounded-lg border border-white/20 shadow-lg flex items-center gap-1 animate-in fade-in slide-in-from-right-2 duration-500">
-            <span className="text-[9px] font-black uppercase tracking-wider opacity-80">Slide</span>
-            <span className="text-sm font-black">
-              {currentSlide !== null ? currentSlide : presentation?.currentSlide}
+      {/* Presenter Control Bar - Displays off the slide area */}
+      {isCapturing && !isProjectorMode && (
+        <div className="bg-slate-900 border-b border-slate-800 px-4 py-2 flex items-center justify-between z-[70] shrink-0 select-none">
+          {/* Left Side: Slide Number */}
+          <div className="flex items-center gap-2">
+            {(currentSlide !== null || presentation?.currentSlide !== undefined) && (
+              <div className="bg-[#ff3e00]/90 text-white px-2.5 py-1 rounded-lg border border-white/20 shadow-lg flex items-center gap-1.5 animate-in fade-in duration-300">
+                <span className="text-[9px] font-black uppercase tracking-wider opacity-85">Slide</span>
+                <span className="text-sm font-black font-mono">
+                  {currentSlide !== null ? currentSlide : presentation?.currentSlide}
+                </span>
+              </div>
+            )}
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">
+              Active Display
             </span>
           </div>
-        </div>
-      )}
 
-      {/* Main Content Area */}
-      <div 
-        ref={containerRef}
-        onMouseMove={!isProjectorMode ? handleMouseMove : undefined}
-        onMouseLeave={!isProjectorMode ? handleMouseLeave : undefined}
-        className="flex-1 relative bg-black overflow-hidden flex items-center justify-center"
-      >
-        <ScreenCapture 
-          isCapturing={isCapturing} 
-          stream={stream} 
-          error={error} 
-          onStart={startCapture} 
-          onStop={stopCapture} 
-          logoUrl={logoUrl}
-          isProjectorMode={isProjectorMode}
-        />
-
-        {/* Presenter-only Controls: Push Slide & Laser Toggle */}
-        {isCapturing && !isProjectorMode && (
-          <div className="absolute top-2 right-20 z-50 flex items-center gap-2">
+          {/* Right Side: Presenter Controls */}
+          <div className="flex items-center gap-2">
             {/* Push Slide to Chat Button */}
             <button
               onClick={pushSlideToChat}
@@ -446,7 +434,37 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               <span>Laser {laserEnabled ? 'ON' : 'OFF'}</span>
             </button>
           </div>
-        )}
+        </div>
+      )}
+
+      {/* Slide Indicator - Shown as overlay only in Projector Mode (Presenter gets it in the Control Bar) */}
+      {isProjectorMode && (currentSlide !== null || presentation?.currentSlide !== undefined) && (
+        <div className="absolute top-2 right-2 z-[70] pointer-events-none">
+          <div className="bg-[#ff3e00]/90 text-white px-2 py-1 rounded-lg border border-white/20 shadow-lg flex items-center gap-1 animate-in fade-in slide-in-from-right-2 duration-500">
+            <span className="text-[9px] font-black uppercase tracking-wider opacity-80">Slide</span>
+            <span className="text-sm font-black">
+              {currentSlide !== null ? currentSlide : presentation?.currentSlide}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Main Content Area */}
+      <div 
+        ref={containerRef}
+        onMouseMove={!isProjectorMode ? handleMouseMove : undefined}
+        onMouseLeave={!isProjectorMode ? handleMouseLeave : undefined}
+        className="flex-1 relative bg-black overflow-hidden flex items-center justify-center"
+      >
+        <ScreenCapture 
+          isCapturing={isCapturing} 
+          stream={stream} 
+          error={error} 
+          onStart={startCapture} 
+          onStop={stopCapture} 
+          logoUrl={logoUrl}
+          isProjectorMode={isProjectorMode}
+        />
 
         {/* Real-time Virtual Laser Pointer Dot */}
         {isProjectorMode && presentation?.laserActive && presentation.laserX !== undefined && presentation.laserY !== undefined && (
