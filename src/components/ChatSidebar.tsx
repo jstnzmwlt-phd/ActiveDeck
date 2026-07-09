@@ -4221,18 +4221,18 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               onClick={() => {
                 const isCurrentlyFullscreen = !!document.fullscreenElement;
                 if (isCurrentlyFullscreen) {
-                  sessionStorage.setItem('wasFullscreenBeforeFileChoice', 'true');
+                  localStorage.setItem('wasFullscreenBeforeFileChoice', 'true');
                 }
-                sessionStorage.setItem('activeDeckIsChoosingFile', 'true');
+                localStorage.setItem('activeDeckIsChoosingFile', 'true');
 
                 const handleRestoreFullscreen = () => {
                   window.removeEventListener('focus', handleRestoreFullscreen);
                   // Use a small timeout to let browser finish focus transitions
                   setTimeout(() => {
-                    sessionStorage.removeItem('activeDeckIsChoosingFile');
-                    const wasFS = sessionStorage.getItem('wasFullscreenBeforeFileChoice') === 'true';
+                    localStorage.removeItem('activeDeckIsChoosingFile');
+                    const wasFS = localStorage.getItem('wasFullscreenBeforeFileChoice') === 'true';
                     if (wasFS) {
-                      sessionStorage.removeItem('wasFullscreenBeforeFileChoice');
+                      localStorage.removeItem('wasFullscreenBeforeFileChoice');
                       if (!document.fullscreenElement) {
                         document.documentElement.requestFullscreen().catch(err => {
                           console.log("Could not auto-restore fullscreen after file dialog closed:", err);
