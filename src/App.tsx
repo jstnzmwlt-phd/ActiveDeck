@@ -355,7 +355,7 @@ function AppContent() {
 
       console.log(`AppContent - ${isProjector ? 'Projector' : 'Presenter'} received fullscreen sync event:`, event.data);
 
-      if (type === 'enter-fullscreen') {
+      if (type === 'enter-fullscreen' || type === 'manual-enter-fullscreen') {
         if (!document.fullscreenElement) {
           try {
             await document.documentElement.requestFullscreen();
@@ -378,6 +378,14 @@ function AppContent() {
             document.addEventListener('click', handleOneTimeClickFullscreen);
           }
         }
+      } else if (type === 'manual-exit-fullscreen') {
+        if (document.fullscreenElement && document.exitFullscreen) {
+          try {
+            await document.exitFullscreen();
+          } catch (err) {
+            console.warn(`AppContent - Failed to auto-exit-fullscreen on broadcast command:`, err);
+          }
+        }
       }
     };
 
@@ -396,6 +404,18 @@ function AppContent() {
   }, [isProjector, isChatOnly]);
 
   const toggleFullscreen = async () => {
+    const isCurrentlyFullscreen = !!document.fullscreenElement;
+    try {
+      const channel = new BroadcastChannel('activedeck-fullscreen');
+      channel.postMessage({
+        type: isCurrentlyFullscreen ? 'manual-exit-fullscreen' : 'manual-enter-fullscreen',
+        source: isProjector ? 'projector' : 'presenter'
+      });
+      channel.close();
+    } catch (e) {
+      console.warn("AppContent - Failed to broadcast manual fullscreen toggle:", e);
+    }
+
     if (!document.fullscreenElement) {
       try {
         await document.documentElement.requestFullscreen();
