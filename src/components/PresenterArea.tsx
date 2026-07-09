@@ -147,7 +147,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       return;
     }
 
-    if (timeSinceLastUpdate >= 100) {
+    if (timeSinceLastUpdate >= 40) {
       if (throttleTimeoutRef.current) {
         clearTimeout(throttleTimeoutRef.current);
         throttleTimeoutRef.current = null;
@@ -159,7 +159,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       pendingCoordsRef.current = { x, y };
 
       if (!throttleTimeoutRef.current) {
-        const remaining = 100 - timeSinceLastUpdate;
+        const remaining = 40 - timeSinceLastUpdate;
         throttleTimeoutRef.current = setTimeout(() => {
           throttleTimeoutRef.current = null;
           if (pendingCoordsRef.current) {
@@ -490,7 +490,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               position: 'absolute',
               pointerEvents: 'none',
               zIndex: 80,
-              transition: 'top 0.1s linear, left 0.1s linear'
+              transition: 'top 0.05s ease-out, left 0.05s ease-out'
             }}
           />
         )}
