@@ -356,6 +356,7 @@ function AppContent() {
       console.log(`AppContent - ${isProjector ? 'Projector' : 'Presenter'} received fullscreen sync event:`, event.data);
 
       if (type === 'enter-fullscreen') {
+        setIsFullscreen(true); // Decouple layout state so edge-to-edge applies programmatically
         if (!document.fullscreenElement) {
           try {
             await document.documentElement.requestFullscreen();
@@ -364,6 +365,7 @@ function AppContent() {
           }
         }
       } else if (type === 'exit-fullscreen') {
+        setIsFullscreen(false); // Restore layout state programmatically
         if (document.fullscreenElement && document.exitFullscreen) {
           try {
             await document.exitFullscreen();
