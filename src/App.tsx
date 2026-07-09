@@ -852,7 +852,7 @@ function AppContent() {
                   </span>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4 pt-1">
+                <div className="grid grid-cols-3 gap-4 pt-1">
                   <div>
                     <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Presenter</span>
                     <span className="text-sm font-bold text-slate-200 truncate block">
@@ -863,6 +863,14 @@ function AppContent() {
                     <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Session PIN</span>
                     <span className="text-sm font-mono font-bold text-osu-orange">
                       {presentation.pinCode || 'N/A'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Current Slide</span>
+                    <span className="text-sm font-bold text-slate-200 block">
+                      {presentation.currentSlide !== undefined && presentation.currentSlide !== null 
+                        ? `Slide ${presentation.currentSlide}` 
+                        : 'N/A'}
                     </span>
                   </div>
                 </div>
