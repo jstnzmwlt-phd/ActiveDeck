@@ -201,6 +201,96 @@ function AppContent() {
   const [checkingEmailDomain, setCheckingEmailDomain] = useState(false);
   const [presenterEmail, setPresenterEmail] = useState<string>(() => sessionStorage.getItem('activePresenterEmail') || '');
 
+  const [notesText, setNotesText] = useState('');
+  const [notesTitle, setNotesTitle] = useState('');
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | ''>('');
+
+  useEffect(() => {
+    if (!activePresentationId) return;
+    const savedNotes = localStorage.getItem(`activeDeckNotes_${activePresentationId}`);
+    const savedTitle = localStorage.getItem(`activeDeckNotesTitle_${activePresentationId}`);
+    setNotesText(savedNotes || '');
+    setNotesTitle(savedTitle || '');
+    setSaveStatus('');
+  }, [activePresentationId]);
+
+  useEffect(() => {
+    if (!activePresentationId) return;
+    
+    const savedNotes = localStorage.getItem(`activeDeckNotes_${activePresentationId}`) || '';
+    const savedTitle = localStorage.getItem(`activeDeckNotesTitle_${activePresentationId}`) || '';
+    if (notesText === savedNotes && notesTitle === savedTitle) {
+      return;
+    }
+
+    setSaveStatus('saving');
+    const timer = setTimeout(() => {
+      localStorage.setItem(`activeDeckNotes_${activePresentationId}`, notesText);
+      localStorage.setItem(`activeDeckNotesTitle_${activePresentationId}`, notesTitle);
+      setSaveStatus('saved');
+      
+      const resetTimer = setTimeout(() => setSaveStatus(''), 2000);
+      return () => clearTimeout(resetTimer);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [notesText, notesTitle, activePresentationId]);
+
+  const handleDownloadNotes = () => {
+    if (!notesText.trim()) {
+      alert("Notes are empty. Type some notes first!");
+      return;
+    }
+    const title = notesTitle.trim() || `Session_${presentation?.pinCode || 'Notes'}`;
+    const filename = `ActiveDeck_Notes_${title.replace(/[^a-z0-9_-]/gi, '_')}.txt`;
+    
+    const presenterName = presentation?.presenterEmail ? presentation.presenterEmail.split('@')[0] : 'Presenter';
+    const pin = presentation?.pinCode || 'N/A';
+    
+    const content = `ActiveDeck Presentation Notes
+==============================
+Presenter: ${presenterName}
+Session PIN: ${pin}
+Title: ${title}
+Date: ${new Date().toLocaleDateString()}
+==============================
+
+${notesText}`;
+
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleEmailNotes = () => {
+    if (!notesText.trim()) {
+      alert("Notes are empty. Type some notes first!");
+      return;
+    }
+    const title = notesTitle.trim() || `Session ${presentation?.pinCode || 'Notes'}`;
+    const subject = `ActiveDeck Notes: ${title}`;
+    const presenterName = presentation?.presenterEmail ? presentation.presenterEmail.split('@')[0] : 'Presenter';
+    const pin = presentation?.pinCode || 'N/A';
+    
+    const body = `ActiveDeck Session Notes\n` +
+                 `==============================\n` +
+                 `Presenter: ${presenterName}\n` +
+                 `Session PIN: ${pin}\n` +
+                 `Title: ${title}\n` +
+                 `Date: ${new Date().toLocaleDateString()}\n` +
+                 `==============================\n\n` +
+                 `${notesText}`;
+                 
+    const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.location.href = mailtoUrl;
+  };
+
   const handleSavePresenterEmail = async (email: string) => {
     const trimmed = email.trim().toLowerCase();
     if (!trimmed || !trimmed.includes('@')) {
@@ -818,70 +908,123 @@ function AppContent() {
         </div>
 
         {/* Right Side: Premium Welcome Panel (Desktop/Laptop only) */}
-        <div className="hidden lg:flex lg:w-1/2 h-full flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 border-l border-slate-800/80 p-12 text-center relative select-none">
+        <div className="hidden lg:flex lg:w-1/2 h-full flex-col bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 border-l border-slate-800/80 p-8 relative overflow-y-auto">
           {/* Ambient lighting glow */}
           <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-osu-orange/5 rounded-full blur-[100px] pointer-events-none" />
           
-          <div className="max-w-md space-y-8 relative z-10 animate-in fade-in zoom-in-95 duration-500">
-            {/* Logo Wrapper */}
-            <div className="w-24 h-24 mx-auto p-4 bg-white/5 rounded-3xl border border-white/10 shadow-2xl flex items-center justify-center">
-              <img 
-                src={settings?.theme.logoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png"} 
-                alt="Logo" 
-                className="max-w-full max-h-full object-contain"
-                referrerPolicy="no-referrer"
-              />
-            </div>
-
-            {/* Title / Description */}
-            <div className="space-y-3">
-              <h1 className="text-3xl font-black uppercase tracking-wider text-white">ActiveDeck Chat</h1>
-              <p className="text-sm text-slate-400 leading-relaxed">
-                Join the interactive discussion, ask questions, participate in polls, and assess slides in real-time.
-              </p>
-            </div>
-
-            {/* Session Stats Card */}
-            {presentation && (
-              <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 text-left space-y-3 shadow-xl backdrop-blur-sm">
-                <div className="flex items-center justify-between border-b border-white/5 pb-2.5">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Active Session</span>
-                  <span className="flex items-center gap-1.5 px-2 py-0.5 bg-green-500/15 text-green-400 text-[9px] font-black uppercase tracking-wider rounded border border-green-500/25">
-                    <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
-                    Live
-                  </span>
+          <div className="max-w-md w-full mx-auto space-y-6 relative z-10 animate-in fade-in zoom-in-95 duration-500 flex flex-col h-full min-h-0">
+            {/* Header Area: Logo, Title, and Stats */}
+            <div className="space-y-4 shrink-0 select-none">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 p-2 bg-white/5 rounded-2xl border border-white/10 shadow-2xl flex items-center justify-center shrink-0">
+                  <img 
+                    src={settings?.theme.logoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png"} 
+                    alt="Logo" 
+                    className="max-w-full max-h-full object-contain"
+                    referrerPolicy="no-referrer"
+                  />
                 </div>
-                
-                <div className="grid grid-cols-3 gap-4 pt-1">
-                  <div>
-                    <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Presenter</span>
-                    <span className="text-sm font-bold text-slate-200 truncate block">
-                      {presentation.presenterEmail ? presentation.presenterEmail.split('@')[0] : 'Presenter'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Session PIN</span>
-                    <span className="text-sm font-mono font-bold text-osu-orange">
-                      {presentation.pinCode || 'N/A'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Current Slide</span>
-                    <span className="text-sm font-bold text-slate-200 block">
-                      {presentation.currentSlide !== undefined && presentation.currentSlide !== null 
-                        ? `Slide ${presentation.currentSlide}` 
-                        : 'N/A'}
-                    </span>
-                  </div>
+                <div className="text-left">
+                  <h1 className="text-xl font-black uppercase tracking-wider text-white">ActiveDeck Chat</h1>
+                  <p className="text-[11px] text-slate-400 leading-tight">
+                    Join discussion, ask questions, take notes in real-time.
+                  </p>
                 </div>
               </div>
-            )}
-          </div>
 
-          {/* Footer watermark */}
-          <span className="absolute bottom-6 text-[10px] font-black tracking-widest text-slate-600 uppercase">
-            ActiveDeck &copy; {new Date().getFullYear()}
-          </span>
+              {/* Session Stats Card */}
+              {presentation && (
+                <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 text-left space-y-2.5 shadow-xl backdrop-blur-sm">
+                  <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Active Session</span>
+                    <span className="flex items-center gap-1.5 px-2 py-0.5 bg-green-500/15 text-green-400 text-[8px] font-black uppercase tracking-wider rounded border border-green-500/25">
+                      <span className="w-1 h-1 bg-green-400 rounded-full animate-pulse" />
+                      Live
+                    </span>
+                  </div>
+                  
+                  <div className="grid grid-cols-3 gap-3 pt-0.5">
+                    <div>
+                      <span className="block text-[8px] font-black uppercase tracking-wider text-slate-500">Presenter</span>
+                      <span className="text-xs font-bold text-slate-200 truncate block">
+                        {presentation.presenterEmail ? presentation.presenterEmail.split('@')[0] : 'Presenter'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-[8px] font-black uppercase tracking-wider text-slate-500">Session PIN</span>
+                      <span className="text-xs font-mono font-bold text-osu-orange">
+                        {presentation.pinCode || 'N/A'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-[8px] font-black uppercase tracking-wider text-slate-500">Current Slide</span>
+                      <span className="text-xs font-bold text-slate-200 block truncate">
+                        {presentation.currentSlide !== undefined && presentation.currentSlide !== null 
+                          ? `Slide ${presentation.currentSlide}` 
+                          : 'N/A'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Note-Taking Section */}
+            <div className="flex-1 flex flex-col min-h-0 bg-white/[0.01] border border-white/5 rounded-2xl p-4 shadow-xl backdrop-blur-sm space-y-3">
+              <div className="flex items-center justify-between shrink-0">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">My Study Notes</span>
+                {saveStatus && (
+                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded transition-all duration-305 ${
+                    saveStatus === 'saving' ? 'text-slate-400 animate-pulse' : 'text-green-400 bg-green-500/10 border border-green-500/20'
+                  }`}>
+                    {saveStatus === 'saving' ? 'Saving...' : 'Auto-saved'}
+                  </span>
+                )}
+              </div>
+
+              {/* Title input */}
+              <input 
+                type="text"
+                value={notesTitle}
+                onChange={(e) => setNotesTitle(e.target.value)}
+                placeholder="Notes Title (e.g. Lecture 1)"
+                className="w-full h-10 px-3 text-xs bg-slate-950 border border-slate-800 rounded-xl text-white placeholder-slate-700 focus:outline-none focus:ring-1 focus:ring-osu-orange transition-all shrink-0"
+              />
+
+              {/* Textarea */}
+              <textarea
+                value={notesText}
+                onChange={(e) => setNotesText(e.target.value)}
+                placeholder="Type your notes here..."
+                className="flex-1 w-full p-3 text-xs bg-slate-950 border border-slate-800 rounded-xl text-white placeholder-slate-700 focus:outline-none focus:ring-1 focus:ring-osu-orange transition-all resize-none min-h-[120px] overflow-y-auto"
+              />
+
+              {/* Export Buttons */}
+              <div className="grid grid-cols-2 gap-2.5 pt-1.5 shrink-0 select-none">
+                <button
+                  type="button"
+                  onClick={handleDownloadNotes}
+                  disabled={!notesText.trim()}
+                  className="h-10 border border-slate-800 hover:border-osu-orange/30 bg-slate-950/40 hover:bg-slate-950/80 disabled:bg-slate-950/20 disabled:text-slate-700 disabled:border-slate-900 disabled:cursor-not-allowed text-slate-300 hover:text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  Download (.txt)
+                </button>
+                <button
+                  type="button"
+                  onClick={handleEmailNotes}
+                  disabled={!notesText.trim()}
+                  className="h-10 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-orange-500/15 active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  Email to Me
+                </button>
+              </div>
+            </div>
+
+            {/* Footer watermark */}
+            <span className="text-[10px] font-black tracking-widest text-slate-600 uppercase select-none text-center shrink-0">
+              ActiveDeck &copy; {new Date().getFullYear()}
+            </span>
+          </div>
         </div>
       </div>
     );
