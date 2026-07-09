@@ -818,33 +818,33 @@ function AppContent() {
         </div>
 
         {/* Interactive Drag Splitter */}
-        {!isFullscreen && (
-          <div 
-            onMouseDown={handleMouseDownProjector}
-            onDoubleClick={handleDoubleClickProjector}
-            className="w-3 h-full cursor-col-resize flex items-center justify-center flex-shrink-0 group/splitter select-none"
-            title="Drag to resize sidebar (double-click to reset)"
-          >
-            <div className="w-[3px] h-20 bg-slate-800 group-hover/splitter:bg-osu-orange/70 group-active/splitter:bg-osu-orange rounded-full transition-all duration-200" />
-          </div>
-        )}
+        <div 
+          onMouseDown={handleMouseDownProjector}
+          onDoubleClick={handleDoubleClickProjector}
+          className="w-3 h-full cursor-col-resize flex items-center justify-center flex-shrink-0 group/splitter select-none"
+          title="Drag to resize sidebar (double-click to reset)"
+        >
+          <div className={`w-[3px] h-20 group-hover/splitter:bg-osu-orange/70 group-active/splitter:bg-osu-orange rounded-full transition-all duration-200 ${
+            isFullscreen ? 'bg-slate-900' : 'bg-slate-800'
+          }`} />
+        </div>
 
         {/* Expanded Read-Only Sidebar Q&A Display */}
-        {!isFullscreen && (
-          <div 
-            style={{ width: `${sidebarWidth}px` }}
-            className="h-full flex-shrink-0 rounded-2xl overflow-hidden border-2 border-osu-orange bg-slate-900 shadow-2xl"
-          >
-            <ChatSidebar 
-              presentation={presentation} 
-              logoUrl={settings?.theme.logoUrl} 
-              presentationLoaded={presentationLoaded} 
-              showAttendance={settings?.showAttendance}
-              isProjector={true}
-              isChatOnly={true} // Acts as student but read-only
-            />
-          </div>
-        )}
+        <div 
+          style={{ width: `${sidebarWidth}px` }}
+          className={`h-full flex-shrink-0 overflow-hidden bg-slate-900 shadow-2xl transition-all duration-300 ${
+            isFullscreen ? 'rounded-none border-0 border-l border-slate-850' : 'rounded-2xl border-2 border-osu-orange'
+          }`}
+        >
+          <ChatSidebar 
+            presentation={presentation} 
+            logoUrl={settings?.theme.logoUrl} 
+            presentationLoaded={presentationLoaded} 
+            showAttendance={settings?.showAttendance}
+            isProjector={true}
+            isChatOnly={true} // Acts as student but read-only
+          />
+        </div>
 
         {/* Floating Glassmorphic Fullscreen Toggle Button */}
         <button
