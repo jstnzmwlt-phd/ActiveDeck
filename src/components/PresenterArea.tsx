@@ -83,7 +83,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           const userName = presenterEmail ? presenterEmail.split('@')[0] : 'Presenter';
 
           const messageData: any = {
-            text: `Presenter shared a slide: "Please assess this ECG / slide image"`,
+            text: `Presenter shared a slide:`,
             userId: auth.currentUser?.uid || presentation.presenterId,
             userName: userName,
             timestamp: serverTimestamp(),
