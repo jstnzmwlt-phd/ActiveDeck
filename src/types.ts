@@ -60,6 +60,7 @@ export interface Message {
   fileUrl?: string;
   fileName?: string;
   fileSize?: number;
+  isPresenterPost?: boolean;
 }
 
 export interface Poll {

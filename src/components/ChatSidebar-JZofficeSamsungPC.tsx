@@ -1696,6 +1696,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         isQuestion: true,
         presentationId: presentation?.id || 'default',
         presenterId: presentation?.presenterId || 'default',
+        isPresenterPost: !isChatOnly,
       };
 
       console.log('ChatSidebar: Preparing to send message. Bridge currentSlide:', currentSlide, 'Presentation currentSlide:', presentation?.currentSlide);
@@ -1766,6 +1767,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         fileUrl: downloadUrl,
         fileName: file.name,
         fileSize: file.size,
+        isPresenterPost: !isChatOnly,
       };
 
       const slideToSend = currentSlide !== null ? currentSlide : presentation?.currentSlide;
@@ -3415,7 +3417,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 onTogglePin={handleTogglePinMessage}
                 initialCollapsed={isAllCollapsed}
                 isInitiallyNew={false}
-                isPresenter={msg.userId === presentation?.presenterId}
+                isPresenter={msg.isPresenterPost !== undefined ? msg.isPresenterPost : msg.userId === presentation?.presenterId}
                 onFocus={(msg) => {
                   const isAlreadyFocused = focusedMessage?.id === msg.id;
                   if (isAlreadyFocused) {
@@ -3559,7 +3561,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                   onTogglePin={handleTogglePinMessage}
                   initialCollapsed={isAllCollapsed}
                   isInitiallyNew={isInitiallyNew}
-                  isPresenter={msg.userId === presentation?.presenterId}
+                  isPresenter={msg.isPresenterPost !== undefined ? msg.isPresenterPost : msg.userId === presentation?.presenterId}
                   onFocus={(msg) => {
                     const isAlreadyFocused = focusedMessage?.id === msg.id;
                     if (isAlreadyFocused) {
@@ -3922,7 +3924,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           }}
           className={cn(
             "fixed z-[9999] bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border-4 overflow-hidden text-slate-800 max-w-xl w-[90vw] md:w-full flex flex-col p-6 select-none",
-            focusedMessage.userId === presentation?.presenterId ? "border-indigo-600/90 shadow-indigo-500/15" : "border-orange-500/90 shadow-orange-500/15"
+            (focusedMessage.isPresenterPost !== undefined ? focusedMessage.isPresenterPost : focusedMessage.userId === presentation?.presenterId) ? "border-indigo-600/90 shadow-indigo-500/15" : "border-orange-500/90 shadow-orange-500/15"
           )}
         >
           {/* Drag Handle Top Bar */}
@@ -3964,7 +3966,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               </span>
               <h4 className="text-sm font-black text-slate-700 uppercase tracking-tight flex items-center gap-1.5">
                 {focusedMessage.userName || "Guest Participant"}
-                {focusedMessage.userId === presentation?.presenterId && (
+                {(focusedMessage.isPresenterPost !== undefined ? focusedMessage.isPresenterPost : focusedMessage.userId === presentation?.presenterId) && (
                   <span className="bg-indigo-600 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
                     Presenter
                   </span>
@@ -4016,7 +4018,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               {(focusedMessage.slide !== undefined && focusedMessage.slide !== null) && (
                 <span className={cn(
                   "inline-flex items-center gap-1 px-4 py-1.5 rounded-full text-xs font-black text-white uppercase tracking-wider shadow-md",
-                  focusedMessage.userId === presentation?.presenterId ? "bg-indigo-600 shadow-indigo-600/20" : "bg-[#ff3e00] shadow-[#ff3e00]/20"
+                  (focusedMessage.isPresenterPost !== undefined ? focusedMessage.isPresenterPost : focusedMessage.userId === presentation?.presenterId) ? "bg-indigo-600 shadow-indigo-600/20" : "bg-[#ff3e00] shadow-[#ff3e00]/20"
                 )}>
                   Slide {focusedMessage.slide}
                 </span>

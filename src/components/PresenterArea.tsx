@@ -94,6 +94,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             fileUrl: downloadUrl,
             fileName: fileName,
             fileSize: blob.size,
+            isPresenterPost: true,
           };
 
           if (currentSlide !== null) {
