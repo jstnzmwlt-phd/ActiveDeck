@@ -378,19 +378,6 @@ function AppContent() {
             document.addEventListener('click', handleOneTimeClickFullscreen);
           }
         }
-      } else if (type === 'exit-fullscreen') {
-        const isChoosingFile = localStorage.getItem('activeDeckIsChoosingFile') === 'true';
-        if (isChoosingFile) {
-          console.log(`AppContent - ${isProjector ? 'Projector' : 'Presenter'} ignored exit-fullscreen sync because user is choosing a file.`);
-          return;
-        }
-        if (document.fullscreenElement && document.exitFullscreen) {
-          try {
-            await document.exitFullscreen();
-          } catch (err) {
-            console.warn(`AppContent - Failed to auto-exit-fullscreen on broadcast command:`, err);
-          }
-        }
       }
     };
 
