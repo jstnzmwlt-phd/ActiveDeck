@@ -334,6 +334,12 @@ function AppContent() {
       const isCurrentlyFullscreen = !!document.fullscreenElement;
       setIsFullscreen(isCurrentlyFullscreen);
       
+      const isChoosingFile = sessionStorage.getItem('activeDeckIsChoosingFile') === 'true';
+      if (isChoosingFile) {
+        console.log(`AppContent - ${isProjector ? 'Projector' : 'Presenter'} screen fullscreen changed locally but ignored because user is choosing a file.`);
+        return;
+      }
+      
       if (channel) {
         console.log(`AppContent - ${isProjector ? 'Projector' : 'Presenter'} screen fullscreen changed locally:`, isCurrentlyFullscreen);
         channel.postMessage({

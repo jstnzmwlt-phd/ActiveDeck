@@ -4218,7 +4218,33 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           <form onSubmit={handleSendMessage} className="flex gap-2">
             <button
               type="button"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => {
+                const isCurrentlyFullscreen = !!document.fullscreenElement;
+                if (isCurrentlyFullscreen) {
+                  sessionStorage.setItem('wasFullscreenBeforeFileChoice', 'true');
+                }
+                sessionStorage.setItem('activeDeckIsChoosingFile', 'true');
+
+                const handleRestoreFullscreen = () => {
+                  window.removeEventListener('focus', handleRestoreFullscreen);
+                  // Use a small timeout to let browser finish focus transitions
+                  setTimeout(() => {
+                    sessionStorage.removeItem('activeDeckIsChoosingFile');
+                    const wasFS = sessionStorage.getItem('wasFullscreenBeforeFileChoice') === 'true';
+                    if (wasFS) {
+                      sessionStorage.removeItem('wasFullscreenBeforeFileChoice');
+                      if (!document.fullscreenElement) {
+                        document.documentElement.requestFullscreen().catch(err => {
+                          console.log("Could not auto-restore fullscreen after file dialog closed:", err);
+                        });
+                      }
+                    }
+                  }, 300);
+                };
+
+                window.addEventListener('focus', handleRestoreFullscreen);
+                fileInputRef.current?.click();
+              }}
               disabled={isUploadingFile}
               className={`shrink-0 p-1.5 rounded-md border border-slate-300 transition-colors flex items-center justify-center ${
                 isUploadingFile 
