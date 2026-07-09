@@ -325,7 +325,6 @@ function AppContent() {
   });
 
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showProjectorFSClickFallback, setShowProjectorFSClickFallback] = useState(false);
 
   // Bidirectional Fullscreen Synchronization between Presenter and Projector
   useEffect(() => {
@@ -360,20 +359,14 @@ function AppContent() {
         if (!document.fullscreenElement) {
           try {
             await document.documentElement.requestFullscreen();
-            setShowProjectorFSClickFallback(false);
           } catch (err) {
             console.warn(`AppContent - Failed to auto-fullscreen on broadcast command (requires active user gesture). Registering click-to-fullscreen fallback:`, err);
-            
-            if (isProjector) {
-              setShowProjectorFSClickFallback(true);
-            }
             
             // Safe fallback: Since browser security blocks programmatic fullscreen without direct interaction,
             // we attach a one-time document-wide click listener. The very next click anywhere in this window 
             // will seamlessly fulfill the gesture requirement and enter fullscreen.
             const handleOneTimeClickFullscreen = async () => {
               document.removeEventListener('click', handleOneTimeClickFullscreen);
-              setShowProjectorFSClickFallback(false);
               if (!document.fullscreenElement) {
                 try {
                   await document.documentElement.requestFullscreen();
@@ -384,8 +377,6 @@ function AppContent() {
             };
             document.addEventListener('click', handleOneTimeClickFullscreen);
           }
-        } else {
-          setShowProjectorFSClickFallback(false);
         }
       }
     };
@@ -405,7 +396,6 @@ function AppContent() {
   }, [isProjector, isChatOnly]);
 
   const toggleFullscreen = async () => {
-    setShowProjectorFSClickFallback(false);
     if (!document.fullscreenElement) {
       try {
         await document.documentElement.requestFullscreen();
@@ -864,34 +854,6 @@ function AppContent() {
         >
           {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
         </button>
-
-        {/* Elegant Glassmorphic Click Fallback Overlay */}
-        {showProjectorFSClickFallback && (
-          <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md z-[9999] flex flex-col items-center justify-center p-6 text-center select-none animate-fade-in animate-duration-300">
-            <div className="max-w-md bg-slate-900/90 border border-slate-800 rounded-3xl p-8 shadow-2xl flex flex-col items-center gap-6 transform scale-100 hover:scale-102 transition-all duration-300">
-              <div className="w-16 h-16 rounded-full bg-osu-orange/10 flex items-center justify-center animate-pulse border border-osu-orange/30">
-                <Maximize className="w-8 h-8 text-osu-orange" />
-              </div>
-              <div className="space-y-2">
-                <h3 className="text-xl font-bold text-white tracking-tight">Presenter Restored Fullscreen</h3>
-                <p className="text-sm text-slate-400 leading-relaxed">
-                  Due to browser security regulations, please click anywhere on this screen to automatically re-enable Full Screen mode.
-                </p>
-              </div>
-              <button 
-                onClick={() => {
-                  setShowProjectorFSClickFallback(false);
-                  document.documentElement.requestFullscreen().catch(err => {
-                    console.error("Failed to enter fullscreen from overlay click:", err);
-                  });
-                }}
-                className="w-full py-3 px-6 bg-osu-orange hover:bg-osu-orange/90 text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-lg shadow-osu-orange/20 transition-all hover:scale-105 active:scale-95 cursor-pointer outline-none"
-              >
-                Click to Restore Fullscreen
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     );
   }
