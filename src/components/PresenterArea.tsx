@@ -373,7 +373,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       {/* Presenter Control Bar - Displays off the slide area */}
       {isCapturing && !isProjectorMode && (
         <div className="bg-slate-900 border-b border-slate-800 px-4 py-2 flex items-center justify-between z-[70] shrink-0 select-none">
-          {/* Left Side: Slide Number */}
+          {/* Left Side: Slide Number & Status */}
           <div className="flex items-center gap-2">
             {(currentSlide !== null || presentation?.currentSlide !== undefined) && (
               <div className="bg-[#ff3e00]/90 text-white px-2.5 py-1 rounded-lg border border-white/20 shadow-lg flex items-center gap-1.5 animate-in fade-in duration-300">
@@ -383,6 +383,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 </span>
               </div>
             )}
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-red-600/90 text-white text-[9px] font-black uppercase tracking-widest rounded-lg border border-red-500/20 shadow-lg shadow-red-500/5 animate-in fade-in duration-300">
+              <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+              Live
+            </div>
             <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">
               Active Display
             </span>

@@ -137,13 +137,6 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
         </div>
       )}
 
-      {/* Status Badge */}
-      {isCapturing && (
-        <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-1 bg-red-600/80 text-white text-[9px] font-black uppercase tracking-widest rounded transition-all duration-300 z-50">
-          <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
-          Live
-        </div>
-      )}
     </div>
   );
 };
