@@ -26,11 +26,11 @@ jobs:
         run: npm ci
 
       - name: Run Snyk Open Source Test (SCA)
-        run: npx snyk test
+        run: npx snyk test --org=jstnzmwlt-phd
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
       - name: Run Snyk Code Test (SAST)
-        run: npx snyk code test
+        run: npx snyk code test --org=jstnzmwlt-phd
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
