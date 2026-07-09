@@ -54,7 +54,7 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
           autoPlay
           playsInline
           muted
-          className={`w-full h-full object-contain relative z-10 ${isCapturing ? 'opacity-100' : 'opacity-0'}`}
+          className={`absolute inset-0 w-full h-full object-contain z-10 ${isCapturing ? 'opacity-100' : 'opacity-0'}`}
         />
         
         {!isCapturing && !error && (
