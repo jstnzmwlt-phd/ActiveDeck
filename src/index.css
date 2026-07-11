@@ -14,3 +14,42 @@
     overflow: hidden;
   }
 }
+
+/* Custom Rich Text Editor Styles */
+.rich-text-editor:empty:before {
+  content: attr(placeholder);
+  color: #94a3b8; /* text-slate-400 */
+  pointer-events: none;
+  display: block;
+}
+
+.rich-text-editor ul {
+  list-style-type: disc !important;
+  padding-left: 1.5rem !important;
+  margin-top: 0.5rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.rich-text-editor ol {
+  list-style-type: decimal !important;
+  padding-left: 1.5rem !important;
+  margin-top: 0.5rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.rich-text-editor li {
+  margin-bottom: 0.25rem !important;
+}
+
+.rich-text-editor b, .rich-text-editor strong {
+  font-weight: bold !important;
+}
+
+.rich-text-editor i, .rich-text-editor em {
+  font-style: italic !important;
+}
+
+.rich-text-editor u {
+  text-decoration: underline !important;
+}
+

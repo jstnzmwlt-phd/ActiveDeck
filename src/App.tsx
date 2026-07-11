@@ -12,6 +12,7 @@ import { BridgeProvider } from './contexts/BridgeContext';
 import { AdminPortal } from './components/AdminPortal';
 import { StudentAttendance } from './components/StudentAttendance';
 import { JoinScreen } from './components/JoinScreen';
+import { RichTextEditor } from './components/RichTextEditor';
 
 console.log('App.tsx - Module loaded');
 
@@ -40,6 +41,29 @@ const generateUniquePin = async (): Promise<string> => {
     }
   }
   return pin;
+};
+
+const isNotesEmpty = (html: string) => {
+  if (!html) return true;
+  const cleanText = html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+  return cleanText === '';
+};
+
+const htmlToPlainText = (html: string) => {
+  let text = html;
+  text = text.replace(/<li[^>]*>/gi, '• ');
+  text = text.replace(/<br\s*\/?>/gi, '\n');
+  text = text.replace(/<\/p>/gi, '\n\n');
+  text = text.replace(/<\/div>/gi, '\n');
+  text = text.replace(/<\/li>/gi, '\n');
+  text = text.replace(/<[^>]+>/g, '');
+  text = text.replace(/&nbsp;/g, ' ')
+             .replace(/&amp;/g, '&')
+             .replace(/&lt;/g, '<')
+             .replace(/&gt;/g, '>')
+             .replace(/&quot;/g, '"')
+             .replace(/&#039;/g, "'");
+  return text.trim();
 };
 
 function AppContent() {
@@ -237,7 +261,7 @@ function AppContent() {
   }, [notesText, notesTitle, activePresentationId]);
 
   const handleDownloadNotes = () => {
-    if (!notesText.trim()) {
+    if (isNotesEmpty(notesText)) {
       alert("Notes are empty. Type some notes first!");
       return;
     }
@@ -247,14 +271,8 @@ function AppContent() {
     const presenterName = presentation?.presenterEmail ? presentation.presenterEmail.split('@')[0] : 'Presenter';
     const pin = presentation?.pinCode || 'N/A';
     
-    // Escape HTML characters to prevent breaking Word's rendering
-    const escapedNotesText = notesText
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;")
-      .replace(/\n/g, '<br/>');
+    // Since notesText is rich formatted HTML, we can inject it directly so formatting is preserved!
+    const escapedNotesText = notesText;
 
     const docHtml = `
       <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
@@ -327,7 +345,7 @@ function AppContent() {
   };
 
   const handleEmailNotes = () => {
-    if (!notesText.trim()) {
+    if (isNotesEmpty(notesText)) {
       alert("Notes are empty. Type some notes first!");
       return;
     }
@@ -336,6 +354,9 @@ function AppContent() {
     const presenterName = presentation?.presenterEmail ? presentation.presenterEmail.split('@')[0] : 'Presenter';
     const pin = presentation?.pinCode || 'N/A';
     
+    // Convert HTML to beautiful plain text for email body compatibility
+    const plainNotesText = htmlToPlainText(notesText);
+    
     const body = `ActiveDeck Session Notes\n` +
                  `==============================\n` +
                  `Presenter: ${presenterName}\n` +
@@ -343,7 +364,7 @@ function AppContent() {
                  `Title: ${title}\n` +
                  `Date: ${new Date().toLocaleDateString()}\n` +
                  `==============================\n\n` +
-                 `${notesText}`;
+                 `${plainNotesText}`;
                  
     const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     window.location.href = mailtoUrl;
@@ -1046,15 +1067,15 @@ function AppContent() {
                 value={notesTitle}
                 onChange={(e) => setNotesTitle(e.target.value)}
                 placeholder="Notes Title (e.g. Lecture 1)"
-                className="w-full h-10 px-3 text-xs bg-slate-950 border border-slate-800 rounded-xl text-white placeholder-slate-700 focus:outline-none focus:ring-1 focus:ring-osu-orange transition-all shrink-0"
+                className="w-full h-10 px-3 text-xs bg-white border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-osu-orange focus:border-osu-orange transition-all shrink-0"
               />
 
-              {/* Textarea */}
-              <textarea
+              {/* Rich Text Editor */}
+              <RichTextEditor
                 value={notesText}
-                onChange={(e) => setNotesText(e.target.value)}
+                onChange={setNotesText}
                 placeholder="Type your notes here..."
-                className="flex-1 w-full p-3 text-xs bg-slate-950 border border-slate-800 rounded-xl text-white placeholder-slate-700 focus:outline-none focus:ring-1 focus:ring-osu-orange transition-all resize-none min-h-[120px] overflow-y-auto"
+                className="flex-1 min-h-[120px]"
               />
 
               {/* Export Buttons */}
@@ -1062,7 +1083,7 @@ function AppContent() {
                 <button
                   type="button"
                   onClick={handleDownloadNotes}
-                  disabled={!notesText.trim()}
+                  disabled={isNotesEmpty(notesText)}
                   className="h-10 border border-slate-800 hover:border-osu-orange/30 bg-slate-950/40 hover:bg-slate-950/80 disabled:bg-slate-950/20 disabled:text-slate-700 disabled:border-slate-900 disabled:cursor-not-allowed text-slate-300 hover:text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   Download (.doc)
@@ -1070,7 +1091,7 @@ function AppContent() {
                 <button
                   type="button"
                   onClick={handleEmailNotes}
-                  disabled={!notesText.trim()}
+                  disabled={isNotesEmpty(notesText)}
                   className="h-10 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-orange-500/15 active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   Email to Me
