@@ -43,10 +43,13 @@ const generateUniquePin = async (): Promise<string> => {
   return pin;
 };
 
-const isNotesEmpty = (html: string) => {
-  if (!html) return true;
-  const cleanText = html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
-  return cleanText === '';
+const isNotesEmpty = (notesMap: Record<string, string>) => {
+  if (!notesMap || Object.keys(notesMap).length === 0) return true;
+  return Object.values(notesMap).every(html => {
+    if (!html) return true;
+    const cleanText = html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+    return cleanText === '';
+  });
 };
 
 const htmlToPlainText = (html: string) => {
@@ -225,7 +228,10 @@ function AppContent() {
   const [checkingEmailDomain, setCheckingEmailDomain] = useState(false);
   const [presenterEmail, setPresenterEmail] = useState<string>(() => sessionStorage.getItem('activePresenterEmail') || '');
 
-  const [notesText, setNotesText] = useState('');
+  const [notesTextMap, setNotesTextMap] = useState<Record<string, string>>({});
+  const [activeTab, setActiveTab] = useState<string>('1');
+  const [isEditorFocused, setIsEditorFocused] = useState(false);
+  const [lastTypedAt, setLastTypedAt] = useState<number>(0);
   const [notesTitle, setNotesTitle] = useState('');
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | ''>('');
 
@@ -233,23 +239,68 @@ function AppContent() {
     if (!activePresentationId) return;
     const savedNotes = localStorage.getItem(`activeDeckNotes_${activePresentationId}`);
     const savedTitle = localStorage.getItem(`activeDeckNotesTitle_${activePresentationId}`);
-    setNotesText(savedNotes || '');
+    
+    let parsedNotesMap: Record<string, string> = { '1': '' };
+    if (savedNotes) {
+      try {
+        const parsed = JSON.parse(savedNotes);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          parsedNotesMap = parsed;
+        } else {
+          parsedNotesMap = { '1': savedNotes };
+        }
+      } catch (e) {
+        // Fallback for single-string older notes format (migration)
+        parsedNotesMap = { '1': savedNotes };
+      }
+    }
+    setNotesTextMap(parsedNotesMap);
     setNotesTitle(savedTitle || '');
     setSaveStatus('');
+    
+    // Set active tab to presentation's current slide or default to '1'
+    const initialSlide = presentation?.currentSlide !== undefined && presentation.currentSlide !== null 
+      ? String(presentation.currentSlide) 
+      : '1';
+    setActiveTab(initialSlide);
   }, [activePresentationId]);
+
+  // Synchronize activeTab with presenter slide when slide changes (with idle detection)
+  useEffect(() => {
+    if (!presentation || presentation.currentSlide === undefined || presentation.currentSlide === null) return;
+    const slideStr = String(presentation.currentSlide);
+    
+    const isTypingNow = Date.now() - lastTypedAt < 5000;
+    
+    if (!isEditorFocused && !isTypingNow) {
+      setActiveTab(slideStr);
+    }
+  }, [presentation?.currentSlide]);
 
   useEffect(() => {
     if (!activePresentationId) return;
     
     const savedNotes = localStorage.getItem(`activeDeckNotes_${activePresentationId}`) || '';
     const savedTitle = localStorage.getItem(`activeDeckNotesTitle_${activePresentationId}`) || '';
-    if (notesText === savedNotes && notesTitle === savedTitle) {
+    
+    const currentNotesRaw = JSON.stringify(notesTextMap);
+    
+    // Check if anything actually changed to avoid redundant saves and flicker
+    let isSameNotes = false;
+    try {
+      const parsedSaved = JSON.parse(savedNotes);
+      isSameNotes = JSON.stringify(parsedSaved) === currentNotesRaw;
+    } catch (e) {
+      isSameNotes = false;
+    }
+
+    if (isSameNotes && notesTitle === savedTitle) {
       return;
     }
 
     setSaveStatus('saving');
     const timer = setTimeout(() => {
-      localStorage.setItem(`activeDeckNotes_${activePresentationId}`, notesText);
+      localStorage.setItem(`activeDeckNotes_${activePresentationId}`, currentNotesRaw);
       localStorage.setItem(`activeDeckNotesTitle_${activePresentationId}`, notesTitle);
       setSaveStatus('saved');
       
@@ -258,10 +309,10 @@ function AppContent() {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [notesText, notesTitle, activePresentationId]);
+  }, [notesTextMap, notesTitle, activePresentationId]);
 
   const handleDownloadNotes = () => {
-    if (isNotesEmpty(notesText)) {
+    if (isNotesEmpty(notesTextMap)) {
       alert("Notes are empty. Type some notes first!");
       return;
     }
@@ -271,8 +322,20 @@ function AppContent() {
     const presenterName = presentation?.presenterEmail ? presentation.presenterEmail.split('@')[0] : 'Presenter';
     const pin = presentation?.pinCode || 'N/A';
     
-    // Since notesText is rich formatted HTML, we can inject it directly so formatting is preserved!
-    const escapedNotesText = notesText;
+    // Sort slides numerically and compile notes
+    const sortedSlides = Object.keys(notesTextMap)
+      .filter(slide => {
+        const html = notesTextMap[slide];
+        return html && html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim() !== '';
+      })
+      .sort((a, b) => Number(a) - Number(b));
+
+    const notesContentHtml = sortedSlides.map(slide => `
+      <div style="margin-bottom: 25px;">
+        <h3 style="color: #eb5d00; border-bottom: 1px solid #f3eedd; padding-bottom: 3px; margin-bottom: 10px;">Slide ${slide}</h3>
+        <div>${notesTextMap[slide]}</div>
+      </div>
+    `).join('');
 
     const docHtml = `
       <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
@@ -327,7 +390,7 @@ function AppContent() {
           <span class="metadata-label">Date:</span> ${new Date().toLocaleDateString()}<br/>
         </div>
         <div class="notes-container">
-          ${escapedNotesText}
+          ${notesContentHtml}
         </div>
       </body>
       </html>
@@ -345,7 +408,7 @@ function AppContent() {
   };
 
   const handleEmailNotes = () => {
-    if (isNotesEmpty(notesText)) {
+    if (isNotesEmpty(notesTextMap)) {
       alert("Notes are empty. Type some notes first!");
       return;
     }
@@ -354,8 +417,17 @@ function AppContent() {
     const presenterName = presentation?.presenterEmail ? presentation.presenterEmail.split('@')[0] : 'Presenter';
     const pin = presentation?.pinCode || 'N/A';
     
-    // Convert HTML to beautiful plain text for email body compatibility
-    const plainNotesText = htmlToPlainText(notesText);
+    const sortedSlides = Object.keys(notesTextMap)
+      .filter(slide => {
+        const html = notesTextMap[slide];
+        return html && html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim() !== '';
+      })
+      .sort((a, b) => Number(a) - Number(b));
+
+    const plainNotesText = sortedSlides.map(slide => {
+      const slidePlain = htmlToPlainText(notesTextMap[slide]);
+      return `Slide ${slide}\n------------------------------\n${slidePlain}\n`;
+    }).join('\n');
     
     const body = `ActiveDeck Session Notes\n` +
                  `==============================\n` +
@@ -1070,11 +1142,87 @@ function AppContent() {
                 className="w-full h-10 px-3 text-xs bg-white border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-osu-orange focus:border-osu-orange transition-all shrink-0"
               />
 
+              {/* Slide Tabs Bar */}
+              {(() => {
+                const slidesWithNotes = Object.keys(notesTextMap).filter(slide => {
+                  const html = notesTextMap[slide];
+                  return html && html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim() !== '';
+                });
+                
+                const presenterSlide = presentation?.currentSlide !== undefined && presentation.currentSlide !== null 
+                  ? String(presentation.currentSlide) 
+                  : '1';
+                
+                // Combine keys and sort numerically
+                const allTabs = Array.from(new Set([...slidesWithNotes, presenterSlide, activeTab]))
+                  .filter(Boolean)
+                  .sort((a, b) => Number(a) - Number(b));
+
+                return (
+                  <div className="flex flex-col space-y-1 shrink-0">
+                    <span className="text-[8px] font-black uppercase tracking-wider text-slate-500">Slides Overview</span>
+                    <div className="flex flex-row items-center gap-1.5 overflow-x-auto py-1 scrollbar-none select-none">
+                      {allTabs.map(slide => {
+                        const isCurrentTab = slide === activeTab;
+                        const isPresenterSlide = slide === presenterSlide;
+                        const hasContent = slidesWithNotes.includes(slide);
+
+                        return (
+                          <button
+                            key={slide}
+                            type="button"
+                            onClick={() => setActiveTab(slide)}
+                            className={`px-3 py-1 text-[10px] font-bold rounded-lg border transition-all flex items-center gap-1 cursor-pointer shrink-0 ${
+                              isCurrentTab 
+                                ? 'bg-osu-orange border-osu-orange text-white shadow-md shadow-orange-500/10'
+                                : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+                            }`}
+                          >
+                            <span>Slide {slide}</span>
+                            {isPresenterSlide && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse border border-green-300" title="Presenter is currently on this slide" />
+                            )}
+                            {!isPresenterSlide && hasContent && (
+                              <span className="w-1 h-1 rounded-full bg-orange-300/60" title="Has notes" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Slide Out-of-Sync Alert */}
+              {presentation && presentation.currentSlide !== undefined && presentation.currentSlide !== null && String(presentation.currentSlide) !== activeTab && (
+                <div className="flex items-center justify-between p-2 rounded-xl bg-orange-500/10 border border-orange-500/20 text-[10px] shrink-0 text-orange-200 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <span className="flex items-center gap-1.5 font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse shrink-0" />
+                    Presenter is on Slide {presentation.currentSlide} (You are on Slide {activeTab})
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab(String(presentation.currentSlide))}
+                    className="px-2 py-0.5 rounded bg-osu-orange text-white font-bold uppercase tracking-wider text-[8px] hover:bg-[#c03900] transition-colors cursor-pointer"
+                  >
+                    Go to Slide {presentation.currentSlide}
+                  </button>
+                </div>
+              )}
+
               {/* Rich Text Editor */}
               <RichTextEditor
-                value={notesText}
-                onChange={setNotesText}
-                placeholder="Type your notes here..."
+                value={notesTextMap[activeTab] || ''}
+                onChange={(newVal) => {
+                  setLastTypedAt(Date.now());
+                  setNotesTextMap(prev => ({
+                    ...prev,
+                    [activeTab]: newVal
+                  }));
+                }}
+                onFocus={() => setIsEditorFocused(true)}
+                onBlur={() => setIsEditorFocused(false)}
+                placeholder={`Type your notes for Slide ${activeTab} here...`}
                 className="flex-1 min-h-[120px]"
               />
 
@@ -1083,7 +1231,7 @@ function AppContent() {
                 <button
                   type="button"
                   onClick={handleDownloadNotes}
-                  disabled={isNotesEmpty(notesText)}
+                  disabled={isNotesEmpty(notesTextMap)}
                   className="h-10 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-orange-500/15 active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   Download (.doc)
@@ -1091,7 +1239,7 @@ function AppContent() {
                 <button
                   type="button"
                   onClick={handleEmailNotes}
-                  disabled={isNotesEmpty(notesText)}
+                  disabled={isNotesEmpty(notesTextMap)}
                   className="h-10 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-orange-500/15 active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   Email to Me

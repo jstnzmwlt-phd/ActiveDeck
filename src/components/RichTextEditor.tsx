@@ -19,13 +19,17 @@ interface RichTextEditorProps {
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  onFocus?: () => void;
+  onBlur?: () => void;
 }
 
 export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   value,
   onChange,
   placeholder = 'Type your notes here...',
-  className = ''
+  className = '',
+  onFocus,
+  onBlur
 }) => {
   const editorRef = useRef<HTMLDivElement>(null);
 
@@ -203,6 +207,8 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         ref={editorRef}
         contentEditable
         onInput={handleInput}
+        onFocus={onFocus}
+        onBlur={onBlur}
         className="rich-text-editor flex-1 p-3 text-xs outline-none overflow-y-auto leading-relaxed focus:ring-0 focus:outline-none"
         style={{ minHeight: '120px' }}
         {...{ placeholder } as any}
