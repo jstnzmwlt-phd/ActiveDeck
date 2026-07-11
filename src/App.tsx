@@ -991,7 +991,7 @@ function AppContent() {
           {/* Ambient lighting glow */}
           <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-osu-orange/5 rounded-full blur-[100px] pointer-events-none" />
           
-          <div className="max-w-md w-full mx-auto space-y-6 relative z-10 animate-in fade-in zoom-in-95 duration-500 flex flex-col h-full min-h-0">
+          <div className="max-w-3xl w-full mx-auto space-y-6 relative z-10 animate-in fade-in zoom-in-95 duration-500 flex flex-col h-full min-h-0">
             {/* Header Area: Logo, Title, and Stats */}
             <div className="space-y-4 shrink-0 select-none">
               <div className="flex items-center gap-4">
@@ -1084,7 +1084,7 @@ function AppContent() {
                   type="button"
                   onClick={handleDownloadNotes}
                   disabled={isNotesEmpty(notesText)}
-                  className="h-10 border border-slate-800 hover:border-osu-orange/30 bg-slate-950/40 hover:bg-slate-950/80 disabled:bg-slate-950/20 disabled:text-slate-700 disabled:border-slate-900 disabled:cursor-not-allowed text-slate-300 hover:text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="h-10 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-orange-500/15 active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   Download (.doc)
                 </button>
