@@ -1153,10 +1153,18 @@ function AppContent() {
                   ? String(presentation.currentSlide) 
                   : '1';
                 
-                // Combine keys and sort numerically
-                const allTabs = Array.from(new Set([...slidesWithNotes, presenterSlide, activeTab]))
-                  .filter(Boolean)
-                  .sort((a, b) => Number(a) - Number(b));
+                // Determine the highest slide index dynamically
+                const maxSlide = Math.max(
+                  1,
+                  presentation?.currentSlide || 1,
+                  ...Object.keys(notesTextMap).map(Number)
+                );
+
+                // Create a contiguous array of slide numbers from 1 to maxSlide
+                const allTabs: string[] = [];
+                for (let i = 1; i <= maxSlide; i++) {
+                  allTabs.push(String(i));
+                }
 
                 return (
                   <div className="flex flex-col space-y-1 shrink-0">
