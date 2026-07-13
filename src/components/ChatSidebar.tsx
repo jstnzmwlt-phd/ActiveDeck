@@ -1323,9 +1323,10 @@ interface ChatSidebarProps {
   presentationLoaded?: boolean;
   showAttendance?: boolean;
   isProjector?: boolean;
+  onJoinChange?: (joined: boolean) => void;
 }
 
-export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, presentation = null, logoUrl, presentationLoaded = true, showAttendance = false, isProjector = false }) => {
+export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, presentation = null, logoUrl, presentationLoaded = true, showAttendance = false, isProjector = false, onJoinChange }) => {
   const [internalLogoUrl, setInternalLogoUrl] = useState<string | undefined | null>(null);
   const [secondaryColor, setSecondaryColor] = useState<string>('#ff3e00');
 
@@ -1653,6 +1654,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [joinNameInput, setJoinNameInput] = useState('');
   const [isPostingAnonymously, setIsPostingAnonymously] = useState(false);
   const [shortUrl, setShortUrl] = useState('');
+
+  useEffect(() => {
+    if (onJoinChange) {
+      onJoinChange(hasJoined);
+    }
+  }, [hasJoined, onJoinChange]);
 
   // Presenter states for token rotation
   const [activeToken, setActiveToken] = useState<string | null>(null);
