@@ -1457,23 +1457,25 @@ function AppContent() {
                   )}
 
                   {/* Export Buttons */}
-                  <div className="grid grid-cols-2 gap-2.5 pt-1.5 shrink-0 select-none">
+                  <div className={notesMode === 'pen' ? "pt-1.5 shrink-0 select-none" : "grid grid-cols-2 gap-2.5 pt-1.5 shrink-0 select-none"}>
                     <button
                       type="button"
                       onClick={handleDownloadNotes}
                       disabled={isNotesEmpty(notesTextMap, notesDrawingsMap)}
-                      className="h-10 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-orange-500/15 active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer"
+                      className="w-full h-10 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-orange-500/15 active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       Download (.doc)
                     </button>
-                    <button
-                      type="button"
-                      onClick={handleEmailNotes}
-                      disabled={isNotesEmpty(notesTextMap, notesDrawingsMap)}
-                      className="h-10 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-orange-500/15 active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      Email to Me
-                    </button>
+                    {notesMode !== 'pen' && (
+                      <button
+                        type="button"
+                        onClick={handleEmailNotes}
+                        disabled={isNotesEmpty(notesTextMap, notesDrawingsMap)}
+                        className="h-10 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-orange-500/15 active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        Email to Me
+                      </button>
+                    )}
                   </div>
                 </>
               )}
