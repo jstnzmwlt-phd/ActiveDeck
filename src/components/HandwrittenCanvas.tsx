@@ -31,16 +31,15 @@ export function HandwrittenCanvas({ value, onChange, placeholder = "Draw your no
 
   // Toolbar state
   const [tool, setTool] = useState<'pen' | 'highlighter' | 'eraser'>('pen');
-  const [color, setColor] = useState<string>('#FF6600'); // Default OSU Orange
+  const [color, setColor] = useState<string>('#000000'); // Default Black
   const [width, setWidth] = useState<number>(5);
 
   const colors = [
-    { value: '#FF6600', name: 'Orange' },
+    { value: '#000000', name: 'Black' },
     { value: '#FFFFFF', name: 'White' },
-    { value: '#3B82F6', name: 'Blue' },
-    { value: '#10B981', name: 'Green' },
-    { value: '#EAB308', name: 'Yellow' },
-    { value: '#EC4899', name: 'Pink' },
+    { value: '#1E3A8A', name: 'Navy Blue' },
+    { value: '#DC2626', name: 'Red' },
+    { value: '#16A34A', name: 'Green' },
   ];
 
   const widths = [
@@ -56,7 +55,7 @@ export function HandwrittenCanvas({ value, onChange, placeholder = "Draw your no
       setColor('#EAB308'); // Highlighter yellow
     } else if (tool === 'pen') {
       setWidth(5);
-      setColor('#FF6600'); // Default orange
+      setColor('#000000'); // Default black
     }
   }, [tool]);
 
@@ -343,12 +342,18 @@ export function HandwrittenCanvas({ value, onChange, placeholder = "Draw your no
 
       </div>
 
-      {/* SVG Vector Drawing Area */}
-      <div className="flex-1 relative bg-[#030712] overflow-hidden cursor-crosshair">
+      {/* SVG Vector Drawing Area with Engineering Grid Paper Background */}
+      <div 
+        className="flex-1 relative bg-white overflow-hidden cursor-crosshair border border-slate-200"
+        style={{
+          backgroundImage: 'linear-gradient(#f1f5f9 1px, transparent 1px), linear-gradient(90deg, #f1f5f9 1px, transparent 1px)',
+          backgroundSize: '24px 24px'
+        }}
+      >
         {strokes.length === 0 && !activeStroke && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center select-none pointer-events-none opacity-30">
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{placeholder}</p>
-            <p className="text-[10px] text-slate-500 mt-1">Use your stylus or touch to draw notes on this slide.</p>
+          <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center select-none pointer-events-none opacity-40">
+            <p className="text-xs font-black text-slate-500 uppercase tracking-widest">{placeholder}</p>
+            <p className="text-[10px] text-slate-400 mt-1">Use your stylus or touch to draw notes on this slide.</p>
           </div>
         )}
         
