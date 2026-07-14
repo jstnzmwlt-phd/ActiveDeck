@@ -1379,11 +1379,10 @@ function AppContent() {
                     setChatLayoutDirection(nextDir);
                     localStorage.setItem('activeDeckChatLayoutDirection', nextDir);
                   }}
-                  className="px-2.5 py-1 rounded-md bg-white/5 hover:bg-osu-orange hover:text-white border border-white/10 hover:border-osu-orange/30 text-slate-300 text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer outline-none active:scale-95 shadow-sm"
-                  title={chatLayoutDirection === 'left' ? "Switch to Left-Handed layout (Notes on left, Chat on right)" : "Switch to Right-Handed layout (Chat on left, Notes on right)"}
+                  className="p-1.5 rounded-xl bg-white/5 hover:bg-osu-orange hover:text-white border border-white/10 hover:border-osu-orange/30 text-osu-orange hover:text-white transition-all duration-300 flex items-center justify-center cursor-pointer outline-none active:scale-95 shadow-md"
+                  title={chatLayoutDirection === 'left' ? "Move Chat to Right / Notes to Left" : "Move Chat to Left / Notes to Right"}
                 >
-                  <ArrowLeftRight className="w-3 h-3 text-osu-orange" />
-                  <span>{chatLayoutDirection === 'left' ? "Right-Handed" : "Left-Handed"}</span>
+                  <ArrowLeftRight className="w-[18px] h-[18px] transition-transform duration-300" />
                 </button>
               </div>
               {presentation && (
