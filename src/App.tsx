@@ -269,15 +269,14 @@ function AppContent() {
 
     const q = query(
       collection(db, 'messages'),
-      where('presentationId', '==', activePresentationId),
-      where('isPushedSlide', '==', true)
+      where('presentationId', '==', activePresentationId)
     );
 
     const unsub = onSnapshot(q, (snapshot) => {
       const slideMap: Record<string, string> = {};
       snapshot.docs.forEach(docSnap => {
         const data = docSnap.data();
-        if (data.slide !== undefined && data.slide !== null && data.fileUrl) {
+        if (data.isPushedSlide === true && data.slide !== undefined && data.slide !== null && data.fileUrl) {
           slideMap[String(data.slide)] = data.fileUrl;
         }
       });
@@ -1459,10 +1458,10 @@ function AppContent() {
                    {/* Editor or Handwriting Canvas based on active mode with Floating Slide Thumbnail */}
                   <div className="flex-1 min-h-0 flex flex-col relative">
                     
-                    {/* Floating Slide Thumbnail in top-right */}
+                    {/* Floating Slide Thumbnail in top-right - Statically Expanded to Larger Image */}
                     <div 
-                      className="absolute top-3 right-3 z-30 w-24 sm:w-32 aspect-video transition-all duration-300 hover:scale-150 hover:md:scale-200 origin-top-right hover:shadow-2xl hover:border-osu-orange/80 cursor-pointer shadow-lg rounded-xl border border-slate-700/50 overflow-hidden bg-slate-950 flex flex-col animate-in fade-in zoom-in-95 duration-200 select-none group"
-                      title={pushedSlidesMap[activeTab] ? "Hover to enlarge slide preview" : "No slide preview shared by presenter yet"}
+                      className="absolute top-3 right-3 z-30 w-44 sm:w-56 md:w-64 aspect-video shadow-xl rounded-xl border border-slate-700/50 overflow-hidden bg-slate-950 flex flex-col select-none group"
+                      title={pushedSlidesMap[activeTab] ? `Slide ${activeTab} Preview` : "No slide preview shared yet"}
                     >
                       {pushedSlidesMap[activeTab] ? (
                         <div className="w-full h-full relative">
@@ -1471,16 +1470,16 @@ function AppContent() {
                             alt={`Slide ${activeTab} Preview`}
                             className="w-full h-full object-cover"
                           />
-                          <div className="absolute bottom-0 inset-x-0 bg-black/60 py-0.5 px-1.5 flex items-center justify-between text-[7px] font-black uppercase tracking-wider text-slate-300">
+                          <div className="absolute bottom-0 inset-x-0 bg-black/60 py-1 px-2 flex items-center justify-between text-[8px] font-black uppercase tracking-wider text-slate-300">
                             <span>Slide {activeTab}</span>
                             <span className="text-osu-orange group-hover:text-white font-black animate-pulse">Live</span>
                           </div>
                         </div>
                       ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center p-1 bg-slate-950 text-slate-500 text-center">
-                          <Tv className="w-4 h-4 text-slate-700 mb-0.5" />
-                          <span className="text-[7px] font-black uppercase tracking-widest text-slate-500 leading-none">Slide {activeTab}</span>
-                          <span className="text-[5px] font-bold text-slate-600 uppercase leading-none mt-0.5">No Preview</span>
+                        <div className="w-full h-full flex flex-col items-center justify-center p-2 bg-slate-950 text-slate-500 text-center">
+                          <Tv className="w-5 h-5 sm:w-6 sm:h-6 text-slate-700 mb-1" />
+                          <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 leading-none">Slide {activeTab}</span>
+                          <span className="text-[6px] font-bold text-slate-600 uppercase leading-none mt-1">No Preview</span>
                         </div>
                       )}
                     </div>
