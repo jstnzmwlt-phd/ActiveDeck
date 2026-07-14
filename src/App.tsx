@@ -14,6 +14,7 @@ import { StudentAttendance } from './components/StudentAttendance';
 import { JoinScreen } from './components/JoinScreen';
 import { RichTextEditor } from './components/RichTextEditor';
 import { HandwrittenCanvas } from './components/HandwrittenCanvas';
+import { ImageLightboxModal } from './components/ImageLightboxModal';
 
 console.log('App.tsx - Module loaded');
 
@@ -260,6 +261,9 @@ function AppContent() {
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | ''>('');
 
   const [pushedSlidesMap, setPushedSlidesMap] = useState<Record<string, string>>({});
+
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const [lightboxImgUrl, setLightboxImgUrl] = useState('');
 
   useEffect(() => {
     if (!activePresentationId) {
@@ -796,6 +800,11 @@ function AppContent() {
     return saved ? Math.max(270, parseInt(saved, 10)) : 300;
   });
 
+  const [audienceChatWidth, setAudienceChatWidth] = useState(() => {
+    const saved = localStorage.getItem('activeDeckAudienceChatWidth');
+    return saved ? Math.max(250, parseInt(saved, 10)) : 380;
+  });
+
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Manage local fullscreen change state
@@ -827,6 +836,7 @@ function AppContent() {
 
   const isDraggingProjectorRef = useRef(false);
   const isDraggingPresenterRef = useRef(false);
+  const isDraggingAudienceChatRef = useRef(false);
 
   const handleMouseDownProjector = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -842,6 +852,13 @@ function AppContent() {
     document.body.style.userSelect = 'none';
   };
 
+  const handleMouseDownAudienceChat = (e: React.MouseEvent) => {
+    e.preventDefault();
+    isDraggingAudienceChatRef.current = true;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+
   const handleDoubleClickProjector = () => {
     setSidebarWidth(380);
     localStorage.setItem('activeDeckProjectorSidebarWidth', '380');
@@ -850,6 +867,11 @@ function AppContent() {
   const handleDoubleClickPresenter = () => {
     setPresenterSidebarWidth(300);
     localStorage.setItem('activeDeckPresenterSidebarWidth', '300');
+  };
+
+  const handleDoubleClickAudienceChat = () => {
+    setAudienceChatWidth(380);
+    localStorage.setItem('activeDeckAudienceChatWidth', '380');
   };
 
   useEffect(() => {
@@ -871,6 +893,14 @@ function AppContent() {
         setPresenterSidebarWidth(constrainedWidth);
         localStorage.setItem('activeDeckPresenterSidebarWidth', constrainedWidth.toString());
       }
+
+      // 3. Audience Chat Sidebar Dragging
+      if (isDraggingAudienceChatRef.current) {
+        const calculatedWidth = e.clientX;
+        const constrainedWidth = Math.max(250, Math.min(600, calculatedWidth));
+        setAudienceChatWidth(constrainedWidth);
+        localStorage.setItem('activeDeckAudienceChatWidth', constrainedWidth.toString());
+      }
     };
 
     const handleMouseUp = () => {
@@ -881,6 +911,11 @@ function AppContent() {
       }
       if (isDraggingPresenterRef.current) {
         isDraggingPresenterRef.current = false;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      }
+      if (isDraggingAudienceChatRef.current) {
+        isDraggingAudienceChatRef.current = false;
         document.body.style.cursor = '';
         document.body.style.userSelect = '';
       }
@@ -1277,9 +1312,13 @@ function AppContent() {
   // Chat-only view for audience members who scanned the QR code
   if (isChatOnly) {
     return (
-      <div className="h-full w-full flex flex-col md:flex-row bg-slate-950 font-sans antialiased overflow-hidden">
-        {/* Left Side: The Chat Sidebar */}
-        <div className="w-full md:w-[40%] lg:w-[35%] h-full bg-white relative">
+      <>
+        <div className="h-full w-full flex flex-col md:flex-row bg-slate-950 font-sans antialiased overflow-hidden">
+          {/* Left Side: The Chat Sidebar */}
+          <div 
+            style={{ width: `${audienceChatWidth}px` }}
+            className="w-full md:w-auto h-full bg-white relative flex-shrink-0"
+          >
           <ChatSidebar 
             isChatOnly={true} 
             presentation={presentation} 
@@ -1290,8 +1329,18 @@ function AppContent() {
           />
         </div>
 
+        {/* Interactive Drag Splitter */}
+        <div 
+          onMouseDown={handleMouseDownAudienceChat}
+          onDoubleClick={handleDoubleClickAudienceChat}
+          className="hidden md:flex w-3 h-full cursor-col-resize items-center justify-center flex-shrink-0 group/splitter select-none bg-slate-950 border-l border-r border-slate-900"
+          title="Drag to resize chat (double-click to reset)"
+        >
+          <div className="w-[3px] h-20 bg-slate-800 group-hover/splitter:bg-osu-orange/70 group-active/splitter:bg-osu-orange rounded-full transition-all duration-200" />
+        </div>
+
         {/* Right Side: Premium Welcome Panel (Desktop/Laptop only) */}
-        <div className="hidden md:flex md:w-[60%] lg:w-[65%] h-full flex-col bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 border-l border-slate-800/80 p-4 md:p-5 relative overflow-hidden">
+        <div className="hidden md:flex flex-1 h-full flex-col bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 border-l border-slate-800/80 p-4 md:p-5 relative overflow-hidden">
           {/* Ambient lighting glow */}
           <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-osu-orange/5 rounded-full blur-[100px] pointer-events-none" />
           
@@ -1524,22 +1573,33 @@ function AppContent() {
                     {/* Premium Large Slide Preview (Right/Bottom) */}
                     <div 
                       className="flex-[3] flex flex-col min-w-0 min-h-[200px] md:min-h-0 rounded-xl border border-slate-800 bg-slate-950 select-none group shadow-xl relative overflow-hidden"
-                      title={pushedSlidesMap[activeTab] ? `Slide ${activeTab} Preview` : "No slide preview shared yet"}
+                      title={pushedSlidesMap[activeTab] ? `Slide ${activeTab} Preview (Click to Zoom)` : "No slide preview shared yet"}
                     >
                       {pushedSlidesMap[activeTab] ? (
                         <div className="w-full h-full relative flex flex-col h-full justify-between">
-                          <div className="flex-1 relative overflow-hidden bg-black flex items-center justify-center min-h-0">
+                          <div 
+                            onClick={() => {
+                              setLightboxImgUrl(pushedSlidesMap[activeTab]);
+                              setIsLightboxOpen(true);
+                            }}
+                            className="flex-1 relative overflow-hidden bg-black flex items-center justify-center min-h-0 cursor-zoom-in group/preview"
+                            title="Click to zoom in"
+                          >
                             <img 
                               src={pushedSlidesMap[activeTab]} 
                               alt={`Slide ${activeTab} Preview`}
-                              className="absolute inset-0 w-full h-full object-contain"
+                              className="absolute inset-0 w-full h-full object-contain transition-transform duration-300 group-hover/preview:scale-[1.01]"
                             />
+                            {/* Floating Glassmorphic Expand Icon */}
+                            <div className="absolute top-2.5 right-2.5 p-2 rounded-lg bg-black/60 border border-white/10 text-white/70 group-hover/preview:text-white group-hover/preview:bg-osu-orange group-hover/preview:border-osu-orange/50 shadow-lg backdrop-blur-md opacity-0 group-hover/preview:opacity-100 transition-all duration-300 transform scale-95 group-hover/preview:scale-100 flex items-center justify-center">
+                              <Maximize className="w-4 h-4" />
+                            </div>
                           </div>
                           <div className="bg-slate-900/90 backdrop-blur-sm py-2 px-3 flex items-center justify-between border-t border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-300 shrink-0">
                             <span className="text-slate-400">Slide {activeTab}</span>
                             <span className="text-osu-orange group-hover:text-white font-black animate-pulse flex items-center gap-1">
                               <span className="w-1.5 h-1.5 rounded-full bg-osu-orange inline-block"></span>
-                              Live Preview
+                              Live Preview (Click to Zoom)
                             </span>
                           </div>
                         </div>
@@ -1586,8 +1646,15 @@ function AppContent() {
           </div>
         </div>
       </div>
-    );
-  }
+      <ImageLightboxModal 
+        isOpen={isLightboxOpen} 
+        onClose={() => setIsLightboxOpen(false)} 
+        imageUrl={lightboxImgUrl} 
+        title={`Slide ${activeTab} Preview`} 
+      />
+    </>
+  );
+}
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden bg-slate-100 font-sans antialiased">
@@ -1632,6 +1699,13 @@ function AppContent() {
         <span>v1.1</span>
         <span className="opacity-65">ActiveDeck &copy; {new Date().getFullYear()}</span>
       </footer>
+
+      <ImageLightboxModal 
+        isOpen={isLightboxOpen} 
+        onClose={() => setIsLightboxOpen(false)} 
+        imageUrl={lightboxImgUrl} 
+        title={`Slide ${activeTab} Preview`} 
+      />
     </div>
   );
 }
