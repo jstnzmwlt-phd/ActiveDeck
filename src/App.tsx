@@ -496,6 +496,19 @@ function AppContent() {
     const notesContentHtml = sortedSlides.map(slide => {
       const htmlContent = notesTextMap[slide] ? `<div>${notesTextMap[slide]}</div>` : '';
       
+      let slidePreviewHtml = '';
+      const slideImgUrl = pushedSlidesMap[slide];
+      if (slideImgUrl) {
+        slidePreviewHtml = `
+          <div style="margin-top: 10px; margin-bottom: 15px;">
+            <h4 style="color: #475569; font-size: 10pt; margin-bottom: 5px; font-weight: bold;">Slide Image:</h4>
+            <div style="padding: 5px; width: 500px; height: 280px; background-color: #000000; border-radius: 8px; text-align: center; vertical-align: middle;">
+              <img src="${slideImgUrl}" width="500" height="280" style="border-radius: 8px; border: 1px solid #e2e8f0; object-fit: contain;" />
+            </div>
+          </div>
+        `;
+      }
+
       let drawingSvgHtml = '';
       const drawingJson = notesDrawingsMap[slide];
       if (drawingJson) {
@@ -515,6 +528,7 @@ function AppContent() {
       return `
         <div style="margin-bottom: 25px; page-break-inside: avoid;">
           <h3 style="color: #eb5d00; border-bottom: 1px solid #f3eedd; padding-bottom: 3px; margin-bottom: 10px;">Slide ${slide}</h3>
+          ${slidePreviewHtml}
           ${htmlContent}
           ${drawingSvgHtml}
         </div>
@@ -638,7 +652,12 @@ function AppContent() {
         ? `\n* [Slide ${slide} contains hand-drawn sketches. Please download your full .doc notes file to view them!]` 
         : '';
         
-      return `Slide ${slide}\n------------------------------\n${slidePlain}${drawingText}\n`;
+      const slideImgUrl = pushedSlidesMap[slide];
+      const slidePreviewText = slideImgUrl
+        ? `\n* [Slide ${slide} contains a slide preview image. Please download your full .doc notes file to view it!]`
+        : '';
+        
+      return `Slide ${slide}\n------------------------------\n${slidePlain}${slidePreviewText}${drawingText}\n`;
     }).join('\n');
     
     const body = `ActiveDeck Session Notes\n` +
@@ -1468,63 +1487,71 @@ function AppContent() {
                     console.log(`[SlidePreview Render] activeTab: "${activeTab}" (type: ${typeof activeTab}), pushedSlidesMapKeys:`, Object.keys(pushedSlidesMap), `resolvedUrl:`, pushedSlidesMap[activeTab]);
                     return null;
                   })()}
-
-                   {/* Editor or Handwriting Canvas based on active mode with Floating Slide Thumbnail */}
-                  <div className="flex-1 min-h-0 flex flex-col relative">
+                   {/* Split-screen Side-by-Side Editor and Slide Preview Container */}
+                  <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-4 relative">
                     
-                    {/* Floating Slide Thumbnail in top-right - Statically Expanded to Larger Image */}
+                    {/* Notes Writing Area (Left/Top) */}
+                    <div className="flex-[5] flex flex-col min-w-0 min-h-0">
+                      {notesMode === 'text' ? (
+                        <RichTextEditor
+                          value={notesTextMap[activeTab] || ''}
+                          onChange={(newVal) => {
+                            setLastTypedAt(Date.now());
+                            setNotesTextMap(prev => ({
+                              ...prev,
+                              [activeTab]: newVal
+                            }));
+                          }}
+                          onFocus={() => setIsEditorFocused(true)}
+                          onBlur={() => setIsEditorFocused(false)}
+                          placeholder={`Type your notes for Slide ${activeTab} here...`}
+                          className="flex-1 min-h-[120px]"
+                        />
+                      ) : (
+                        <HandwrittenCanvas
+                          value={notesDrawingsMap[activeTab] || ''}
+                          onChange={(newVal) => {
+                            setNotesDrawingsMap(prev => ({
+                              ...prev,
+                              [activeTab]: newVal
+                            }));
+                          }}
+                          placeholder={`Draw your notes for Slide ${activeTab} here...`}
+                        />
+                      )}
+                    </div>
+
+                    {/* Premium Large Slide Preview (Right/Bottom) */}
                     <div 
-                      className="absolute top-3 right-3 z-30 w-44 sm:w-56 md:w-64 aspect-video shadow-xl rounded-xl border border-slate-700/50 overflow-hidden bg-slate-950 flex flex-col select-none group"
+                      className="flex-[3] flex flex-col min-w-0 min-h-[200px] md:min-h-0 rounded-xl border border-slate-800 bg-slate-950 select-none group shadow-xl relative overflow-hidden"
                       title={pushedSlidesMap[activeTab] ? `Slide ${activeTab} Preview` : "No slide preview shared yet"}
                     >
                       {pushedSlidesMap[activeTab] ? (
-                        <div className="w-full h-full relative">
-                          <img 
-                            src={pushedSlidesMap[activeTab]} 
-                            alt={`Slide ${activeTab} Preview`}
-                            className="w-full h-full object-cover"
-                          />
-                          <div className="absolute bottom-0 inset-x-0 bg-black/60 py-1 px-2 flex items-center justify-between text-[8px] font-black uppercase tracking-wider text-slate-300">
-                            <span>Slide {activeTab}</span>
-                            <span className="text-osu-orange group-hover:text-white font-black animate-pulse">Live</span>
+                        <div className="w-full h-full relative flex flex-col h-full justify-between">
+                          <div className="flex-1 relative overflow-hidden bg-black flex items-center justify-center min-h-0">
+                            <img 
+                              src={pushedSlidesMap[activeTab]} 
+                              alt={`Slide ${activeTab} Preview`}
+                              className="absolute inset-0 w-full h-full object-contain"
+                            />
+                          </div>
+                          <div className="bg-slate-900/90 backdrop-blur-sm py-2 px-3 flex items-center justify-between border-t border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-300 shrink-0">
+                            <span className="text-slate-400">Slide {activeTab}</span>
+                            <span className="text-osu-orange group-hover:text-white font-black animate-pulse flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-osu-orange inline-block"></span>
+                              Live Preview
+                            </span>
                           </div>
                         </div>
                       ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center p-2 bg-slate-950 text-slate-500 text-center">
-                          <Tv className="w-5 h-5 sm:w-6 sm:h-6 text-slate-700 mb-1" />
-                          <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 leading-none">Slide {activeTab}</span>
-                          <span className="text-[6px] font-bold text-slate-600 uppercase leading-none mt-1">No Preview</span>
+                        <div className="w-full h-full flex flex-col items-center justify-center p-4 bg-slate-950 text-slate-500 text-center min-h-[150px] md:min-h-0">
+                          <Tv className="w-8 h-8 text-slate-700 mb-2" />
+                          <span className="text-xs font-black uppercase tracking-widest text-slate-500 leading-none">Slide {activeTab}</span>
+                          <span className="text-[9px] font-bold text-slate-600 uppercase leading-none mt-2">No Preview Available</span>
                         </div>
                       )}
                     </div>
 
-                    {notesMode === 'text' ? (
-                      <RichTextEditor
-                        value={notesTextMap[activeTab] || ''}
-                        onChange={(newVal) => {
-                          setLastTypedAt(Date.now());
-                          setNotesTextMap(prev => ({
-                            ...prev,
-                            [activeTab]: newVal
-                          }));
-                        }}
-                        onFocus={() => setIsEditorFocused(true)}
-                        onBlur={() => setIsEditorFocused(false)}
-                        placeholder={`Type your notes for Slide ${activeTab} here...`}
-                        className="flex-1 min-h-[120px]"
-                      />
-                    ) : (
-                      <HandwrittenCanvas
-                        value={notesDrawingsMap[activeTab] || ''}
-                        onChange={(newVal) => {
-                          setNotesDrawingsMap(prev => ({
-                            ...prev,
-                            [activeTab]: newVal
-                          }));
-                        }}
-                        placeholder={`Draw your notes for Slide ${activeTab} here...`}
-                      />
-                    )}
                   </div>
 
                   {/* Export Buttons */}
