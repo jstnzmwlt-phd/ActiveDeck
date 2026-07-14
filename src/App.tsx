@@ -5,8 +5,8 @@ import { ChatSidebar } from './components/ChatSidebar';
 import { Header } from './components/Header';
 import { Presentation, GlobalSettings } from './types';
 import { db } from './firebase';
-import { collection, query, orderBy, limit, onSnapshot, doc, addDoc, serverTimestamp, updateDoc, getDoc, setDoc, increment } from 'firebase/firestore';
-import { Presentation as PresentationIcon, Loader2, AlertCircle, Maximize, Minimize, Lock, Keyboard, Pen } from 'lucide-react';
+import { collection, query, orderBy, limit, onSnapshot, doc, addDoc, serverTimestamp, updateDoc, getDoc, setDoc, increment, where } from 'firebase/firestore';
+import { Presentation as PresentationIcon, Loader2, AlertCircle, Maximize, Minimize, Lock, Keyboard, Pen, Tv } from 'lucide-react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { BridgeProvider } from './contexts/BridgeContext';
 import { AdminPortal } from './components/AdminPortal';
@@ -258,6 +258,36 @@ function AppContent() {
   const [lastTypedAt, setLastTypedAt] = useState<number>(0);
   const [notesTitle, setNotesTitle] = useState('');
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | ''>('');
+
+  const [pushedSlidesMap, setPushedSlidesMap] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!activePresentationId) {
+      setPushedSlidesMap({});
+      return;
+    }
+
+    const q = query(
+      collection(db, 'messages'),
+      where('presentationId', '==', activePresentationId),
+      where('isPushedSlide', '==', true)
+    );
+
+    const unsub = onSnapshot(q, (snapshot) => {
+      const slideMap: Record<string, string> = {};
+      snapshot.docs.forEach(docSnap => {
+        const data = docSnap.data();
+        if (data.slide !== undefined && data.slide !== null && data.fileUrl) {
+          slideMap[String(data.slide)] = data.fileUrl;
+        }
+      });
+      setPushedSlidesMap(slideMap);
+    }, (error) => {
+      console.warn("Failed to listen to pushed slide images:", error);
+    });
+
+    return () => unsub();
+  }, [activePresentationId]);
 
   useEffect(() => {
     if (!activePresentationId) return;
@@ -1306,7 +1336,7 @@ function AppContent() {
                     value={notesTitle}
                     onChange={(e) => setNotesTitle(e.target.value)}
                     placeholder="Notes Title (e.g. Lecture 1)"
-                    className="w-full h-10 px-3 text-xs bg-white border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-osu-orange focus:border-osu-orange transition-all shrink-0"
+                    className="w-full md:w-1/4 h-10 px-3 text-xs bg-white border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-osu-orange focus:border-osu-orange transition-all shrink-0"
                   />
 
                   {/* Slide Tabs Bar */}
@@ -1426,35 +1456,63 @@ function AppContent() {
                       Handwritten Notes
                     </button>
                   </div>
+                   {/* Editor or Handwriting Canvas based on active mode with Floating Slide Thumbnail */}
+                  <div className="flex-1 min-h-0 flex flex-col relative">
+                    
+                    {/* Floating Slide Thumbnail in top-right */}
+                    <div 
+                      className="absolute top-3 right-3 z-30 w-24 sm:w-32 aspect-video transition-all duration-300 hover:scale-150 hover:md:scale-200 origin-top-right hover:shadow-2xl hover:border-osu-orange/80 cursor-pointer shadow-lg rounded-xl border border-slate-700/50 overflow-hidden bg-slate-950 flex flex-col animate-in fade-in zoom-in-95 duration-200 select-none group"
+                      title={pushedSlidesMap[activeTab] ? "Hover to enlarge slide preview" : "No slide preview shared by presenter yet"}
+                    >
+                      {pushedSlidesMap[activeTab] ? (
+                        <div className="w-full h-full relative">
+                          <img 
+                            src={pushedSlidesMap[activeTab]} 
+                            alt={`Slide ${activeTab} Preview`}
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute bottom-0 inset-x-0 bg-black/60 py-0.5 px-1.5 flex items-center justify-between text-[7px] font-black uppercase tracking-wider text-slate-300">
+                            <span>Slide {activeTab}</span>
+                            <span className="text-osu-orange group-hover:text-white font-black animate-pulse">Live</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="w-full h-full flex flex-col items-center justify-center p-1 bg-slate-950 text-slate-500 text-center">
+                          <Tv className="w-4 h-4 text-slate-700 mb-0.5" />
+                          <span className="text-[7px] font-black uppercase tracking-widest text-slate-500 leading-none">Slide {activeTab}</span>
+                          <span className="text-[5px] font-bold text-slate-600 uppercase leading-none mt-0.5">No Preview</span>
+                        </div>
+                      )}
+                    </div>
 
-                  {/* Editor or Handwriting Canvas based on active mode */}
-                  {notesMode === 'text' ? (
-                    <RichTextEditor
-                      value={notesTextMap[activeTab] || ''}
-                      onChange={(newVal) => {
-                        setLastTypedAt(Date.now());
-                        setNotesTextMap(prev => ({
-                          ...prev,
-                          [activeTab]: newVal
-                        }));
-                      }}
-                      onFocus={() => setIsEditorFocused(true)}
-                      onBlur={() => setIsEditorFocused(false)}
-                      placeholder={`Type your notes for Slide ${activeTab} here...`}
-                      className="flex-1 min-h-[120px]"
-                    />
-                  ) : (
-                    <HandwrittenCanvas
-                      value={notesDrawingsMap[activeTab] || ''}
-                      onChange={(newVal) => {
-                        setNotesDrawingsMap(prev => ({
-                          ...prev,
-                          [activeTab]: newVal
-                        }));
-                      }}
-                      placeholder={`Draw your notes for Slide ${activeTab} here...`}
-                    />
-                  )}
+                    {notesMode === 'text' ? (
+                      <RichTextEditor
+                        value={notesTextMap[activeTab] || ''}
+                        onChange={(newVal) => {
+                          setLastTypedAt(Date.now());
+                          setNotesTextMap(prev => ({
+                            ...prev,
+                            [activeTab]: newVal
+                          }));
+                        }}
+                        onFocus={() => setIsEditorFocused(true)}
+                        onBlur={() => setIsEditorFocused(false)}
+                        placeholder={`Type your notes for Slide ${activeTab} here...`}
+                        className="flex-1 min-h-[120px]"
+                      />
+                    ) : (
+                      <HandwrittenCanvas
+                        value={notesDrawingsMap[activeTab] || ''}
+                        onChange={(newVal) => {
+                          setNotesDrawingsMap(prev => ({
+                            ...prev,
+                            [activeTab]: newVal
+                          }));
+                        }}
+                        placeholder={`Draw your notes for Slide ${activeTab} here...`}
+                      />
+                    )}
+                  </div>
 
                   {/* Export Buttons */}
                   <div className={notesMode === 'pen' ? "pt-1.5 shrink-0 select-none" : "grid grid-cols-2 gap-2.5 pt-1.5 shrink-0 select-none"}>
