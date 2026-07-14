@@ -268,48 +268,66 @@ function AppContent() {
       return;
     }
 
-    console.log(`[SlidePreview] Subscribing to messages for presentationId: ${activePresentationId}`);
+    console.log(`[SlidePreview] Subscribing to messages & background previews for presentationId: ${activePresentationId}`);
 
-    const q = query(
+    let messagesMap: Record<string, string> = {};
+    let previewsMap: Record<string, string> = {};
+
+    const mergeAndSet = () => {
+      // Previews are background/fallback, messages (explicitly pushed) can override them
+      const merged = { ...previewsMap, ...messagesMap };
+      console.log("[SlidePreview] Merged pushedSlidesMap updated:", merged);
+      setPushedSlidesMap(merged);
+    };
+
+    // 1. Subscribe to explicitly pushed slides (messages)
+    const qMessages = query(
       collection(db, 'messages'),
       where('presentationId', '==', activePresentationId)
     );
-
-    const unsub = onSnapshot(q, (snapshot) => {
-      console.log(`[SlidePreview] Received messages snapshot. Total messages in session: ${snapshot.docs.length}`);
-      const slideMap: Record<string, string> = {};
+    const unsubMessages = onSnapshot(qMessages, (snapshot) => {
+      console.log(`[SlidePreview] Received messages snapshot. Size: ${snapshot.docs.length}`);
+      const newMessagesMap: Record<string, string> = {};
       
       snapshot.docs.forEach(docSnap => {
         const data = docSnap.data();
-        if (data.isPushedSlide) {
-          console.log(`[SlidePreview] Found pushed slide message:`, {
-            id: docSnap.id,
-            isPushedSlide: data.isPushedSlide,
-            slide: data.slide,
-            fileUrl: data.fileUrl ? "EXISTS" : "MISSING",
-            slideType: typeof data.slide
-          });
-        }
-        
-        // Match both number and string types robustly
-        if (data.isPushedSlide === true && data.fileUrl) {
-          const slideNum = data.slide !== undefined && data.slide !== null ? String(data.slide) : null;
-          if (slideNum) {
-            slideMap[slideNum] = data.fileUrl;
-            console.log(`[SlidePreview] Mapped slide ${slideNum} to ${data.fileUrl}`);
-          } else {
-            console.log(`[SlidePreview] Pushed slide message has no slide number:`, docSnap.id);
-          }
+        if (data.isPushedSlide === true && data.fileUrl && data.slide !== undefined && data.slide !== null) {
+          const slideNum = String(data.slide);
+          newMessagesMap[slideNum] = data.fileUrl;
         }
       });
-      
-      console.log("[SlidePreview] Final populated pushedSlidesMap:", slideMap);
-      setPushedSlidesMap(slideMap);
+      messagesMap = newMessagesMap;
+      mergeAndSet();
     }, (error) => {
-      console.error("[SlidePreview] Failed to listen to pushed slide images:", error);
+      console.error("[SlidePreview] Messages subscription error:", error);
     });
 
-    return () => unsub();
+    // 2. Subscribe to background auto-uploaded slide previews
+    const qPreviews = query(
+      collection(db, 'slidePreviews'),
+      where('presentationId', '==', activePresentationId)
+    );
+    const unsubPreviews = onSnapshot(qPreviews, (snapshot) => {
+      console.log(`[SlidePreview] Received background slidePreviews snapshot. Size: ${snapshot.docs.length}`);
+      const newPreviewsMap: Record<string, string> = {};
+      
+      snapshot.docs.forEach(docSnap => {
+        const data = docSnap.data();
+        if (data.fileUrl && data.slide !== undefined && data.slide !== null) {
+          const slideNum = String(data.slide);
+          newPreviewsMap[slideNum] = data.fileUrl;
+        }
+      });
+      previewsMap = newPreviewsMap;
+      mergeAndSet();
+    }, (error) => {
+      console.error("[SlidePreview] Slide previews subscription error:", error);
+    });
+
+    return () => {
+      unsubMessages();
+      unsubPreviews();
+    };
   }, [activePresentationId]);
 
   useEffect(() => {

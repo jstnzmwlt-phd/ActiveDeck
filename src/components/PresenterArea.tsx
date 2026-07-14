@@ -30,6 +30,86 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const throttleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const pendingCoordsRef = useRef<{ x: number; y: number } | null>(null);
 
+  // Cache to track slides we have already uploaded a preview for in this session
+  const uploadedPreviewsRef = useRef<Set<number>>(new Set());
+
+  // Clear slide previews cache when the presentation ID changes
+  useEffect(() => {
+    uploadedPreviewsRef.current.clear();
+  }, [presentation?.id]);
+
+  // Background Automatic Slide Preview Capture & Upload Effect
+  useEffect(() => {
+    if (!presentation?.id || !isCapturing || currentSlide === null || currentSlide === undefined) return;
+
+    // Bypass if we already captured and uploaded a preview for this slide in this session
+    if (uploadedPreviewsRef.current.has(currentSlide)) {
+      console.log(`[SlidePreview Auto] Slide preview already uploaded for slide ${currentSlide}. Bypassing.`);
+      return;
+    }
+
+    console.log(`[SlidePreview Auto] Slide changed to ${currentSlide}. Scheduling background preview capture...`);
+
+    const video = containerRef.current?.querySelector('video');
+    if (!video) {
+      console.warn("[SlidePreview Auto] No active video stream found to capture slide preview.");
+      return;
+    }
+
+    // Capture after 1.5 seconds of "stillness" to avoid capturing while the presenter is scrolling through slides
+    const timeoutId = setTimeout(async () => {
+      try {
+        console.log(`[SlidePreview Auto] Triggering background slide preview capture for slide ${currentSlide}...`);
+        
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth || 1280;
+        canvas.height = video.videoHeight || 720;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        canvas.toBlob(async (blob) => {
+          if (!blob) return;
+
+          try {
+            const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+            const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
+
+            const fileId = Math.random().toString(36).substring(2, 11);
+            const fileName = `Slide_Preview_Slide_${currentSlide}_${Date.now()}.jpg`;
+            const storagePath = `presentations/${presentation.id}/slide_previews/${fileId}_${fileName}`;
+            const storageRef = ref(storage, storagePath);
+
+            await uploadBytes(storageRef, blob);
+            const downloadUrl = await getDownloadURL(storageRef);
+
+            // Save to slidePreviews with deterministic ID (presentationId_slideNum)
+            const docId = `${presentation.id}_${currentSlide}`;
+            await setDoc(doc(db, 'slidePreviews', docId), {
+              presentationId: presentation.id,
+              slide: currentSlide,
+              fileUrl: downloadUrl,
+              timestamp: serverTimestamp()
+            });
+
+            console.log(`[SlidePreview Auto] Background slide preview uploaded successfully for slide ${currentSlide}!`);
+            uploadedPreviewsRef.current.add(currentSlide);
+          } catch (uploadErr) {
+            console.error("[SlidePreview Auto] Background slide preview upload failed:", uploadErr);
+          }
+        }, 'image/jpeg', 0.85);
+
+      } catch (err) {
+        console.error("[SlidePreview Auto] Error in background slide capture process:", err);
+      }
+    }, 1500);
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [currentSlide, isCapturing, presentation?.id]);
+
   useEffect(() => {
     return () => {
       if (throttleTimeoutRef.current) {
