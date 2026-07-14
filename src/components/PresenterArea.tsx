@@ -40,26 +40,33 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
   // Background Automatic Slide Preview Capture & Upload Effect
   useEffect(() => {
-    if (!presentation?.id || !isCapturing || currentSlide === null || currentSlide === undefined) return;
+    if (!presentation?.id || !isCapturing) return;
+
+    const activeSlideNum = currentSlide !== null ? currentSlide : presentation?.currentSlide;
+    if (activeSlideNum === null || activeSlideNum === undefined) {
+      console.log("[SlidePreview Auto] No active slide number to schedule capture.");
+      return;
+    }
 
     // Bypass if we already captured and uploaded a preview for this slide in this session
-    if (uploadedPreviewsRef.current.has(currentSlide)) {
-      console.log(`[SlidePreview Auto] Slide preview already uploaded for slide ${currentSlide}. Bypassing.`);
+    if (uploadedPreviewsRef.current.has(activeSlideNum)) {
+      console.log(`[SlidePreview Auto] Slide preview already uploaded for slide ${activeSlideNum}. Bypassing.`);
       return;
     }
 
-    console.log(`[SlidePreview Auto] Slide changed to ${currentSlide}. Scheduling background preview capture...`);
-
-    const video = containerRef.current?.querySelector('video');
-    if (!video) {
-      console.warn("[SlidePreview Auto] No active video stream found to capture slide preview.");
-      return;
-    }
+    console.log(`[SlidePreview Auto] Slide changed to ${activeSlideNum}. Scheduling background preview capture...`);
 
     // Capture after 1.5 seconds of "stillness" to avoid capturing while the presenter is scrolling through slides
     const timeoutId = setTimeout(async () => {
       try {
-        console.log(`[SlidePreview Auto] Triggering background slide preview capture for slide ${currentSlide}...`);
+        // Query the video element INSIDE the timeout to guarantee React has finished rendering the video container!
+        const video = containerRef.current?.querySelector('video');
+        if (!video) {
+          console.warn("[SlidePreview Auto] No active video stream found in DOM inside timeout to capture slide preview.");
+          return;
+        }
+
+        console.log(`[SlidePreview Auto] Triggering background slide preview capture for slide ${activeSlideNum}...`);
         
         const canvas = document.createElement('canvas');
         canvas.width = video.videoWidth || 1280;
@@ -77,7 +84,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
 
             const fileId = Math.random().toString(36).substring(2, 11);
-            const fileName = `Slide_Preview_Slide_${currentSlide}_${Date.now()}.jpg`;
+            const fileName = `Slide_Preview_Slide_${activeSlideNum}_${Date.now()}.jpg`;
             const storagePath = `presentations/${presentation.id}/slide_previews/${fileId}_${fileName}`;
             const storageRef = ref(storage, storagePath);
 
@@ -85,16 +92,16 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             const downloadUrl = await getDownloadURL(storageRef);
 
             // Save to slidePreviews with deterministic ID (presentationId_slideNum)
-            const docId = `${presentation.id}_${currentSlide}`;
+            const docId = `${presentation.id}_${activeSlideNum}`;
             await setDoc(doc(db, 'slidePreviews', docId), {
               presentationId: presentation.id,
-              slide: currentSlide,
+              slide: activeSlideNum,
               fileUrl: downloadUrl,
               timestamp: serverTimestamp()
             });
 
-            console.log(`[SlidePreview Auto] Background slide preview uploaded successfully for slide ${currentSlide}!`);
-            uploadedPreviewsRef.current.add(currentSlide);
+            console.log(`[SlidePreview Auto] Background slide preview uploaded successfully for slide ${activeSlideNum}!`);
+            uploadedPreviewsRef.current.add(activeSlideNum);
           } catch (uploadErr) {
             console.error("[SlidePreview Auto] Background slide preview upload failed:", uploadErr);
           }
@@ -108,7 +115,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [currentSlide, isCapturing, presentation?.id]);
+  }, [currentSlide, presentation?.currentSlide, isCapturing, presentation?.id]);
 
   useEffect(() => {
     return () => {
