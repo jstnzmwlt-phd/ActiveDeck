@@ -903,12 +903,36 @@ function AppContent() {
     localStorage.setItem('activeDeckNotesSplitRatio', '60');
   };
 
+  const handleTouchStartProjector = () => {
+    isDraggingProjectorRef.current = true;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+
+  const handleTouchStartPresenter = () => {
+    isDraggingPresenterRef.current = true;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+
+  const handleTouchStartAudienceChat = () => {
+    isDraggingAudienceChatRef.current = true;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+
+  const handleTouchStartNotesSplit = () => {
+    isDraggingNotesSplitRef.current = true;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
+    const handleDragMove = (clientX: number) => {
       // 1. Projector Sidebar Dragging
       if (isDraggingProjectorRef.current) {
         const containerPadding = 24; // p-6 is 24px
-        const calculatedWidth = window.innerWidth - e.clientX - containerPadding;
+        const calculatedWidth = window.innerWidth - clientX - containerPadding;
         const constrainedWidth = Math.max(260, Math.min(600, calculatedWidth));
         setSidebarWidth(constrainedWidth);
         localStorage.setItem('activeDeckProjectorSidebarWidth', constrainedWidth.toString());
@@ -917,7 +941,7 @@ function AppContent() {
       // 2. Presenter Sidebar Dragging
       if (isDraggingPresenterRef.current) {
         const containerPadding = 24; // p-6 is 24px
-        const calculatedWidth = window.innerWidth - e.clientX - containerPadding;
+        const calculatedWidth = window.innerWidth - clientX - containerPadding;
         const constrainedWidth = Math.max(270, Math.min(500, calculatedWidth));
         setPresenterSidebarWidth(constrainedWidth);
         localStorage.setItem('activeDeckPresenterSidebarWidth', constrainedWidth.toString());
@@ -926,8 +950,8 @@ function AppContent() {
       // 3. Audience Chat Sidebar Dragging
       if (isDraggingAudienceChatRef.current) {
         const calculatedWidth = chatLayoutDirectionRef.current === 'right'
-          ? window.innerWidth - e.clientX
-          : e.clientX;
+          ? window.innerWidth - clientX
+          : clientX;
         const constrainedWidth = Math.max(250, Math.min(600, calculatedWidth));
         setAudienceChatWidth(constrainedWidth);
         localStorage.setItem('activeDeckAudienceChatWidth', constrainedWidth.toString());
@@ -937,7 +961,7 @@ function AppContent() {
       if (isDraggingNotesSplitRef.current && notesContainerRef.current) {
         const rect = notesContainerRef.current.getBoundingClientRect();
         if (rect.width > 0) {
-          const relativeX = e.clientX - rect.left;
+          const relativeX = clientX - rect.left;
           const calculatedRatio = (relativeX / rect.width) * 100;
           const constrainedRatio = Math.max(20, Math.min(80, calculatedRatio));
           setNotesSplitRatio(constrainedRatio);
@@ -946,7 +970,7 @@ function AppContent() {
       }
     };
 
-    const handleMouseUp = () => {
+    const handleDragEnd = () => {
       if (isDraggingProjectorRef.current) {
         isDraggingProjectorRef.current = false;
         document.body.style.cursor = '';
@@ -969,11 +993,44 @@ function AppContent() {
       }
     };
 
+    const handleMouseMove = (e: MouseEvent) => {
+      handleDragMove(e.clientX);
+    };
+
+    const handleMouseUp = () => {
+      handleDragEnd();
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (
+        isDraggingProjectorRef.current ||
+        isDraggingPresenterRef.current ||
+        isDraggingAudienceChatRef.current ||
+        isDraggingNotesSplitRef.current
+      ) {
+        if (e.cancelable) {
+          e.preventDefault();
+        }
+        if (e.touches.length > 0) {
+          handleDragMove(e.touches[0].clientX);
+        }
+      }
+    };
+
+    const handleTouchEnd = () => {
+      handleDragEnd();
+    };
+
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('touchend', handleTouchEnd);
+
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
     };
   }, []);
 
@@ -1322,6 +1379,7 @@ function AppContent() {
         {/* Interactive Drag Splitter */}
         <div 
           onMouseDown={handleMouseDownProjector}
+          onTouchStart={handleTouchStartProjector}
           onDoubleClick={handleDoubleClickProjector}
           className="w-3 h-full cursor-col-resize flex items-center justify-center flex-shrink-0 group/splitter select-none"
           title="Drag to resize sidebar (double-click to reset)"
@@ -1380,6 +1438,7 @@ function AppContent() {
         {/* Interactive Drag Splitter */}
         <div 
           onMouseDown={handleMouseDownAudienceChat}
+          onTouchStart={handleTouchStartAudienceChat}
           onDoubleClick={handleDoubleClickAudienceChat}
           className="hidden md:flex w-3 h-full cursor-col-resize items-center justify-center flex-shrink-0 group/splitter select-none bg-slate-950 border-l border-r border-slate-900"
           title="Drag to resize chat (double-click to reset)"
@@ -1637,6 +1696,7 @@ function AppContent() {
                     {/* Interactive Drag Splitter between Notes and Preview */}
                     <div 
                       onMouseDown={handleMouseDownNotesSplit}
+                      onTouchStart={handleTouchStartNotesSplit}
                       onDoubleClick={handleDoubleClickNotesSplit}
                       className="hidden md:flex w-2.5 h-full cursor-col-resize items-center justify-center flex-shrink-0 group/notes-splitter select-none bg-transparent hover:bg-white/[0.01] transition-colors rounded-lg"
                       title="Drag to resize notes and slide preview (double-click to reset)"
@@ -1749,6 +1809,7 @@ function AppContent() {
         {/* Interactive Drag Splitter */}
         <div 
           onMouseDown={handleMouseDownPresenter}
+          onTouchStart={handleTouchStartPresenter}
           onDoubleClick={handleDoubleClickPresenter}
           className="w-3 h-full cursor-col-resize flex items-center justify-center flex-shrink-0 group/splitter select-none"
           title="Drag to resize sidebar (double-click to reset)"
