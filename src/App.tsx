@@ -269,7 +269,7 @@ function AppContent() {
 
   const [chatLayoutDirection, setChatLayoutDirection] = useState<'left' | 'right'>(() => {
     const saved = localStorage.getItem('activeDeckChatLayoutDirection');
-    return (saved === 'right' ? 'right' : 'left');
+    return (saved === 'left' ? 'left' : 'right');
   });
 
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
