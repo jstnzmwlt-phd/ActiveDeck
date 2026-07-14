@@ -118,5 +118,11 @@ service cloud.firestore {
       allow read, create, update: if request.auth != null;
       allow delete: if request.auth != null && email != 'justin.zumwalt@okstate.edu';
     }
+
+    match /slidePreviews/{previewId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null;
+      allow delete: if request.auth != null;
+    }
   }
 }

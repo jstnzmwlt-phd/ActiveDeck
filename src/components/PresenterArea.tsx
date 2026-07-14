@@ -85,18 +85,20 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
             const fileId = Math.random().toString(36).substring(2, 11);
             const fileName = `Slide_Preview_Slide_${activeSlideNum}_${Date.now()}.jpg`;
-            const storagePath = `presentations/${presentation.id}/slide_previews/${fileId}_${fileName}`;
+            const storagePath = `presentations/${presentation.id}/documents/${fileId}_${fileName}`;
             const storageRef = ref(storage, storagePath);
 
             await uploadBytes(storageRef, blob);
             const downloadUrl = await getDownloadURL(storageRef);
 
-            // Save to slidePreviews with deterministic ID (presentationId_slideNum)
-            const docId = `${presentation.id}_${activeSlideNum}`;
-            await setDoc(doc(db, 'slidePreviews', docId), {
+            // Save to messages with deterministic ID (presentationId_preview_slide_slideNum)
+            const docId = `${presentation.id}_preview_slide_${activeSlideNum}`;
+            await setDoc(doc(db, 'messages', docId), {
               presentationId: presentation.id,
               slide: activeSlideNum,
               fileUrl: downloadUrl,
+              isBackgroundPreview: true,
+              isPushedSlide: false,
               timestamp: serverTimestamp()
             });
 

@@ -564,10 +564,12 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
         where('presentationId', '==', targetSessionId)
       );
       const msgsSnap = await getDocs(msgsQuery);
-      const msgs = msgsSnap.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Message[];
+      const msgs = msgsSnap.docs
+        .map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }))
+        .filter((m: any) => !m.isBackgroundPreview) as Message[];
 
       // Sort client-side
       msgs.sort((a, b) => {

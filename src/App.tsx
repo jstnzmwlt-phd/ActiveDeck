@@ -268,20 +268,19 @@ function AppContent() {
       return;
     }
 
-    console.log(`[SlidePreview] Subscribing ONLY to background slidePreviews for presentationId: ${activePresentationId}`);
+    console.log(`[SlidePreview] Subscribing to messages collection for background slidePreviews. presentationId: ${activePresentationId}`);
 
     const qPreviews = query(
-      collection(db, 'slidePreviews'),
+      collection(db, 'messages'),
       where('presentationId', '==', activePresentationId)
     );
 
     const unsubPreviews = onSnapshot(qPreviews, (snapshot) => {
-      console.log(`[SlidePreview] Received background slidePreviews snapshot. Size: ${snapshot.docs.length}`);
       const newPreviewsMap: Record<string, string> = {};
       
       snapshot.docs.forEach(docSnap => {
         const data = docSnap.data();
-        if (data.fileUrl && data.slide !== undefined && data.slide !== null) {
+        if (data.isBackgroundPreview && data.fileUrl && data.slide !== undefined && data.slide !== null) {
           const slideNum = String(data.slide);
           newPreviewsMap[slideNum] = data.fileUrl;
         }

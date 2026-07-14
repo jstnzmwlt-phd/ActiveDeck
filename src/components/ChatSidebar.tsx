@@ -1962,10 +1962,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       where('presentationId', '==', presentation.id)
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const msgs = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data({ serverTimestamps: 'estimate' })
-      })) as Message[];
+      const msgs = snapshot.docs
+        .map(doc => ({
+          id: doc.id,
+          ...doc.data({ serverTimestamps: 'estimate' })
+        }))
+        .filter((m: any) => !m.isBackgroundPreview) as Message[];
       
       // Sort client-side to avoid requiring a composite index
       msgs.sort((a, b) => {
