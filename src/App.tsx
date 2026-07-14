@@ -1056,9 +1056,9 @@ function AppContent() {
   // Chat-only view for audience members who scanned the QR code
   if (isChatOnly) {
     return (
-      <div className="h-full w-full flex flex-col lg:flex-row bg-slate-950 font-sans antialiased overflow-hidden">
+      <div className="h-full w-full flex flex-col md:flex-row bg-slate-950 font-sans antialiased overflow-hidden">
         {/* Left Side: The Chat Sidebar */}
-        <div className="w-full lg:w-1/2 h-full bg-white relative">
+        <div className="w-full md:w-[40%] lg:w-[35%] h-full bg-white relative">
           <ChatSidebar 
             isChatOnly={true} 
             presentation={presentation} 
@@ -1070,7 +1070,7 @@ function AppContent() {
         </div>
 
         {/* Right Side: Premium Welcome Panel (Desktop/Laptop only) */}
-        <div className="hidden lg:flex lg:w-1/2 h-full flex-col bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 border-l border-slate-800/80 p-8 relative overflow-y-auto">
+        <div className="hidden md:flex md:w-[60%] lg:w-[65%] h-full flex-col bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 border-l border-slate-800/80 p-8 relative overflow-y-auto">
           {/* Ambient lighting glow */}
           <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-osu-orange/5 rounded-full blur-[100px] pointer-events-none" />
           
@@ -1194,7 +1194,7 @@ function AppContent() {
                     return (
                       <div className="flex flex-col space-y-1 shrink-0">
                         <span className="text-[8px] font-black uppercase tracking-wider text-slate-500">Slides Overview</span>
-                        <div className="flex flex-row items-center gap-1.5 overflow-x-auto py-1 scrollbar-none select-none">
+                        <div className="flex flex-row flex-wrap items-center gap-1.5 py-1 select-none">
                           {allTabs.map(slide => {
                             const isCurrentTab = slide === activeTab;
                             const isPresenterSlide = slide === presenterSlide;
