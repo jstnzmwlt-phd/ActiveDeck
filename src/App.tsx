@@ -358,6 +358,70 @@ function AppContent() {
     return () => clearTimeout(timer);
   }, [notesTextMap, notesDrawingsMap, notesTitle, activePresentationId]);
 
+  const convertStrokesToPng = (drawingJson: string): string => {
+    if (!drawingJson) return '';
+    try {
+      const strokes = JSON.parse(drawingJson);
+      if (!Array.isArray(strokes) || strokes.length === 0) return '';
+      
+      const canvas = document.createElement('canvas');
+      canvas.width = 1000;
+      canvas.height = 1000;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return '';
+      
+      // Draw white background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, 1000, 1000);
+      
+      // Draw light grid lines
+      ctx.strokeStyle = '#f1f5f9';
+      ctx.lineWidth = 2;
+      const gridSize = 30;
+      for (let x = 0; x < 1000; x += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, 1000);
+        ctx.stroke();
+      }
+      for (let y = 0; y < 1000; y += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(1000, y);
+        ctx.stroke();
+      }
+      
+      // Draw strokes
+      strokes.forEach(stroke => {
+        if (!stroke.points || stroke.points.length === 0) return;
+        ctx.beginPath();
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = stroke.width;
+        
+        if (stroke.isHighlighter) {
+          ctx.strokeStyle = 'rgba(234, 179, 8, 0.35)'; // yellow highlighter
+        } else {
+          ctx.strokeStyle = stroke.color === '#FFFFFF' ? '#cbd5e1' : stroke.color;
+        }
+        
+        stroke.points.forEach((p: any, i: number) => {
+          if (i === 0) {
+            ctx.moveTo(p.x, p.y);
+          } else {
+            ctx.lineTo(p.x, p.y);
+          }
+        });
+        ctx.stroke();
+      });
+      
+      return canvas.toDataURL('image/png');
+    } catch (e) {
+      console.error("Failed to rasterize drawing strokes:", e);
+      return '';
+    }
+  };
+
   const handleDownloadNotes = () => {
     if (isNotesEmpty(notesTextMap, notesDrawingsMap)) {
       alert("Notes are empty. Type or draw some notes first!");
@@ -397,31 +461,16 @@ function AppContent() {
       let drawingSvgHtml = '';
       const drawingJson = notesDrawingsMap[slide];
       if (drawingJson) {
-        try {
-          const strokes = JSON.parse(drawingJson);
-          if (Array.isArray(strokes) && strokes.length > 0) {
-            // Compile SVG paths inline for high-fidelity export
-            const pathsHtml = strokes.map(stroke => {
-              if (!stroke.points || stroke.points.length === 0) return '';
-              const pathData = stroke.points
-                .map((p: any, i: number) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
-                .join(' ');
-              return `<path d="${pathData}" fill="none" stroke="${stroke.color === '#FFFFFF' ? '#000000' : stroke.color}" stroke-width="${stroke.width}" stroke-linecap="round" stroke-linejoin="round" opacity="${stroke.isHighlighter ? 0.4 : 1}" />`;
-            }).join('');
-            
-            drawingSvgHtml = `
-              <div style="margin-top: 15px; margin-bottom: 10px;">
-                <h4 style="color: #475569; font-size: 10pt; margin-bottom: 5px; font-weight: bold;">Handwritten Drawing:</h4>
-                <div style="background-color: #030712; padding: 15px; border-radius: 12px; width: 550px; height: 350px;">
-                  <svg viewBox="0 0 1000 1000" style="width: 100%; height: 100%;">
-                    ${pathsHtml}
-                  </svg>
-                </div>
+        const pngDataUrl = convertStrokesToPng(drawingJson);
+        if (pngDataUrl) {
+          drawingSvgHtml = `
+            <div style="margin-top: 15px; margin-bottom: 10px;">
+              <h4 style="color: #475569; font-size: 10pt; margin-bottom: 5px; font-weight: bold;">Handwritten Drawing:</h4>
+              <div style="padding: 5px; width: 500px; height: 350px;">
+                <img src="${pngDataUrl}" width="500" height="350" style="border-radius: 8px; border: 1px solid #e2e8f0;" />
               </div>
-            `;
-          }
-        } catch (e) {
-          console.error("Failed to compile SVG for export on slide", slide, e);
+            </div>
+          `;
         }
       }
 
