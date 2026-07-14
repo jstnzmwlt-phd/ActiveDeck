@@ -268,45 +268,13 @@ function AppContent() {
       return;
     }
 
-    console.log(`[SlidePreview] Subscribing to messages & background previews for presentationId: ${activePresentationId}`);
+    console.log(`[SlidePreview] Subscribing ONLY to background slidePreviews for presentationId: ${activePresentationId}`);
 
-    let messagesMap: Record<string, string> = {};
-    let previewsMap: Record<string, string> = {};
-
-    const mergeAndSet = () => {
-      // Previews are background/fallback, messages (explicitly pushed) can override them
-      const merged = { ...previewsMap, ...messagesMap };
-      console.log("[SlidePreview] Merged pushedSlidesMap updated:", merged);
-      setPushedSlidesMap(merged);
-    };
-
-    // 1. Subscribe to explicitly pushed slides (messages)
-    const qMessages = query(
-      collection(db, 'messages'),
-      where('presentationId', '==', activePresentationId)
-    );
-    const unsubMessages = onSnapshot(qMessages, (snapshot) => {
-      console.log(`[SlidePreview] Received messages snapshot. Size: ${snapshot.docs.length}`);
-      const newMessagesMap: Record<string, string> = {};
-      
-      snapshot.docs.forEach(docSnap => {
-        const data = docSnap.data();
-        if (data.isPushedSlide === true && data.fileUrl && data.slide !== undefined && data.slide !== null) {
-          const slideNum = String(data.slide);
-          newMessagesMap[slideNum] = data.fileUrl;
-        }
-      });
-      messagesMap = newMessagesMap;
-      mergeAndSet();
-    }, (error) => {
-      console.error("[SlidePreview] Messages subscription error:", error);
-    });
-
-    // 2. Subscribe to background auto-uploaded slide previews
     const qPreviews = query(
       collection(db, 'slidePreviews'),
       where('presentationId', '==', activePresentationId)
     );
+
     const unsubPreviews = onSnapshot(qPreviews, (snapshot) => {
       console.log(`[SlidePreview] Received background slidePreviews snapshot. Size: ${snapshot.docs.length}`);
       const newPreviewsMap: Record<string, string> = {};
@@ -318,14 +286,14 @@ function AppContent() {
           newPreviewsMap[slideNum] = data.fileUrl;
         }
       });
-      previewsMap = newPreviewsMap;
-      mergeAndSet();
+      
+      console.log("[SlidePreview] Updated background slidePreviewsMap:", newPreviewsMap);
+      setPushedSlidesMap(newPreviewsMap);
     }, (error) => {
       console.error("[SlidePreview] Slide previews subscription error:", error);
     });
 
     return () => {
-      unsubMessages();
       unsubPreviews();
     };
   }, [activePresentationId]);
