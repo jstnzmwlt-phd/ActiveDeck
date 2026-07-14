@@ -262,6 +262,11 @@ function AppContent() {
 
   const [pushedSlidesMap, setPushedSlidesMap] = useState<Record<string, string>>({});
 
+  const [notesSplitRatio, setNotesSplitRatio] = useState<number>(() => {
+    const saved = localStorage.getItem('activeDeckNotesSplitRatio');
+    return saved ? parseFloat(saved) : 60; // Default: 60% notes, 40% preview
+  });
+
   const [chatLayoutDirection, setChatLayoutDirection] = useState<'left' | 'right'>(() => {
     const saved = localStorage.getItem('activeDeckChatLayoutDirection');
     return (saved === 'right' ? 'right' : 'left');
@@ -842,6 +847,8 @@ function AppContent() {
   const isDraggingProjectorRef = useRef(false);
   const isDraggingPresenterRef = useRef(false);
   const isDraggingAudienceChatRef = useRef(false);
+  const isDraggingNotesSplitRef = useRef(false);
+  const notesContainerRef = useRef<HTMLDivElement>(null);
   const chatLayoutDirectionRef = useRef(chatLayoutDirection);
 
   useEffect(() => {
@@ -884,6 +891,18 @@ function AppContent() {
     localStorage.setItem('activeDeckAudienceChatWidth', '380');
   };
 
+  const handleMouseDownNotesSplit = (e: React.MouseEvent) => {
+    e.preventDefault();
+    isDraggingNotesSplitRef.current = true;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+
+  const handleDoubleClickNotesSplit = () => {
+    setNotesSplitRatio(60);
+    localStorage.setItem('activeDeckNotesSplitRatio', '60');
+  };
+
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       // 1. Projector Sidebar Dragging
@@ -913,6 +932,18 @@ function AppContent() {
         setAudienceChatWidth(constrainedWidth);
         localStorage.setItem('activeDeckAudienceChatWidth', constrainedWidth.toString());
       }
+
+      // 4. Notes & Slide Preview Split Dragging
+      if (isDraggingNotesSplitRef.current && notesContainerRef.current) {
+        const rect = notesContainerRef.current.getBoundingClientRect();
+        if (rect.width > 0) {
+          const relativeX = e.clientX - rect.left;
+          const calculatedRatio = (relativeX / rect.width) * 100;
+          const constrainedRatio = Math.max(20, Math.min(80, calculatedRatio));
+          setNotesSplitRatio(constrainedRatio);
+          localStorage.setItem('activeDeckNotesSplitRatio', constrainedRatio.toString());
+        }
+      }
     };
 
     const handleMouseUp = () => {
@@ -928,6 +959,11 @@ function AppContent() {
       }
       if (isDraggingAudienceChatRef.current) {
         isDraggingAudienceChatRef.current = false;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      }
+      if (isDraggingNotesSplitRef.current) {
+        isDraggingNotesSplitRef.current = false;
         document.body.style.cursor = '';
         document.body.style.userSelect = '';
       }
@@ -1562,10 +1598,13 @@ function AppContent() {
                     return null;
                   })()}
                    {/* Split-screen Side-by-Side Editor and Slide Preview Container */}
-                  <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-4 relative">
+                  <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-4 relative" ref={notesContainerRef}>
                     
                     {/* Notes Writing Area (Left/Top) */}
-                    <div className="flex-[5] flex flex-col min-w-0 min-h-0">
+                    <div 
+                      className="flex flex-col min-w-0 min-h-0"
+                      style={{ flex: `1 1 ${notesSplitRatio}%`, minWidth: '150px' }}
+                    >
                       {notesMode === 'text' ? (
                         <RichTextEditor
                           value={notesTextMap[activeTab] || ''}
@@ -1595,9 +1634,20 @@ function AppContent() {
                       )}
                     </div>
 
+                    {/* Interactive Drag Splitter between Notes and Preview */}
+                    <div 
+                      onMouseDown={handleMouseDownNotesSplit}
+                      onDoubleClick={handleDoubleClickNotesSplit}
+                      className="hidden md:flex w-2.5 h-full cursor-col-resize items-center justify-center flex-shrink-0 group/notes-splitter select-none bg-transparent hover:bg-white/[0.01] transition-colors rounded-lg"
+                      title="Drag to resize notes and slide preview (double-click to reset)"
+                    >
+                      <div className="w-[3px] h-20 bg-slate-800/80 group-hover/notes-splitter:bg-osu-orange/70 group-active/notes-splitter:bg-osu-orange rounded-full transition-all duration-200" />
+                    </div>
+
                     {/* Premium Large Slide Preview (Right/Bottom) */}
                     <div 
-                      className="flex-[3] flex flex-col min-w-0 min-h-[200px] md:min-h-0 rounded-xl border border-slate-800 bg-slate-950 select-none group shadow-xl relative overflow-hidden"
+                      className="flex flex-col min-w-0 min-h-[200px] md:min-h-0 rounded-xl border border-slate-800 bg-slate-950 select-none group shadow-xl relative overflow-hidden"
+                      style={{ flex: `1 1 ${100 - notesSplitRatio}%`, minWidth: '150px' }}
                       title={pushedSlidesMap[activeTab] ? `Slide ${activeTab} Preview (Click to Zoom)` : "No slide preview shared yet"}
                     >
                       {pushedSlidesMap[activeTab] ? (
