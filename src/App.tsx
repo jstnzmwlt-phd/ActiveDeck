@@ -6,13 +6,14 @@ import { Header } from './components/Header';
 import { Presentation, GlobalSettings } from './types';
 import { db } from './firebase';
 import { collection, query, orderBy, limit, onSnapshot, doc, addDoc, serverTimestamp, updateDoc, getDoc, setDoc, increment } from 'firebase/firestore';
-import { Presentation as PresentationIcon, Loader2, AlertCircle, Maximize, Minimize, Lock } from 'lucide-react';
+import { Presentation as PresentationIcon, Loader2, AlertCircle, Maximize, Minimize, Lock, Keyboard, Pen } from 'lucide-react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { BridgeProvider } from './contexts/BridgeContext';
 import { AdminPortal } from './components/AdminPortal';
 import { StudentAttendance } from './components/StudentAttendance';
 import { JoinScreen } from './components/JoinScreen';
 import { RichTextEditor } from './components/RichTextEditor';
+import { HandwrittenCanvas } from './components/HandwrittenCanvas';
 
 console.log('App.tsx - Module loaded');
 
@@ -43,13 +44,24 @@ const generateUniquePin = async (): Promise<string> => {
   return pin;
 };
 
-const isNotesEmpty = (notesMap: Record<string, string>) => {
-  if (!notesMap || Object.keys(notesMap).length === 0) return true;
-  return Object.values(notesMap).every(html => {
+const isNotesEmpty = (notesMap: Record<string, string>, drawingsMap?: Record<string, string>) => {
+  const hasText = notesMap && Object.keys(notesMap).length > 0 && !Object.values(notesMap).every(html => {
     if (!html) return true;
     const cleanText = html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
     return cleanText === '';
   });
+  
+  const hasDrawings = drawingsMap && Object.keys(drawingsMap).length > 0 && !Object.values(drawingsMap).every(drawingJson => {
+    if (!drawingJson) return true;
+    try {
+      const strokes = JSON.parse(drawingJson);
+      return !Array.isArray(strokes) || strokes.length === 0;
+    } catch {
+      return true;
+    }
+  });
+
+  return !hasText && !hasDrawings;
 };
 
 const htmlToPlainText = (html: string) => {
@@ -239,6 +251,8 @@ function AppContent() {
   const [presenterEmail, setPresenterEmail] = useState<string>(() => sessionStorage.getItem('activePresenterEmail') || '');
 
   const [notesTextMap, setNotesTextMap] = useState<Record<string, string>>({});
+  const [notesDrawingsMap, setNotesDrawingsMap] = useState<Record<string, string>>({});
+  const [notesMode, setNotesMode] = useState<'text' | 'pen'>('text');
   const [activeTab, setActiveTab] = useState<string>('1');
   const [isEditorFocused, setIsEditorFocused] = useState(false);
   const [lastTypedAt, setLastTypedAt] = useState<number>(0);
@@ -248,6 +262,7 @@ function AppContent() {
   useEffect(() => {
     if (!activePresentationId) return;
     const savedNotes = localStorage.getItem(`activeDeckNotes_${activePresentationId}`);
+    const savedDrawings = localStorage.getItem(`activeDeckDrawings_${activePresentationId}`);
     const savedTitle = localStorage.getItem(`activeDeckNotesTitle_${activePresentationId}`);
     
     let parsedNotesMap: Record<string, string> = { '1': '' };
@@ -265,6 +280,17 @@ function AppContent() {
       }
     }
     setNotesTextMap(parsedNotesMap);
+
+    let parsedDrawingsMap: Record<string, string> = {};
+    if (savedDrawings) {
+      try {
+        parsedDrawingsMap = JSON.parse(savedDrawings);
+      } catch (e) {
+        console.error('Failed to parse drawings map on load:', e);
+      }
+    }
+    setNotesDrawingsMap(parsedDrawingsMap);
+
     setNotesTitle(savedTitle || '');
     setSaveStatus('');
     
@@ -291,9 +317,11 @@ function AppContent() {
     if (!activePresentationId) return;
     
     const savedNotes = localStorage.getItem(`activeDeckNotes_${activePresentationId}`) || '';
+    const savedDrawings = localStorage.getItem(`activeDeckDrawings_${activePresentationId}`) || '';
     const savedTitle = localStorage.getItem(`activeDeckNotesTitle_${activePresentationId}`) || '';
     
     const currentNotesRaw = JSON.stringify(notesTextMap);
+    const currentDrawingsRaw = JSON.stringify(notesDrawingsMap);
     
     // Check if anything actually changed to avoid redundant saves and flicker
     let isSameNotes = false;
@@ -304,13 +332,22 @@ function AppContent() {
       isSameNotes = false;
     }
 
-    if (isSameNotes && notesTitle === savedTitle) {
+    let isSameDrawings = false;
+    try {
+      const parsedSaved = JSON.parse(savedDrawings);
+      isSameDrawings = JSON.stringify(parsedSaved) === currentDrawingsRaw;
+    } catch (e) {
+      isSameDrawings = false;
+    }
+
+    if (isSameNotes && isSameDrawings && notesTitle === savedTitle) {
       return;
     }
 
     setSaveStatus('saving');
     const timer = setTimeout(() => {
       localStorage.setItem(`activeDeckNotes_${activePresentationId}`, currentNotesRaw);
+      localStorage.setItem(`activeDeckDrawings_${activePresentationId}`, currentDrawingsRaw);
       localStorage.setItem(`activeDeckNotesTitle_${activePresentationId}`, notesTitle);
       setSaveStatus('saved');
       
@@ -319,11 +356,11 @@ function AppContent() {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [notesTextMap, notesTitle, activePresentationId]);
+  }, [notesTextMap, notesDrawingsMap, notesTitle, activePresentationId]);
 
   const handleDownloadNotes = () => {
-    if (isNotesEmpty(notesTextMap)) {
-      alert("Notes are empty. Type some notes first!");
+    if (isNotesEmpty(notesTextMap, notesDrawingsMap)) {
+      alert("Notes are empty. Type or draw some notes first!");
       return;
     }
     const title = notesTitle.trim() || `Session_${presentation?.pinCode || 'Notes'}`;
@@ -332,20 +369,70 @@ function AppContent() {
     const presenterName = presentation?.presenterEmail ? presentation.presenterEmail.split('@')[0] : 'Presenter';
     const pin = presentation?.pinCode || 'N/A';
     
-    // Sort slides numerically and compile notes
-    const sortedSlides = Object.keys(notesTextMap)
+    // Sort slides numerically and compile notes + drawings
+    const sortedSlides = Array.from(new Set([
+      ...Object.keys(notesTextMap),
+      ...Object.keys(notesDrawingsMap)
+    ]))
       .filter(slide => {
-        const html = notesTextMap[slide];
-        return html && html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim() !== '';
+        const html = notesTextMap[slide] || '';
+        const hasText = html && html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim() !== '';
+        
+        const drawingJson = notesDrawingsMap[slide] || '';
+        let hasDrawing = false;
+        try {
+          if (drawingJson) {
+            const strokes = JSON.parse(drawingJson);
+            hasDrawing = Array.isArray(strokes) && strokes.length > 0;
+          }
+        } catch {}
+        
+        return hasText || hasDrawing;
       })
       .sort((a, b) => Number(a) - Number(b));
 
-    const notesContentHtml = sortedSlides.map(slide => `
-      <div style="margin-bottom: 25px;">
-        <h3 style="color: #eb5d00; border-bottom: 1px solid #f3eedd; padding-bottom: 3px; margin-bottom: 10px;">Slide ${slide}</h3>
-        <div>${notesTextMap[slide]}</div>
-      </div>
-    `).join('');
+    const notesContentHtml = sortedSlides.map(slide => {
+      const htmlContent = notesTextMap[slide] ? `<div>${notesTextMap[slide]}</div>` : '';
+      
+      let drawingSvgHtml = '';
+      const drawingJson = notesDrawingsMap[slide];
+      if (drawingJson) {
+        try {
+          const strokes = JSON.parse(drawingJson);
+          if (Array.isArray(strokes) && strokes.length > 0) {
+            // Compile SVG paths inline for high-fidelity export
+            const pathsHtml = strokes.map(stroke => {
+              if (!stroke.points || stroke.points.length === 0) return '';
+              const pathData = stroke.points
+                .map((p: any, i: number) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
+                .join(' ');
+              return `<path d="${pathData}" fill="none" stroke="${stroke.color === '#FFFFFF' ? '#000000' : stroke.color}" stroke-width="${stroke.width}" stroke-linecap="round" stroke-linejoin="round" opacity="${stroke.isHighlighter ? 0.4 : 1}" />`;
+            }).join('');
+            
+            drawingSvgHtml = `
+              <div style="margin-top: 15px; margin-bottom: 10px;">
+                <h4 style="color: #475569; font-size: 10pt; margin-bottom: 5px; font-weight: bold;">Handwritten Drawing:</h4>
+                <div style="background-color: #030712; padding: 15px; border-radius: 12px; width: 550px; height: 350px;">
+                  <svg viewBox="0 0 1000 1000" style="width: 100%; height: 100%;">
+                    ${pathsHtml}
+                  </svg>
+                </div>
+              </div>
+            `;
+          }
+        } catch (e) {
+          console.error("Failed to compile SVG for export on slide", slide, e);
+        }
+      }
+
+      return `
+        <div style="margin-bottom: 25px; page-break-inside: avoid;">
+          <h3 style="color: #eb5d00; border-bottom: 1px solid #f3eedd; padding-bottom: 3px; margin-bottom: 10px;">Slide ${slide}</h3>
+          ${htmlContent}
+          ${drawingSvgHtml}
+        </div>
+      `;
+    }).join('');
 
     const docHtml = `
       <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
@@ -418,8 +505,8 @@ function AppContent() {
   };
 
   const handleEmailNotes = () => {
-    if (isNotesEmpty(notesTextMap)) {
-      alert("Notes are empty. Type some notes first!");
+    if (isNotesEmpty(notesTextMap, notesDrawingsMap)) {
+      alert("Notes are empty. Type or draw some notes first!");
       return;
     }
     const title = notesTitle.trim() || `Session ${presentation?.pinCode || 'Notes'}`;
@@ -427,16 +514,44 @@ function AppContent() {
     const presenterName = presentation?.presenterEmail ? presentation.presenterEmail.split('@')[0] : 'Presenter';
     const pin = presentation?.pinCode || 'N/A';
     
-    const sortedSlides = Object.keys(notesTextMap)
+    const sortedSlides = Array.from(new Set([
+      ...Object.keys(notesTextMap),
+      ...Object.keys(notesDrawingsMap)
+    ]))
       .filter(slide => {
-        const html = notesTextMap[slide];
-        return html && html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim() !== '';
+        const html = notesTextMap[slide] || '';
+        const hasText = html && html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim() !== '';
+        
+        const drawingJson = notesDrawingsMap[slide] || '';
+        let hasDrawing = false;
+        try {
+          if (drawingJson) {
+            const strokes = JSON.parse(drawingJson);
+            hasDrawing = Array.isArray(strokes) && strokes.length > 0;
+          }
+        } catch {}
+        
+        return hasText || hasDrawing;
       })
       .sort((a, b) => Number(a) - Number(b));
 
     const plainNotesText = sortedSlides.map(slide => {
-      const slidePlain = htmlToPlainText(notesTextMap[slide]);
-      return `Slide ${slide}\n------------------------------\n${slidePlain}\n`;
+      const slidePlain = notesTextMap[slide] ? htmlToPlainText(notesTextMap[slide]) : '';
+      
+      const drawingJson = notesDrawingsMap[slide] || '';
+      let hasDrawing = false;
+      try {
+        if (drawingJson) {
+          const strokes = JSON.parse(drawingJson);
+          hasDrawing = Array.isArray(strokes) && strokes.length > 0;
+        }
+      } catch {}
+
+      const drawingText = hasDrawing 
+        ? `\n* [Slide ${slide} contains hand-drawn sketches. Please download your full .doc notes file to view them!]` 
+        : '';
+        
+      return `Slide ${slide}\n------------------------------\n${slidePlain}${drawingText}\n`;
     }).join('\n');
     
     const body = `ActiveDeck Session Notes\n` +
@@ -1169,9 +1284,23 @@ function AppContent() {
 
                   {/* Slide Tabs Bar */}
                   {(() => {
-                    const slidesWithNotes = Object.keys(notesTextMap).filter(slide => {
+                    const slidesWithNotes = Array.from(new Set([
+                      ...Object.keys(notesTextMap),
+                      ...Object.keys(notesDrawingsMap)
+                    ])).filter(slide => {
                       const html = notesTextMap[slide];
-                      return html && html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim() !== '';
+                      const hasText = html && html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim() !== '';
+                      
+                      const drawingJson = notesDrawingsMap[slide];
+                      let hasDrawing = false;
+                      try {
+                        if (drawingJson) {
+                          const strokes = JSON.parse(drawingJson);
+                          hasDrawing = Array.isArray(strokes) && strokes.length > 0;
+                        }
+                      } catch {}
+                      
+                      return hasText || hasDrawing;
                     });
                     
                     const presenterSlide = presentation?.currentSlide !== undefined && presentation.currentSlide !== null 
@@ -1243,28 +1372,69 @@ function AppContent() {
                     </div>
                   )}
 
-                  {/* Rich Text Editor */}
-                  <RichTextEditor
-                    value={notesTextMap[activeTab] || ''}
-                    onChange={(newVal) => {
-                      setLastTypedAt(Date.now());
-                      setNotesTextMap(prev => ({
-                        ...prev,
-                        [activeTab]: newVal
-                      }));
-                    }}
-                    onFocus={() => setIsEditorFocused(true)}
-                    onBlur={() => setIsEditorFocused(false)}
-                    placeholder={`Type your notes for Slide ${activeTab} here...`}
-                    className="flex-1 min-h-[120px]"
-                  />
+                  {/* Mode Selector Toggle (Typed vs Handwritten) */}
+                  <div className="flex items-center bg-slate-900/60 p-1 rounded-xl border border-white/5 shrink-0 select-none">
+                    <button
+                      type="button"
+                      onClick={() => setNotesMode('text')}
+                      className={`flex-1 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                        notesMode === 'text'
+                          ? 'bg-osu-orange text-white shadow-md shadow-orange-500/10 font-bold'
+                          : 'text-slate-400 hover:text-white font-medium'
+                      }`}
+                    >
+                      <Keyboard className="w-3.5 h-3.5" />
+                      Typed Notes
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNotesMode('pen')}
+                      className={`flex-1 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                        notesMode === 'pen'
+                          ? 'bg-osu-orange text-white shadow-md shadow-orange-500/10 font-bold'
+                          : 'text-slate-400 hover:text-white font-medium'
+                      }`}
+                    >
+                      <Pen className="w-3.5 h-3.5" />
+                      Handwritten Notes
+                    </button>
+                  </div>
+
+                  {/* Editor or Handwriting Canvas based on active mode */}
+                  {notesMode === 'text' ? (
+                    <RichTextEditor
+                      value={notesTextMap[activeTab] || ''}
+                      onChange={(newVal) => {
+                        setLastTypedAt(Date.now());
+                        setNotesTextMap(prev => ({
+                          ...prev,
+                          [activeTab]: newVal
+                        }));
+                      }}
+                      onFocus={() => setIsEditorFocused(true)}
+                      onBlur={() => setIsEditorFocused(false)}
+                      placeholder={`Type your notes for Slide ${activeTab} here...`}
+                      className="flex-1 min-h-[120px]"
+                    />
+                  ) : (
+                    <HandwrittenCanvas
+                      value={notesDrawingsMap[activeTab] || ''}
+                      onChange={(newVal) => {
+                        setNotesDrawingsMap(prev => ({
+                          ...prev,
+                          [activeTab]: newVal
+                        }));
+                      }}
+                      placeholder={`Draw your notes for Slide ${activeTab} here...`}
+                    />
+                  )}
 
                   {/* Export Buttons */}
                   <div className="grid grid-cols-2 gap-2.5 pt-1.5 shrink-0 select-none">
                     <button
                       type="button"
                       onClick={handleDownloadNotes}
-                      disabled={isNotesEmpty(notesTextMap)}
+                      disabled={isNotesEmpty(notesTextMap, notesDrawingsMap)}
                       className="h-10 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-orange-500/15 active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       Download (.doc)
@@ -1272,7 +1442,7 @@ function AppContent() {
                     <button
                       type="button"
                       onClick={handleEmailNotes}
-                      disabled={isNotesEmpty(notesTextMap)}
+                      disabled={isNotesEmpty(notesTextMap, notesDrawingsMap)}
                       className="h-10 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-orange-500/15 active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       Email to Me
