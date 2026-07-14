@@ -6,7 +6,7 @@ import { Header } from './components/Header';
 import { Presentation, GlobalSettings } from './types';
 import { db } from './firebase';
 import { collection, query, orderBy, limit, onSnapshot, doc, addDoc, serverTimestamp, updateDoc, getDoc, setDoc, increment, where } from 'firebase/firestore';
-import { Presentation as PresentationIcon, Loader2, AlertCircle, Maximize, Minimize, Lock, Keyboard, Pen, Tv } from 'lucide-react';
+import { Presentation as PresentationIcon, Loader2, AlertCircle, Maximize, Minimize, Lock, Keyboard, Pen, Tv, ArrowLeftRight } from 'lucide-react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { BridgeProvider } from './contexts/BridgeContext';
 import { AdminPortal } from './components/AdminPortal';
@@ -261,6 +261,11 @@ function AppContent() {
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | ''>('');
 
   const [pushedSlidesMap, setPushedSlidesMap] = useState<Record<string, string>>({});
+
+  const [chatLayoutDirection, setChatLayoutDirection] = useState<'left' | 'right'>(() => {
+    const saved = localStorage.getItem('activeDeckChatLayoutDirection');
+    return (saved === 'right' ? 'right' : 'left');
+  });
 
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [lightboxImgUrl, setLightboxImgUrl] = useState('');
@@ -837,6 +842,11 @@ function AppContent() {
   const isDraggingProjectorRef = useRef(false);
   const isDraggingPresenterRef = useRef(false);
   const isDraggingAudienceChatRef = useRef(false);
+  const chatLayoutDirectionRef = useRef(chatLayoutDirection);
+
+  useEffect(() => {
+    chatLayoutDirectionRef.current = chatLayoutDirection;
+  }, [chatLayoutDirection]);
 
   const handleMouseDownProjector = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -896,7 +906,9 @@ function AppContent() {
 
       // 3. Audience Chat Sidebar Dragging
       if (isDraggingAudienceChatRef.current) {
-        const calculatedWidth = e.clientX;
+        const calculatedWidth = chatLayoutDirectionRef.current === 'right'
+          ? window.innerWidth - e.clientX
+          : e.clientX;
         const constrainedWidth = Math.max(250, Math.min(600, calculatedWidth));
         setAudienceChatWidth(constrainedWidth);
         localStorage.setItem('activeDeckAudienceChatWidth', constrainedWidth.toString());
@@ -1313,7 +1325,7 @@ function AppContent() {
   if (isChatOnly) {
     return (
       <>
-        <div className="h-full w-full flex flex-col md:flex-row bg-slate-950 font-sans antialiased overflow-hidden">
+        <div className={`h-full w-full flex flex-col ${chatLayoutDirection === 'right' ? 'md:flex-row-reverse' : 'md:flex-row'} bg-slate-950 font-sans antialiased overflow-hidden`}>
           {/* Left Side: The Chat Sidebar */}
           <div 
             style={{ width: `${audienceChatWidth}px` }}
@@ -1357,8 +1369,22 @@ function AppContent() {
                   />
                 </div>
                 <div className="text-left">
-                  <h1 className="text-xs font-black uppercase tracking-wider text-white">ActiveDeck Notes</h1>
+                  <h1 className="text-xs font-black uppercase tracking-wider text-white leading-none">ActiveDeck Notes</h1>
                 </div>
+                <div className="h-4 w-px bg-white/10 mx-1" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextDir = chatLayoutDirection === 'left' ? 'right' : 'left';
+                    setChatLayoutDirection(nextDir);
+                    localStorage.setItem('activeDeckChatLayoutDirection', nextDir);
+                  }}
+                  className="px-2.5 py-1 rounded-md bg-white/5 hover:bg-osu-orange hover:text-white border border-white/10 hover:border-osu-orange/30 text-slate-300 text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer outline-none active:scale-95 shadow-sm"
+                  title={chatLayoutDirection === 'left' ? "Switch to Left-Handed layout (Notes on left, Chat on right)" : "Switch to Right-Handed layout (Chat on left, Notes on right)"}
+                >
+                  <ArrowLeftRight className="w-3 h-3 text-osu-orange" />
+                  <span>{chatLayoutDirection === 'left' ? "Right-Handed" : "Left-Handed"}</span>
+                </button>
               </div>
               {presentation && (
                 <div className="flex items-center gap-4 text-[10px] pr-1">

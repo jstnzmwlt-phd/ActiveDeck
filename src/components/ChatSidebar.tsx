@@ -1213,7 +1213,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
               <Pin className={cn("w-3.5 h-3.5", msg.isPinned && "fill-current")} />
             </button>
           )}
-          {(user?.uid === msg.userId || canModerate) && (
+          {user?.uid === msg.userId && (
             <button
               onClick={(e) => { e.stopPropagation(); onDelete(msg.id); }}
               className="p-1 rounded-md text-slate-350 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0 focus:outline-none"
@@ -2511,6 +2511,14 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const handleDeleteMessage = async (id: string) => {
     console.log('Attempting to delete message:', id, 'User:', user?.email, 'UID:', user?.uid);
     try {
+      const msgSnap = await getDoc(doc(db, 'messages', id));
+      if (msgSnap.exists()) {
+        const msgData = msgSnap.data();
+        if (msgData.userId !== user?.uid) {
+          console.warn("ActiveDeck delete protection: user is not the author of this message. Blocked.");
+          return;
+        }
+      }
       await deleteDoc(doc(db, 'messages', id));
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `messages/${id}`);
