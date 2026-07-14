@@ -30,13 +30,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const throttleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const pendingCoordsRef = useRef<{ x: number; y: number } | null>(null);
 
-  // Cache to track slides we have already uploaded a preview for in this session
-  const uploadedPreviewsRef = useRef<Set<number>>(new Set());
-
-  // Clear slide previews cache when the presentation ID changes
-  useEffect(() => {
-    uploadedPreviewsRef.current.clear();
-  }, [presentation?.id]);
+  // Track manual advances or animation builds to trigger slide recaptures
+  const [captureTrigger, setCaptureTrigger] = useState(0);
 
   // Background Automatic Slide Preview Capture & Upload Effect
   useEffect(() => {
@@ -48,13 +43,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       return;
     }
 
-    // Bypass if we already captured and uploaded a preview for this slide in this session
-    if (uploadedPreviewsRef.current.has(activeSlideNum)) {
-      console.log(`[SlidePreview Auto] Slide preview already uploaded for slide ${activeSlideNum}. Bypassing.`);
-      return;
-    }
-
-    console.log(`[SlidePreview Auto] Slide changed to ${activeSlideNum}. Scheduling background preview capture...`);
+    console.log(`[SlidePreview Auto] Scheduling background preview capture for slide ${activeSlideNum} (trigger: ${captureTrigger})...`);
 
     // Capture after 1.5 seconds of "stillness" to avoid capturing while the presenter is scrolling through slides
     const timeoutId = setTimeout(async () => {
@@ -103,7 +92,6 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             });
 
             console.log(`[SlidePreview Auto] Background slide preview uploaded successfully for slide ${activeSlideNum}!`);
-            uploadedPreviewsRef.current.add(activeSlideNum);
           } catch (uploadErr) {
             console.error("[SlidePreview Auto] Background slide preview upload failed:", uploadErr);
           }
@@ -117,7 +105,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [currentSlide, presentation?.currentSlide, isCapturing, presentation?.id]);
+  }, [currentSlide, presentation?.currentSlide, isCapturing, presentation?.id, captureTrigger]);
 
   useEffect(() => {
     return () => {
@@ -294,7 +282,34 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
   const handleSlideMove = (direction: 'next' | 'prev') => {
     sendSlideCommand(direction);
+    setCaptureTrigger(prev => prev + 1);
   };
+
+  // Keyboard navigation listener to capture animations/slides via remote clicker or keyboard
+  useEffect(() => {
+    if (!isCapturing) return;
+
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // Don't intercept when focusing inputs or textareas
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+
+      if (e.key === 'ArrowRight' || e.key === 'Space') {
+        e.preventDefault();
+        handleSlideMove('next');
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        handleSlideMove('prev');
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown);
+    };
+  }, [isCapturing, currentSlide, presentation?.currentSlide]);
 
   const startCapture = () => {
     setError(null);
