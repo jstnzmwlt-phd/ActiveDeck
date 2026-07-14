@@ -263,9 +263,12 @@ function AppContent() {
 
   useEffect(() => {
     if (!activePresentationId) {
+      console.log("[SlidePreview] No activePresentationId, clearing pushedSlidesMap.");
       setPushedSlidesMap({});
       return;
     }
+
+    console.log(`[SlidePreview] Subscribing to messages for presentationId: ${activePresentationId}`);
 
     const q = query(
       collection(db, 'messages'),
@@ -273,16 +276,37 @@ function AppContent() {
     );
 
     const unsub = onSnapshot(q, (snapshot) => {
+      console.log(`[SlidePreview] Received messages snapshot. Total messages in session: ${snapshot.docs.length}`);
       const slideMap: Record<string, string> = {};
+      
       snapshot.docs.forEach(docSnap => {
         const data = docSnap.data();
-        if (data.isPushedSlide === true && data.slide !== undefined && data.slide !== null && data.fileUrl) {
-          slideMap[String(data.slide)] = data.fileUrl;
+        if (data.isPushedSlide) {
+          console.log(`[SlidePreview] Found pushed slide message:`, {
+            id: docSnap.id,
+            isPushedSlide: data.isPushedSlide,
+            slide: data.slide,
+            fileUrl: data.fileUrl ? "EXISTS" : "MISSING",
+            slideType: typeof data.slide
+          });
+        }
+        
+        // Match both number and string types robustly
+        if (data.isPushedSlide === true && data.fileUrl) {
+          const slideNum = data.slide !== undefined && data.slide !== null ? String(data.slide) : null;
+          if (slideNum) {
+            slideMap[slideNum] = data.fileUrl;
+            console.log(`[SlidePreview] Mapped slide ${slideNum} to ${data.fileUrl}`);
+          } else {
+            console.log(`[SlidePreview] Pushed slide message has no slide number:`, docSnap.id);
+          }
         }
       });
+      
+      console.log("[SlidePreview] Final populated pushedSlidesMap:", slideMap);
       setPushedSlidesMap(slideMap);
     }, (error) => {
-      console.warn("Failed to listen to pushed slide images:", error);
+      console.error("[SlidePreview] Failed to listen to pushed slide images:", error);
     });
 
     return () => unsub();
@@ -1455,6 +1479,11 @@ function AppContent() {
                       Handwritten Notes
                     </button>
                   </div>
+                   {(() => {
+                    console.log(`[SlidePreview Render] activeTab: "${activeTab}" (type: ${typeof activeTab}), pushedSlidesMapKeys:`, Object.keys(pushedSlidesMap), `resolvedUrl:`, pushedSlidesMap[activeTab]);
+                    return null;
+                  })()}
+
                    {/* Editor or Handwriting Canvas based on active mode with Floating Slide Thumbnail */}
                   <div className="flex-1 min-h-0 flex flex-col relative">
                     
