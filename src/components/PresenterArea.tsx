@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Presentation } from '../types';
 import { ScreenCapture } from './ScreenCapture';
-import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play, X, Loader2, Tv } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play, X, Loader2, Tv, Minimize, Maximize } from 'lucide-react';
 import { useBridge } from '../contexts/BridgeContext';
 import { auth, db, storage } from '../firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
@@ -32,6 +32,32 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
   // Track manual advances or animation builds to trigger slide recaptures
   const [captureTrigger, setCaptureTrigger] = useState(0);
+
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
+  const toggleFullscreen = async () => {
+    if (!document.fullscreenElement) {
+      try {
+        await document.documentElement.requestFullscreen();
+      } catch (err) {
+        console.error("Error attempting to enable fullscreen:", err);
+      }
+    } else {
+      if (document.exitFullscreen) {
+        await document.exitFullscreen();
+      }
+    }
+  };
 
   // Background Automatic Slide Preview Capture & Upload Effect
   useEffect(() => {
@@ -1019,6 +1045,18 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             <ChevronRight className="w-6 h-6 group-hover/btn:translate-x-0.5 transition-transform" />
           </button>
         </div>
+      )}
+
+      {/* Floating Glassmorphic Fullscreen Toggle Button - Bottom Left (Vanishes when mouse is not hovering) */}
+      {!isProjectorMode && (
+        <button
+          type="button"
+          onClick={toggleFullscreen}
+          className="absolute bottom-10 left-10 z-[100] p-3 rounded-full bg-slate-900/80 hover:bg-osu-orange border border-slate-800 hover:border-osu-orange text-slate-400 hover:text-white shadow-2xl transition-all duration-300 backdrop-blur-md cursor-pointer opacity-0 group-hover:opacity-100 flex items-center justify-center hover:scale-110 active:scale-95 outline-none"
+          title={isFullscreen ? "Exit Full Screen" : "Enter Full Screen"}
+        >
+          {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+        </button>
       )}
     </div>
   );

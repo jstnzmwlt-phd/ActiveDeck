@@ -13,7 +13,6 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, onNewSession, pinCode }) => {
   const { isBridgeConnected, setUseWithoutBridge } = useBridge();
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [isWakeLockActive, setIsWakeLockActive] = useState(false);
   const [isWakeLockLoading, setIsWakeLockLoading] = useState(false);
   const [wakeLockError, setWakeLockError] = useState<string | null>(null);
@@ -157,30 +156,7 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
     return () => clearInterval(timer);
   }, []);
 
-  // Listen for local document fullscreen changes
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-    };
-  }, []);
 
-  const toggleFullscreen = async () => {
-    if (!document.fullscreenElement) {
-      try {
-        await document.documentElement.requestFullscreen();
-      } catch (err) {
-        console.error("Error attempting to enable fullscreen:", err);
-      }
-    } else {
-      if (document.exitFullscreen) {
-        await document.exitFullscreen();
-      }
-    }
-  };
 
   const toggleWakeLock = async () => {
     if (!('wakeLock' in navigator)) {
@@ -378,13 +354,6 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
               ) : (
                 <Moon className="w-5 h-5" />
               )}
-            </button>
-            <button 
-              onClick={toggleFullscreen}
-              className="p-1.5 hover:bg-slate-100 rounded-md transition-colors text-slate-600"
-              title={isFullscreen ? "Exit Full Screen" : "Full Screen"}
-            >
-              {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
             </button>
           </div>
         </div>
