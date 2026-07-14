@@ -214,7 +214,7 @@ export function HandwrittenCanvas({ value, onChange, placeholder = "Draw your no
   };
 
   return (
-    <div className="flex-1 min-h-[300px] flex flex-col bg-slate-950 border border-white/5 rounded-2xl overflow-hidden relative select-none">
+    <div className="flex-1 min-h-0 flex flex-col bg-slate-950 border border-white/5 rounded-2xl overflow-hidden relative select-none">
       {/* Sleek Floating Glassmorphic Drawing Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-900/90 border-b border-white/5 backdrop-blur-md shrink-0">
         
@@ -344,8 +344,9 @@ export function HandwrittenCanvas({ value, onChange, placeholder = "Draw your no
 
       {/* SVG Vector Drawing Area with Engineering Grid Paper Background */}
       <div 
-        className="flex-1 relative bg-white overflow-hidden cursor-crosshair border border-slate-200"
+        className="flex-1 relative overflow-hidden cursor-crosshair border border-slate-200"
         style={{
+          backgroundColor: '#ffffff',
           backgroundImage: 'linear-gradient(#f1f5f9 1px, transparent 1px), linear-gradient(90deg, #f1f5f9 1px, transparent 1px)',
           backgroundSize: '24px 24px'
         }}
@@ -360,6 +361,7 @@ export function HandwrittenCanvas({ value, onChange, placeholder = "Draw your no
         <svg
           ref={svgRef}
           viewBox="0 0 1000 1000"
+          preserveAspectRatio="none"
           className="w-full h-full touch-none select-none absolute inset-0"
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}

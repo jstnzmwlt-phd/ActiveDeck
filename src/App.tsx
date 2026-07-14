@@ -1185,15 +1185,15 @@ function AppContent() {
         </div>
 
         {/* Right Side: Premium Welcome Panel (Desktop/Laptop only) */}
-        <div className="hidden md:flex md:w-[60%] lg:w-[65%] h-full flex-col bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 border-l border-slate-800/80 p-8 relative overflow-y-auto">
+        <div className="hidden md:flex md:w-[60%] lg:w-[65%] h-full flex-col bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 border-l border-slate-800/80 p-4 md:p-5 relative overflow-hidden">
           {/* Ambient lighting glow */}
           <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-osu-orange/5 rounded-full blur-[100px] pointer-events-none" />
           
-          <div className="max-w-3xl w-full mx-auto space-y-6 relative z-10 animate-in fade-in zoom-in-95 duration-500 flex flex-col h-full min-h-0">
-            {/* Header Area: Logo, Title, and Stats */}
-            <div className="space-y-4 shrink-0 select-none">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 p-2 bg-white/5 rounded-2xl border border-white/10 shadow-2xl flex items-center justify-center shrink-0">
+          <div className="w-full space-y-3.5 relative z-10 animate-in fade-in zoom-in-95 duration-500 flex flex-col h-full min-h-0">
+            {/* Ultra-compact Header & Stats Bar */}
+            <div className="flex items-center justify-between gap-3 p-3 bg-white/[0.02] border border-white/5 rounded-2xl shrink-0 select-none">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 p-1 bg-white/5 rounded-lg border border-white/10 flex items-center justify-center shrink-0">
                   <img 
                     src={settings?.theme.logoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png"} 
                     alt="Logo" 
@@ -1202,45 +1202,23 @@ function AppContent() {
                   />
                 </div>
                 <div className="text-left">
-                  <h1 className="text-xl font-black uppercase tracking-wider text-white">ActiveDeck Chat</h1>
-                  <p className="text-[11px] text-slate-400 leading-tight">
-                    Join discussion, ask questions, take notes in real-time.
-                  </p>
+                  <h1 className="text-xs font-black uppercase tracking-wider text-white">ActiveDeck Notes</h1>
                 </div>
               </div>
-
-              {/* Session Stats Card */}
               {presentation && (
-                <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 text-left space-y-2.5 shadow-xl backdrop-blur-sm">
-                  <div className="flex items-center justify-between border-b border-white/5 pb-2">
-                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Active Session</span>
-                    <span className="flex items-center gap-1.5 px-2 py-0.5 bg-green-500/15 text-green-400 text-[8px] font-black uppercase tracking-wider rounded border border-green-500/25">
-                      <span className="w-1 h-1 bg-green-400 rounded-full animate-pulse" />
-                      Live
-                    </span>
+                <div className="flex items-center gap-4 text-[10px] pr-1">
+                  <div>
+                    <span className="text-slate-500 uppercase font-black tracking-wider text-[8px] mr-1.5">Session PIN</span>
+                    <span className="font-mono font-bold text-osu-orange text-xs">{presentation.pinCode || 'N/A'}</span>
                   </div>
-                  
-                  <div className="grid grid-cols-3 gap-3 pt-0.5">
-                    <div>
-                      <span className="block text-[8px] font-black uppercase tracking-wider text-slate-500">Presenter</span>
-                      <span className="text-xs font-bold text-slate-200 truncate block">
-                        {presentation.presenterEmail ? presentation.presenterEmail.split('@')[0] : 'Presenter'}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="block text-[8px] font-black uppercase tracking-wider text-slate-500">Session PIN</span>
-                      <span className="text-xs font-mono font-bold text-osu-orange">
-                        {presentation.pinCode || 'N/A'}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="block text-[8px] font-black uppercase tracking-wider text-slate-500">Current Slide</span>
-                      <span className="text-xs font-bold text-slate-200 block truncate">
-                        {presentation.currentSlide !== undefined && presentation.currentSlide !== null 
-                          ? `Slide ${presentation.currentSlide}` 
-                          : 'N/A'}
-                      </span>
-                    </div>
+                  <div className="h-4 w-px bg-white/5" />
+                  <div>
+                    <span className="text-slate-500 uppercase font-black tracking-wider text-[8px] mr-1.5">Current Slide</span>
+                    <span className="font-bold text-slate-200 text-xs">
+                      {presentation.currentSlide !== undefined && presentation.currentSlide !== null 
+                        ? `Slide ${presentation.currentSlide}` 
+                        : 'N/A'}
+                    </span>
                   </div>
                 </div>
               )}
