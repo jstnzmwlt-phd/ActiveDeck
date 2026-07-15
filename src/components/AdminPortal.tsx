@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc, addDoc, collection, onSnapshot, deleteDoc, query, orderBy, limit, Timestamp, getDocs, where, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, storage } from '../firebase';
+import { ref, listAll, deleteObject } from 'firebase/storage';
 import { Theme, SavedTheme, Message, Poll, WordCloud, OpenEndedQuestion } from '../types';
 import { Palette, UserCheck, Download, ArrowLeft, Loader2, Calendar, Database, AlertCircle, Trash2, Monitor, Plus, Mail, History, Copy, Check } from 'lucide-react';
 
@@ -304,7 +305,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
     }
   };
 
-  // Helper to delete session and all its subcollection documents
+  // Helper to delete session and all its subcollection documents, messages, and storage files
   const deleteSessionDoc = async (sessionId: string) => {
     // 1. Delete all attendance check-ins under the session
     const attendanceRef = collection(db, 'presentations', sessionId, 'attendance');
@@ -316,10 +317,25 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
     const tokensSnap = await getDocs(tokensRef);
     const tokensDeletes = tokensSnap.docs.map(doc => deleteDoc(doc.ref));
 
-    // Run subcollection deletions in parallel
-    await Promise.all([...attendanceDeletes, ...tokensDeletes]);
+    // 3. Delete all chat messages / slide preview logs associated with the session
+    const messagesQuery = query(collection(db, 'messages'), where('presentationId', '==', sessionId));
+    const messagesSnap = await getDocs(messagesQuery);
+    const messageDeletes = messagesSnap.docs.map(doc => deleteDoc(doc.ref));
 
-    // 3. Delete the parent presentation document
+    // Run Firestore deletions in parallel
+    await Promise.all([...attendanceDeletes, ...tokensDeletes, ...messageDeletes]);
+
+    // 4. Delete associated files and slide snapshots in Firebase Storage
+    try {
+      const storageFolderRef = ref(storage, `presentations/${sessionId}/documents`);
+      const storageList = await listAll(storageFolderRef);
+      const storageDeletes = storageList.items.map(itemRef => deleteObject(itemRef));
+      await Promise.all(storageDeletes);
+    } catch (storageErr) {
+      console.warn("Storage cleanup failed (this is normal if no files were uploaded):", storageErr);
+    }
+
+    // 5. Delete the parent presentation document
     await deleteDoc(doc(db, 'presentations', sessionId));
   };
 
@@ -416,6 +432,41 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
     } catch (e) {
       console.error("Unexpected error during bulk deletion:", e);
       alert("An unexpected error occurred: " + e);
+    } finally {
+      setIsDeletingSessions(false);
+    }
+  };
+
+  const handleCleanupOldSessions = async () => {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    // Filter sessions older than 30 days that are not the live presentation
+    const oldSessions = recentSessions.filter(session => {
+      if (!session.createdAt) return false;
+      const createdAtDate = new Date(session.createdAt.seconds * 1000);
+      return createdAtDate < thirtyDaysAgo && session.id !== presentationId;
+    });
+
+    if (oldSessions.length === 0) {
+      alert("No sessions older than 30 days were found.");
+      return;
+    }
+
+    const confirmMessage = `Found ${oldSessions.length} session(s) older than 30 days. Are you sure you want to permanently delete them along with their messages, student attendance, and slide image captures?`;
+    if (!confirm(confirmMessage)) return;
+
+    setIsDeletingSessions(true);
+    try {
+      let successCount = 0;
+      for (const session of oldSessions) {
+        await deleteSessionDoc(session.id);
+        successCount++;
+      }
+      alert(`Successfully cleaned up ${successCount} old session(s) and their associated storage files.`);
+    } catch (error) {
+      console.error("Error during session cleanup:", error);
+      alert("An error occurred during cleanup: " + error);
     } finally {
       setIsDeletingSessions(false);
     }
@@ -1832,6 +1883,21 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                         Delete Selected ({selectedSessionIdsForBulk.length})
                       </button>
                     )}
+
+                    <button
+                      type="button"
+                      onClick={handleCleanupOldSessions}
+                      disabled={isDeletingSessions}
+                      className="flex items-center gap-1.5 h-11 px-4 bg-slate-800/60 hover:bg-slate-800 border border-slate-700/50 text-xs font-black uppercase tracking-wider text-slate-300 hover:text-white rounded-xl transition-all cursor-pointer shrink-0"
+                      title="Permanently clean up all sessions and slide storage files older than 30 days"
+                    >
+                      {isDeletingSessions ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Database className="w-4 h-4 text-osu-orange" />
+                      )}
+                      Clean Up (Older than 30d)
+                    </button>
                     
                     <div className="relative w-full sm:w-64">
                       <input 

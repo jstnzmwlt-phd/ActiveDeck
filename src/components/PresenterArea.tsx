@@ -121,7 +121,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           } catch (uploadErr) {
             console.error("[SlidePreview Auto] Background slide preview upload failed:", uploadErr);
           }
-        }, 'image/jpeg', 0.85);
+        }, 'image/jpeg', 0.65);
 
       } catch (err) {
         console.error("[SlidePreview Auto] Error in background slide capture process:", err);
@@ -213,7 +213,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           alert("Failed to send image to chat: " + (uploadErr as Error).message);
           setIsPushingSlide(false);
         }
-      }, 'image/jpeg', 0.85);
+      }, 'image/jpeg', 0.65);
       
     } catch (err) {
       console.error("Error setting up canvas capture:", err);
