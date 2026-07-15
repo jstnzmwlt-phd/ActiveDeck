@@ -88,6 +88,42 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
     }
   }, [activeInstitutionId]);
 
+  // Run automatic background storage and session cleanup once a day when AdminPortal loads
+  useEffect(() => {
+    const runAutoCleanup = async () => {
+      if (recentSessions.length === 0) return;
+
+      const lastCleanup = localStorage.getItem('activeDeckLastCleanup');
+      const todayStr = new Date().toDateString();
+      if (lastCleanup === todayStr) return;
+
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const oldSessions = recentSessions.filter(session => {
+        if (!session.createdAt) return false;
+        const createdAtDate = new Date(session.createdAt.seconds * 1000);
+        return createdAtDate < thirtyDaysAgo && session.id !== presentationId;
+      });
+
+      if (oldSessions.length > 0) {
+        console.log(`[Auto Cleanup] Found ${oldSessions.length} session(s) older than 30 days. Purging...`);
+        try {
+          for (const session of oldSessions) {
+            await deleteSessionDoc(session.id);
+          }
+          console.log(`[Auto Cleanup] Successfully purged ${oldSessions.length} old session(s) and their storage files.`);
+        } catch (err) {
+          console.error("[Auto Cleanup] Error during automatic purge:", err);
+        }
+      }
+
+      localStorage.setItem('activeDeckLastCleanup', todayStr);
+    };
+
+    runAutoCleanup();
+  }, [recentSessions, presentationId]);
+
   // Derived session info for the selected session in history
   const selectedSession = recentSessions.find(s => s.id === selectedSessionId);
   const selectedPresenterEmail = selectedSession?.presenterEmail || '';
