@@ -63,11 +63,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   useEffect(() => {
     if (!presentation?.id || !isCapturing) return;
 
-    const activeSlideNum = currentSlide !== null ? currentSlide : presentation?.currentSlide;
-    if (activeSlideNum === null || activeSlideNum === undefined) {
-      console.log("[SlidePreview Auto] No active slide number to schedule capture.");
-      return;
-    }
+    const activeSlideNum = currentSlide !== null ? currentSlide : (presentation?.currentSlide || 1);
 
     console.log(`[SlidePreview Auto] Scheduling background preview capture for slide ${activeSlideNum} (trigger: ${captureTrigger})...`);
 
@@ -365,9 +361,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           console.error("ActiveDeck: Error attempting to enable full-screen mode:", fullscreenErr);
         }
         // Only create a new presentation session if one doesn't exist yet
+        let activePresentationId = presentation?.id;
         if (!presentation && onCreatePresentation) {
           try {
-            await onCreatePresentation();
+            activePresentationId = await onCreatePresentation();
           } catch (createErr) {
             console.error("ActiveDeck: Error creating presentation session:", createErr);
             mediaStream.getTracks().forEach(track => track.stop());
@@ -375,6 +372,18 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             setIsCapturing(false);
             setError("Failed to initialize presentation session in database.");
             return;
+          }
+        }
+
+        // Set the current slide in database to 1 as soon as the presentation starts
+        if (activePresentationId) {
+          try {
+            await updateDoc(doc(db, 'presentations', activePresentationId), {
+              currentSlide: 1
+            });
+            console.log("ActiveDeck: Automatically set currentSlide to 1 in Firebase upon starting presentation.");
+          } catch (updateErr) {
+            console.error("ActiveDeck: Failed to set initial slide to 1 in Firebase:", updateErr);
           }
         }
 
