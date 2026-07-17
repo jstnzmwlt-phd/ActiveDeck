@@ -3627,18 +3627,19 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       )}
 
       {/* Chat Header */}
-      <div className={cn("text-white flex items-center justify-between", isProjector ? "p-5 bg-osu-black" : "p-4 bg-osu-black")}>
-        <div className="flex items-center gap-3">
-          <MessageSquare className={cn("text-osu-orange", isProjector ? "w-6 h-6" : "w-5 h-5")} />
-          <div className="flex flex-col">
+      <div className={cn("text-white flex items-center justify-between gap-2 min-w-0", isProjector ? "p-5 bg-osu-black" : "p-4 bg-osu-black")}>
+        <div className="flex items-center gap-3 min-w-0">
+          <MessageSquare className={cn("text-osu-orange flex-shrink-0", isProjector ? "w-6 h-6" : "w-5 h-5")} />
+          <div className="flex flex-col min-w-0">
             <h2 className={cn(
+              "truncate",
               isProjector ? "normal-case text-white text-sm sm:text-base select-all font-black font-mono tracking-tight whitespace-nowrap" : "uppercase font-bold tracking-tight text-sm leading-none"
             )}>
               {isProjector ? "https://active-deck.app/chat" : "ActiveDeck Chat"}
             </h2>
           </div>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-shrink-0">
           {canModerate && (
             <>
               {showAttendance && (
