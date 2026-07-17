@@ -1379,87 +1379,47 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [isAllCollapsed, setIsAllCollapsed] = useState(false);
   const [isQRExpanded, setIsQRExpanded] = useState(false);
   const [collapsedMessageIds, setCollapsedMessageIds] = useState<Record<string, boolean>>({});
-  const prevCollapsedRef = useRef<Record<string, boolean>>({});
-
-  // Synchronize QR code enlargement and expand/collapse state across tabs via BroadcastChannel
+  // Synchronize QR code enlargement and expand/collapse states to Firestore (presenter -> database)
   useEffect(() => {
-    const channel = new BroadcastChannel('activedeck-ui-sync');
-
-    const handleMessage = (event: MessageEvent) => {
-      if (isProjector && event.data?.type === 'qr-expanded-change') {
-        setIsQRExpanded(event.data.isExpanded);
-      }
-      if (isProjector && event.data?.type === 'expand-collapse-change') {
-        setIsAllCollapsed(event.data.isAllCollapsed);
-      }
-      if (isProjector && event.data?.type === 'message-collapse-change') {
-        const { msgId, isCollapsed } = event.data;
-        setCollapsedMessageIds(prev => ({ ...prev, [msgId]: isCollapsed }));
-      }
-    };
-
-    channel.addEventListener('message', handleMessage);
-
-    return () => {
-      channel.removeEventListener('message', handleMessage);
-      channel.close();
-    };
-  }, [isProjector]);
+    if (canModerate && presentation?.id) {
+      updateDoc(doc(db, 'presentations', presentation.id), {
+        qrExpanded: isQRExpanded
+      }).catch(err => console.error("Failed to update QR expanded state:", err));
+    }
+  }, [isQRExpanded, canModerate, presentation?.id]);
 
   useEffect(() => {
-    // Only the presenter (canModerate) should broadcast their local QR expanded state
-    if (canModerate) {
-      const channel = new BroadcastChannel('activedeck-ui-sync');
-      channel.postMessage({ type: 'qr-expanded-change', isExpanded: isQRExpanded });
-      channel.close();
+    if (canModerate && presentation?.id) {
+      updateDoc(doc(db, 'presentations', presentation.id), {
+        chatAllCollapsed: isAllCollapsed
+      }).catch(err => console.error("Failed to update bulk collapse state:", err));
     }
-  }, [isQRExpanded, canModerate]);
+  }, [isAllCollapsed, canModerate, presentation?.id]);
 
   useEffect(() => {
-    // Only the presenter (canModerate) should broadcast their local expand/collapse state
-    if (canModerate) {
-      const channel = new BroadcastChannel('activedeck-ui-sync');
-      channel.postMessage({ type: 'expand-collapse-change', isAllCollapsed });
-      channel.close();
+    if (canModerate && presentation?.id) {
+      updateDoc(doc(db, 'presentations', presentation.id), {
+        chatCollapsedMessageIds: collapsedMessageIds
+      }).catch(err => console.error("Failed to update message collapse states:", err));
     }
-  }, [isAllCollapsed, canModerate]);
+  }, [collapsedMessageIds, canModerate, presentation?.id]);
 
+  // Apply Firestore synced UI states to local states (projector <- database)
   useEffect(() => {
-    // Only the presenter (canModerate) should broadcast their local individual message collapse state
-    if (!canModerate) return;
-
-    // Find any key that changed or was added
-    const currentKeys = Object.keys(collapsedMessageIds);
-    for (const key of currentKeys) {
-      if (collapsedMessageIds[key] !== prevCollapsedRef.current[key]) {
-        const channel = new BroadcastChannel('activedeck-ui-sync');
-        channel.postMessage({
-          type: 'message-collapse-change',
-          msgId: key,
-          isCollapsed: collapsedMessageIds[key]
-        });
-        channel.close();
-        break;
+    if (isProjector && presentation) {
+      if (presentation.qrExpanded !== undefined) {
+        setIsQRExpanded(presentation.qrExpanded);
+      }
+      if (presentation.chatAllCollapsed !== undefined) {
+        setIsAllCollapsed(presentation.chatAllCollapsed);
+      }
+      if (presentation.chatCollapsedMessageIds !== undefined) {
+        setCollapsedMessageIds(presentation.chatCollapsedMessageIds);
+      } else {
+        setCollapsedMessageIds({});
       }
     }
-
-    // Also check if any key was deleted (re-expanded to default)
-    const prevKeys = Object.keys(prevCollapsedRef.current);
-    for (const key of prevKeys) {
-      if (collapsedMessageIds[key] === undefined && prevCollapsedRef.current[key] !== undefined) {
-        const channel = new BroadcastChannel('activedeck-ui-sync');
-        channel.postMessage({
-          type: 'message-collapse-change',
-          msgId: key,
-          isCollapsed: false
-        });
-        channel.close();
-        break;
-      }
-    }
-
-    prevCollapsedRef.current = { ...collapsedMessageIds };
-  }, [collapsedMessageIds, canModerate]);
+  }, [isProjector, presentation?.qrExpanded, presentation?.chatAllCollapsed, presentation?.chatCollapsedMessageIds]);
 
   // When bulk collapse/expand state changes, clear individual message overrides
   useEffect(() => {

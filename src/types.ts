@@ -42,6 +42,9 @@ export interface Presentation {
   laserY?: number;
   laserActive?: boolean;
   chatScrollRatio?: number;
+  chatAllCollapsed?: boolean;
+  chatCollapsedMessageIds?: Record<string, boolean>;
+  qrExpanded?: boolean;
   presenterEmail?: string;
   isEnded?: boolean;
 }
