@@ -1515,7 +1515,7 @@ function AppContent() {
                       return (
                         <div className="flex flex-col space-y-1 flex-1 min-w-0">
                           <span className="text-[8px] font-black uppercase tracking-wider text-slate-500">Slides Overview</span>
-                          <div className="w-full max-h-20 overflow-y-auto pr-1 custom-scrollbar">
+                          <div className="w-full max-h-32 overflow-y-auto pr-1 custom-scrollbar">
                             <div className="flex flex-row flex-wrap items-center gap-1.5 py-1 select-none">
                               {allTabs.map(slide => {
                                 const isCurrentTab = slide === activeTab;
