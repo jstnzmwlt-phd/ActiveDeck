@@ -248,6 +248,14 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
     setErrorMsg(null);
 
     try {
+      const presRef = doc(db, 'presentations', presentationId);
+      const presSnap = await getDoc(presRef);
+      if (!presSnap.exists()) {
+        throw new Error("SESSION_NOT_FOUND");
+      }
+      const presData = presSnap.data();
+      const restrictToDomain = presData.restrictToDomain !== false;
+
       if (!isManualMode) {
         // Validate again right before submit
         if (!tokenData) throw new Error("EXPIRED_TOKEN");
@@ -260,13 +268,7 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
           throw new Error("EXPIRED_TOKEN");
         }
       } else {
-        // Fetch presentation doc and validate screen icon
-        const presRef = doc(db, 'presentations', presentationId);
-        const presSnap = await getDoc(presRef);
-        if (!presSnap.exists()) {
-          throw new Error("SESSION_NOT_FOUND");
-        }
-        const presData = presSnap.data();
+        // Validate screen icon
         const currentIconVal = presData.currentIcon || '';
         const previousIconVal = presData.previousIcon || '';
 
@@ -299,14 +301,14 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
       }
 
       // Check domain restriction if active
-      if (activeInstitutionDomain && activeInstitutionDomain.trim() !== '') {
+      if (restrictToDomain && activeInstitutionDomain && activeInstitutionDomain.trim() !== '') {
         const requiredDomain = activeInstitutionDomain.trim().toLowerCase();
         alert(`DEBUG - Validation Triggered:\nStudent Email: ${studentEmail}\nRequired Domain: ${requiredDomain}`);
         if (!studentEmail.endsWith(`@${requiredDomain}`) && !studentEmail.endsWith(`.${requiredDomain}`)) {
           throw new Error("INVALID_EMAIL_DOMAIN");
         }
       } else {
-        alert(`DEBUG - Validation Triggered:\nNo active domain restriction found! (Domain value loaded: "${activeInstitutionDomain}")`);
+        alert(`DEBUG - Validation Triggered:\nNo active domain restriction found or restriction bypassed! (Restrict setting: ${restrictToDomain}, Domain value loaded: "${activeInstitutionDomain}")`);
       }
 
       // Write check-in directly to Firestore subcollection using the email as document ID

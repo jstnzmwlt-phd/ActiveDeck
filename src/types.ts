@@ -30,6 +30,7 @@ export interface Presentation {
   disableAttendance?: boolean;
   pinCode?: string;
   hideComments?: boolean;
+  restrictToDomain?: boolean;
   currentSlide?: number;
   theme?: Theme;
   currentIcon?: string;

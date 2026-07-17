@@ -5,7 +5,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Message, Presentation, Poll, WordCloud, OpenEndedQuestion, GlobalSettings } from '../types';
 import { useAuth } from './AuthProvider';
 import { useBridge } from '../contexts/BridgeContext';
-import { Send, HelpCircle, MessageSquare, Trash2, ThumbsUp, Download, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud, Eye, EyeOff, Timer, Users, ChevronDown, ChevronUp, Pin, Loader2, AlertCircle, Presentation as PresentationIcon, Paperclip, Maximize2, Minimize2, X, Square } from 'lucide-react';
+import { Send, HelpCircle, MessageSquare, Trash2, ThumbsUp, Download, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud, Eye, EyeOff, Timer, Users, ChevronDown, ChevronUp, Pin, Loader2, AlertCircle, Presentation as PresentationIcon, Paperclip, Maximize2, Minimize2, X, Square, Lock, Unlock } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { QRCodeSVG } from 'qrcode.react';
@@ -1858,7 +1858,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           const studentEmail = guestEmail.trim().toLowerCase();
 
           // Strict domain restriction check
-          if (activeInstitutionDomain && activeInstitutionDomain.trim() !== '') {
+          const isDomainRestricted = presentation?.restrictToDomain !== false;
+          if (isDomainRestricted && activeInstitutionDomain && activeInstitutionDomain.trim() !== '') {
             const requiredDomain = activeInstitutionDomain.trim().toLowerCase();
             if (!studentEmail.endsWith(`@${requiredDomain}`) && !studentEmail.endsWith(`.${requiredDomain}`)) {
               console.warn(`Blocking background auto-check-in: email ${studentEmail} does not match required domain ${requiredDomain}`);
@@ -2364,7 +2365,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     }
 
     // Strict domain restriction check right at entry
-    if (activeInstitutionDomain && activeInstitutionDomain.trim() !== '') {
+    const isDomainRestricted = presentation?.restrictToDomain !== false;
+    if (isDomainRestricted && activeInstitutionDomain && activeInstitutionDomain.trim() !== '') {
       const requiredDomain = activeInstitutionDomain.trim().toLowerCase();
       if (!emailToSave.endsWith(`@${requiredDomain}`) && !emailToSave.endsWith(`.${requiredDomain}`)) {
         setJoinError(`Access Denied: This session is restricted to verified email addresses ending with @${requiredDomain}.`);
@@ -2994,6 +2996,24 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       });
     } catch (error) {
       console.error('ChatSidebar - Error toggling hide comments:', error);
+      handleFirestoreError(error, OperationType.UPDATE, `presentations/${presentation.id}`);
+    }
+  };
+
+  const handleToggleRestrictToDomain = async () => {
+    if (!presentation?.id || !canModerate) {
+      console.warn('ChatSidebar - Cannot toggle restrictToDomain:', { hasId: !!presentation?.id, canModerate });
+      return;
+    }
+    const currentValue = presentation.restrictToDomain !== false;
+    const newValue = !currentValue;
+    console.log('ChatSidebar - Toggling restrictToDomain to:', newValue);
+    try {
+      await updateDoc(doc(db, 'presentations', presentation.id), {
+        restrictToDomain: newValue
+      });
+    } catch (error) {
+      console.error('ChatSidebar - Error toggling restrictToDomain:', error);
       handleFirestoreError(error, OperationType.UPDATE, `presentations/${presentation.id}`);
     }
   };
@@ -3639,6 +3659,21 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                   </span>
                 </button>
               )}
+              <button 
+                onClick={handleToggleRestrictToDomain}
+                className={cn(
+                  "px-2 py-1 rounded transition-colors flex items-center gap-1.5 text-xs font-medium",
+                  presentation?.restrictToDomain === false 
+                    ? "text-yellow-400 hover:bg-slate-800 hover:text-yellow-300" 
+                    : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                )}
+                title={presentation?.restrictToDomain === false ? "Anyone can join (Domain restriction disabled)" : "Only verified emails can join (Domain restriction active)"}
+              >
+                {presentation?.restrictToDomain === false ? <Unlock className="w-4 h-4 text-yellow-400" /> : <Lock className="w-4 h-4" />}
+                <span className="hidden sm:inline">
+                  {presentation?.restrictToDomain === false ? "Open Join" : "Domain Restrict"}
+                </span>
+              </button>
               <button 
                 onClick={handleToggleHideComments}
                 className={cn(
