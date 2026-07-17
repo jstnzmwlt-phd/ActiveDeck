@@ -2125,11 +2125,19 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     }
   }, [hasJoined, user, presentation?.id, canModerate]);
 
+  // Auto-scroll to bottom on new messages or interactive items
   useEffect(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      const element = scrollRef.current;
+      element.scrollTop = element.scrollHeight;
+      
+      const timer = setTimeout(() => {
+        element.scrollTop = element.scrollHeight;
+      }, 100);
+      
+      return () => clearTimeout(timer);
     }
-  }, [messages]);
+  }, [messages, polls, wordClouds, openEndedQuestions]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
