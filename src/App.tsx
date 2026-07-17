@@ -214,29 +214,20 @@ function AppContent() {
       }
     }
 
-    // 3. Clear local states
+    // 3. Clear cached presenter details to force re-authentication for the next presenter
+    sessionStorage.removeItem('activePresenterEmail');
+    sessionStorage.removeItem('activePresenterPresentationId');
+    sessionStorage.removeItem('activeDeckForceNewSession');
+
+    // 4. Clear local states
+    setPresenterEmail('');
     setPresentation(null);
     setPresentationLoaded(false);
 
-    // 4. Create the brand-new presentation and PIN in Firestore
-    try {
-      const newId = await createNewPresentation();
-      if (newId) {
-        console.log('AppContent - New presentation created successfully:', newId);
-        // 5. Store in sessionStorage
-        sessionStorage.setItem('activePresenterPresentationId', newId);
-        
-        // 6. Perform a clean full page reload/redirect to clear parameters and reset capturing state
-        const cleanUrl = window.location.origin + window.location.pathname;
-        console.log('AppContent - Redirecting cleanly to:', cleanUrl);
-        window.location.href = cleanUrl;
-      } else {
-        throw new Error('Created presentation ID was empty.');
-      }
-    } catch (err) {
-      console.error('AppContent - Failed to start a new presentation session:', err);
-      setAppError('Failed to start a new presentation session. Please try again.');
-    }
+    // 5. Perform a clean full page reload/redirect to prompt for presenter login
+    const cleanUrl = window.location.origin + window.location.pathname;
+    console.log('AppContent - Redirecting cleanly to:', cleanUrl);
+    window.location.href = cleanUrl;
   };
 
   const handleCreatePresentationForArea = async () => {
