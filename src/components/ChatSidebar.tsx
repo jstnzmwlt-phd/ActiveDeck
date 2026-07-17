@@ -3627,19 +3627,18 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       )}
 
       {/* Chat Header */}
-      <div className={cn("text-white flex items-center justify-between gap-2 min-w-0", isProjector ? "p-5 bg-osu-black" : "p-4 bg-osu-black")}>
-        <div className="flex items-center gap-3 min-w-0">
+      <div className={cn("text-white flex flex-wrap items-center justify-between gap-2 min-w-0", isProjector ? "p-5 bg-osu-black" : "p-4 bg-osu-black")}>
+        <div className="flex items-center gap-2 min-w-0">
           <MessageSquare className={cn("text-osu-orange flex-shrink-0", isProjector ? "w-6 h-6" : "w-5 h-5")} />
           <div className="flex flex-col min-w-0">
             <h2 className={cn(
-              "truncate",
-              isProjector ? "normal-case text-white text-sm sm:text-base select-all font-black font-mono tracking-tight whitespace-nowrap" : "uppercase font-bold tracking-tight text-sm leading-none"
+              isProjector ? "normal-case text-white text-sm sm:text-base select-all font-black font-mono tracking-tight whitespace-nowrap" : "uppercase font-bold tracking-tight text-sm leading-tight"
             )}>
               {isProjector ? "https://active-deck.app/chat" : "ActiveDeck Chat"}
             </h2>
           </div>
         </div>
-        <div className="flex items-center gap-1 flex-shrink-0">
+        <div className="flex flex-wrap items-center gap-1 flex-shrink-0">
           {canModerate && (
             <>
               {showAttendance && (
@@ -3654,7 +3653,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                   title={presentation?.disableAttendance ? "Attendance Disabled (QR displays static join link)" : "Attendance Enabled (QR rotates dynamic tokens)"}
                 >
                   {presentation?.disableAttendance ? <ToggleRight className="w-4 h-4 text-red-400" /> : <ToggleLeft className="w-4 h-4" />}
-                  <span className="hidden sm:inline">
+                  <span className="inline">
                     {presentation?.disableAttendance ? "Attendance Off" : "Attendance On"}
                   </span>
                 </button>
@@ -3670,7 +3669,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 title={presentation?.restrictToDomain === false ? "Anyone can join (Domain restriction disabled)" : "Only verified emails can join (Domain restriction active)"}
               >
                 {presentation?.restrictToDomain === false ? <Unlock className="w-4 h-4 text-yellow-400" /> : <Lock className="w-4 h-4 text-red-400" />}
-                <span className="hidden sm:inline">
+                <span className="inline">
                   {presentation?.restrictToDomain === false ? "Open Join" : "Domain Restrict"}
                 </span>
               </button>
