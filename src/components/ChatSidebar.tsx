@@ -3665,11 +3665,11 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                   "px-2 py-1 rounded transition-colors flex items-center gap-1.5 text-xs font-medium",
                   presentation?.restrictToDomain === false 
                     ? "text-yellow-400 hover:bg-slate-800 hover:text-yellow-300" 
-                    : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                    : "text-red-400 hover:bg-slate-800 hover:text-red-300"
                 )}
                 title={presentation?.restrictToDomain === false ? "Anyone can join (Domain restriction disabled)" : "Only verified emails can join (Domain restriction active)"}
               >
-                {presentation?.restrictToDomain === false ? <Unlock className="w-4 h-4 text-yellow-400" /> : <Lock className="w-4 h-4" />}
+                {presentation?.restrictToDomain === false ? <Unlock className="w-4 h-4 text-yellow-400" /> : <Lock className="w-4 h-4 text-red-400" />}
                 <span className="hidden sm:inline">
                   {presentation?.restrictToDomain === false ? "Open Join" : "Domain Restrict"}
                 </span>
