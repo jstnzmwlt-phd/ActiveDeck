@@ -41,6 +41,7 @@ export interface Presentation {
   laserX?: number;
   laserY?: number;
   laserActive?: boolean;
+  chatScrollRatio?: number;
   presenterEmail?: string;
   isEnded?: boolean;
 }

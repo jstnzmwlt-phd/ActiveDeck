@@ -1542,6 +1542,74 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const lastScrollWriteTimeRef = useRef<number>(0);
+  const scrollThrottleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const updateScrollRatio = (ratio: number) => {
+    if (!presentation?.id) return;
+    
+    const now = Date.now();
+    const timeSinceLastWrite = now - lastScrollWriteTimeRef.current;
+    const throttleMs = 300;
+    
+    if (scrollThrottleTimeoutRef.current) {
+      clearTimeout(scrollThrottleTimeoutRef.current);
+      scrollThrottleTimeoutRef.current = null;
+    }
+    
+    const performUpdate = async (val: number) => {
+      try {
+        lastScrollWriteTimeRef.current = Date.now();
+        await updateDoc(doc(db, 'presentations', presentation.id), {
+          chatScrollRatio: Number(val.toFixed(4))
+        });
+      } catch (err) {
+        console.warn("Failed to update chat scroll ratio in Firebase:", err);
+      }
+    };
+    
+    if (timeSinceLastWrite >= throttleMs) {
+      performUpdate(ratio);
+    } else {
+      scrollThrottleTimeoutRef.current = setTimeout(() => {
+        performUpdate(ratio);
+      }, throttleMs - timeSinceLastWrite);
+    }
+  };
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (isChatOnly || isProjector || !presentation?.id) return;
+    
+    const element = e.currentTarget;
+    const maxScroll = element.scrollHeight - element.clientHeight;
+    const ratio = maxScroll > 0 ? element.scrollTop / maxScroll : 0;
+    
+    updateScrollRatio(ratio);
+  };
+
+  // Synced scroll position for the projector screen
+  useEffect(() => {
+    if (isProjector && scrollRef.current && presentation?.chatScrollRatio !== undefined) {
+      const element = scrollRef.current;
+      const maxScroll = element.scrollHeight - element.clientHeight;
+      if (maxScroll > 0) {
+        const targetScrollTop = presentation.chatScrollRatio * maxScroll;
+        if (Math.abs(element.scrollTop - targetScrollTop) > 2) {
+          element.scrollTop = targetScrollTop;
+        }
+      }
+    }
+  }, [isProjector, presentation?.chatScrollRatio]);
+
+  // Cleanup throttle timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (scrollThrottleTimeoutRef.current) {
+        clearTimeout(scrollThrottleTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const hasActiveInteractive = 
     openEndedQuestions.some(q => q.active) || 
     polls.some(p => p.active) || 
@@ -3943,6 +4011,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         {/* Messages Area */}
         <div 
           ref={scrollRef}
+          onScroll={handleScroll}
           className="flex-1 overflow-y-auto p-4 space-y-4 z-10"
         >
           {presentation?.hideComments && (
