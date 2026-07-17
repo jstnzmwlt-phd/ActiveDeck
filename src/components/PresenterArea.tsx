@@ -741,12 +741,12 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               </div>
 
               {/* PIN & Connection Info */}
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <div className="text-slate-500 text-[10px] md:text-xs font-black uppercase tracking-widest">
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <div className="text-slate-500 text-xs md:text-sm font-black uppercase tracking-widest">
                     Scan to Join, or Go to:
                   </div>
-                  <div className="text-lg md:text-xl font-extrabold text-white bg-slate-900 border border-slate-800 px-5 py-2.5 rounded-xl inline-block tracking-wide shadow-inner">
+                  <div className="text-2xl md:text-3xl font-black text-white bg-slate-900 border border-slate-800 px-7 py-3 rounded-2xl inline-block tracking-wider shadow-inner">
                     active-deck.app/chat
                   </div>
                 </div>
