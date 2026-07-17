@@ -6,7 +6,7 @@ import { Header } from './components/Header';
 import { Presentation, GlobalSettings } from './types';
 import { db } from './firebase';
 import { collection, query, orderBy, limit, onSnapshot, doc, addDoc, serverTimestamp, updateDoc, getDoc, setDoc, increment, where } from 'firebase/firestore';
-import { Presentation as PresentationIcon, Loader2, AlertCircle, Maximize, Minimize, Lock, Keyboard, Pen, Tv, ArrowLeftRight } from 'lucide-react';
+import { Presentation as PresentationIcon, Loader2, AlertCircle, Maximize, Minimize, Lock, Keyboard, Pen, Tv, ArrowLeftRight, MessageSquare, NotebookPen } from 'lucide-react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { BridgeProvider } from './contexts/BridgeContext';
 import { AdminPortal } from './components/AdminPortal';
@@ -274,6 +274,17 @@ function AppContent() {
 
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [lightboxImgUrl, setLightboxImgUrl] = useState('');
+
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+  const [mobileTab, setMobileTab] = useState<'chat' | 'notes'>('chat');
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     if (!activePresentationId) {
@@ -1351,6 +1362,307 @@ function AppContent() {
 
   // Chat-only view for audience members who scanned the QR code
   if (isChatOnly) {
+    if (isMobile) {
+      return (
+        <>
+          <div className="h-full w-full flex flex-col bg-slate-950 font-sans antialiased overflow-hidden">
+            {/* Pinned Slide Preview Container at the Top of Viewport */}
+            <div className="w-full shrink-0 bg-slate-950 border-b border-slate-900 relative z-20 shadow-lg">
+              <div 
+                className="w-full aspect-[16/9] max-h-[25vh] bg-black select-none relative group overflow-hidden"
+                onClick={() => {
+                  if (pushedSlidesMap[activeTab]) {
+                    setLightboxImgUrl(pushedSlidesMap[activeTab]);
+                    setIsLightboxOpen(true);
+                  }
+                }}
+                title={pushedSlidesMap[activeTab] ? `Slide ${activeTab} Preview (Tap to Zoom)` : "No slide preview shared yet"}
+              >
+                {pushedSlidesMap[activeTab] ? (
+                  <div className="w-full h-full relative cursor-zoom-in">
+                    <img 
+                      src={pushedSlidesMap[activeTab]} 
+                      alt={`Slide ${activeTab} Preview`}
+                      className="w-full h-full object-contain"
+                    />
+                    {/* Floating badge */}
+                    <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-black/60 border border-white/10 text-white text-[9px] font-bold">
+                      Slide {activeTab}
+                    </div>
+                    <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded-md bg-osu-orange text-white text-[9px] font-bold animate-pulse flex items-center gap-1">
+                      <span className="w-1 h-1 rounded-full bg-white"></span>
+                      Live
+                    </div>
+                  </div>
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center p-3 text-slate-500">
+                    <Tv className="w-6 h-6 text-slate-700 mb-1" />
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 leading-none">Slide {activeTab}</span>
+                    <span className="text-[8px] font-bold text-slate-600 uppercase leading-none mt-1">No Preview Available</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Slide Out-of-Sync Alert for Mobile */}
+              {presentation && presentation.currentSlide !== undefined && presentation.currentSlide !== null && String(presentation.currentSlide) !== activeTab && (
+                <div className="flex items-center justify-between p-2 bg-orange-500/10 border-t border-orange-500/20 text-[9px] text-orange-200">
+                  <span className="flex items-center gap-1 font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse shrink-0" />
+                    Presenter is on Slide {presentation.currentSlide}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab(String(presentation.currentSlide))}
+                    className="px-2 py-0.5 rounded bg-osu-orange text-white font-bold uppercase tracking-wider text-[8px] hover:bg-[#c03900] active:scale-95 transition-all cursor-pointer"
+                  >
+                    Sync Slide {presentation.currentSlide}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Dual Tab Switcher Button Group */}
+            <div className="flex bg-slate-900 border-b border-slate-800 shrink-0 p-1 relative z-20 shadow-md">
+              <button
+                type="button"
+                onClick={() => setMobileTab('chat')}
+                className={`flex-1 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  mobileTab === 'chat'
+                    ? 'bg-osu-orange text-white shadow-md'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                Chat
+              </button>
+              <button
+                type="button"
+                onClick={() => setMobileTab('notes')}
+                className={`flex-1 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  mobileTab === 'notes'
+                    ? 'bg-osu-orange text-white shadow-md'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <NotebookPen className="w-3.5 h-3.5" />
+                Notes
+              </button>
+            </div>
+
+            {/* Content Area Underneath Switcher */}
+            <div className="flex-1 min-h-0 flex flex-col relative z-10 bg-slate-950">
+              {mobileTab === 'chat' ? (
+                <div className="w-full h-full bg-white relative flex-1 flex flex-col min-h-0">
+                  <ChatSidebar 
+                    isChatOnly={true} 
+                    presentation={presentation} 
+                    logoUrl={settings?.theme.logoUrl} 
+                    presentationLoaded={presentationLoaded} 
+                    showAttendance={settings?.showAttendance}
+                    onJoinChange={setHasJoinedChat}
+                  />
+                </div>
+              ) : (
+                <div className="flex-1 flex flex-col min-h-0 p-3 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 overflow-y-auto custom-scrollbar">
+                  {!hasJoinedChat ? (
+                    <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-4">
+                      <div className="w-12 h-12 rounded-2xl bg-osu-orange/10 border border-osu-orange/20 flex items-center justify-center text-osu-orange shadow-lg">
+                        <Lock className="w-5 h-5 animate-pulse" />
+                      </div>
+                      <div className="space-y-1.5 max-w-xs">
+                        <h3 className="text-sm font-black uppercase tracking-wider text-slate-200">Notes Locked</h3>
+                        <p className="text-xs text-slate-400 leading-relaxed">
+                          Join the discussion by entering your name and email in the Chat tab to unlock real-time, slide-by-slide note-taking.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex-1 flex flex-col space-y-3 min-h-0">
+                      <div className="flex items-center justify-between shrink-0">
+                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">My Study Notes</span>
+                        {saveStatus && (
+                          <span className={`text-[8px] font-bold px-2 py-0.5 rounded transition-all duration-305 ${
+                            saveStatus === 'saving' ? 'text-slate-400 animate-pulse' : 'text-green-400 bg-green-500/10 border border-green-500/20'
+                          }`}>
+                            {saveStatus === 'saving' ? 'Saving...' : 'Auto-saved'}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Title & Slides Overview for Mobile */}
+                      <div className="flex flex-col gap-2 w-full shrink-0 bg-white/[0.02] border border-white/5 rounded-xl p-2.5">
+                        {/* Notes Title */}
+                        <div className="w-full flex flex-col space-y-1">
+                          <span className="text-[8px] font-black uppercase tracking-wider text-slate-500">Notes Title</span>
+                          <input 
+                            type="text"
+                            value={notesTitle}
+                            onChange={(e) => setNotesTitle(e.target.value)}
+                            placeholder="Notes Title (e.g. Lecture 1)"
+                            className="w-full h-9 px-2.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-osu-orange focus:border-osu-orange transition-all"
+                          />
+                        </div>
+
+                        {/* Slides Overview */}
+                        {(() => {
+                          const slidesWithNotes = Array.from(new Set([
+                            ...Object.keys(notesTextMap),
+                            ...Object.keys(notesDrawingsMap)
+                          ])).filter(slide => {
+                            const html = notesTextMap[slide];
+                            const hasText = html && html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim() !== '';
+                            
+                            const drawingJson = notesDrawingsMap[slide];
+                            let hasDrawing = false;
+                            try {
+                              if (drawingJson) {
+                                const strokes = JSON.parse(drawingJson);
+                                hasDrawing = Array.isArray(strokes) && strokes.length > 0;
+                              }
+                            } catch {}
+                            
+                            return hasText || hasDrawing;
+                          });
+                          
+                          const presenterSlide = presentation?.currentSlide !== undefined && presentation.currentSlide !== null 
+                            ? String(presentation.currentSlide) 
+                            : '1';
+                          
+                          const maxSlide = Math.max(
+                            1,
+                            presentation?.currentSlide || 1,
+                            ...Object.keys(notesTextMap).map(Number)
+                          );
+
+                          const allTabs: string[] = [];
+                          for (let i = 1; i <= maxSlide; i++) {
+                            allTabs.push(String(i));
+                          }
+
+                          return (
+                            <div className="flex flex-col space-y-1 w-full">
+                              <span className="text-[8px] font-black uppercase tracking-wider text-slate-500">Slides Overview</span>
+                              <div className="w-full max-h-24 overflow-y-auto pr-0.5 custom-scrollbar">
+                                <div className="flex flex-row flex-wrap items-center gap-1 py-0.5 select-none">
+                                  {allTabs.map(slide => {
+                                    const isCurrentTab = slide === activeTab;
+                                    const isPresenterSlide = slide === presenterSlide;
+                                    const hasContent = slidesWithNotes.includes(slide);
+
+                                    return (
+                                      <button
+                                        key={slide}
+                                        type="button"
+                                        onClick={() => setActiveTab(slide)}
+                                        className={`px-2.5 py-0.5 text-[9px] font-bold rounded border transition-all flex items-center gap-1 cursor-pointer shrink-0 ${
+                                          isCurrentTab 
+                                            ? 'bg-osu-orange border-osu-orange text-white shadow-sm'
+                                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                                        }`}
+                                      >
+                                        <span>Slide {slide}</span>
+                                        {isPresenterSlide && (
+                                          <span className="w-1 h-1 rounded-full bg-green-400 animate-pulse border border-green-300" />
+                                        )}
+                                        {!isPresenterSlide && hasContent && (
+                                          <span className="w-0.5 h-0.5 rounded-full bg-orange-300/60" />
+                                        )}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+
+                      {/* Mode Selector Toggle */}
+                      <div className="flex items-center bg-slate-900/60 p-0.5 rounded-lg border border-white/5 shrink-0 select-none">
+                        <button
+                          type="button"
+                          onClick={() => setNotesMode('text')}
+                          className={`flex-1 py-1 text-[9px] font-black uppercase tracking-wider rounded-md transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                            notesMode === 'text'
+                              ? 'bg-osu-orange text-white shadow-sm font-bold'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          <Keyboard className="w-3 h-3" />
+                          Typed
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setNotesMode('pen')}
+                          className={`flex-1 py-1 text-[9px] font-black uppercase tracking-wider rounded-md transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                            notesMode === 'pen'
+                              ? 'bg-osu-orange text-white shadow-sm font-bold'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          <Pen className="w-3 h-3" />
+                          Draw
+                        </button>
+                      </div>
+
+                      {/* Editor Area (Fills remaining mobile viewport height) */}
+                      <div className="flex-1 min-h-[160px] flex flex-col">
+                        {notesMode === 'text' ? (
+                          <RichTextEditor
+                            value={notesTextMap[activeTab] || ''}
+                            onChange={(newVal) => {
+                              setLastTypedAt(Date.now());
+                              setNotesTextMap(prev => ({
+                                ...prev,
+                                [activeTab]: newVal
+                              }));
+                            }}
+                            onFocus={() => setIsEditorFocused(true)}
+                            onBlur={() => setIsEditorFocused(false)}
+                            placeholder={`Type notes for Slide ${activeTab}...`}
+                            className="flex-1"
+                          />
+                        ) : (
+                          <HandwrittenCanvas
+                            value={notesDrawingsMap[activeTab] || ''}
+                            onChange={(newVal) => {
+                              setNotesDrawingsMap(prev => ({
+                                ...prev,
+                                [activeTab]: newVal
+                              }));
+                            }}
+                            placeholder={`Draw notes for Slide ${activeTab}...`}
+                          />
+                        )}
+                      </div>
+
+                      {/* Export / Download Button */}
+                      <div className="pt-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={handleDownloadNotes}
+                          disabled={isNotesEmpty(notesTextMap, notesDrawingsMap)}
+                          className="w-full h-9 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white text-[9px] font-black uppercase tracking-widest rounded-lg transition-all shadow-md flex items-center justify-center gap-1 cursor-pointer"
+                        >
+                          Download (.doc)
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+          <ImageLightboxModal 
+            isOpen={isLightboxOpen} 
+            onClose={() => setIsLightboxOpen(false)} 
+            imageUrl={lightboxImgUrl} 
+            title={`Slide ${activeTab} Preview`} 
+          />
+        </>
+      );
+    }
+
     return (
       <>
         <div className={`h-full w-full flex flex-col ${chatLayoutDirection === 'right' ? 'md:flex-row-reverse' : 'md:flex-row'} bg-slate-950 font-sans antialiased overflow-hidden`}>

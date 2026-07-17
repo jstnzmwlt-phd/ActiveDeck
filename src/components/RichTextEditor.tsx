@@ -139,7 +139,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   return (
     <div className={`flex flex-col border border-slate-200 rounded-xl bg-white text-slate-900 shadow-sm overflow-hidden transition-all focus-within:ring-1 focus-within:ring-osu-orange focus-within:border-osu-orange ${className}`}>
       {/* Rich Text Toolbar */}
-      <div className="flex flex-wrap items-center gap-0.5 p-1 bg-slate-50 border-b border-slate-100 select-none shrink-0">
+      <div className="flex flex-row overflow-x-auto md:flex-wrap items-center gap-0.5 p-1 bg-slate-50 border-b border-slate-100 select-none shrink-0 scrollbar-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <button
           type="button"
           onMouseDown={(e) => {
