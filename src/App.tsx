@@ -486,8 +486,8 @@ function AppContent() {
   };
 
   const handleDownloadNotes = () => {
-    if (isNotesEmpty(notesTextMap, notesDrawingsMap)) {
-      alert("Notes are empty. Type or draw some notes first!");
+    if (isNotesEmpty(notesTextMap, notesDrawingsMap) && Object.keys(pushedSlidesMap).length === 0) {
+      alert("Nothing to export. Connect to a presentation or take some notes first!");
       return;
     }
     const title = notesTitle.trim() || `Session_${presentation?.pinCode || 'Notes'}`;
@@ -496,10 +496,11 @@ function AppContent() {
     const presenterName = presentation?.presenterEmail ? presentation.presenterEmail.split('@')[0] : 'Presenter';
     const pin = presentation?.pinCode || 'N/A';
     
-    // Sort slides numerically and compile notes + drawings
+    // Sort slides numerically and compile notes + drawings + slide images
     const sortedSlides = Array.from(new Set([
       ...Object.keys(notesTextMap),
-      ...Object.keys(notesDrawingsMap)
+      ...Object.keys(notesDrawingsMap),
+      ...Object.keys(pushedSlidesMap)
     ]))
       .filter(slide => {
         const html = notesTextMap[slide] || '';
@@ -514,7 +515,9 @@ function AppContent() {
           }
         } catch {}
         
-        return hasText || hasDrawing;
+        const hasImg = !!pushedSlidesMap[slide];
+        
+        return hasText || hasDrawing || hasImg;
       })
       .sort((a, b) => Number(a) - Number(b));
 
@@ -1641,7 +1644,7 @@ function AppContent() {
                         <button
                           type="button"
                           onClick={handleDownloadNotes}
-                          disabled={isNotesEmpty(notesTextMap, notesDrawingsMap)}
+                          disabled={isNotesEmpty(notesTextMap, notesDrawingsMap) && Object.keys(pushedSlidesMap).length === 0}
                           className="w-full h-9 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white text-[9px] font-black uppercase tracking-widest rounded-lg transition-all shadow-md flex items-center justify-center gap-1 cursor-pointer"
                         >
                           Download (.doc)
@@ -2008,7 +2011,7 @@ function AppContent() {
                     <button
                       type="button"
                       onClick={handleDownloadNotes}
-                      disabled={isNotesEmpty(notesTextMap, notesDrawingsMap)}
+                      disabled={isNotesEmpty(notesTextMap, notesDrawingsMap) && Object.keys(pushedSlidesMap).length === 0}
                       className="w-full h-10 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-orange-500/15 active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       Download (.doc)
