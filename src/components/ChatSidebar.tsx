@@ -126,13 +126,14 @@ interface OpenEndedQuestionCardProps {
   isProjector?: boolean;
   onOpenImageLightbox?: (imageUrl: string, title: string) => void;
   isStarting?: boolean;
+  forceCollapsed?: boolean;
+  onToggleCollapse?: (id: string, collapsed: boolean) => void;
 }
 
-const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, canModerate, onClose, onDelete, onStart, onSubmit, onToggleResults, onAdjustDuration, initialCollapsed = false, isInitiallyNew = false, secondaryColor, isProjector = false, onOpenImageLightbox, isStarting }) => {
+const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, canModerate, onClose, onDelete, onStart, onSubmit, onToggleResults, onAdjustDuration, initialCollapsed = false, isInitiallyNew = false, secondaryColor, isProjector = false, onOpenImageLightbox, isStarting, forceCollapsed, onToggleCollapse }) => {
   const [response, setResponse] = useState('');
-  const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : initialCollapsed);
+  const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : (forceCollapsed ?? initialCollapsed));
   const [attachSlide, setAttachSlide] = useState(false);
-  const prevInitialCollapsedRef = useRef(initialCollapsed);
   const responsesData = q.responses || {};
   const isDraft = q.started === false || (!q.started && !q.active && Object.values(q.responses || {}).length === 0);
   const showResults = !!q.showResults;
@@ -185,11 +186,8 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
   }, [q.active, q.expiresAt, q.id, canModerate]);
 
   useEffect(() => {
-    if (prevInitialCollapsedRef.current !== initialCollapsed) {
-      setIsCollapsed(initialCollapsed);
-      prevInitialCollapsedRef.current = initialCollapsed;
-    }
-  }, [initialCollapsed]);
+    setIsCollapsed(forceCollapsed ?? initialCollapsed);
+  }, [forceCollapsed, initialCollapsed]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -203,7 +201,11 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <button 
-            onClick={() => setIsCollapsed(!isCollapsed)}
+            onClick={() => {
+              const nextCollapsed = !isCollapsed;
+              setIsCollapsed(nextCollapsed);
+              onToggleCollapse?.(q.id, nextCollapsed);
+            }}
             className="p-1 -ml-1 hover:bg-slate-100 rounded transition-colors text-slate-400 hover:text-green-500"
           >
             {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
@@ -429,9 +431,11 @@ interface PollCardProps {
   isProjector?: boolean;
   onOpenImageLightbox?: (imageUrl: string, title: string) => void;
   isStarting?: boolean;
+  forceCollapsed?: boolean;
+  onToggleCollapse?: (id: string, collapsed: boolean) => void;
 }
 
-const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate, onVote, onToggleResults, onClose, onDelete, onStart, onAdjustDuration, onMarkCorrect, initialCollapsed = false, isInitiallyNew = false, secondaryColor, isProjector = false, onOpenImageLightbox, isStarting }) => {
+const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate, onVote, onToggleResults, onClose, onDelete, onStart, onAdjustDuration, onMarkCorrect, initialCollapsed = false, isInitiallyNew = false, secondaryColor, isProjector = false, onOpenImageLightbox, isStarting, forceCollapsed, onToggleCollapse }) => {
   const totalVotes = Object.values(poll.votes || {}).reduce((a, b) => a + b, 0);
   const userVote = user && poll.voters ? poll.voters[user.uid] : null;
   const [attachSlide, setAttachSlide] = useState(false);
@@ -451,15 +455,11 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
     }
     return Math.max(0, Math.floor((expiresMs - now) / 1000));
   });
-  const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : initialCollapsed);
-  const prevInitialCollapsedRef = useRef(initialCollapsed);
+  const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : (forceCollapsed ?? initialCollapsed));
 
   useEffect(() => {
-    if (prevInitialCollapsedRef.current !== initialCollapsed) {
-      setIsCollapsed(initialCollapsed);
-      prevInitialCollapsedRef.current = initialCollapsed;
-    }
-  }, [initialCollapsed]);
+    setIsCollapsed(forceCollapsed ?? initialCollapsed);
+  }, [forceCollapsed, initialCollapsed]);
 
   useEffect(() => {
     if (!poll.active || !poll.expiresAt) {
@@ -508,7 +508,11 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <button 
-            onClick={() => setIsCollapsed(!isCollapsed)}
+            onClick={() => {
+              const nextCollapsed = !isCollapsed;
+              setIsCollapsed(nextCollapsed);
+              onToggleCollapse?.(poll.id, nextCollapsed);
+            }}
             className="p-1 -ml-1 hover:bg-slate-100 rounded transition-colors text-slate-400 hover:text-osu-orange"
           >
             {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
@@ -770,12 +774,13 @@ interface WordCloudCardProps {
   isInitiallyNew?: boolean;
   secondaryColor?: string;
   isProjector?: boolean;
+  forceCollapsed?: boolean;
+  onToggleCollapse?: (id: string, collapsed: boolean) => void;
 }
 
-const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, canModerate, onSubmit, onToggleResults, onClose, onDelete, onStart, onAdjustDuration, initialCollapsed = false, isInitiallyNew = false, secondaryColor, isProjector = false }) => {
+const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, canModerate, onSubmit, onToggleResults, onClose, onDelete, onStart, onAdjustDuration, initialCollapsed = false, isInitiallyNew = false, secondaryColor, isProjector = false, forceCollapsed, onToggleCollapse }) => {
   const [word, setWord] = useState('');
-  const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : initialCollapsed);
-  const prevInitialCollapsedRef = useRef(initialCollapsed);
+  const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : (forceCollapsed ?? initialCollapsed));
   const [timeLeft, setTimeLeft] = useState<number | null>(() => {
     if (!cloud.active || !cloud.expiresAt) return null;
     const now = Date.now();
@@ -794,11 +799,8 @@ const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, 
   });
 
   useEffect(() => {
-    if (prevInitialCollapsedRef.current !== initialCollapsed) {
-      setIsCollapsed(initialCollapsed);
-      prevInitialCollapsedRef.current = initialCollapsed;
-    }
-  }, [initialCollapsed]);
+    setIsCollapsed(forceCollapsed ?? initialCollapsed);
+  }, [forceCollapsed, initialCollapsed]);
 
   useEffect(() => {
     if (!cloud.active || !cloud.expiresAt) {
@@ -867,7 +869,11 @@ const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, 
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <button 
-            onClick={() => setIsCollapsed(!isCollapsed)}
+            onClick={() => {
+              const nextCollapsed = !isCollapsed;
+              setIsCollapsed(nextCollapsed);
+              onToggleCollapse?.(cloud.id, nextCollapsed);
+            }}
             className="p-1 -ml-1 hover:bg-slate-100 rounded transition-colors text-slate-400 hover:text-blue-500"
           >
             {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
@@ -4046,6 +4052,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                       setLightboxOpen(true);
                     }}
                     isStarting={isLaunchingInteraction}
+                    forceCollapsed={collapsedMessageIds[poll.id]}
+                    onToggleCollapse={(id, collapsed) => {
+                      setCollapsedMessageIds(prev => ({ ...prev, [id]: collapsed }));
+                    }}
                   />
                 );
               } else if (item.type === 'wordCloud') {
@@ -4070,6 +4080,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                     isInitiallyNew={isInitiallyNew}
                     secondaryColor={secondaryColor}
                     isProjector={isProjector}
+                    forceCollapsed={collapsedMessageIds[cloud.id]}
+                    onToggleCollapse={(id, collapsed) => {
+                      setCollapsedMessageIds(prev => ({ ...prev, [id]: collapsed }));
+                    }}
                   />
                 );
               } else if (item.type === 'openEndedQuestion') {
@@ -4099,6 +4113,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                       setLightboxOpen(true);
                     }}
                     isStarting={isLaunchingInteraction}
+                    forceCollapsed={collapsedMessageIds[q.id]}
+                    onToggleCollapse={(id, collapsed) => {
+                      setCollapsedMessageIds(prev => ({ ...prev, [id]: collapsed }));
+                    }}
                   />
                 );
               }
