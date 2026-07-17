@@ -1526,87 +1526,95 @@ function AppContent() {
                     )}
                   </div>
 
-                  {/* Title input */}
-                  <input 
-                    type="text"
-                    value={notesTitle}
-                    onChange={(e) => setNotesTitle(e.target.value)}
-                    placeholder="Notes Title (e.g. Lecture 1)"
-                    className="w-full md:w-1/4 h-10 px-3 text-xs bg-white border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-osu-orange focus:border-osu-orange transition-all shrink-0"
-                  />
+                  {/* Title & Slides Overview Row */}
+                  <div className="flex flex-col md:flex-row gap-4 items-start w-full shrink-0">
+                    {/* Notes Title */}
+                    <div className="w-full md:w-64 flex flex-col space-y-1 shrink-0">
+                      <span className="text-[8px] font-black uppercase tracking-wider text-slate-500">Notes Title</span>
+                      <input 
+                        type="text"
+                        value={notesTitle}
+                        onChange={(e) => setNotesTitle(e.target.value)}
+                        placeholder="Notes Title (e.g. Lecture 1)"
+                        className="w-full h-10 px-3 text-xs bg-white border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-osu-orange focus:border-osu-orange transition-all shrink-0"
+                      />
+                    </div>
 
-                  {/* Slide Tabs Bar */}
-                  {(() => {
-                    const slidesWithNotes = Array.from(new Set([
-                      ...Object.keys(notesTextMap),
-                      ...Object.keys(notesDrawingsMap)
-                    ])).filter(slide => {
-                      const html = notesTextMap[slide];
-                      const hasText = html && html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim() !== '';
+                    {/* Slide Tabs Bar */}
+                    {(() => {
+                      const slidesWithNotes = Array.from(new Set([
+                        ...Object.keys(notesTextMap),
+                        ...Object.keys(notesDrawingsMap)
+                      ])).filter(slide => {
+                        const html = notesTextMap[slide];
+                        const hasText = html && html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim() !== '';
+                        
+                        const drawingJson = notesDrawingsMap[slide];
+                        let hasDrawing = false;
+                        try {
+                          if (drawingJson) {
+                            const strokes = JSON.parse(drawingJson);
+                            hasDrawing = Array.isArray(strokes) && strokes.length > 0;
+                          }
+                        } catch {}
+                        
+                        return hasText || hasDrawing;
+                      });
                       
-                      const drawingJson = notesDrawingsMap[slide];
-                      let hasDrawing = false;
-                      try {
-                        if (drawingJson) {
-                          const strokes = JSON.parse(drawingJson);
-                          hasDrawing = Array.isArray(strokes) && strokes.length > 0;
-                        }
-                      } catch {}
+                      const presenterSlide = presentation?.currentSlide !== undefined && presentation.currentSlide !== null 
+                        ? String(presentation.currentSlide) 
+                        : '1';
                       
-                      return hasText || hasDrawing;
-                    });
-                    
-                    const presenterSlide = presentation?.currentSlide !== undefined && presentation.currentSlide !== null 
-                      ? String(presentation.currentSlide) 
-                      : '1';
-                    
-                    // Determine the highest slide index dynamically
-                    const maxSlide = Math.max(
-                      1,
-                      presentation?.currentSlide || 1,
-                      ...Object.keys(notesTextMap).map(Number)
-                    );
+                      // Determine the highest slide index dynamically
+                      const maxSlide = Math.max(
+                        1,
+                        presentation?.currentSlide || 1,
+                        ...Object.keys(notesTextMap).map(Number)
+                      );
 
-                    // Create a contiguous array of slide numbers from 1 to maxSlide
-                    const allTabs: string[] = [];
-                    for (let i = 1; i <= maxSlide; i++) {
-                      allTabs.push(String(i));
-                    }
+                      // Create a contiguous array of slide numbers from 1 to maxSlide
+                      const allTabs: string[] = [];
+                      for (let i = 1; i <= maxSlide; i++) {
+                        allTabs.push(String(i));
+                      }
 
-                    return (
-                      <div className="flex flex-col space-y-1 shrink-0">
-                        <span className="text-[8px] font-black uppercase tracking-wider text-slate-500">Slides Overview</span>
-                        <div className="flex flex-row flex-wrap items-center gap-1.5 py-1 select-none">
-                          {allTabs.map(slide => {
-                            const isCurrentTab = slide === activeTab;
-                            const isPresenterSlide = slide === presenterSlide;
-                            const hasContent = slidesWithNotes.includes(slide);
+                      return (
+                        <div className="flex flex-col space-y-1 flex-1 min-w-0">
+                          <span className="text-[8px] font-black uppercase tracking-wider text-slate-500">Slides Overview</span>
+                          <div className="w-full max-h-20 overflow-y-auto pr-1 custom-scrollbar">
+                            <div className="flex flex-row flex-wrap items-center gap-1.5 py-1 select-none">
+                              {allTabs.map(slide => {
+                                const isCurrentTab = slide === activeTab;
+                                const isPresenterSlide = slide === presenterSlide;
+                                const hasContent = slidesWithNotes.includes(slide);
 
-                            return (
-                              <button
-                                key={slide}
-                                type="button"
-                                onClick={() => setActiveTab(slide)}
-                                className={`px-3 py-1 text-[10px] font-bold rounded-lg border transition-all flex items-center gap-1 cursor-pointer shrink-0 ${
-                                  isCurrentTab 
-                                    ? 'bg-osu-orange border-osu-orange text-white shadow-md shadow-orange-500/10'
-                                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
-                                }`}
-                              >
-                                <span>Slide {slide}</span>
-                                {isPresenterSlide && (
-                                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse border border-green-300" title="Presenter is currently on this slide" />
-                                )}
-                                {!isPresenterSlide && hasContent && (
-                                  <span className="w-1 h-1 rounded-full bg-orange-300/60" title="Has notes" />
-                                )}
-                              </button>
-                            );
-                          })}
+                                return (
+                                  <button
+                                    key={slide}
+                                    type="button"
+                                    onClick={() => setActiveTab(slide)}
+                                    className={`px-3 py-1 text-[10px] font-bold rounded-lg border transition-all flex items-center gap-1 cursor-pointer shrink-0 ${
+                                      isCurrentTab 
+                                        ? 'bg-osu-orange border-osu-orange text-white shadow-md shadow-orange-500/10'
+                                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+                                    }`}
+                                  >
+                                    <span>Slide {slide}</span>
+                                    {isPresenterSlide && (
+                                      <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse border border-green-300" title="Presenter is currently on this slide" />
+                                    )}
+                                    {!isPresenterSlide && hasContent && (
+                                      <span className="w-1 h-1 rounded-full bg-orange-300/60" title="Has notes" />
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })()}
+                      );
+                    })()}
+                  </div>
 
                   {/* Slide Out-of-Sync Alert */}
                   {presentation && presentation.currentSlide !== undefined && presentation.currentSlide !== null && String(presentation.currentSlide) !== activeTab && (
