@@ -4588,7 +4588,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
             {/* Message Body */}
             {focusedMessage.text && (
-              <div className="text-2xl md:text-3xl font-black text-slate-900 leading-relaxed text-center my-6 md:my-8 break-words select-text">
+              <div 
+                style={{ color: secondaryColor }}
+                className="text-2xl md:text-3xl font-black leading-relaxed text-center my-6 md:my-8 break-words select-text"
+              >
                 {renderTextWithLinks(focusedMessage.text)}
               </div>
             )}
