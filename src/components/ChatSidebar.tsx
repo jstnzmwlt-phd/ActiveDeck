@@ -1080,21 +1080,11 @@ const MessageCard: React.FC<MessageCardProps> = ({
   onToggleCollapse,
   onOpenImageLightbox
 }) => {
-  const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : initialCollapsed);
-  const prevInitialCollapsedRef = useRef(initialCollapsed);
+  const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : (forceCollapsed ?? initialCollapsed));
 
   useEffect(() => {
-    if (prevInitialCollapsedRef.current !== initialCollapsed) {
-      setIsCollapsed(initialCollapsed);
-      prevInitialCollapsedRef.current = initialCollapsed;
-    }
-  }, [initialCollapsed]);
-
-  useEffect(() => {
-    if (forceCollapsed !== undefined) {
-      setIsCollapsed(forceCollapsed);
-    }
-  }, [forceCollapsed]);
+    setIsCollapsed(forceCollapsed ?? initialCollapsed);
+  }, [forceCollapsed, initialCollapsed]);
 
   // Determine if this is a "new" message (within last 10 seconds) to trigger pulsation
   const isPulsingNew = !msg.timestamp || (Date.now() - msg.timestamp.toMillis() < 10000);
@@ -1379,9 +1369,28 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [isAllCollapsed, setIsAllCollapsed] = useState(false);
   const [isQRExpanded, setIsQRExpanded] = useState(false);
   const [collapsedMessageIds, setCollapsedMessageIds] = useState<Record<string, boolean>>({});
+
+  const hasInitializedFromPresentation = useRef(false);
+
+  // Initialize presenter local UI state from Firestore on mount
+  useEffect(() => {
+    if (presentation && !hasInitializedFromPresentation.current) {
+      if (presentation.qrExpanded !== undefined) {
+        setIsQRExpanded(presentation.qrExpanded);
+      }
+      if (presentation.chatAllCollapsed !== undefined) {
+        setIsAllCollapsed(presentation.chatAllCollapsed);
+      }
+      if (presentation.chatCollapsedMessageIds !== undefined) {
+        setCollapsedMessageIds(presentation.chatCollapsedMessageIds);
+      }
+      hasInitializedFromPresentation.current = true;
+    }
+  }, [presentation]);
+
   // Synchronize QR code enlargement and expand/collapse states to Firestore (presenter -> database)
   useEffect(() => {
-    if (canModerate && presentation?.id) {
+    if (canModerate && presentation?.id && hasInitializedFromPresentation.current) {
       updateDoc(doc(db, 'presentations', presentation.id), {
         qrExpanded: isQRExpanded
       }).catch(err => console.error("Failed to update QR expanded state:", err));
@@ -1389,7 +1398,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   }, [isQRExpanded, canModerate, presentation?.id]);
 
   useEffect(() => {
-    if (canModerate && presentation?.id) {
+    if (canModerate && presentation?.id && hasInitializedFromPresentation.current) {
       updateDoc(doc(db, 'presentations', presentation.id), {
         chatAllCollapsed: isAllCollapsed
       }).catch(err => console.error("Failed to update bulk collapse state:", err));
@@ -1397,7 +1406,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   }, [isAllCollapsed, canModerate, presentation?.id]);
 
   useEffect(() => {
-    if (canModerate && presentation?.id) {
+    if (canModerate && presentation?.id && hasInitializedFromPresentation.current) {
       updateDoc(doc(db, 'presentations', presentation.id), {
         chatCollapsedMessageIds: collapsedMessageIds
       }).catch(err => console.error("Failed to update message collapse states:", err));
