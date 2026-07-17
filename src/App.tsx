@@ -619,73 +619,7 @@ function AppContent() {
     URL.revokeObjectURL(url);
   };
 
-  const handleEmailNotes = () => {
-    if (isNotesEmpty(notesTextMap, notesDrawingsMap)) {
-      alert("Notes are empty. Type or draw some notes first!");
-      return;
-    }
-    const title = notesTitle.trim() || `Session ${presentation?.pinCode || 'Notes'}`;
-    const subject = `ActiveDeck Notes: ${title}`;
-    const presenterName = presentation?.presenterEmail ? presentation.presenterEmail.split('@')[0] : 'Presenter';
-    const pin = presentation?.pinCode || 'N/A';
-    
-    const sortedSlides = Array.from(new Set([
-      ...Object.keys(notesTextMap),
-      ...Object.keys(notesDrawingsMap)
-    ]))
-      .filter(slide => {
-        const html = notesTextMap[slide] || '';
-        const hasText = html && html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim() !== '';
-        
-        const drawingJson = notesDrawingsMap[slide] || '';
-        let hasDrawing = false;
-        try {
-          if (drawingJson) {
-            const strokes = JSON.parse(drawingJson);
-            hasDrawing = Array.isArray(strokes) && strokes.length > 0;
-          }
-        } catch {}
-        
-        return hasText || hasDrawing;
-      })
-      .sort((a, b) => Number(a) - Number(b));
 
-    const plainNotesText = sortedSlides.map(slide => {
-      const slidePlain = notesTextMap[slide] ? htmlToPlainText(notesTextMap[slide]) : '';
-      
-      const drawingJson = notesDrawingsMap[slide] || '';
-      let hasDrawing = false;
-      try {
-        if (drawingJson) {
-          const strokes = JSON.parse(drawingJson);
-          hasDrawing = Array.isArray(strokes) && strokes.length > 0;
-        }
-      } catch {}
-
-      const drawingText = hasDrawing 
-        ? `\n* [Slide ${slide} contains hand-drawn sketches. Please download your full .doc notes file to view them!]` 
-        : '';
-        
-      const slideImgUrl = pushedSlidesMap[slide];
-      const slidePreviewText = slideImgUrl
-        ? `\n* [Slide ${slide} contains a slide preview image. Please download your full .doc notes file to view it!]`
-        : '';
-        
-      return `Slide ${slide}\n------------------------------\n${slidePlain}${slidePreviewText}${drawingText}\n`;
-    }).join('\n');
-    
-    const body = `ActiveDeck Session Notes\n` +
-                 `==============================\n` +
-                 `Presenter: ${presenterName}\n` +
-                 `Session PIN: ${pin}\n` +
-                 `Title: ${title}\n` +
-                 `Date: ${new Date().toLocaleDateString()}\n` +
-                 `==============================\n\n` +
-                 `${plainNotesText}`;
-                 
-    const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.location.href = mailtoUrl;
-  };
 
   const handleSavePresenterEmail = async (email: string) => {
     const trimmed = email.trim().toLowerCase();
@@ -1758,7 +1692,7 @@ function AppContent() {
                   </div>
 
                   {/* Export Buttons */}
-                  <div className={notesMode === 'pen' ? "pt-1.5 shrink-0 select-none" : "grid grid-cols-2 gap-2.5 pt-1.5 shrink-0 select-none"}>
+                  <div className="pt-1.5 shrink-0 select-none">
                     <button
                       type="button"
                       onClick={handleDownloadNotes}
@@ -1767,16 +1701,6 @@ function AppContent() {
                     >
                       Download (.doc)
                     </button>
-                    {notesMode !== 'pen' && (
-                      <button
-                        type="button"
-                        onClick={handleEmailNotes}
-                        disabled={isNotesEmpty(notesTextMap, notesDrawingsMap)}
-                        className="h-10 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-orange-500/15 active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer"
-                      >
-                        Email to Me
-                      </button>
-                    )}
                   </div>
                 </>
               )}
