@@ -23,7 +23,6 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const [error, setError] = useState<string | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
   const [laserEnabled, setLaserEnabled] = useState(true);
-  const [isPushingSlide, setIsPushingSlide] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const lastUpdateRef = useRef<number>(0);
@@ -137,86 +136,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     };
   }, []);
 
-  const pushSlideToChat = async () => {
-    if (!presentation?.id) return;
-    const video = containerRef.current?.querySelector('video');
-    if (!video || !isCapturing) {
-      alert("No active PowerPoint stream found to capture.");
-      return;
-    }
 
-    try {
-      setIsPushingSlide(true);
-      
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth || 1920;
-      canvas.height = video.videoHeight || 1080;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        throw new Error("Could not initialize canvas context.");
-      }
-
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      
-      canvas.toBlob(async (blob) => {
-        if (!blob) {
-          setIsPushingSlide(false);
-          alert("Failed to capture slide image.");
-          return;
-        }
-
-        try {
-          const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
-          const { collection, addDoc, serverTimestamp } = await import('firebase/firestore');
-          
-          const fileId = Math.random().toString(36).substring(2, 11);
-          const timestamp = Date.now();
-          const fileName = `Slide_Capture_${currentSlide !== null ? `Slide_${currentSlide}` : 'Manual'}_${timestamp}.jpg`;
-          const storagePath = `presentations/${presentation.id}/documents/${fileId}_${fileName}`;
-          const storageRef = ref(storage, storagePath);
-
-          await uploadBytes(storageRef, blob);
-          const downloadUrl = await getDownloadURL(storageRef);
-
-          const presenterEmail = sessionStorage.getItem('activePresenterEmail');
-          const userName = presenterEmail ? presenterEmail.split('@')[0] : 'Presenter';
-
-          const messageData: any = {
-            text: `Presenter shared a slide:`,
-            userId: auth.currentUser?.uid || presentation.presenterId,
-            userName: userName,
-            timestamp: serverTimestamp(),
-            isQuestion: false,
-            isPushedSlide: true,
-            presentationId: presentation.id,
-            presenterId: presentation.presenterId,
-            fileUrl: downloadUrl,
-            fileName: fileName,
-            fileSize: blob.size,
-            isPresenterPost: true,
-          };
-
-          if (currentSlide !== null) {
-            messageData.slide = currentSlide;
-          } else if (presentation.currentSlide !== undefined) {
-            messageData.slide = presentation.currentSlide;
-          }
-
-          await addDoc(collection(db, 'messages'), messageData);
-          setIsPushingSlide(false);
-        } catch (uploadErr) {
-          console.error("Error uploading captured slide:", uploadErr);
-          alert("Failed to send image to chat: " + (uploadErr as Error).message);
-          setIsPushingSlide(false);
-        }
-      }, 'image/jpeg', 0.65);
-      
-    } catch (err) {
-      console.error("Error setting up canvas capture:", err);
-      alert("Error capturing presentation: " + (err as Error).message);
-      setIsPushingSlide(false);
-    }
-  };
 
   const updateLaserPositionInFirebase = async (x: number, y: number, active: boolean) => {
     if (!presentation?.id) return;
@@ -541,29 +461,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
           {/* Right Side: Presenter Controls */}
           <div className="flex items-center gap-2">
-            {/* Push Slide to Chat Button */}
-            <button
-              onClick={pushSlideToChat}
-              disabled={isPushingSlide}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all duration-200 shadow-lg cursor-pointer hover:scale-105 active:scale-95 ${
-                isPushingSlide 
-                  ? 'bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed' 
-                  : 'bg-osu-orange border-orange-655 text-white hover:bg-[#c03900] shadow-orange-500/10'
-              }`}
-              title="Push current slide image to students' chat"
-            >
-              {isPushingSlide ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Pushing...</span>
-                </>
-              ) : (
-                <>
-                  <Tv className="w-3.5 h-3.5 text-white" />
-                  <span>Push Slide</span>
-                </>
-              )}
-            </button>
+
 
             {/* Laser Pointer Toggle Switch */}
             <button
