@@ -495,6 +495,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         console.log("ActiveDeck Projector: Stream stopped message received");
         setStream(null);
         setIsCapturing(false);
+      } else if (event.data?.type === 'close-projector') {
+        console.log("ActiveDeck Projector: Close projector message received. Closing window.");
+        window.close();
       }
     };
 

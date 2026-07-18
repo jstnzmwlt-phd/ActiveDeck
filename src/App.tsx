@@ -194,6 +194,15 @@ function AppContent() {
   const handleStartNewSession = async () => {
     console.log('AppContent - Starting a brand-new presentation session with page-reload...');
     
+    // Broadcast message to close the projector window/tab
+    try {
+      const channel = new BroadcastChannel('activedeck-stream');
+      channel.postMessage({ type: 'close-projector' });
+      channel.close();
+    } catch (err) {
+      console.error('AppContent - Failed to broadcast close-projector:', err);
+    }
+
     // 1. Unsubscribe from any active snapshot listener to avoid memory leaks or stale updates
     if (activeUnsubscribeRef.current) {
       console.log('AppContent - Unsubscribing from current presentation listener');
@@ -768,6 +777,22 @@ function AppContent() {
       document.removeEventListener('fullscreenchange', handleLocalFullscreenChange);
     };
   }, []);
+
+  // Listen for close-projector broadcast in Projector Mode
+  useEffect(() => {
+    if (!isProjector) return;
+    console.log('AppContent - Projector Mode: Listening for close-projector broadcast');
+    const channel = new BroadcastChannel('activedeck-stream');
+    channel.onmessage = (event) => {
+      if (event.data?.type === 'close-projector') {
+        console.log('AppContent - Closing projector window as requested by presenter');
+        window.close();
+      }
+    };
+    return () => {
+      channel.close();
+    };
+  }, [isProjector]);
 
   const toggleFullscreen = async () => {
     if (!document.fullscreenElement) {

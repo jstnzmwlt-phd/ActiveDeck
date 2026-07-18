@@ -1,18 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Monitor, Clock, Maximize, Minimize, Link2, Link2Off, Sun, Moon, Loader2, AlertCircle, Eye, EyeOff, Download, ShieldAlert, X, Tv } from 'lucide-react';
+import { Monitor, Clock, Maximize, Minimize, Link2, Link2Off, Sun, Moon, Loader2, AlertCircle, Eye, EyeOff, Download, ShieldAlert, X } from 'lucide-react';
 import { useBridge } from '../contexts/BridgeContext';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 
 interface HeaderProps {
   presentationId?: string | null;
-  showAttendance?: boolean;
-  onNewSession?: () => Promise<void>;
-  pinCode?: string | null;
 }
 
-export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, onNewSession, pinCode }) => {
+export const Header: React.FC<HeaderProps> = ({ presentationId }) => {
   const { isBridgeConnected, setUseWithoutBridge } = useBridge();
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [isWakeLockActive, setIsWakeLockActive] = useState(false);
   const [isWakeLockLoading, setIsWakeLockLoading] = useState(false);
   const [wakeLockError, setWakeLockError] = useState<string | null>(null);
@@ -84,38 +82,19 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
 
 
   const handleNewSession = () => {
-    const confirmed = window.confirm(
-      "Are you sure you want to start a brand new session?\n\nThis will generate a brand new Join Code, clear the chat, and reset the student attendance list."
-    );
-    if (confirmed) {
-      executeNewSession();
-    }
-  };
-
-  const executeNewSession = async () => {
-    try {
-      const channel = new BroadcastChannel('activedeck-stream');
-      channel.postMessage({ type: 'close-projector' });
-      channel.close();
-    } catch (err) {
-      console.error("Header: Failed to broadcast close-projector:", err);
-    }
-
-    if (onNewSession) {
+    const confirmNew = window.confirm("Are you sure you want to start a new session? This will redirect to a new URL, clear the chat, and reset the attendance list.");
+    if (confirmNew) {
       try {
-        await onNewSession();
+        const channel = new BroadcastChannel('activedeck-stream');
+        channel.postMessage({ type: 'close-projector' });
+        channel.close();
       } catch (err) {
-        console.error("Header: Error starting new session:", err);
+        console.error("Header: Failed to broadcast close-projector:", err);
       }
-    } else {
+
       sessionStorage.removeItem('activePresenterPresentationId');
-      sessionStorage.setItem('activeDeckForceNewSession', 'true');
-      const targetUrl = window.location.origin + window.location.pathname;
-      if (window.location.href === targetUrl) {
-        window.location.reload();
-      } else {
-        window.location.href = targetUrl;
-      }
+      sessionStorage.removeItem('activePresenterEmail');
+      window.location.href = window.location.origin + window.location.pathname;
     }
   };
 
@@ -164,7 +143,27 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
     return () => clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
 
+  const toggleFullscreen = async () => {
+    if (!document.fullscreenElement) {
+      try {
+        await document.documentElement.requestFullscreen();
+      } catch (err) {
+        console.error("Error attempting to enable fullscreen:", err);
+      }
+    } else {
+      if (document.exitFullscreen) {
+        await document.exitFullscreen();
+      }
+    }
+  };
 
   const toggleWakeLock = async () => {
     if (!('wakeLock' in navigator)) {
@@ -240,7 +239,7 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
   }, [isWakeLockActive]);
 
   return (
-    <div className={`p-4 bg-white border-b border-slate-200 h-14 py-1.5 relative w-full flex-shrink-0 ${(isAdminModalOpen || isExportModalOpen) ? 'z-[200]' : 'z-50'}`}>
+    <div className={`p-4 bg-white border-b border-slate-200 h-12 py-1 relative w-full flex-shrink-0 ${(isAdminModalOpen || isExportModalOpen) ? 'z-[200]' : 'z-50'}`}>
       <div className="flex items-center justify-between relative h-full">
         <div className="flex items-center gap-4 z-10">
           <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
@@ -262,7 +261,7 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
             {isBridgeConnected ? 'Bridge Online' : 'Bridge Offline'}
           </button>
 
-          {(presentationId || sessionStorage.getItem('activePresenterEmail')) && (
+          {presentationId && (
             <button
               onClick={handleNewSession}
               className="flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-800 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 cursor-pointer"
@@ -270,26 +269,6 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
             >
               <Monitor className="w-3.5 h-3.5 text-osu-orange" />
               <span>New Session</span>
-            </button>
-          )}
-
-          {presentationId && (
-            <button
-              onClick={() => {
-                if (!presentationId) return;
-                const url = new URL(window.location.href);
-                url.searchParams.set('id', presentationId);
-                if (pinCode) {
-                  url.searchParams.set('pin', pinCode);
-                }
-                url.searchParams.set('view', 'projector');
-                window.open(url.toString(), '_blank');
-              }}
-              className="flex items-center gap-2 px-3 py-1.5 bg-osu-orange hover:bg-[#c03900] text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 cursor-pointer"
-              title="Launch Projector Mode in a new tab"
-            >
-              <Tv className="w-3.5 h-3.5 text-white" />
-              <span>Projector Mode</span>
             </button>
           )}
         </div>
@@ -308,13 +287,7 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
         </div>
 
         <div className="flex items-center gap-4 z-10">
-          {/* Join URL Display */}
-          <div className="flex items-center gap-2 bg-slate-100 px-4 py-1 rounded-xl border-2 border-slate-205 shadow-sm select-none">
-            <span className="text-slate-550 font-black uppercase text-[12px] tracking-wider">Join Here:</span>
-            <span className="text-osu-orange select-all font-mono font-black text-[18px]">active-deck.app/chat</span>
-          </div>
-
-          {presentationId && showAttendance && (
+          {presentationId && (
             <button
               onClick={() => setIsExportModalOpen(true)}
               className="flex items-center gap-2 px-3 py-1.5 bg-osu-orange hover:bg-[#c03900] text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-orange-500/10 active:scale-95 cursor-pointer"
@@ -339,8 +312,6 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
                 {wakeLockError}
               </div>
             )}
-            
-
             <button 
               onClick={toggleWakeLock}
               disabled={isWakeLockLoading}
@@ -362,6 +333,13 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
               ) : (
                 <Moon className="w-5 h-5" />
               )}
+            </button>
+            <button 
+              onClick={toggleFullscreen}
+              className="p-1.5 hover:bg-slate-100 rounded-md transition-colors text-slate-600"
+              title={isFullscreen ? "Exit Full Screen" : "Full Screen"}
+            >
+              {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
             </button>
           </div>
         </div>
@@ -497,7 +475,6 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
           </div>
         </div>
       )}
-
     </div>
   );
 };
