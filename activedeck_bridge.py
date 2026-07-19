@@ -96,19 +96,38 @@ def export_ppt_slides_windows():
         if presentation is not None:
             print(f"Exporting {presentation.Slides.Count} slides to {EXPORT_DIR}...")
             
-            # Clear old slides first to prevent showing stale slides
-            for f in os.listdir(EXPORT_DIR):
-                if f.endswith('.jpg'):
+            # Attempt super-fast presentation-level batch export first
+            try:
+                presentation.Export(EXPORT_DIR, "JPG", 1024, 576)
+                # Rename files from 'Slide1.JPG' to '1.jpg' to match frontend expected filenames
+                for i in range(1, presentation.Slides.Count + 1):
+                    src_path = os.path.join(EXPORT_DIR, f"Slide{i}.JPG")
+                    # Also check lowercase slide suffix just in case
+                    if not os.path.exists(src_path):
+                        src_path = os.path.join(EXPORT_DIR, f"Slide{i}.jpg")
+                    dest_path = os.path.join(EXPORT_DIR, f"{i}.jpg")
+                    if os.path.exists(src_path):
+                        if os.path.exists(dest_path):
+                            try:
+                                os.remove(dest_path)
+                            except:
+                                pass
+                        try:
+                            os.rename(src_path, dest_path)
+                        except Exception:
+                            pass
+                print(f"Successfully batch-exported {presentation.Slides.Count} slides.")
+                return presentation.Slides.Count
+            except Exception as batch_err:
+                print(f"Batch export failed ({batch_err}), falling back to slide-by-slide export...")
+                for i, slide in enumerate(presentation.Slides, start=1):
+                    image_path = os.path.join(EXPORT_DIR, f"{i}.jpg")
                     try:
-                        os.remove(os.path.join(EXPORT_DIR, f))
-                    except:
-                        pass
-
-            for i, slide in enumerate(presentation.Slides, start=1):
-                image_path = os.path.join(EXPORT_DIR, f"{i}.jpg")
-                slide.Export(image_path, "JPG", 1024, 576)
-            print(f"Successfully exported {presentation.Slides.Count} slides.")
-            return presentation.Slides.Count
+                        slide.Export(image_path, "JPG", 1024, 576)
+                    except Exception as slide_err:
+                        print(f"Error exporting slide {i}: {slide_err}")
+                print(f"Successfully slide-exported {presentation.Slides.Count} slides.")
+                return presentation.Slides.Count
         else:
             print("No active presentation found to export.")
             return 0
