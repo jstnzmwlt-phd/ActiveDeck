@@ -651,7 +651,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     </div>
                     <div className="flex-1 overflow-y-auto text-base md:text-[17px] text-slate-100 font-bold leading-relaxed pr-2 custom-scrollbar space-y-2">
                       {notes ? (
-                        <div className="whitespace-pre-wrap">{notes}</div>
+                        <div className="whitespace-pre-wrap">{notes.replace(/\r/g, '\n')}</div>
                       ) : (
                         <div className="text-sm text-slate-500 italic flex items-center justify-center h-full">
                           No notes available for this slide.

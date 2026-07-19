@@ -67,7 +67,7 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               setCurrentSlide(data.current_slide);
               setNextSlide(typeof data.next_slide === 'number' ? data.next_slide : null);
               setTotalSlides(typeof data.total_slides === 'number' ? data.total_slides : null);
-              setNotes(typeof data.notes === 'string' ? data.notes : null);
+              setNotes(typeof data.notes === 'string' ? data.notes.replace(/\r/g, '\n') : null);
             } else if (data && data.type === 'SLIDE_UPDATE' && typeof data.slide === 'number') {
               console.log('ActiveDeck: Slide update received (JSON):', data.slide);
               setCurrentSlide(data.slide);
