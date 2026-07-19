@@ -130,6 +130,7 @@ def track_ppt_slideshow():
     prev_slide = None
     prev_total = None
     prev_notes = None
+    prev_next_slide_base64 = None
     
     while True:
         time.sleep(0.3) # Poll PowerPoint slideshow state every 300ms
@@ -170,10 +171,23 @@ def track_ppt_slideshow():
                 
                 next_slide_num = current_slide_num + 1 if current_slide_num < total_slides else None
                 
+                # Fetch next slide image as base64 securely if it exists
+                next_slide_base64 = None
+                if next_slide_num is not None:
+                    next_image_path = os.path.join(EXPORT_DIR, f"{next_slide_num}.jpg")
+                    if os.path.exists(next_image_path):
+                        try:
+                            with open(next_image_path, "rb") as img_file:
+                                import base64
+                                next_slide_base64 = "data:image/jpeg;base64," + base64.b64encode(img_file.read()).decode('utf-8')
+                        except Exception:
+                            pass
+                
                 # Broadcast payload if presentation state has changed
                 if (current_slide_num != prev_slide or 
                     total_slides != prev_total or 
-                    notes_text != prev_notes):
+                    notes_text != prev_notes or
+                    next_slide_base64 != prev_next_slide_base64):
                     
                     # Automatically trigger background slide export when a slideshow starts or slide count changes
                     if total_slides != prev_total:
@@ -185,12 +199,14 @@ def track_ppt_slideshow():
                     prev_slide = current_slide_num
                     prev_total = total_slides
                     prev_notes = notes_text
+                    prev_next_slide_base64 = next_slide_base64
                     
                     payload = {
                         "current_slide": current_slide_num,
                         "next_slide": next_slide_num if next_slide_num is not None else 0,
                         "total_slides": total_slides,
-                        "notes": notes_text
+                        "notes": notes_text,
+                        "next_slide_base64": next_slide_base64
                     }
                     
                     message_str = json.dumps(payload)

@@ -7,6 +7,7 @@ interface BridgeContextType {
   sendSlideCommand: (direction: 'next' | 'prev') => void;
   currentSlide: number | null;
   nextSlide: number | null;
+  nextSlideBase64: string | null;
   totalSlides: number | null;
   notes: string | null;
   clearNotesState: () => void;
@@ -20,11 +21,13 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [useWithoutBridge, setUseWithoutBridge] = useState(false);
   const [currentSlide, setCurrentSlide] = useState<number | null>(null);
   const [nextSlide, setNextSlide] = useState<number | null>(null);
+  const [nextSlideBase64, setNextSlideBase64] = useState<string | null>(null);
   const [totalSlides, setTotalSlides] = useState<number | null>(null);
   const [notes, setNotes] = useState<string | null>(null);
 
   const clearNotesState = () => {
     setNextSlide(null);
+    setNextSlideBase64(null);
     setTotalSlides(null);
     setNotes(null);
   };
@@ -66,6 +69,7 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               console.log('ActiveDeck: Rich payload received (JSON):', data);
               setCurrentSlide(data.current_slide);
               setNextSlide(typeof data.next_slide === 'number' ? data.next_slide : null);
+              setNextSlideBase64(typeof data.next_slide_base64 === 'string' ? data.next_slide_base64 : null);
               setTotalSlides(typeof data.total_slides === 'number' ? data.total_slides : null);
               setNotes(typeof data.notes === 'string' ? data.notes.replace(/\r/g, '\n') : null);
             } else if (data && data.type === 'SLIDE_UPDATE' && typeof data.slide === 'number') {
@@ -126,6 +130,7 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       sendSlideCommand,
       currentSlide,
       nextSlide,
+      nextSlideBase64,
       totalSlides,
       notes,
       clearNotesState

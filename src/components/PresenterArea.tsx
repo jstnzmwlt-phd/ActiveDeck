@@ -22,6 +22,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     useWithoutBridge, 
     setUseWithoutBridge,
     nextSlide,
+    nextSlideBase64,
     totalSlides,
     notes,
     clearNotesState
@@ -274,8 +275,17 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     if (!container) return;
 
     const rect = container.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    // The container has p-1.5 padding which is exactly 6px.
+    // Subtracting the padding ensures coordinates match the actual video stream bounds.
+    const padding = 6;
+    const innerWidth = rect.width - padding * 2;
+    const innerHeight = rect.height - padding * 2;
+
+    const relativeX = Math.max(0, Math.min(innerWidth, e.clientX - rect.left - padding));
+    const relativeY = Math.max(0, Math.min(innerHeight, e.clientY - rect.top - padding));
+
+    const x = (relativeX / innerWidth) * 100;
+    const y = (relativeY / innerHeight) * 100;
 
     updateLaserPosition(x, y, true);
   };
@@ -679,7 +689,14 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     )}
                   </div>
                   <div className="relative w-full aspect-video bg-black border border-slate-850 rounded-2xl overflow-hidden p-1 flex items-center justify-center shadow-lg">
-                    {isBridgeConnected && nextSlide !== null && !nextSlideImageError ? (
+                    {isBridgeConnected && nextSlideBase64 ? (
+                      <img 
+                        src={nextSlideBase64} 
+                        alt="Next Slide Preview" 
+                        className="w-full h-full object-contain bg-black animate-in fade-in duration-300"
+                        key={`websocket-next-${nextSlide}`}
+                      />
+                    ) : isBridgeConnected && nextSlide !== null && !nextSlideImageError ? (
                       <img 
                         src={`http://127.0.0.1:5000/slides/${nextSlide}.jpg`} 
                         alt="Next Slide Preview" 
