@@ -4,7 +4,7 @@ import { ScreenCapture } from './ScreenCapture';
 import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play, X, Loader2, Tv, Minimize, Maximize, FileText } from 'lucide-react';
 import { useBridge } from '../contexts/BridgeContext';
 import { auth, db, storage } from '../firebase';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { QRCodeSVG } from 'qrcode.react';
 
 interface PresenterAreaProps {
@@ -34,6 +34,45 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const [showInstructions, setShowInstructions] = useState(false);
   const [laserEnabled, setLaserEnabled] = useState(true);
   const [presentWithNotes, setPresentWithNotes] = useState(false);
+
+  const [currentSlidePreviewUrl, setCurrentSlidePreviewUrl] = useState<string | null>(null);
+  const [nextSlidePreviewUrl, setNextSlidePreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!presentation?.id || currentSlide === null) {
+      setCurrentSlidePreviewUrl(null);
+      return;
+    }
+    const docId = `${presentation.id}_preview_slide_${currentSlide}`;
+    const unsub = onSnapshot(doc(db, 'messages', docId), (docSnap) => {
+      if (docSnap.exists()) {
+        setCurrentSlidePreviewUrl(docSnap.data().fileUrl || null);
+      } else {
+        setCurrentSlidePreviewUrl(null);
+      }
+    }, (err) => {
+      console.warn("ActiveDeck: Error loading current slide preview:", err);
+    });
+    return () => unsub();
+  }, [presentation?.id, currentSlide]);
+
+  useEffect(() => {
+    if (!presentation?.id || nextSlide === null) {
+      setNextSlidePreviewUrl(null);
+      return;
+    }
+    const docId = `${presentation.id}_preview_slide_${nextSlide}`;
+    const unsub = onSnapshot(doc(db, 'messages', docId), (docSnap) => {
+      if (docSnap.exists()) {
+        setNextSlidePreviewUrl(docSnap.data().fileUrl || null);
+      } else {
+        setNextSlidePreviewUrl(null);
+      }
+    }, (err) => {
+      console.warn("ActiveDeck: Error loading next slide preview:", err);
+    });
+    return () => unsub();
+  }, [presentation?.id, nextSlide]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const lastUpdateRef = useRef<number>(0);
@@ -536,15 +575,73 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         onMouseLeave={!isProjectorMode ? handleMouseLeave : undefined}
         className={`${presentWithNotes && isCapturing && !isProjectorMode ? 'flex-[2]' : 'flex-1'} relative bg-black overflow-hidden flex items-center justify-center transition-all duration-300`}
       >
-        <ScreenCapture 
-          isCapturing={isCapturing} 
-          stream={stream} 
-          error={error} 
-          onStart={startCapture} 
-          onStop={stopCapture} 
-          logoUrl={logoUrl}
-          isProjectorMode={isProjectorMode}
-        />
+        {!isProjectorMode ? (
+          <div className="w-full h-full p-4 flex flex-col md:flex-row gap-6 items-start justify-center max-w-7xl mx-auto select-none overflow-y-auto custom-scrollbar">
+            {/* Left Column (Current Slide): dominant preview (65%) */}
+            <div className="flex-[1.85] flex flex-col gap-2 w-full md:w-[65%]">
+              <div className="flex items-center justify-between px-1">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Current Slide</span>
+                {(currentSlide !== null || presentation?.currentSlide !== undefined) && (
+                  <span className="text-[10px] font-black uppercase tracking-wider text-osu-orange">
+                    Slide {currentSlide !== null ? currentSlide : presentation?.currentSlide}
+                  </span>
+                )}
+              </div>
+              <div className="relative w-full aspect-video bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden flex items-center justify-center shadow-2xl">
+                <ScreenCapture 
+                  isCapturing={isCapturing} 
+                  stream={stream} 
+                  error={error} 
+                  onStart={startCapture} 
+                  onStop={stopCapture} 
+                  logoUrl={logoUrl}
+                  isProjectorMode={isProjectorMode}
+                />
+              </div>
+            </div>
+
+            {/* Right Column (Next Slide): smaller preview (35%) */}
+            <div className="flex-[1] flex flex-col gap-2 w-full md:w-[35%]">
+              <div className="flex items-center justify-between px-1">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Next Slide</span>
+                {nextSlide !== null && (
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    Slide {nextSlide}
+                  </span>
+                )}
+              </div>
+              <div className="relative w-full aspect-video bg-slate-950 border border-slate-850 rounded-2xl overflow-hidden flex items-center justify-center shadow-lg">
+                {nextSlidePreviewUrl ? (
+                  <img 
+                    src={nextSlidePreviewUrl} 
+                    alt="Next Slide Preview" 
+                    className="w-full h-full object-contain bg-black"
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600 text-center p-4">
+                    <Monitor className="w-8 h-8 mb-2 opacity-20" />
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                      {nextSlide !== null ? `Slide ${nextSlide}` : 'No Next Slide'}
+                    </span>
+                    <span className="text-[9px] text-slate-600 mt-1">
+                      {nextSlide !== null ? 'Waiting for slide capture...' : 'End of presentation'}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <ScreenCapture 
+            isCapturing={isCapturing} 
+            stream={stream} 
+            error={error} 
+            onStart={startCapture} 
+            onStop={stopCapture} 
+            logoUrl={logoUrl}
+            isProjectorMode={isProjectorMode}
+          />
+        )}
 
         {/* Real-time Virtual Laser Pointer Dot */}
         {isProjectorMode && presentation?.laserActive && presentation.laserX !== undefined && presentation.laserY !== undefined && (
