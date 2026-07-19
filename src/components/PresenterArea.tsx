@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Presentation } from '../types';
 import { ScreenCapture } from './ScreenCapture';
-import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play, X, Loader2, Tv, Minimize, Maximize, FileText } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play, X, Loader2, Tv, Minimize, Maximize, FileText, Square } from 'lucide-react';
 import { useBridge } from '../contexts/BridgeContext';
 import { auth, db, storage } from '../firebase';
 import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
@@ -531,6 +531,14 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">
               Active Display
             </span>
+            <button
+              onClick={stopCapture}
+              className="flex items-center gap-1.5 ml-4 px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white text-[9px] font-black uppercase tracking-widest rounded-lg border border-red-500/25 shadow-lg shadow-red-500/10 transition-all hover:scale-105 active:scale-95 cursor-pointer border-0"
+              title="Stop Presentation"
+            >
+              <Square className="w-2.5 h-2.5 fill-current" />
+              Stop Presentation
+            </button>
           </div>
 
           {/* Center: Slide Number */}
@@ -1161,35 +1169,37 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
 
 
-      {/* Professional Remote Control Overlay - Only shown when bridge is connected */}
-      {isBridgeConnected && !isProjectorMode && (
-        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-2 p-1.5 bg-slate-900/95 rounded-xl border border-slate-700/50 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 translate-y-2 group-hover:translate-y-0 z-50">
-          <button
-            onClick={() => handleSlideMove('prev')}
-            className="flex items-center justify-center w-10 h-10 bg-slate-800/80 hover:bg-slate-700 text-white rounded-lg transition-all active:scale-95 border border-slate-700/50 group/btn cursor-pointer"
-            title="Previous Slide"
-          >
-            <ChevronLeft className="w-6 h-6 group-hover/btn:-translate-x-0.5 transition-transform" />
-          </button>
-          
-          {totalSlides !== null && currentSlide !== null ? (
-            <>
-              <div className="w-px h-6 bg-slate-700/50 mx-0.5" />
-              <div className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-slate-200 bg-slate-950/40 rounded-lg border border-slate-850">
-                Slide {currentSlide} of {totalSlides}
-              </div>
-            </>
-          ) : null}
 
-          <div className="w-px h-6 bg-slate-700/50 mx-0.5" />
+      {/* Footer Navigation Bar - Always visible when presenting */}
+      {isCapturing && !isProjectorMode && isBridgeConnected && (
+        <div className="bg-slate-900 border-t border-slate-800 px-4 py-3 flex items-center justify-center z-[70] shrink-0 select-none">
+          <div className="flex items-center gap-3 p-1 bg-slate-950/60 rounded-xl border border-slate-800 shadow-inner">
+            <button
+              onClick={() => handleSlideMove('prev')}
+              className="flex items-center justify-center w-10 h-10 bg-slate-900/80 hover:bg-slate-800 text-white rounded-lg transition-all active:scale-95 border border-slate-800 group/btn cursor-pointer"
+              title="Previous Slide"
+            >
+              <ChevronLeft className="w-5 h-5 group-hover/btn:-translate-x-0.5 transition-transform" />
+            </button>
+            
+            {totalSlides !== null && currentSlide !== null ? (
+              <>
+                <div className="w-px h-6 bg-slate-800/80" />
+                <div className="px-4 py-1 text-[11px] font-black uppercase tracking-widest text-slate-200 bg-slate-950/80 rounded-lg border border-slate-850/50 min-w-[120px] text-center">
+                  Slide {currentSlide} of {totalSlides}
+                </div>
+                <div className="w-px h-6 bg-slate-800/80" />
+              </>
+            ) : null}
 
-          <button
-            onClick={() => handleSlideMove('next')}
-            className="flex items-center justify-center w-10 h-10 bg-osu-orange/90 hover:bg-osu-orange text-white rounded-lg transition-all active:scale-95 border border-orange-600/50 group/btn shadow-lg cursor-pointer"
-            title="Next Slide"
-          >
-            <ChevronRight className="w-6 h-6 group-hover/btn:translate-x-0.5 transition-transform" />
-          </button>
+            <button
+              onClick={() => handleSlideMove('next')}
+              className="flex items-center justify-center w-10 h-10 bg-osu-orange hover:bg-[#c03900] text-white rounded-lg transition-all active:scale-95 border border-orange-600/30 group/btn shadow-lg shadow-orange-500/10 cursor-pointer"
+              title="Next Slide"
+            >
+              <ChevronRight className="w-5 h-5 group-hover/btn:translate-x-0.5 transition-transform" />
+            </button>
+          </div>
         </div>
       )}
 
