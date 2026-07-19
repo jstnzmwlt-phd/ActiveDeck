@@ -592,18 +592,6 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         </div>
       )}
 
-      {/* Slide Indicator - Shown as overlay only in Projector Mode (Presenter gets it in the Control Bar) */}
-      {isProjectorMode && (currentSlide !== null || presentation?.currentSlide !== undefined) && (
-        <div className="absolute top-2 right-2 z-[70] pointer-events-none">
-          <div className="bg-[#ff3e00]/90 text-white px-2 py-1 rounded-lg border border-white/20 shadow-lg flex items-center gap-1 animate-in fade-in slide-in-from-right-2 duration-500">
-            <span className="text-[9px] font-black uppercase tracking-wider opacity-80">Slide</span>
-            <span className="text-sm font-black">
-              {currentSlide !== null ? currentSlide : presentation?.currentSlide}
-            </span>
-          </div>
-        </div>
-      )}
-
       {/* Main Content Area */}
       <div 
         ref={containerRef}
@@ -767,8 +755,14 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           </div>
         ) : (
           <div 
-            style={{ height: 'auto', aspectRatio: '16/9' }}
-            className="relative w-full max-w-full max-h-full bg-black overflow-hidden flex items-center justify-center shadow-2xl rounded-2xl"
+            style={{ 
+              aspectRatio: '16/9',
+              width: '100%',
+              height: '100%',
+              maxWidth: 'calc((100vh - 80px) * 16 / 9)',
+              maxHeight: 'calc(100vw * 9 / 16)',
+            }}
+            className="relative bg-black overflow-hidden flex items-center justify-center shadow-2xl rounded-2xl"
           >
             <ScreenCapture 
               isCapturing={isCapturing} 
