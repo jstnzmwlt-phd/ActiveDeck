@@ -605,25 +605,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 {/* Left Column (Current Slide + Presenter Notes below it): 60% */}
                 <div className="flex flex-col gap-4 w-full md:w-[60%]">
                   <div className="flex flex-col gap-2 w-full">
-                    <div className="flex items-center justify-between px-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Current Slide</span>
-                        {isCapturing && (
-                          <button
-                            onClick={() => setCaptureTrigger(prev => prev + 1)}
-                            className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[8px] font-black uppercase tracking-wider transition-all active:scale-95 border border-slate-700 cursor-pointer"
-                            title="Recapture Current Slide Preview"
-                          >
-                            Recapture
-                          </button>
-                        )}
-                      </div>
-                      {(currentSlide !== null || presentation?.currentSlide !== undefined) && (
-                        <span className="text-[10px] font-black uppercase tracking-wider text-osu-orange">
-                          Slide {currentSlide !== null ? currentSlide : presentation?.currentSlide}
-                        </span>
-                      )}
-                    </div>
+
                     <div 
                       onMouseMove={!isProjectorMode ? handleMouseMove : undefined}
                       onMouseLeave={!isProjectorMode ? handleMouseLeave : undefined}
@@ -716,25 +698,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             ) : (
               /* SINGLE SCREEN FULL LAYOUT: Notes OFF */
               <div className="w-full flex flex-col gap-2 max-w-[1350px] mx-auto justify-center">
-                <div className="flex items-center justify-between px-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Current Slide</span>
-                    {isCapturing && (
-                      <button
-                        onClick={() => setCaptureTrigger(prev => prev + 1)}
-                        className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[8px] font-black uppercase tracking-wider transition-all active:scale-95 border border-slate-700 cursor-pointer"
-                        title="Recapture Current Slide Preview"
-                      >
-                        Recapture
-                      </button>
-                    )}
-                  </div>
-                  {(currentSlide !== null || presentation?.currentSlide !== undefined) && (
-                    <span className="text-[10px] font-black uppercase tracking-wider text-osu-orange">
-                      Slide {currentSlide !== null ? currentSlide : presentation?.currentSlide}
-                    </span>
-                  )}
-                </div>
+
                 <div 
                   onMouseMove={!isProjectorMode ? handleMouseMove : undefined}
                   onMouseLeave={!isProjectorMode ? handleMouseLeave : undefined}
