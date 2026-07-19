@@ -47,6 +47,7 @@ export interface Presentation {
   qrExpanded?: boolean;
   presenterEmail?: string;
   isEnded?: boolean;
+  showSlidePreview?: boolean;
 }
 
 export interface Message {
