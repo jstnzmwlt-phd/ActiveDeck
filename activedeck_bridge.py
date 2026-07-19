@@ -2,6 +2,9 @@ import platform
 import sys
 import os
 import tempfile
+import threading
+import time
+import json
 
 current_os = platform.system()
 
@@ -22,6 +25,8 @@ EXPORT_DIR = os.path.join(tempfile.gettempdir(), "activedeck_slides")
 
 if not os.path.exists(EXPORT_DIR):
     os.makedirs(EXPORT_DIR)
+
+connected_websockets = set()
 
 # Manually add CORS support to avoid extra library dependencies
 @app.after_request
@@ -115,6 +120,83 @@ def export_slides_silently():
         print(f"Export not implemented for OS: {current_os}")
         return 0
 
+def track_ppt_slideshow():
+    # Maintain a reference to previous slide states to detect transitions
+    prev_slide = None
+    prev_total = None
+    prev_notes = None
+    
+    while True:
+        time.sleep(0.3) # Poll PowerPoint slideshow state every 300ms
+        if not connected_websockets:
+            continue
+            
+        pythoncom.CoInitialize()
+        try:
+            ppt_app = win32com.client.GetActiveObject("PowerPoint.Application")
+            if ppt_app.SlideShowWindows.Count > 0:
+                ss_window = ppt_app.SlideShowWindows(1)
+                view = ss_window.View
+                current_slide_num = view.CurrentShowPosition
+                presentation = ss_window.Presentation
+                total_slides = presentation.Slides.Count
+                
+                # Extract notes for current slide
+                current_slide = presentation.Slides(current_slide_num)
+                notes_text = ""
+                if current_slide.HasNotesPage:
+                    notes_page = current_slide.NotesPage
+                    for shape in notes_page.Shapes:
+                        if shape.Type == 14: # ppPlaceholderBody / Body placeholder
+                            if shape.TextFrame.HasText:
+                                paragraphs = []
+                                for para in shape.TextFrame.TextRange.Paragraphs():
+                                    text = para.Text
+                                    # Strip trailing carriage returns standard to PowerPoint text blocks
+                                    clean_text = text.rstrip('\r\n')
+                                    bullet_type = para.Format.Bullet.Type
+                                    if bullet_type != 0 and clean_text: # ppBulletNone is 0
+                                        paragraphs.append(f"• {clean_text}")
+                                    else:
+                                        paragraphs.append(clean_text)
+                                # Join with newline to maintain PowerPoint text spacing flawlessly!
+                                notes_text = "\n".join(paragraphs).strip()
+                                break
+                
+                next_slide_num = current_slide_num + 1 if current_slide_num < total_slides else None
+                
+                # Broadcast payload if presentation state has changed
+                if (current_slide_num != prev_slide or 
+                    total_slides != prev_total or 
+                    notes_text != prev_notes):
+                    
+                    prev_slide = current_slide_num
+                    prev_total = total_slides
+                    prev_notes = notes_text
+                    
+                    payload = {
+                        "current_slide": current_slide_num,
+                        "next_slide": next_slide_num if next_slide_num is not None else 0,
+                        "total_slides": total_slides,
+                        "notes": notes_text
+                    }
+                    
+                    message_str = json.dumps(payload)
+                    print(f"Broadcasting slide update: Slide {current_slide_num} of {total_slides}")
+                    
+                    for ws in list(connected_websockets):
+                        try:
+                            ws.send(message_str)
+                        except Exception as ws_err:
+                            connected_websockets.discard(ws)
+            else:
+                pass
+        except Exception as e:
+            # PPT closed or not in active slideshow, ignore silently
+            pass
+        finally:
+            pythoncom.CoUninitialize()
+
 @app.route('/slides/<path:filename>')
 def serve_slide(filename):
     return send_from_directory(EXPORT_DIR, filename)
@@ -126,18 +208,33 @@ def trigger_export():
 
 @sock.route('/ws')
 def handle_ws(ws):
+    print("New WebSocket connection established.")
+    connected_websockets.add(ws)
+    
     # Try to export slides automatically when client connects
     try:
         export_slides_silently()
     except Exception as e:
         print(f"Auto-export on WS connect failed: {e}")
 
-    while True:
-        message = ws.receive()
-        if message in ['next', 'prev']:
-            move_ppt_silently(message)
+    try:
+        while True:
+            message = ws.receive()
+            if message in ['next', 'prev']:
+                move_ppt_silently(message)
+    except Exception as e:
+        print(f"WebSocket connection closed: {e}")
+    finally:
+        connected_websockets.discard(ws)
 
 if __name__ == '__main__':
     print(f"ActiveDeck Bridge starting on system: {current_os}")
+    
+    # Start background slideshow tracking thread
+    if current_os == "Windows":
+        tracker_thread = threading.Thread(target=track_ppt_slideshow, daemon=True)
+        tracker_thread.start()
+        print("PowerPoint slideshow tracking thread started.")
+        
     # host='127.0.0.1' allows the bridge to listen to the local WebSocket
     app.run(host='127.0.0.1', port=5000)

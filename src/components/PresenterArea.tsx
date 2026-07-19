@@ -597,12 +597,12 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         className={`${presentWithNotes && isCapturing && !isProjectorMode ? 'flex-[2]' : 'flex-1'} relative bg-black overflow-hidden flex items-center justify-center transition-all duration-300`}
       >
         {!isProjectorMode ? (
-          <div className="w-full h-full p-4 flex flex-col md:flex-row gap-6 items-start justify-center max-w-7xl mx-auto select-none overflow-y-auto custom-scrollbar">
+          <div className="w-full h-full p-4 flex flex-col md:flex-row gap-10 items-start justify-between max-w-7xl mx-auto select-none overflow-y-auto custom-scrollbar">
             {presentWithNotes ? (
               <>
                 {/* SPLIT SCREEN LAYOUT: Notes ON */}
-                {/* Left Column (Current Slide + Presenter Notes below it): 65% */}
-                <div className="flex-[1.85] flex flex-col gap-4 w-full md:w-[65%]">
+                {/* Left Column (Current Slide + Presenter Notes below it): 60% */}
+                <div className="flex flex-col gap-4 w-full md:w-[60%]">
                   <div className="flex flex-col gap-2 w-full">
                     <div className="flex items-center justify-between px-1">
                       <div className="flex items-center gap-2">
@@ -637,8 +637,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                   </div>
 
                   {/* Confined Presenter Notes UI panel positioned immediately below the Current Slide preview */}
-                  <div className="flex flex-col bg-slate-950 border border-slate-850 rounded-2xl p-4 min-h-[160px] max-h-[300px] select-none animate-in slide-in-from-bottom duration-300 shadow-xl">
-                    <div className="flex items-center justify-between mb-2.5 pb-2 border-b border-slate-900/60 select-none">
+                  <div className="flex flex-col bg-slate-950 border border-slate-850 rounded-2xl p-5 min-h-[350px] max-h-[480px] select-none animate-in slide-in-from-bottom duration-300 shadow-xl">
+                    <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-slate-900/60 select-none">
                       <div className="flex items-center gap-2">
                         <FileText className="w-4 h-4 text-osu-orange" />
                         <span className="text-xs font-black uppercase tracking-wider text-slate-350">Presenter Notes</span>
@@ -649,11 +649,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         </span>
                       )}
                     </div>
-                    <div className="flex-1 overflow-y-auto text-sm text-slate-300 font-medium leading-relaxed pr-2 custom-scrollbar">
+                    <div className="flex-1 overflow-y-auto text-base md:text-[17px] text-slate-100 font-bold leading-relaxed pr-2 custom-scrollbar space-y-2">
                       {notes ? (
                         <div className="whitespace-pre-wrap">{notes}</div>
                       ) : (
-                        <div className="text-xs text-slate-500 italic flex items-center justify-center h-full">
+                        <div className="text-sm text-slate-500 italic flex items-center justify-center h-full">
                           No notes available for this slide.
                         </div>
                       )}
@@ -662,7 +662,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 </div>
 
                 {/* Right Column (Next Slide): smaller preview (35%) */}
-                <div className="flex-[1] flex flex-col gap-2 w-full md:w-[35%]">
+                <div className="flex flex-col gap-2 w-full md:w-[35%] ml-auto">
                   <div className="flex items-center justify-between px-1">
                     <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Next Slide</span>
                     {nextSlide !== null && (
