@@ -75,6 +75,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   }, [presentation?.id, nextSlide]);
 
   const [localSlidesCount, setLocalSlidesCount] = useState<number>(0);
+  const [nextSlideImageError, setNextSlideImageError] = useState<boolean>(false);
+
+  useEffect(() => {
+    setNextSlideImageError(false);
+  }, [nextSlide]);
 
   useEffect(() => {
     if (isBridgeConnected) {
@@ -265,7 +270,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (isProjectorMode || !presentation?.id || !isCapturing || !laserEnabled) return;
-    const container = containerRef.current;
+    const container = e.currentTarget;
     if (!container) return;
 
     const rect = container.getBoundingClientRect();
@@ -674,12 +679,13 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     )}
                   </div>
                   <div className="relative w-full aspect-video bg-black border border-slate-850 rounded-2xl overflow-hidden p-1 flex items-center justify-center shadow-lg">
-                    {isBridgeConnected && nextSlide !== null && nextSlide <= localSlidesCount ? (
+                    {isBridgeConnected && nextSlide !== null && !nextSlideImageError ? (
                       <img 
                         src={`http://127.0.0.1:5000/slides/${nextSlide}.jpg`} 
                         alt="Next Slide Preview" 
                         className="w-full h-full object-contain bg-black animate-in fade-in duration-300"
                         key={`local-next-${nextSlide}`}
+                        onError={() => setNextSlideImageError(true)}
                       />
                     ) : nextSlidePreviewUrl ? (
                       <img 

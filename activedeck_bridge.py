@@ -87,8 +87,13 @@ def export_ppt_slides_windows():
     pythoncom.CoInitialize()
     try:
         ppt_app = win32com.client.GetActiveObject("PowerPoint.Application")
-        if ppt_app.Presentations.Count > 0:
+        presentation = None
+        if ppt_app.SlideShowWindows.Count > 0:
+            presentation = ppt_app.SlideShowWindows(1).Presentation
+        elif ppt_app.Presentations.Count > 0:
             presentation = ppt_app.ActivePresentation
+            
+        if presentation is not None:
             print(f"Exporting {presentation.Slides.Count} slides to {EXPORT_DIR}...")
             
             # Clear old slides first to prevent showing stale slides
