@@ -171,7 +171,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       } catch (err) {
         console.error("[SlidePreview Auto] Error in background slide capture process:", err);
       }
-    }, 1500);
+    }, 3000);
 
     return () => {
       clearTimeout(timeoutId);
@@ -580,7 +580,18 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             {/* Left Column (Current Slide): dominant preview (65%) */}
             <div className="flex-[1.85] flex flex-col gap-2 w-full md:w-[65%]">
               <div className="flex items-center justify-between px-1">
-                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Current Slide</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Current Slide</span>
+                  {isCapturing && (
+                    <button
+                      onClick={() => setCaptureTrigger(prev => prev + 1)}
+                      className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[8px] font-black uppercase tracking-wider transition-all active:scale-95 border border-slate-700 cursor-pointer"
+                      title="Recapture Current Slide Preview"
+                    >
+                      Recapture
+                    </button>
+                  )}
+                </div>
                 {(currentSlide !== null || presentation?.currentSlide !== undefined) && (
                   <span className="text-[10px] font-black uppercase tracking-wider text-osu-orange">
                     Slide {currentSlide !== null ? currentSlide : presentation?.currentSlide}
