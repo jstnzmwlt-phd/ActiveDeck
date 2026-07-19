@@ -743,35 +743,48 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             )}
           </div>
         ) : (
-          <ScreenCapture 
-            isCapturing={isCapturing} 
-            stream={stream} 
-            error={error} 
-            onStart={startCapture} 
-            onStop={stopCapture} 
-            logoUrl={logoUrl}
-            isProjectorMode={isProjectorMode}
-          />
-        )}
-
-        {/* Real-time Virtual Laser Pointer Dot */}
-        {isProjectorMode && presentation?.laserActive && presentation.laserX !== undefined && presentation.laserY !== undefined && (
           <div 
             style={{
-              left: `${presentation.laserX}%`,
-              top: `${presentation.laserY}%`,
-              transform: 'translate(-50%, -50%)',
-              width: '15px',
-              height: '15px',
-              borderRadius: '50%',
-              backgroundColor: 'red',
-              boxShadow: '0 0 8px 3px rgba(255, 0, 0, 0.8), 0 0 15px 5px rgba(255, 0, 0, 0.4)',
-              position: 'absolute',
-              pointerEvents: 'none',
-              zIndex: 80,
-              transition: 'top 0.05s ease-out, left 0.05s ease-out'
+              width: '100vw',
+              height: '56.25vw', // 16:9 aspect ratio (100 * 9 / 16)
+              maxWidth: '177.78vh', // 16:9 aspect ratio (100 * 16 / 9)
+              maxHeight: '100vh',
+              position: 'relative',
+              overflow: 'hidden',
+              backgroundColor: 'black'
             }}
-          />
+            className="flex items-center justify-center shadow-2xl"
+          >
+            <ScreenCapture 
+              isCapturing={isCapturing} 
+              stream={stream} 
+              error={error} 
+              onStart={startCapture} 
+              onStop={stopCapture} 
+              logoUrl={logoUrl}
+              isProjectorMode={isProjectorMode}
+            />
+
+            {/* Real-time Virtual Laser Pointer Dot rendered inside the aspect-ratio locked frame */}
+            {presentation?.laserActive && presentation.laserX !== undefined && presentation.laserY !== undefined && (
+              <div 
+                style={{
+                  left: `${presentation.laserX}%`,
+                  top: `${presentation.laserY}%`,
+                  transform: 'translate(-50%, -50%)',
+                  width: '15px',
+                  height: '15px',
+                  borderRadius: '50%',
+                  backgroundColor: 'red',
+                  boxShadow: '0 0 8px 3px rgba(255, 0, 0, 0.8), 0 0 15px 5px rgba(255, 0, 0, 0.4)',
+                  position: 'absolute',
+                  pointerEvents: 'none',
+                  zIndex: 80,
+                  transition: 'top 0.05s ease-out, left 0.05s ease-out'
+                }}
+              />
+            )}
+          </div>
         )}
         
         {/* Floating Setup Instructions Bubble - Shown in the top-left when not capturing */}
