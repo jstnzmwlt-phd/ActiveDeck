@@ -105,6 +105,59 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [videoAspectRatio, setVideoAspectRatio] = useState<number>(16 / 9);
 
+  const [leftWidthPercent, setLeftWidthPercent] = useState<number>(62); // Default starting width percentage for left panel
+  const [isResizingNotes, setIsResizingNotes] = useState(false);
+
+  const handleMouseDownPresenterNotesSplit = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizingNotes(true);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+
+  const handleTouchStartPresenterNotesSplit = (e: React.TouchEvent) => {
+    setIsResizingNotes(true);
+  };
+
+  useEffect(() => {
+    if (!isResizingNotes) return;
+
+    const handleMouseMove = (moveEvent: MouseEvent | TouchEvent) => {
+      if (!containerRef.current) return;
+      
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const clientX = 'touches' in moveEvent ? (moveEvent as TouchEvent).touches[0].clientX : (moveEvent as MouseEvent).clientX;
+      
+      // Calculate position relative to container
+      const relativeX = clientX - containerRect.left;
+      let percent = (relativeX / containerRect.width) * 100;
+      
+      // Apply boundaries (minimum 45%, maximum 85% to prevent complete squishing)
+      if (percent < 45) percent = 45;
+      if (percent > 85) percent = 85;
+      
+      setLeftWidthPercent(percent);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingNotes(false);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('touchmove', handleMouseMove);
+    window.addEventListener('touchend', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('touchmove', handleMouseMove);
+      window.removeEventListener('touchend', handleMouseUp);
+    };
+  }, [isResizingNotes]);
+
   const handleVideoLoadedMetadata = (e: React.SyntheticEvent<HTMLVideoElement>) => {
     const video = e.currentTarget;
     if (video && video.videoWidth && video.videoHeight) {
@@ -615,12 +668,15 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         className={`${presentWithNotes && isCapturing && !isProjectorMode ? 'flex-[2]' : 'flex-1'} relative bg-black overflow-hidden flex items-center justify-center transition-all duration-300`}
       >
         {!isProjectorMode ? (
-          <div className={`w-full h-full p-4 flex flex-col ${presentWithNotes ? 'md:flex-row gap-10 items-start justify-between max-w-7xl' : 'items-center justify-center max-w-[1450px]'} mx-auto select-none overflow-y-auto custom-scrollbar`}>
+          <div className={`w-full h-full p-4 flex flex-col ${presentWithNotes ? 'md:flex-row gap-4 items-start justify-between max-w-[1650px]' : 'items-center justify-center max-w-[1450px]'} mx-auto select-none overflow-y-auto custom-scrollbar`}>
             {presentWithNotes ? (
               <>
                 {/* SPLIT SCREEN LAYOUT: Notes ON */}
-                {/* Left Column (Current Slide + Presenter Notes below it): 60% */}
-                <div className="flex flex-col gap-4 w-full md:w-[60%]">
+                {/* Left Column (Current Slide + Presenter Notes below it) */}
+                <div 
+                  className="flex flex-col gap-4 w-full md:flex-shrink-0"
+                  style={{ width: `calc(${leftWidthPercent}% - 8px)` }}
+                >
                   <div className="flex flex-col gap-2 w-full">
 
                     <div 
@@ -631,7 +687,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         width: '100%',
                         height: 'auto',
                         maxWidth: '100%',
-                        maxHeight: 'calc(100vh - 280px)'
+                        maxHeight: 'calc(100vh - 220px)'
                       }}
                       className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden p-1.5 flex items-center justify-center shadow-2xl cursor-crosshair mx-auto"
                     >
@@ -694,8 +750,22 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                   </div>
                 </div>
 
-                {/* Right Column (Next Slide): smaller preview (35%) */}
-                <div className="flex flex-col gap-2 w-full md:w-[35%] ml-auto">
+                {/* Interactive Drag Splitter between Current Slide + Notes (Left) and Next Slide Preview (Right) */}
+                <div 
+                  onMouseDown={handleMouseDownPresenterNotesSplit}
+                  onTouchStart={handleTouchStartPresenterNotesSplit}
+                  onDoubleClick={() => setLeftWidthPercent(62)}
+                  className="hidden md:flex w-2.5 self-stretch cursor-col-resize items-center justify-center flex-shrink-0 group/notes-splitter select-none bg-transparent hover:bg-white/[0.02] active:bg-white/[0.04] transition-all rounded-lg mx-1"
+                  title="Drag to resize panels (double-click to reset)"
+                >
+                  <div className="w-[3px] h-24 bg-slate-800/85 group-hover/notes-splitter:bg-osu-orange/70 group-active/notes-splitter:bg-osu-orange rounded-full transition-all duration-200" />
+                </div>
+
+                {/* Right Column (Next Slide): smaller preview */}
+                <div 
+                  className="flex flex-col gap-2 w-full md:flex-shrink-0 ml-auto"
+                  style={{ width: `calc(${100 - leftWidthPercent}% - 8px)` }}
+                >
                   <div className="flex items-center justify-between px-1">
                     <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Next Slide</span>
                     {nextSlide !== null && (
