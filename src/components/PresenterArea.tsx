@@ -658,7 +658,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-slate-900/60 select-none">
                       <div className="flex items-center gap-2">
                         <FileText className="w-4 h-4 text-osu-orange" />
-                        <span className="text-xs font-black uppercase tracking-wider text-slate-350">Presenter Notes</span>
+                        <span className="text-xs font-black uppercase tracking-wider text-slate-300">Presenter Notes</span>
                       </div>
                       {totalSlides !== null && currentSlide !== null && (
                         <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
@@ -1217,7 +1217,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           {totalSlides !== null && currentSlide !== null ? (
             <>
               <div className="w-px h-6 bg-slate-700/50 mx-0.5" />
-              <div className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-slate-350 bg-slate-950/40 rounded-lg border border-slate-850">
+              <div className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-slate-200 bg-slate-950/40 rounded-lg border border-slate-850">
                 Slide {currentSlide} of {totalSlides}
               </div>
             </>
