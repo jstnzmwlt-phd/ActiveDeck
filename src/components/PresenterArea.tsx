@@ -628,9 +628,12 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                       onMouseLeave={!isProjectorMode ? handleMouseLeave : undefined}
                       style={{
                         aspectRatio: `${videoAspectRatio}`,
-                        width: '100%'
+                        width: '100%',
+                        height: 'auto',
+                        maxWidth: '100%',
+                        maxHeight: 'calc(100vh - 280px)'
                       }}
-                      className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden p-1.5 flex items-center justify-center shadow-2xl cursor-crosshair"
+                      className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden p-1.5 flex items-center justify-center shadow-2xl cursor-crosshair mx-auto"
                     >
                       <ScreenCapture 
                         isCapturing={isCapturing} 
@@ -747,9 +750,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                   onMouseLeave={!isProjectorMode ? handleMouseLeave : undefined}
                   style={{
                     aspectRatio: `${videoAspectRatio}`,
+                    width: '100%',
+                    height: 'auto',
+                    maxWidth: '100%',
                     maxHeight: 'calc(100vh - 180px)',
-                    maxWidth: `calc((100vh - 180px) * ${videoAspectRatio})`,
-                    width: '100%'
                   }}
                   className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden p-1.5 flex items-center justify-center shadow-2xl cursor-crosshair mx-auto"
                 >
@@ -793,11 +797,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             style={{ 
               aspectRatio: `${videoAspectRatio}`,
               width: '100%',
-              height: '100%',
-              maxWidth: `calc(100vh * ${videoAspectRatio})`,
-              maxHeight: `calc(100vw / ${videoAspectRatio})`,
+              height: 'auto',
+              maxWidth: '100%',
+              maxHeight: '100%',
             }}
-            className="relative bg-black overflow-hidden flex items-center justify-center shadow-2xl rounded-2xl"
+            className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden p-1.5 flex items-center justify-center shadow-2xl mx-auto"
           >
             <ScreenCapture 
               isCapturing={isCapturing} 
