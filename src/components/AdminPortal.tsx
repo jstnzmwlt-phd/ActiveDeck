@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { doc, getDoc, setDoc, addDoc, collection, onSnapshot, deleteDoc, query, orderBy, limit, Timestamp, getDocs, where, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, addDoc, collection, onSnapshot, deleteDoc, query, orderBy, limit, Timestamp, getDocs, where, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { db, storage } from '../firebase';
 import { ref, listAll, deleteObject } from 'firebase/storage';
 import { Theme, SavedTheme, Message, Poll, WordCloud, OpenEndedQuestion } from '../types';
@@ -343,36 +343,96 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
 
   // Helper to delete session and all its subcollection documents, messages, and storage files
   const deleteSessionDoc = async (sessionId: string) => {
-    // 1. Delete all attendance check-ins under the session
-    const attendanceRef = collection(db, 'presentations', sessionId, 'attendance');
-    const attendanceSnap = await getDocs(attendanceRef);
-    const attendanceDeletes = attendanceSnap.docs.map(doc => deleteDoc(doc.ref));
-
-    // 2. Delete all attendance tokens under the session
-    const tokensRef = collection(db, 'presentations', sessionId, 'attendance_tokens');
-    const tokensSnap = await getDocs(tokensRef);
-    const tokensDeletes = tokensSnap.docs.map(doc => deleteDoc(doc.ref));
-
-    // 3. Delete all chat messages / slide preview logs associated with the session
-    const messagesQuery = query(collection(db, 'messages'), where('presentationId', '==', sessionId));
-    const messagesSnap = await getDocs(messagesQuery);
-    const messageDeletes = messagesSnap.docs.map(doc => deleteDoc(doc.ref));
-
-    // Run Firestore deletions in parallel
-    await Promise.all([...attendanceDeletes, ...tokensDeletes, ...messageDeletes]);
-
-    // 4. Delete associated files and slide snapshots in Firebase Storage
+    console.log(`[deleteSessionDoc] Starting deletion sequence for session: ${sessionId}`);
+    
+    // 1. Fetch all attendance check-ins under the session
+    let attendanceDocs: any[] = [];
     try {
+      console.log(`[deleteSessionDoc] Fetching attendance check-ins for session ${sessionId}...`);
+      const attendanceRef = collection(db, 'presentations', sessionId, 'attendance');
+      const attendanceSnap = await getDocs(attendanceRef);
+      attendanceDocs = attendanceSnap.docs;
+      console.log(`[deleteSessionDoc] Found ${attendanceDocs.length} attendance check-ins.`);
+    } catch (err: any) {
+      console.error(`[deleteSessionDoc] Error fetching attendance check-ins:`, err);
+      throw new Error(`Failed to fetch student attendance check-ins: ${err.message || err}`);
+    }
+
+    // 2. Fetch all attendance tokens under the session
+    let tokenDocs: any[] = [];
+    try {
+      console.log(`[deleteSessionDoc] Fetching attendance tokens for session ${sessionId}...`);
+      const tokensRef = collection(db, 'presentations', sessionId, 'attendance_tokens');
+      const tokensSnap = await getDocs(tokensRef);
+      tokenDocs = tokensSnap.docs;
+      console.log(`[deleteSessionDoc] Found ${tokenDocs.length} attendance tokens.`);
+    } catch (err: any) {
+      console.error(`[deleteSessionDoc] Error fetching attendance tokens:`, err);
+      throw new Error(`Failed to fetch presentation attendance tokens: ${err.message || err}`);
+    }
+
+    // 3. Fetch all chat messages associated with the session
+    let messageDocs: any[] = [];
+    try {
+      console.log(`[deleteSessionDoc] Fetching chat messages for session ${sessionId}...`);
+      const messagesQuery = query(collection(db, 'messages'), where('presentationId', '==', sessionId));
+      const messagesSnap = await getDocs(messagesQuery);
+      messageDocs = messagesSnap.docs;
+      console.log(`[deleteSessionDoc] Found ${messageDocs.length} chat messages.`);
+    } catch (err: any) {
+      console.error(`[deleteSessionDoc] Error fetching chat messages:`, err);
+      throw new Error(`Failed to fetch chat messages: ${err.message || err}`);
+    }
+
+    // 4. Batch delete all these documents in chunks of 400
+    const allDocRefs = [
+      ...attendanceDocs.map(d => d.ref),
+      ...tokenDocs.map(d => d.ref),
+      ...messageDocs.map(d => d.ref)
+    ];
+
+    console.log(`[deleteSessionDoc] Total sub-documents to delete: ${allDocRefs.length}`);
+
+    // Firestore batch limit is 500 operations. We'll chunk in 400s to be safe.
+    const chunkSize = 400;
+    for (let i = 0; i < allDocRefs.length; i += chunkSize) {
+      const chunk = allDocRefs.slice(i, i + chunkSize);
+      console.log(`[deleteSessionDoc] Committing deletion batch ${Math.floor(i / chunkSize) + 1} of ${Math.ceil(allDocRefs.length / chunkSize)} (${chunk.length} docs)...`);
+      try {
+        const batch = writeBatch(db);
+        chunk.forEach(ref => {
+          batch.delete(ref);
+        });
+        await batch.commit();
+        console.log(`[deleteSessionDoc] Batch completed successfully.`);
+      } catch (err: any) {
+        console.error(`[deleteSessionDoc] Failed to commit deletion batch:`, err);
+        throw new Error(`Failed to delete session sub-documents (batch execution failed): ${err.message || err}`);
+      }
+    }
+
+    // 5. Delete associated files and slide snapshots in Firebase Storage
+    try {
+      console.log(`[deleteSessionDoc] Cleaning up files in Storage...`);
       const storageFolderRef = ref(storage, `presentations/${sessionId}/documents`);
       const storageList = await listAll(storageFolderRef);
       const storageDeletes = storageList.items.map(itemRef => deleteObject(itemRef));
       await Promise.all(storageDeletes);
+      console.log(`[deleteSessionDoc] Storage cleanup completed.`);
     } catch (storageErr) {
-      console.warn("Storage cleanup failed (this is normal if no files were uploaded):", storageErr);
+      console.warn("[deleteSessionDoc] Storage cleanup failed (this is normal if no files were uploaded):", storageErr);
     }
 
-    // 5. Delete the parent presentation document
-    await deleteDoc(doc(db, 'presentations', sessionId));
+    // 6. Delete the parent presentation document itself
+    try {
+      console.log(`[deleteSessionDoc] Deleting parent presentation document...`);
+      const presentationRef = doc(db, 'presentations', sessionId);
+      await deleteDoc(presentationRef);
+      console.log(`[deleteSessionDoc] Session deletion fully complete!`);
+    } catch (err: any) {
+      console.error(`[deleteSessionDoc] Error deleting parent presentation document:`, err);
+      throw new Error(`Failed to delete the main presentation session document: ${err.message || err}`);
+    }
   };
 
   const handleDeleteSession = async (sessionId: string) => {
