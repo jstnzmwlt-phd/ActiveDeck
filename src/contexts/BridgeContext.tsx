@@ -6,6 +6,10 @@ interface BridgeContextType {
   setUseWithoutBridge: (value: boolean) => void;
   sendSlideCommand: (direction: 'next' | 'prev') => void;
   currentSlide: number | null;
+  nextSlide: number | null;
+  totalSlides: number | null;
+  notes: string | null;
+  clearNotesState: () => void;
 }
 
 const BridgeContext = createContext<BridgeContextType | undefined>(undefined);
@@ -15,6 +19,15 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isBridgeConnected, setIsBridgeConnected] = useState(false);
   const [useWithoutBridge, setUseWithoutBridge] = useState(false);
   const [currentSlide, setCurrentSlide] = useState<number | null>(null);
+  const [nextSlide, setNextSlide] = useState<number | null>(null);
+  const [totalSlides, setTotalSlides] = useState<number | null>(null);
+  const [notes, setNotes] = useState<string | null>(null);
+
+  const clearNotesState = () => {
+    setNextSlide(null);
+    setTotalSlides(null);
+    setNotes(null);
+  };
 
   useEffect(() => {
     let socket: WebSocket | null = null;
@@ -46,10 +59,16 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             }
           }
 
-          // Fallback to JSON format if needed
+          // Parse JSON format from bridge
           try {
             const data = JSON.parse(messageData);
-            if (data.type === 'SLIDE_UPDATE' && typeof data.slide === 'number') {
+            if (data && typeof data.current_slide === 'number') {
+              console.log('ActiveDeck: Rich payload received (JSON):', data);
+              setCurrentSlide(data.current_slide);
+              setNextSlide(typeof data.next_slide === 'number' ? data.next_slide : null);
+              setTotalSlides(typeof data.total_slides === 'number' ? data.total_slides : null);
+              setNotes(typeof data.notes === 'string' ? data.notes : null);
+            } else if (data && data.type === 'SLIDE_UPDATE' && typeof data.slide === 'number') {
               console.log('ActiveDeck: Slide update received (JSON):', data.slide);
               setCurrentSlide(data.slide);
             }
@@ -105,7 +124,11 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       useWithoutBridge, 
       setUseWithoutBridge, 
       sendSlideCommand,
-      currentSlide
+      currentSlide,
+      nextSlide,
+      totalSlides,
+      notes,
+      clearNotesState
     }}>
       {children}
     </BridgeContext.Provider>

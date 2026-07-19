@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Presentation } from '../types';
 import { ScreenCapture } from './ScreenCapture';
-import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play, X, Loader2, Tv, Minimize, Maximize } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play, X, Loader2, Tv, Minimize, Maximize, FileText } from 'lucide-react';
 import { useBridge } from '../contexts/BridgeContext';
 import { auth, db, storage } from '../firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
@@ -15,7 +15,17 @@ interface PresenterAreaProps {
 }
 
 export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logoUrl, onCreatePresentation, isProjectorMode = false }) => {
-  const { currentSlide, sendSlideCommand, isBridgeConnected, useWithoutBridge, setUseWithoutBridge } = useBridge();
+  const { 
+    currentSlide, 
+    sendSlideCommand, 
+    isBridgeConnected, 
+    useWithoutBridge, 
+    setUseWithoutBridge,
+    nextSlide,
+    totalSlides,
+    notes,
+    clearNotesState
+  } = useBridge();
   const [activeTab, setActiveTab] = useState<'single' | 'dual' | 'manual'>('single');
   const [secondaryColor, setSecondaryColor] = useState<string>('#ff3e00');
   const [isCapturing, setIsCapturing] = useState(false);
@@ -23,6 +33,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const [error, setError] = useState<string | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
   const [laserEnabled, setLaserEnabled] = useState(true);
+  const [presentWithNotes, setPresentWithNotes] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const lastUpdateRef = useRef<number>(0);
@@ -463,6 +474,26 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           <div className="flex items-center gap-2">
 
 
+            {/* Present with Notes Toggle Switch */}
+            <button
+              onClick={() => {
+                const newEnabled = !presentWithNotes;
+                setPresentWithNotes(newEnabled);
+                if (!newEnabled) {
+                  clearNotesState();
+                }
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all duration-200 shadow-lg cursor-pointer hover:scale-105 active:scale-95 ${
+                presentWithNotes 
+                  ? 'bg-osu-orange border-osu-orange text-white hover:bg-[#c03900] hover:border-[#c03900] shadow-orange-500/10' 
+                  : 'bg-slate-900/90 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800 hover:border-slate-600 shadow-slate-955/25'
+              }`}
+              title="Toggle Present with Notes"
+            >
+              <FileText className="w-3 h-3" />
+              <span>Notes {presentWithNotes ? 'ON' : 'OFF'}</span>
+            </button>
+
             {/* Laser Pointer Toggle Switch */}
             <button
               onClick={() => {
@@ -503,7 +534,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         ref={containerRef}
         onMouseMove={!isProjectorMode ? handleMouseMove : undefined}
         onMouseLeave={!isProjectorMode ? handleMouseLeave : undefined}
-        className="flex-1 relative bg-black overflow-hidden flex items-center justify-center"
+        className={`${presentWithNotes && isCapturing && !isProjectorMode ? 'flex-[2]' : 'flex-1'} relative bg-black overflow-hidden flex items-center justify-center transition-all duration-300`}
       >
         <ScreenCapture 
           isCapturing={isCapturing} 
@@ -934,22 +965,57 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         )}
       </div>
 
+      {/* Presenter Notes UI panel positioned immediately below the main slide preview */}
+      {presentWithNotes && isCapturing && !isProjectorMode && (
+        <div className="flex flex-col bg-slate-950 border-t border-slate-850 p-4 min-h-[160px] max-h-[300px] select-none animate-in slide-in-from-bottom duration-300">
+          <div className="flex items-center justify-between mb-2.5 pb-2 border-b border-slate-900/60 select-none">
+            <div className="flex items-center gap-2">
+              <FileText className="w-4 h-4 text-osu-orange" />
+              <span className="text-xs font-black uppercase tracking-wider text-slate-350">Presenter Notes</span>
+            </div>
+            {totalSlides !== null && currentSlide !== null && (
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                Slide {currentSlide} of {totalSlides}
+              </span>
+            )}
+          </div>
+          <div className="flex-1 overflow-y-auto text-sm text-slate-300 font-medium leading-relaxed pr-2 custom-scrollbar">
+            {notes ? (
+              <div className="whitespace-pre-wrap">{notes}</div>
+            ) : (
+              <div className="text-xs text-slate-500 italic flex items-center justify-center h-full">
+                No notes available for this slide.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Professional Remote Control Overlay - Only shown when bridge is connected */}
       {isBridgeConnected && !isProjectorMode && (
         <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-2 p-1.5 bg-slate-900/95 rounded-xl border border-slate-700/50 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 translate-y-2 group-hover:translate-y-0 z-50">
           <button
             onClick={() => handleSlideMove('prev')}
-            className="flex items-center justify-center w-10 h-10 bg-slate-800/80 hover:bg-slate-700 text-white rounded-lg transition-all active:scale-95 border border-slate-700/50 group/btn"
+            className="flex items-center justify-center w-10 h-10 bg-slate-800/80 hover:bg-slate-700 text-white rounded-lg transition-all active:scale-95 border border-slate-700/50 group/btn cursor-pointer"
             title="Previous Slide"
           >
             <ChevronLeft className="w-6 h-6 group-hover/btn:-translate-x-0.5 transition-transform" />
           </button>
           
+          {totalSlides !== null && currentSlide !== null ? (
+            <>
+              <div className="w-px h-6 bg-slate-700/50 mx-0.5" />
+              <div className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-slate-350 bg-slate-950/40 rounded-lg border border-slate-850">
+                Slide {currentSlide} of {totalSlides}
+              </div>
+            </>
+          ) : null}
+
           <div className="w-px h-6 bg-slate-700/50 mx-0.5" />
 
           <button
             onClick={() => handleSlideMove('next')}
-            className="flex items-center justify-center w-10 h-10 bg-osu-orange/90 hover:bg-osu-orange text-white rounded-lg transition-all active:scale-95 border border-orange-600/50 group/btn shadow-lg"
+            className="flex items-center justify-center w-10 h-10 bg-osu-orange/90 hover:bg-osu-orange text-white rounded-lg transition-all active:scale-95 border border-orange-600/50 group/btn shadow-lg cursor-pointer"
             title="Next Slide"
           >
             <ChevronRight className="w-6 h-6 group-hover/btn:translate-x-0.5 transition-transform" />
