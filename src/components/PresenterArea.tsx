@@ -74,6 +74,27 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     return () => unsub();
   }, [presentation?.id, nextSlide]);
 
+  const [localSlidesCount, setLocalSlidesCount] = useState<number>(0);
+
+  useEffect(() => {
+    if (isBridgeConnected) {
+      console.log("ActiveDeck: Bridge connected, triggering slide images pre-export...");
+      fetch('http://127.0.0.1:5000/export')
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.success && typeof data.count === 'number') {
+            console.log(`ActiveDeck: Successfully pre-exported ${data.count} slide previews locally.`);
+            setLocalSlidesCount(data.count);
+          }
+        })
+        .catch(err => {
+          console.warn("ActiveDeck: Failed to pre-export slides via bridge:", err);
+        });
+    } else {
+      setLocalSlidesCount(0);
+    }
+  }, [isBridgeConnected]);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const lastUpdateRef = useRef<number>(0);
   const throttleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -622,11 +643,19 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 )}
               </div>
               <div className="relative w-full aspect-video bg-slate-950 border border-slate-850 rounded-2xl overflow-hidden flex items-center justify-center shadow-lg">
-                {nextSlidePreviewUrl ? (
+                {isBridgeConnected && nextSlide !== null && nextSlide <= localSlidesCount ? (
+                  <img 
+                    src={`http://127.0.0.1:5000/slides/${nextSlide}.jpg`} 
+                    alt="Next Slide Preview" 
+                    className="w-full h-full object-contain bg-black animate-in fade-in duration-300"
+                    key={`local-next-${nextSlide}`}
+                  />
+                ) : nextSlidePreviewUrl ? (
                   <img 
                     src={nextSlidePreviewUrl} 
                     alt="Next Slide Preview" 
-                    className="w-full h-full object-contain bg-black"
+                    className="w-full h-full object-contain bg-black animate-in fade-in duration-300"
+                    key={`firestore-next-${nextSlide}`}
                   />
                 ) : (
                   <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600 text-center p-4">
