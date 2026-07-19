@@ -597,7 +597,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         className={`${presentWithNotes && isCapturing && !isProjectorMode ? 'flex-[2]' : 'flex-1'} relative bg-black overflow-hidden flex items-center justify-center transition-all duration-300`}
       >
         {!isProjectorMode ? (
-          <div className="w-full h-full p-4 flex flex-col md:flex-row gap-10 items-start justify-between max-w-7xl mx-auto select-none overflow-y-auto custom-scrollbar">
+          <div className={`w-full h-full p-4 flex flex-col ${presentWithNotes ? 'md:flex-row gap-10 items-start justify-between max-w-7xl' : 'items-center justify-center max-w-[1300px]'} mx-auto select-none overflow-y-auto custom-scrollbar`}>
             {presentWithNotes ? (
               <>
                 {/* SPLIT SCREEN LAYOUT: Notes ON */}
@@ -623,7 +623,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         </span>
                       )}
                     </div>
-                    <div className="relative w-full aspect-video bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden flex items-center justify-center shadow-2xl">
+                    <div className="relative w-full aspect-video bg-black border border-slate-800 rounded-2xl overflow-hidden p-1.5 flex items-center justify-center shadow-2xl">
                       <ScreenCapture 
                         isCapturing={isCapturing} 
                         stream={stream} 
@@ -671,7 +671,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                       </span>
                     )}
                   </div>
-                  <div className="relative w-full aspect-video bg-slate-950 border border-slate-850 rounded-2xl overflow-hidden flex items-center justify-center shadow-lg">
+                  <div className="relative w-full aspect-video bg-black border border-slate-850 rounded-2xl overflow-hidden p-1 flex items-center justify-center shadow-lg">
                     {isBridgeConnected && nextSlide !== null && nextSlide <= localSlidesCount ? (
                       <img 
                         src={`http://127.0.0.1:5000/slides/${nextSlide}.jpg`} 
@@ -702,7 +702,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               </>
             ) : (
               /* SINGLE SCREEN FULL LAYOUT: Notes OFF */
-              <div className="w-full flex flex-col gap-2 max-w-5xl">
+              <div className="w-full flex flex-col gap-2 max-w-[1200px] mx-auto justify-center">
                 <div className="flex items-center justify-between px-1">
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Current Slide</span>
@@ -722,7 +722,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     </span>
                   )}
                 </div>
-                <div className="relative w-full aspect-video bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden flex items-center justify-center shadow-2xl">
+                <div className="relative w-full aspect-video bg-black border border-slate-800 rounded-2xl overflow-hidden p-1.5 flex items-center justify-center shadow-2xl">
                   <ScreenCapture 
                     isCapturing={isCapturing} 
                     stream={stream} 
