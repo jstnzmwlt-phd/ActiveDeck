@@ -1386,59 +1386,61 @@ function AppContent() {
         <>
           <div className="h-full w-full flex flex-col bg-slate-950 font-sans antialiased overflow-hidden">
             {/* Pinned Slide Preview Container at the Top of Viewport */}
-            <div className="w-full shrink-0 bg-slate-950 border-b border-slate-900 relative z-20 shadow-lg">
-              <div 
-                className="w-full aspect-[16/9] max-h-[25vh] bg-black select-none relative group overflow-hidden"
-                onClick={() => {
-                  if (pushedSlidesMap[activeTab]) {
-                    setLightboxImgUrl(pushedSlidesMap[activeTab]);
-                    setIsLightboxOpen(true);
-                  }
-                }}
-                title={pushedSlidesMap[activeTab] ? `Slide ${activeTab} Preview (Tap to Zoom)` : "No slide preview shared yet"}
-              >
-                {pushedSlidesMap[activeTab] ? (
-                  <div className="w-full h-full relative cursor-zoom-in">
-                    <img 
-                      src={pushedSlidesMap[activeTab]} 
-                      alt={`Slide ${activeTab} Preview`}
-                      className="w-full h-full object-contain"
-                    />
-                    {/* Floating badge */}
-                    <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-black/60 border border-white/10 text-white text-[9px] font-bold">
-                      Slide {activeTab}
+            {presentation?.showSlidePreview !== false && (
+              <div className="w-full shrink-0 bg-slate-950 border-b border-slate-900 relative z-20 shadow-lg">
+                <div 
+                  className="w-full aspect-[16/9] max-h-[25vh] bg-black select-none relative group overflow-hidden"
+                  onClick={() => {
+                    if (pushedSlidesMap[activeTab]) {
+                      setLightboxImgUrl(pushedSlidesMap[activeTab]);
+                      setIsLightboxOpen(true);
+                    }
+                  }}
+                  title={pushedSlidesMap[activeTab] ? `Slide ${activeTab} Preview (Tap to Zoom)` : "No slide preview shared yet"}
+                >
+                  {pushedSlidesMap[activeTab] ? (
+                    <div className="w-full h-full relative cursor-zoom-in">
+                      <img 
+                        src={pushedSlidesMap[activeTab]} 
+                        alt={`Slide ${activeTab} Preview`}
+                        className="w-full h-full object-contain"
+                      />
+                      {/* Floating badge */}
+                      <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-black/60 border border-white/10 text-white text-[9px] font-bold">
+                        Slide {activeTab}
+                      </div>
+                      <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded-md bg-osu-orange text-white text-[9px] font-bold animate-pulse flex items-center gap-1">
+                        <span className="w-1 h-1 rounded-full bg-white"></span>
+                        Live
+                      </div>
                     </div>
-                    <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded-md bg-osu-orange text-white text-[9px] font-bold animate-pulse flex items-center gap-1">
-                      <span className="w-1 h-1 rounded-full bg-white"></span>
-                      Live
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center p-3 text-slate-500">
+                      <Tv className="w-6 h-6 text-slate-700 mb-1" />
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 leading-none">Slide {activeTab}</span>
+                      <span className="text-[8px] font-bold text-slate-600 uppercase leading-none mt-1">No Preview Available</span>
                     </div>
-                  </div>
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center p-3 text-slate-500">
-                    <Tv className="w-6 h-6 text-slate-700 mb-1" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 leading-none">Slide {activeTab}</span>
-                    <span className="text-[8px] font-bold text-slate-600 uppercase leading-none mt-1">No Preview Available</span>
+                  )}
+                </div>
+
+                {/* Slide Out-of-Sync Alert for Mobile */}
+                {presentation && presentation.currentSlide !== undefined && presentation.currentSlide !== null && String(presentation.currentSlide) !== activeTab && (
+                  <div className="flex items-center justify-between p-2 bg-orange-500/10 border-t border-orange-500/20 text-[9px] text-orange-200">
+                    <span className="flex items-center gap-1 font-medium">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse shrink-0" />
+                      Presenter is on Slide {presentation.currentSlide}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab(String(presentation.currentSlide))}
+                      className="px-2 py-0.5 rounded bg-osu-orange text-white font-bold uppercase tracking-wider text-[8px] hover:bg-[#c03900] active:scale-95 transition-all cursor-pointer"
+                    >
+                      Sync Slide {presentation.currentSlide}
+                    </button>
                   </div>
                 )}
               </div>
-
-              {/* Slide Out-of-Sync Alert for Mobile */}
-              {presentation && presentation.currentSlide !== undefined && presentation.currentSlide !== null && String(presentation.currentSlide) !== activeTab && (
-                <div className="flex items-center justify-between p-2 bg-orange-500/10 border-t border-orange-500/20 text-[9px] text-orange-200">
-                  <span className="flex items-center gap-1 font-medium">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse shrink-0" />
-                    Presenter is on Slide {presentation.currentSlide}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab(String(presentation.currentSlide))}
-                    className="px-2 py-0.5 rounded bg-osu-orange text-white font-bold uppercase tracking-wider text-[8px] hover:bg-[#c03900] active:scale-95 transition-all cursor-pointer"
-                  >
-                    Sync Slide {presentation.currentSlide}
-                  </button>
-                </div>
-              )}
-            </div>
+            )}
 
             {/* Dual Tab Switcher Button Group */}
             <div className="flex bg-slate-900 border-b border-slate-800 shrink-0 p-1 relative z-20 shadow-md">
@@ -1579,7 +1581,7 @@ function AppContent() {
                                             : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
                                         }`}
                                       >
-                                        <span>Slide {slide}</span>
+                                        <span>{presentation?.showSlidePreview !== false ? `Slide ${slide}` : `\u00A0\u00A0\u00A0\u00A0`}</span>
                                         {isPresenterSlide && (
                                           <span className="w-1 h-1 rounded-full bg-green-400 animate-pulse border border-green-300" />
                                         )}
@@ -1864,7 +1866,7 @@ function AppContent() {
                                         : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
                                     }`}
                                   >
-                                    <span>Slide {slide}</span>
+                                    <span>{presentation?.showSlidePreview !== false ? `Slide ${slide}` : `\u00A0\u00A0\u00A0\u00A0`}</span>
                                     {isPresenterSlide && (
                                       <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse border border-green-300" title="Presenter is currently on this slide" />
                                     )}
@@ -1935,7 +1937,7 @@ function AppContent() {
                     {/* Notes Writing Area (Left/Top) */}
                     <div 
                       className="flex flex-col min-w-0 min-h-0"
-                      style={{ flex: `1 1 ${notesSplitRatio}%`, minWidth: '150px' }}
+                      style={{ flex: presentation?.showSlidePreview !== false ? `1 1 ${notesSplitRatio}%` : '1 1 100%', minWidth: '150px' }}
                     >
                       {notesMode === 'text' ? (
                         <RichTextEditor
@@ -1949,7 +1951,7 @@ function AppContent() {
                           }}
                           onFocus={() => setIsEditorFocused(true)}
                           onBlur={() => setIsEditorFocused(false)}
-                          placeholder={`Type your notes for Slide ${activeTab} here...`}
+                          placeholder={presentation?.showSlidePreview !== false ? `Type your notes for Slide ${activeTab} here...` : `Type your notes here...`}
                           className="flex-1 min-h-[120px]"
                         />
                       ) : (
@@ -1961,64 +1963,68 @@ function AppContent() {
                               [activeTab]: newVal
                             }));
                           }}
-                          placeholder={`Draw your notes for Slide ${activeTab} here...`}
+                          placeholder={presentation?.showSlidePreview !== false ? `Draw your notes for Slide ${activeTab} here...` : `Draw your notes here...`}
                         />
                       )}
                     </div>
 
                     {/* Interactive Drag Splitter between Notes and Preview */}
-                    <div 
-                      onMouseDown={handleMouseDownNotesSplit}
-                      onTouchStart={handleTouchStartNotesSplit}
-                      onDoubleClick={handleDoubleClickNotesSplit}
-                      className="hidden md:flex w-2.5 h-full cursor-col-resize items-center justify-center flex-shrink-0 group/notes-splitter select-none bg-transparent hover:bg-white/[0.01] transition-colors rounded-lg"
-                      title="Drag to resize notes and slide preview (double-click to reset)"
-                    >
-                      <div className="w-[3px] h-20 bg-slate-800/80 group-hover/notes-splitter:bg-osu-orange/70 group-active/notes-splitter:bg-osu-orange rounded-full transition-all duration-200" />
-                    </div>
+                    {presentation?.showSlidePreview !== false && (
+                      <div 
+                        onMouseDown={handleMouseDownNotesSplit}
+                        onTouchStart={handleTouchStartNotesSplit}
+                        onDoubleClick={handleDoubleClickNotesSplit}
+                        className="hidden md:flex w-2.5 h-full cursor-col-resize items-center justify-center flex-shrink-0 group/notes-splitter select-none bg-transparent hover:bg-white/[0.01] transition-colors rounded-lg"
+                        title="Drag to resize notes and slide preview (double-click to reset)"
+                      >
+                        <div className="w-[3px] h-20 bg-slate-800/80 group-hover/notes-splitter:bg-osu-orange/70 group-active/notes-splitter:bg-osu-orange rounded-full transition-all duration-200" />
+                      </div>
+                    )}
 
                     {/* Premium Large Slide Preview (Right/Bottom) */}
-                    <div 
-                      className="flex flex-col min-w-0 min-h-[200px] md:min-h-0 rounded-xl border border-slate-800 bg-slate-950 select-none group shadow-xl relative overflow-hidden"
-                      style={{ flex: `1 1 ${100 - notesSplitRatio}%`, minWidth: '150px' }}
-                      title={pushedSlidesMap[activeTab] ? `Slide ${activeTab} Preview (Click to Zoom)` : "No slide preview shared yet"}
-                    >
-                      {pushedSlidesMap[activeTab] ? (
-                        <div className="w-full h-full relative flex flex-col h-full justify-between">
-                          <div 
-                            onClick={() => {
-                              setLightboxImgUrl(pushedSlidesMap[activeTab]);
-                              setIsLightboxOpen(true);
-                            }}
-                            className="flex-1 relative overflow-hidden bg-black flex items-center justify-center min-h-0 cursor-zoom-in group/preview"
-                            title="Click to zoom in"
-                          >
-                            <img 
-                              src={pushedSlidesMap[activeTab]} 
-                              alt={`Slide ${activeTab} Preview`}
-                              className="absolute inset-0 w-full h-full object-contain transition-transform duration-300 group-hover/preview:scale-[1.01]"
-                            />
-                            {/* Floating Glassmorphic Expand Icon */}
-                            <div className="absolute top-2.5 right-2.5 p-2 rounded-lg bg-black/60 border border-white/10 text-white/70 group-hover/preview:text-white group-hover/preview:bg-osu-orange group-hover/preview:border-osu-orange/50 shadow-lg backdrop-blur-md opacity-0 group-hover/preview:opacity-100 transition-all duration-300 transform scale-95 group-hover/preview:scale-100 flex items-center justify-center">
-                              <Maximize className="w-4 h-4" />
+                    {presentation?.showSlidePreview !== false && (
+                      <div 
+                        className="flex flex-col min-w-0 min-h-[200px] md:min-h-0 rounded-xl border border-slate-800 bg-slate-950 select-none group shadow-xl relative overflow-hidden"
+                        style={{ flex: `1 1 ${100 - notesSplitRatio}%`, minWidth: '150px' }}
+                        title={pushedSlidesMap[activeTab] ? `Slide ${activeTab} Preview (Click to Zoom)` : "No slide preview shared yet"}
+                      >
+                        {pushedSlidesMap[activeTab] ? (
+                          <div className="w-full h-full relative flex flex-col h-full justify-between">
+                            <div 
+                              onClick={() => {
+                                setLightboxImgUrl(pushedSlidesMap[activeTab]);
+                                setIsLightboxOpen(true);
+                              }}
+                              className="flex-1 relative overflow-hidden bg-black flex items-center justify-center min-h-0 cursor-zoom-in group/preview"
+                              title="Click to zoom in"
+                            >
+                              <img 
+                                src={pushedSlidesMap[activeTab]} 
+                                alt={`Slide ${activeTab} Preview`}
+                                className="absolute inset-0 w-full h-full object-contain transition-transform duration-300 group-hover/preview:scale-[1.01]"
+                              />
+                              {/* Floating Glassmorphic Expand Icon */}
+                              <div className="absolute top-2.5 right-2.5 p-2 rounded-lg bg-black/60 border border-white/10 text-white/70 group-hover/preview:text-white group-hover/preview:bg-osu-orange group-hover/preview:border-osu-orange/50 shadow-lg backdrop-blur-md opacity-0 group-hover/preview:opacity-100 transition-all duration-300 transform scale-95 group-hover/preview:scale-100 flex items-center justify-center">
+                                <Maximize className="w-4 h-4" />
+                              </div>
+                            </div>
+                            <div className="bg-slate-900/90 backdrop-blur-sm py-2 px-3 flex items-center justify-between border-t border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-300 shrink-0">
+                              <span className="text-slate-400">Slide {activeTab}</span>
+                              <span className="text-osu-orange group-hover:text-white font-black animate-pulse flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-osu-orange inline-block"></span>
+                                Live Preview (Click to Zoom)
+                              </span>
                             </div>
                           </div>
-                          <div className="bg-slate-900/90 backdrop-blur-sm py-2 px-3 flex items-center justify-between border-t border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-300 shrink-0">
-                            <span className="text-slate-400">Slide {activeTab}</span>
-                            <span className="text-osu-orange group-hover:text-white font-black animate-pulse flex items-center gap-1">
-                              <span className="w-1.5 h-1.5 rounded-full bg-osu-orange inline-block"></span>
-                              Live Preview (Click to Zoom)
-                            </span>
+                        ) : (
+                          <div className="w-full h-full flex flex-col items-center justify-center p-4 bg-slate-950 text-slate-500 text-center min-h-[150px] md:min-h-0">
+                            <Tv className="w-8 h-8 text-slate-700 mb-2" />
+                            <span className="text-xs font-black uppercase tracking-widest text-slate-500 leading-none">Slide {activeTab}</span>
+                            <span className="text-[9px] font-bold text-slate-600 uppercase leading-none mt-2">No Preview Available</span>
                           </div>
-                        </div>
-                      ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center p-4 bg-slate-950 text-slate-500 text-center min-h-[150px] md:min-h-0">
-                          <Tv className="w-8 h-8 text-slate-700 mb-2" />
-                          <span className="text-xs font-black uppercase tracking-widest text-slate-500 leading-none">Slide {activeTab}</span>
-                          <span className="text-[9px] font-bold text-slate-600 uppercase leading-none mt-2">No Preview Available</span>
-                        </div>
-                      )}
-                    </div>
+                        )}
+                      </div>
+                    )}
 
                   </div>
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Monitor, Clock, Maximize, Minimize, Link2, Link2Off, Sun, Moon, Loader2, AlertCircle, Eye, EyeOff, Download, ShieldAlert, X, Tv } from 'lucide-react';
 import { useBridge } from '../contexts/BridgeContext';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
 interface HeaderProps {
@@ -20,6 +20,34 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isDownloading, setIsDownloading] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+
+  const [showSlidePreview, setShowSlidePreview] = useState(true);
+
+  useEffect(() => {
+    if (!presentationId) return;
+    const unsub = onSnapshot(doc(db, 'presentations', presentationId), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setShowSlidePreview(data.showSlidePreview !== false);
+      }
+    }, (err) => {
+      console.warn("Header: Error reading showSlidePreview:", err);
+    });
+    return () => unsub();
+  }, [presentationId]);
+
+  const handleTogglePPT = async () => {
+    if (!presentationId) return;
+    const nextVal = !showSlidePreview;
+    setShowSlidePreview(nextVal);
+    try {
+      await updateDoc(doc(db, 'presentations', presentationId), {
+        showSlidePreview: nextVal
+      });
+    } catch (err) {
+      console.error("Header: Error updating showSlidePreview:", err);
+    }
+  };
 
   const fetchAttendanceRecords = async () => {
     if (!presentationId) return null;
@@ -308,6 +336,32 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
         </div>
 
         <div className="flex items-center gap-4 z-10">
+          {/* PPT Preview Toggle (only visible to presenters) */}
+          {presentationId && onNewSession && (
+            <div className="flex items-center gap-2.5 bg-slate-100 px-4 py-1.5 rounded-xl border-2 border-slate-205 shadow-sm select-none">
+              <span className="text-slate-550 font-black uppercase text-[10px] tracking-wider flex items-center gap-1.5">
+                <Tv className="w-3.5 h-3.5 text-osu-orange" />
+                PPT Preview:
+              </span>
+              <button
+                onClick={handleTogglePPT}
+                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  showSlidePreview ? 'bg-osu-orange' : 'bg-slate-350'
+                }`}
+                title={showSlidePreview ? "Slide previews are visible in audience portal" : "Slide previews are hidden in audience portal"}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-205 ease-in-out ${
+                    showSlidePreview ? 'translate-x-4' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+              <span className={`text-[11px] font-black uppercase tracking-wider w-8 ${showSlidePreview ? 'text-osu-orange' : 'text-slate-400'}`}>
+                {showSlidePreview ? 'ON' : 'OFF'}
+              </span>
+            </div>
+          )}
+
           {/* Join URL Display */}
           <div className="flex items-center gap-2 bg-slate-100 px-4 py-1 rounded-xl border-2 border-slate-205 shadow-sm select-none">
             <span className="text-slate-550 font-black uppercase text-[12px] tracking-wider">Join Here:</span>
