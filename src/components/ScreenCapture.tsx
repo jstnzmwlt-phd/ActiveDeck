@@ -9,6 +9,8 @@ interface ScreenCaptureProps {
   onStop: () => void;
   logoUrl?: string;
   isProjectorMode?: boolean;
+  videoRef?: React.RefObject<HTMLVideoElement | null>;
+  onLoadedMetadata?: (e: React.SyntheticEvent<HTMLVideoElement>) => void;
 }
 
 export const ScreenCapture: React.FC<ScreenCaptureProps> = ({ 
@@ -18,18 +20,21 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
   onStart, 
   onStop,
   logoUrl,
-  isProjectorMode = false
+  isProjectorMode = false,
+  videoRef,
+  onLoadedMetadata
 }) => {
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const activeVideoRef = videoRef || localVideoRef;
 
   useEffect(() => {
-    if (videoRef.current && stream) {
-      videoRef.current.srcObject = stream;
-      videoRef.current.play().catch(err => {
+    if (activeVideoRef.current && stream) {
+      activeVideoRef.current.srcObject = stream;
+      activeVideoRef.current.play().catch(err => {
         console.error("ActiveDeck: Error playing video stream:", err);
       });
-    } else if (videoRef.current) {
-      videoRef.current.srcObject = null;
+    } else if (activeVideoRef.current) {
+      activeVideoRef.current.srcObject = null;
     }
   }, [stream]);
 
@@ -50,10 +55,11 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
         )}
         
         <video
-          ref={videoRef}
+          ref={activeVideoRef}
           autoPlay
           playsInline
           muted
+          onLoadedMetadata={onLoadedMetadata}
           className={`absolute inset-0 w-full h-full object-contain z-10 ${isCapturing ? 'opacity-100' : 'opacity-0'}`}
         />
         

@@ -102,6 +102,18 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   }, [isBridgeConnected]);
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [videoAspectRatio, setVideoAspectRatio] = useState<number>(16 / 9);
+
+  const handleVideoLoadedMetadata = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    const video = e.currentTarget;
+    if (video && video.videoWidth && video.videoHeight) {
+      const ratio = video.videoWidth / video.videoHeight;
+      console.log(`[PresenterArea] Video metadata loaded: ${video.videoWidth}x${video.videoHeight}, aspect ratio: ${ratio}`);
+      setVideoAspectRatio(ratio);
+    }
+  };
+
   const lastUpdateRef = useRef<number>(0);
   const throttleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const pendingCoordsRef = useRef<{ x: number; y: number } | null>(null);
@@ -274,18 +286,15 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     const container = e.currentTarget;
     if (!container) return;
 
-    const rect = container.getBoundingClientRect();
-    // The container has p-1.5 padding which is exactly 6px.
-    // Subtracting the padding ensures coordinates match the actual video stream bounds.
-    const padding = 6;
-    const innerWidth = rect.width - padding * 2;
-    const innerHeight = rect.height - padding * 2;
+    const videoElement = container.querySelector('video');
+    if (!videoElement) return;
 
-    const relativeX = Math.max(0, Math.min(innerWidth, e.clientX - rect.left - padding));
-    const relativeY = Math.max(0, Math.min(innerHeight, e.clientY - rect.top - padding));
+    const rect = videoElement.getBoundingClientRect();
+    const relativeX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+    const relativeY = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
 
-    const x = (relativeX / innerWidth) * 100;
-    const y = (relativeY / innerHeight) * 100;
+    const x = (relativeX / rect.width) * 100;
+    const y = (relativeY / rect.height) * 100;
 
     updateLaserPosition(x, y, true);
   };
@@ -617,7 +626,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     <div 
                       onMouseMove={!isProjectorMode ? handleMouseMove : undefined}
                       onMouseLeave={!isProjectorMode ? handleMouseLeave : undefined}
-                      className="relative w-full aspect-video bg-black border border-slate-800 rounded-2xl overflow-hidden p-1.5 flex items-center justify-center shadow-2xl cursor-crosshair"
+                      style={{
+                        aspectRatio: `${videoAspectRatio}`,
+                        width: '100%'
+                      }}
+                      className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden p-1.5 flex items-center justify-center shadow-2xl cursor-crosshair"
                     >
                       <ScreenCapture 
                         isCapturing={isCapturing} 
@@ -627,7 +640,29 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         onStop={stopCapture} 
                         logoUrl={logoUrl}
                         isProjectorMode={isProjectorMode}
+                        videoRef={videoRef}
+                        onLoadedMetadata={handleVideoLoadedMetadata}
                       />
+
+                      {/* Real-time Virtual Laser Pointer Dot rendered inside the aspect-ratio locked frame */}
+                      {presentation?.laserActive && presentation.laserX !== undefined && presentation.laserY !== undefined && (
+                        <div 
+                          style={{
+                            left: `${presentation.laserX}%`,
+                            top: `${presentation.laserY}%`,
+                            transform: 'translate(-50%, -50%)',
+                            width: '15px',
+                            height: '15px',
+                            borderRadius: '50%',
+                            backgroundColor: 'red',
+                            boxShadow: '0 0 8px 3px rgba(255, 0, 0, 0.8), 0 0 15px 5px rgba(255, 0, 0, 0.4)',
+                            position: 'absolute',
+                            pointerEvents: 'none',
+                            zIndex: 80,
+                            transition: 'top 0.05s ease-out, left 0.05s ease-out'
+                          }}
+                        />
+                      )}
                     </div>
                   </div>
 
@@ -710,7 +745,13 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 <div 
                   onMouseMove={!isProjectorMode ? handleMouseMove : undefined}
                   onMouseLeave={!isProjectorMode ? handleMouseLeave : undefined}
-                  className="relative w-full aspect-video bg-black border border-slate-800 rounded-2xl overflow-hidden p-1.5 flex items-center justify-center shadow-2xl cursor-crosshair"
+                  style={{
+                    aspectRatio: `${videoAspectRatio}`,
+                    maxHeight: 'calc(100vh - 180px)',
+                    maxWidth: `calc((100vh - 180px) * ${videoAspectRatio})`,
+                    width: '100%'
+                  }}
+                  className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden p-1.5 flex items-center justify-center shadow-2xl cursor-crosshair mx-auto"
                 >
                   <ScreenCapture 
                     isCapturing={isCapturing} 
@@ -720,7 +761,29 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     onStop={stopCapture} 
                     logoUrl={logoUrl}
                     isProjectorMode={isProjectorMode}
+                    videoRef={videoRef}
+                    onLoadedMetadata={handleVideoLoadedMetadata}
                   />
+
+                  {/* Real-time Virtual Laser Pointer Dot rendered inside the aspect-ratio locked frame */}
+                  {presentation?.laserActive && presentation.laserX !== undefined && presentation.laserY !== undefined && (
+                    <div 
+                      style={{
+                        left: `${presentation.laserX}%`,
+                        top: `${presentation.laserY}%`,
+                        transform: 'translate(-50%, -50%)',
+                        width: '15px',
+                        height: '15px',
+                        borderRadius: '50%',
+                        backgroundColor: 'red',
+                        boxShadow: '0 0 8px 3px rgba(255, 0, 0, 0.8), 0 0 15px 5px rgba(255, 0, 0, 0.4)',
+                        position: 'absolute',
+                        pointerEvents: 'none',
+                        zIndex: 80,
+                        transition: 'top 0.05s ease-out, left 0.05s ease-out'
+                      }}
+                    />
+                  )}
                 </div>
               </div>
             )}
@@ -728,11 +791,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         ) : (
           <div 
             style={{ 
-              aspectRatio: '16/9',
+              aspectRatio: `${videoAspectRatio}`,
               width: '100%',
               height: '100%',
-              maxWidth: 'calc((100vh - 80px) * 16 / 9)',
-              maxHeight: 'calc(100vw * 9 / 16)',
+              maxWidth: `calc(100vh * ${videoAspectRatio})`,
+              maxHeight: `calc(100vw / ${videoAspectRatio})`,
             }}
             className="relative bg-black overflow-hidden flex items-center justify-center shadow-2xl rounded-2xl"
           >
@@ -744,6 +807,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               onStop={stopCapture} 
               logoUrl={logoUrl}
               isProjectorMode={isProjectorMode}
+              videoRef={videoRef}
+              onLoadedMetadata={handleVideoLoadedMetadata}
             />
 
             {/* Real-time Virtual Laser Pointer Dot rendered inside the aspect-ratio locked frame */}
