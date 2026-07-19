@@ -686,7 +686,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         aspectRatio: `${videoAspectRatio}`,
                         width: '100%',
                         height: 'auto',
-                        maxWidth: '100%',
+                        maxWidth: `calc((100vh - 220px) * ${videoAspectRatio})`,
                         maxHeight: 'calc(100vh - 220px)'
                       }}
                       className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden p-1.5 flex items-center justify-center shadow-2xl cursor-crosshair mx-auto"
@@ -813,7 +813,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               </>
             ) : (
               /* SINGLE SCREEN FULL LAYOUT: Notes OFF */
-              <div className="w-full flex flex-col gap-2 max-w-[1350px] mx-auto justify-center">
+              <div className="w-full flex flex-col gap-2 max-w-none mx-auto justify-center">
 
                 <div 
                   onMouseMove={!isProjectorMode ? handleMouseMove : undefined}
@@ -822,7 +822,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     aspectRatio: `${videoAspectRatio}`,
                     width: '100%',
                     height: 'auto',
-                    maxWidth: '100%',
+                    maxWidth: `calc((100vh - 180px) * ${videoAspectRatio})`,
                     maxHeight: 'calc(100vh - 180px)',
                   }}
                   className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden p-1.5 flex items-center justify-center shadow-2xl cursor-crosshair mx-auto"

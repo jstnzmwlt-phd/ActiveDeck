@@ -341,7 +341,7 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
             <div className="flex items-center gap-2.5 bg-slate-100 px-4 py-1.5 rounded-xl border-2 border-slate-205 shadow-sm select-none">
               <span className="text-slate-550 font-black uppercase text-[10px] tracking-wider flex items-center gap-1.5">
                 <Tv className="w-3.5 h-3.5 text-osu-orange" />
-                PPT Preview:
+                Using PPT:
               </span>
               <button
                 onClick={handleTogglePPT}
