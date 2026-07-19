@@ -23,13 +23,13 @@ service cloud.firestore {
       // Deletions are allowed for any authenticated user (including anonymous presenters in the Admin Portal)
       allow read: if true;
       allow create: if request.auth != null;
-      allow update: if request.auth != null && resource.data.presenterId == request.auth.uid;
-      allow delete: if request.auth != null;
+      allow update: if request.auth != null && (resource.data.presenterId == request.auth.uid || isWhitelistedPresenter());
+      allow delete: if request.auth != null && (resource.data.presenterId == request.auth.uid || isWhitelistedPresenter());
 
       match /attendance_tokens/{tokenId} {
         // Students must be able to read active QR tokens; only the presenter can write/delete them
         allow read: if request.auth != null;
-        allow create, update: if isPresenter(presentationId);
+        allow create, update: if isPresenter(presentationId) || isWhitelistedPresenter();
         allow delete: if request.auth != null;
       }
 
@@ -54,33 +54,34 @@ service cloud.firestore {
       allow read: if request.auth != null;
       // Any authenticated student/presenter can send a message
       allow create: if request.auth != null;
-      // Users can modify/delete their own messages; presenters can delete any message for moderation
+      // Users can modify/delete their own messages; presenters/admins can delete any message for moderation
       allow update, delete: if request.auth != null && (
         resource.data.userId == request.auth.uid || 
-        isPresenter(resource.data.presentationId)
+        isPresenter(resource.data.presentationId) ||
+        isWhitelistedPresenter()
       );
     }
 
     match /polls/{pollId} {
       allow read: if request.auth != null;
-      allow create: if request.auth != null && isPresenter(request.resource.data.presentationId);
-      // Allow updates so students can register their votes, but restrict deletion/creation to presenters
+      allow create: if request.auth != null && (isPresenter(request.resource.data.presentationId) || isWhitelistedPresenter());
+      // Allow updates so students can register their votes, but restrict deletion/creation to presenters/admins
       allow update: if request.auth != null;
-      allow delete: if request.auth != null && isPresenter(resource.data.presentationId);
+      allow delete: if request.auth != null && (isPresenter(resource.data.presentationId) || isWhitelistedPresenter());
     }
 
     match /wordClouds/{cloudId} {
       allow read: if request.auth != null;
-      allow create: if request.auth != null && isPresenter(request.resource.data.presentationId);
+      allow create: if request.auth != null && (isPresenter(request.resource.data.presentationId) || isWhitelistedPresenter());
       allow update: if request.auth != null;
-      allow delete: if request.auth != null && isPresenter(resource.data.presentationId);
+      allow delete: if request.auth != null && (isPresenter(resource.data.presentationId) || isWhitelistedPresenter());
     }
 
     match /openEndedQuestions/{questionId} {
       allow read: if request.auth != null;
-      allow create: if request.auth != null && isPresenter(request.resource.data.presentationId);
+      allow create: if request.auth != null && (isPresenter(request.resource.data.presentationId) || isWhitelistedPresenter());
       allow update: if request.auth != null;
-      allow delete: if request.auth != null && isPresenter(resource.data.presentationId);
+      allow delete: if request.auth != null && (isPresenter(resource.data.presentationId) || isWhitelistedPresenter());
     }
 
     match /settings/{docId} {
@@ -102,8 +103,8 @@ service cloud.firestore {
     match /questions/{questionId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null;
-      allow update: if request.auth != null && (resource.data.userId == request.auth.uid || isPresenter(resource.data.presentationId));
-      allow delete: if request.auth != null && isPresenter(resource.data.presentationId);
+      allow update: if request.auth != null && (resource.data.userId == request.auth.uid || isPresenter(resource.data.presentationId) || isWhitelistedPresenter());
+      allow delete: if request.auth != null && (isPresenter(resource.data.presentationId) || isWhitelistedPresenter());
     }
 
     match /participants/{participantId} {
