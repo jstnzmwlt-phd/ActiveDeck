@@ -175,6 +175,13 @@ def track_ppt_slideshow():
                     total_slides != prev_total or 
                     notes_text != prev_notes):
                     
+                    # Automatically trigger background slide export when a slideshow starts or slide count changes
+                    if total_slides != prev_total:
+                        try:
+                            threading.Thread(target=export_slides_silently, daemon=True).start()
+                        except Exception as thread_err:
+                            print(f"Failed to launch background auto-export: {thread_err}")
+
                     prev_slide = current_slide_num
                     prev_total = total_slides
                     prev_notes = notes_text

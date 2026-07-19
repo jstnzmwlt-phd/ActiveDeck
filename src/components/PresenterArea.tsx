@@ -750,7 +750,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           </div>
         ) : (
           <div 
-            className="relative w-full h-full max-w-full max-h-full aspect-video bg-black overflow-hidden flex items-center justify-center shadow-2xl rounded-2xl"
+            style={{ height: 'auto', aspectRatio: '16/9' }}
+            className="relative w-full max-w-full max-h-full bg-black overflow-hidden flex items-center justify-center shadow-2xl rounded-2xl"
           >
             <ScreenCapture 
               isCapturing={isCapturing} 
