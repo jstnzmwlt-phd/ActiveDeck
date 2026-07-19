@@ -1174,6 +1174,17 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       {isCapturing && !isProjectorMode && isBridgeConnected && (
         <div className="bg-slate-900 border-t border-slate-800 px-4 py-3 flex items-center justify-center z-[70] shrink-0 select-none">
           <div className="flex items-center gap-3 p-1 bg-slate-950/60 rounded-xl border border-slate-800 shadow-inner">
+            {/* Integrated Fullscreen Toggle */}
+            <button
+              onClick={toggleFullscreen}
+              className="flex items-center justify-center w-10 h-10 bg-slate-900/80 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg transition-all active:scale-95 border border-slate-800 cursor-pointer"
+              title={isFullscreen ? "Exit Full Screen" : "Enter Full Screen"}
+            >
+              {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+            </button>
+
+            <div className="w-px h-6 bg-slate-800/80" />
+
             <button
               onClick={() => handleSlideMove('prev')}
               className="flex items-center justify-center w-10 h-10 bg-slate-900/80 hover:bg-slate-800 text-white rounded-lg transition-all active:scale-95 border border-slate-800 group/btn cursor-pointer"
@@ -1201,18 +1212,6 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             </button>
           </div>
         </div>
-      )}
-
-      {/* Floating Glassmorphic Fullscreen Toggle Button - Bottom Left (Vanishes when mouse is not hovering) */}
-      {!isProjectorMode && (
-        <button
-          type="button"
-          onClick={toggleFullscreen}
-          className="absolute bottom-10 left-10 z-[100] p-3 rounded-full bg-slate-900/80 hover:bg-osu-orange border border-slate-800 hover:border-osu-orange text-slate-400 hover:text-white shadow-2xl transition-all duration-300 backdrop-blur-md cursor-pointer opacity-0 group-hover:opacity-100 flex items-center justify-center hover:scale-110 active:scale-95 outline-none"
-          title={isFullscreen ? "Exit Full Screen" : "Enter Full Screen"}
-        >
-          {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
-        </button>
       )}
     </div>
   );

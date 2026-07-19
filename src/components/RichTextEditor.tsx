@@ -67,6 +67,23 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   const [selectedTextColor, setSelectedTextColor] = useState('#0f172a');
   const [selectedHighlightColor, setSelectedHighlightColor] = useState('transparent');
 
+  const [fontSize, setFontSize] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('activedeck_editor_font_size');
+      return saved ? parseInt(saved, 10) : 16;
+    } catch {
+      return 16;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('activedeck_editor_font_size', fontSize.toString());
+    } catch (e) {
+      console.warn("localStorage failed:", e);
+    }
+  }, [fontSize]);
+
   // Sync internal innerHTML with outer value, but only if it's different from current state
   // to avoid resetting selection/caret position on every keystroke
   useEffect(() => {
@@ -418,6 +435,29 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         >
           <Trash2 className="w-3.5 h-3.5" />
         </button>
+
+        {/* Font Size Adjusters */}
+        <div className="flex items-center gap-0.5 border-l border-slate-250 pl-1.5 ml-1">
+          <button
+            type="button"
+            onClick={() => setFontSize(prev => Math.max(12, prev - 1))}
+            className="p-1 rounded text-slate-500 hover:text-slate-900 hover:bg-slate-200/50 active:bg-slate-200 transition-colors cursor-pointer w-6 h-6 flex items-center justify-center text-[10px] font-bold"
+            title="Decrease Font Size"
+          >
+            A-
+          </button>
+          <span className="text-[9px] font-black text-slate-400 w-7 text-center select-none font-mono">
+            {fontSize}px
+          </span>
+          <button
+            type="button"
+            onClick={() => setFontSize(prev => Math.min(28, prev + 1))}
+            className="p-1 rounded text-slate-500 hover:text-slate-900 hover:bg-slate-200/50 active:bg-slate-200 transition-colors cursor-pointer w-6 h-6 flex items-center justify-center text-xs font-bold"
+            title="Increase Font Size"
+          >
+            A+
+          </button>
+        </div>
       </div>
 
       {/* Editor Content Area */}
@@ -427,8 +467,8 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         onInput={handleInput}
         onFocus={onFocus}
         onBlur={onBlur}
-        className="rich-text-editor flex-1 p-3 text-xs outline-none overflow-y-auto leading-relaxed focus:ring-0 focus:outline-none"
-        style={{ minHeight: '120px' }}
+        className="rich-text-editor flex-1 p-3 outline-none overflow-y-auto leading-relaxed focus:ring-0 focus:outline-none text-slate-900"
+        style={{ minHeight: '120px', fontSize: `${fontSize}px` }}
         {...{ placeholder } as any}
       />
     </div>
