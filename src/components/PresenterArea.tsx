@@ -598,78 +598,143 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       >
         {!isProjectorMode ? (
           <div className="w-full h-full p-4 flex flex-col md:flex-row gap-6 items-start justify-center max-w-7xl mx-auto select-none overflow-y-auto custom-scrollbar">
-            {/* Left Column (Current Slide): dominant preview (65%) */}
-            <div className="flex-[1.85] flex flex-col gap-2 w-full md:w-[65%]">
-              <div className="flex items-center justify-between px-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Current Slide</span>
-                  {isCapturing && (
-                    <button
-                      onClick={() => setCaptureTrigger(prev => prev + 1)}
-                      className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[8px] font-black uppercase tracking-wider transition-all active:scale-95 border border-slate-700 cursor-pointer"
-                      title="Recapture Current Slide Preview"
-                    >
-                      Recapture
-                    </button>
+            {presentWithNotes ? (
+              <>
+                {/* SPLIT SCREEN LAYOUT: Notes ON */}
+                {/* Left Column (Current Slide + Presenter Notes below it): 65% */}
+                <div className="flex-[1.85] flex flex-col gap-4 w-full md:w-[65%]">
+                  <div className="flex flex-col gap-2 w-full">
+                    <div className="flex items-center justify-between px-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Current Slide</span>
+                        {isCapturing && (
+                          <button
+                            onClick={() => setCaptureTrigger(prev => prev + 1)}
+                            className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[8px] font-black uppercase tracking-wider transition-all active:scale-95 border border-slate-700 cursor-pointer"
+                            title="Recapture Current Slide Preview"
+                          >
+                            Recapture
+                          </button>
+                        )}
+                      </div>
+                      {(currentSlide !== null || presentation?.currentSlide !== undefined) && (
+                        <span className="text-[10px] font-black uppercase tracking-wider text-osu-orange">
+                          Slide {currentSlide !== null ? currentSlide : presentation?.currentSlide}
+                        </span>
+                      )}
+                    </div>
+                    <div className="relative w-full aspect-video bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden flex items-center justify-center shadow-2xl">
+                      <ScreenCapture 
+                        isCapturing={isCapturing} 
+                        stream={stream} 
+                        error={error} 
+                        onStart={startCapture} 
+                        onStop={stopCapture} 
+                        logoUrl={logoUrl}
+                        isProjectorMode={isProjectorMode}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Confined Presenter Notes UI panel positioned immediately below the Current Slide preview */}
+                  <div className="flex flex-col bg-slate-950 border border-slate-850 rounded-2xl p-4 min-h-[160px] max-h-[300px] select-none animate-in slide-in-from-bottom duration-300 shadow-xl">
+                    <div className="flex items-center justify-between mb-2.5 pb-2 border-b border-slate-900/60 select-none">
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-osu-orange" />
+                        <span className="text-xs font-black uppercase tracking-wider text-slate-350">Presenter Notes</span>
+                      </div>
+                      {totalSlides !== null && currentSlide !== null && (
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                          Slide {currentSlide} of {totalSlides}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex-1 overflow-y-auto text-sm text-slate-300 font-medium leading-relaxed pr-2 custom-scrollbar">
+                      {notes ? (
+                        <div className="whitespace-pre-wrap">{notes}</div>
+                      ) : (
+                        <div className="text-xs text-slate-500 italic flex items-center justify-center h-full">
+                          No notes available for this slide.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Column (Next Slide): smaller preview (35%) */}
+                <div className="flex-[1] flex flex-col gap-2 w-full md:w-[35%]">
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Next Slide</span>
+                    {nextSlide !== null && (
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                        Slide {nextSlide}
+                      </span>
+                    )}
+                  </div>
+                  <div className="relative w-full aspect-video bg-slate-950 border border-slate-850 rounded-2xl overflow-hidden flex items-center justify-center shadow-lg">
+                    {isBridgeConnected && nextSlide !== null && nextSlide <= localSlidesCount ? (
+                      <img 
+                        src={`http://127.0.0.1:5000/slides/${nextSlide}.jpg`} 
+                        alt="Next Slide Preview" 
+                        className="w-full h-full object-contain bg-black animate-in fade-in duration-300"
+                        key={`local-next-${nextSlide}`}
+                      />
+                    ) : nextSlidePreviewUrl ? (
+                      <img 
+                        src={nextSlidePreviewUrl} 
+                        alt="Next Slide Preview" 
+                        className="w-full h-full object-contain bg-black animate-in fade-in duration-300"
+                        key={`firestore-next-${nextSlide}`}
+                      />
+                    ) : (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600 text-center p-4">
+                        <Monitor className="w-8 h-8 mb-2 opacity-20" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                          {nextSlide !== null ? `Slide ${nextSlide}` : 'No Next Slide'}
+                        </span>
+                        <span className="text-[9px] text-slate-600 mt-1">
+                          {nextSlide !== null ? 'Waiting for slide capture...' : 'End of presentation'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : (
+              /* SINGLE SCREEN FULL LAYOUT: Notes OFF */
+              <div className="w-full flex flex-col gap-2 max-w-5xl">
+                <div className="flex items-center justify-between px-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Current Slide</span>
+                    {isCapturing && (
+                      <button
+                        onClick={() => setCaptureTrigger(prev => prev + 1)}
+                        className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[8px] font-black uppercase tracking-wider transition-all active:scale-95 border border-slate-700 cursor-pointer"
+                        title="Recapture Current Slide Preview"
+                      >
+                        Recapture
+                      </button>
+                    )}
+                  </div>
+                  {(currentSlide !== null || presentation?.currentSlide !== undefined) && (
+                    <span className="text-[10px] font-black uppercase tracking-wider text-osu-orange">
+                      Slide {currentSlide !== null ? currentSlide : presentation?.currentSlide}
+                    </span>
                   )}
                 </div>
-                {(currentSlide !== null || presentation?.currentSlide !== undefined) && (
-                  <span className="text-[10px] font-black uppercase tracking-wider text-osu-orange">
-                    Slide {currentSlide !== null ? currentSlide : presentation?.currentSlide}
-                  </span>
-                )}
-              </div>
-              <div className="relative w-full aspect-video bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden flex items-center justify-center shadow-2xl">
-                <ScreenCapture 
-                  isCapturing={isCapturing} 
-                  stream={stream} 
-                  error={error} 
-                  onStart={startCapture} 
-                  onStop={stopCapture} 
-                  logoUrl={logoUrl}
-                  isProjectorMode={isProjectorMode}
-                />
-              </div>
-            </div>
-
-            {/* Right Column (Next Slide): smaller preview (35%) */}
-            <div className="flex-[1] flex flex-col gap-2 w-full md:w-[35%]">
-              <div className="flex items-center justify-between px-1">
-                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Next Slide</span>
-                {nextSlide !== null && (
-                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
-                    Slide {nextSlide}
-                  </span>
-                )}
-              </div>
-              <div className="relative w-full aspect-video bg-slate-950 border border-slate-850 rounded-2xl overflow-hidden flex items-center justify-center shadow-lg">
-                {isBridgeConnected && nextSlide !== null && nextSlide <= localSlidesCount ? (
-                  <img 
-                    src={`http://127.0.0.1:5000/slides/${nextSlide}.jpg`} 
-                    alt="Next Slide Preview" 
-                    className="w-full h-full object-contain bg-black animate-in fade-in duration-300"
-                    key={`local-next-${nextSlide}`}
+                <div className="relative w-full aspect-video bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden flex items-center justify-center shadow-2xl">
+                  <ScreenCapture 
+                    isCapturing={isCapturing} 
+                    stream={stream} 
+                    error={error} 
+                    onStart={startCapture} 
+                    onStop={stopCapture} 
+                    logoUrl={logoUrl}
+                    isProjectorMode={isProjectorMode}
                   />
-                ) : nextSlidePreviewUrl ? (
-                  <img 
-                    src={nextSlidePreviewUrl} 
-                    alt="Next Slide Preview" 
-                    className="w-full h-full object-contain bg-black animate-in fade-in duration-300"
-                    key={`firestore-next-${nextSlide}`}
-                  />
-                ) : (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600 text-center p-4">
-                    <Monitor className="w-8 h-8 mb-2 opacity-20" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                      {nextSlide !== null ? `Slide ${nextSlide}` : 'No Next Slide'}
-                    </span>
-                    <span className="text-[9px] text-slate-600 mt-1">
-                      {nextSlide !== null ? 'Waiting for slide capture...' : 'End of presentation'}
-                    </span>
-                  </div>
-                )}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         ) : (
           <ScreenCapture 
@@ -1102,31 +1167,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         )}
       </div>
 
-      {/* Presenter Notes UI panel positioned immediately below the main slide preview */}
-      {presentWithNotes && isCapturing && !isProjectorMode && (
-        <div className="flex flex-col bg-slate-950 border-t border-slate-850 p-4 min-h-[160px] max-h-[300px] select-none animate-in slide-in-from-bottom duration-300">
-          <div className="flex items-center justify-between mb-2.5 pb-2 border-b border-slate-900/60 select-none">
-            <div className="flex items-center gap-2">
-              <FileText className="w-4 h-4 text-osu-orange" />
-              <span className="text-xs font-black uppercase tracking-wider text-slate-350">Presenter Notes</span>
-            </div>
-            {totalSlides !== null && currentSlide !== null && (
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
-                Slide {currentSlide} of {totalSlides}
-              </span>
-            )}
-          </div>
-          <div className="flex-1 overflow-y-auto text-sm text-slate-300 font-medium leading-relaxed pr-2 custom-scrollbar">
-            {notes ? (
-              <div className="whitespace-pre-wrap">{notes}</div>
-            ) : (
-              <div className="text-xs text-slate-500 italic flex items-center justify-center h-full">
-                No notes available for this slide.
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+
 
       {/* Professional Remote Control Overlay - Only shown when bridge is connected */}
       {isBridgeConnected && !isProjectorMode && (
