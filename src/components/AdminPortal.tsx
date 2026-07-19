@@ -384,7 +384,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
       throw new Error(`Failed to fetch chat messages: ${err.message || err}`);
     }
 
-    // 4. Batch delete all these documents in chunks of 400
+    // 4. Delete all sub-documents in parallel using Promise.allSettled to prevent all-or-nothing batch failures
     const allDocRefs = [
       ...attendanceDocs.map(d => d.ref),
       ...tokenDocs.map(d => d.ref),
@@ -393,21 +393,27 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
 
     console.log(`[deleteSessionDoc] Total sub-documents to delete: ${allDocRefs.length}`);
 
-    // Firestore batch limit is 500 operations. We'll chunk in 400s to be safe.
-    const chunkSize = 400;
-    for (let i = 0; i < allDocRefs.length; i += chunkSize) {
-      const chunk = allDocRefs.slice(i, i + chunkSize);
-      console.log(`[deleteSessionDoc] Committing deletion batch ${Math.floor(i / chunkSize) + 1} of ${Math.ceil(allDocRefs.length / chunkSize)} (${chunk.length} docs)...`);
-      try {
-        const batch = writeBatch(db);
-        chunk.forEach(ref => {
-          batch.delete(ref);
-        });
-        await batch.commit();
-        console.log(`[deleteSessionDoc] Batch completed successfully.`);
-      } catch (err: any) {
-        console.error(`[deleteSessionDoc] Failed to commit deletion batch:`, err);
-        throw new Error(`Failed to delete session sub-documents (batch execution failed): ${err.message || err}`);
+    if (allDocRefs.length > 0) {
+      const deletePromises = allDocRefs.map(async (docRef) => {
+        try {
+          await deleteDoc(docRef);
+        } catch (e: any) {
+          console.warn(`[deleteSessionDoc] Failed to delete sub-document ${docRef.path}:`, e);
+          throw e;
+        }
+      });
+
+      const results = await Promise.allSettled(deletePromises);
+      const failures = results.filter(r => r.status === 'rejected');
+      if (failures.length > 0) {
+        console.warn(`[deleteSessionDoc] Completed sub-document deletions with ${failures.length} errors out of ${allDocRefs.length} docs.`);
+        // Only throw a terminal error if ALL sub-documents failed to delete (indicating a complete auth block)
+        if (failures.length === allDocRefs.length) {
+          const firstError: any = (failures[0] as PromiseRejectedResult).reason;
+          throw new Error(`Failed to delete session sub-documents: ${firstError?.message || firstError}`);
+        }
+      } else {
+        console.log(`[deleteSessionDoc] All ${allDocRefs.length} sub-documents deleted successfully.`);
       }
     }
 
