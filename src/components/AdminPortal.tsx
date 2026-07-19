@@ -406,12 +406,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
       const results = await Promise.allSettled(deletePromises);
       const failures = results.filter(r => r.status === 'rejected');
       if (failures.length > 0) {
-        console.warn(`[deleteSessionDoc] Completed sub-document deletions with ${failures.length} errors out of ${allDocRefs.length} docs.`);
-        // Only throw a terminal error if ALL sub-documents failed to delete (indicating a complete auth block)
-        if (failures.length === allDocRefs.length) {
-          const firstError: any = (failures[0] as PromiseRejectedResult).reason;
-          throw new Error(`Failed to delete session sub-documents: ${firstError?.message || firstError}`);
-        }
+        console.warn(`[deleteSessionDoc] Purged sub-documents with ${failures.length} non-blocking failures (e.g. chat messages or check-ins with restricted permissions) out of ${allDocRefs.length} docs.`);
       } else {
         console.log(`[deleteSessionDoc] All ${allDocRefs.length} sub-documents deleted successfully.`);
       }
