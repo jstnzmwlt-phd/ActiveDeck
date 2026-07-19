@@ -1172,19 +1172,21 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
       {/* Footer Navigation Bar - Always visible when presenting */}
       {isCapturing && !isProjectorMode && isBridgeConnected && (
-        <div className="bg-slate-900 border-t border-slate-800 px-4 py-3 flex items-center justify-center z-[70] shrink-0 select-none">
-          <div className="flex items-center gap-3 p-1 bg-slate-950/60 rounded-xl border border-slate-800 shadow-inner">
-            {/* Integrated Fullscreen Toggle */}
+        <div className="bg-slate-900 border-t border-slate-800 px-4 py-3 flex items-center justify-center z-[70] shrink-0 select-none relative">
+          
+          {/* Left Side: Decoupled Fullscreen Toggle */}
+          <div className="absolute left-4">
             <button
               onClick={toggleFullscreen}
-              className="flex items-center justify-center w-10 h-10 bg-slate-900/80 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg transition-all active:scale-95 border border-slate-800 cursor-pointer"
+              className="flex items-center justify-center w-10 h-10 bg-slate-950/40 hover:bg-slate-850 text-slate-400 hover:text-white rounded-xl transition-all active:scale-95 border border-slate-800 cursor-pointer shadow-lg hover:scale-105"
               title={isFullscreen ? "Exit Full Screen" : "Enter Full Screen"}
             >
               {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
             </button>
+          </div>
 
-            <div className="w-px h-6 bg-slate-800/80" />
-
+          {/* Center: Slide Navigation Cluster */}
+          <div className="flex items-center gap-3 p-1 bg-slate-950/60 rounded-xl border border-slate-800 shadow-inner">
             <button
               onClick={() => handleSlideMove('prev')}
               className="flex items-center justify-center w-10 h-10 bg-slate-900/80 hover:bg-slate-800 text-white rounded-lg transition-all active:scale-95 border border-slate-800 group/btn cursor-pointer"
@@ -1196,7 +1198,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             {totalSlides !== null && currentSlide !== null ? (
               <>
                 <div className="w-px h-6 bg-slate-800/80" />
-                <div className="px-4 py-1 text-[11px] font-black uppercase tracking-widest text-slate-200 bg-slate-950/80 rounded-lg border border-slate-850/50 min-w-[120px] text-center">
+                <div className="px-4 py-1 text-[11px] font-black uppercase tracking-widest text-slate-200 bg-slate-950/80 rounded-lg border border-slate-850/50 min-w-[120px] text-center font-mono">
                   Slide {currentSlide} of {totalSlides}
                 </div>
                 <div className="w-px h-6 bg-slate-800/80" />
