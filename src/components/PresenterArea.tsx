@@ -744,16 +744,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           </div>
         ) : (
           <div 
-            style={{
-              width: '100vw',
-              height: '56.25vw', // 16:9 aspect ratio (100 * 9 / 16)
-              maxWidth: '177.78vh', // 16:9 aspect ratio (100 * 16 / 9)
-              maxHeight: '100vh',
-              position: 'relative',
-              overflow: 'hidden',
-              backgroundColor: 'black'
-            }}
-            className="flex items-center justify-center shadow-2xl"
+            className="relative w-full h-full max-w-full max-h-full aspect-video bg-black overflow-hidden flex items-center justify-center shadow-2xl rounded-2xl"
           >
             <ScreenCapture 
               isCapturing={isCapturing} 
