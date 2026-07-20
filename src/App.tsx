@@ -6,7 +6,7 @@ import { Header } from './components/Header';
 import { Presentation, GlobalSettings } from './types';
 import { db } from './firebase';
 import { collection, query, orderBy, limit, onSnapshot, doc, addDoc, serverTimestamp, updateDoc, getDoc, setDoc, increment, where } from 'firebase/firestore';
-import { Presentation as PresentationIcon, Loader2, AlertCircle, Maximize, Minimize, Lock, Keyboard, Pen, Tv, ArrowLeftRight, MessageSquare, NotebookPen } from 'lucide-react';
+import { Presentation as PresentationIcon, Loader2, AlertCircle, Maximize, Minimize, Lock, Keyboard, Pen, Tv, ArrowLeftRight, MessageSquare, NotebookPen, Plus, FileText, X } from 'lucide-react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { BridgeProvider } from './contexts/BridgeContext';
 import { AdminPortal } from './components/AdminPortal';
@@ -262,6 +262,88 @@ function AppContent() {
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | ''>('');
 
   const [pushedSlidesMap, setPushedSlidesMap] = useState<Record<string, string>>({});
+
+  // Custom blank note tabs added by the student
+  const [customTabs, setCustomTabs] = useState<Array<{ id: string; label: string; position: number }>>([]);
+
+  // Load custom tabs for presentation
+  useEffect(() => {
+    if (!activePresentationId) {
+      setCustomTabs([]);
+      return;
+    }
+    const saved = localStorage.getItem(`activeDeckCustomTabs_${activePresentationId}`);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          setCustomTabs(parsed);
+        }
+      } catch (e) {
+        console.error('Failed to parse custom tabs:', e);
+      }
+    } else {
+      setCustomTabs([]);
+    }
+  }, [activePresentationId]);
+
+  // Save custom tabs
+  useEffect(() => {
+    if (!activePresentationId) return;
+    localStorage.setItem(`activeDeckCustomTabs_${activePresentationId}`, JSON.stringify(customTabs));
+  }, [customTabs, activePresentationId]);
+
+  const handleAddCustomTab = () => {
+    const currentHighestPos = Math.max(
+      1,
+      maxSlideSeen,
+      presentation?.currentSlide || 1,
+      ...customTabs.map(t => t.position),
+      ...Object.keys(notesTextMap).map(Number).filter(n => !isNaN(n)),
+      ...Object.keys(notesDrawingsMap).map(Number).filter(n => !isNaN(n))
+    );
+
+    const newPos = Number((currentHighestPos + 0.1).toFixed(2));
+    const newId = `note_${Date.now()}`;
+    const newLabel = `Notes ${customTabs.length + 1}`;
+
+    const newTab = {
+      id: newId,
+      label: newLabel,
+      position: newPos
+    };
+
+    setCustomTabs(prev => [...prev, newTab]);
+    setActiveTab(newId);
+  };
+
+  const handleDeleteCustomTab = (tabId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const confirmed = window.confirm("Are you sure you want to delete this custom note tab?");
+    if (!confirmed) return;
+
+    setCustomTabs(prev => prev.filter(t => t.id !== tabId));
+    setNotesTextMap(prev => {
+      const copy = { ...prev };
+      delete copy[tabId];
+      return copy;
+    });
+    setNotesDrawingsMap(prev => {
+      const copy = { ...prev };
+      delete copy[tabId];
+      return copy;
+    });
+
+    if (activeTab === tabId) {
+      setActiveTab('1');
+    }
+  };
+
+  const getTabTitle = (tabId: string) => {
+    const custom = customTabs.find(c => c.id === tabId);
+    if (custom) return custom.label;
+    return `Slide ${tabId}`;
+  };
 
   const [notesSplitRatio, setNotesSplitRatio] = useState<number>(() => {
     const saved = localStorage.getItem('activeDeckNotesSplitRatio');
@@ -536,11 +618,19 @@ function AppContent() {
     const presenterName = presentation?.presenterEmail ? presentation.presenterEmail.split('@')[0] : 'Presenter';
     const pin = presentation?.pinCode || 'N/A';
     
-    // Sort slides numerically and compile notes + drawings + slide images
+    const getTabPos = (tabId: string) => {
+      const custom = customTabs.find(c => c.id === tabId);
+      if (custom) return custom.position;
+      const num = Number(tabId);
+      return isNaN(num) ? 999999 : num;
+    };
+
+    // Sort slides & custom tabs numerically by position and compile notes + drawings + slide images
     const sortedSlides = Array.from(new Set([
       ...Object.keys(notesTextMap),
       ...Object.keys(notesDrawingsMap),
-      ...Object.keys(pushedSlidesMap)
+      ...Object.keys(pushedSlidesMap),
+      ...customTabs.map(c => c.id)
     ]))
       .filter(slide => {
         const html = notesTextMap[slide] || '';
@@ -559,7 +649,7 @@ function AppContent() {
         
         return hasText || hasDrawing || hasImg;
       })
-      .sort((a, b) => Number(a) - Number(b));
+      .sort((a, b) => getTabPos(a) - getTabPos(b));
 
     const notesContentHtml = sortedSlides.map(slide => {
       const htmlContent = notesTextMap[slide] ? `<div>${notesTextMap[slide]}</div>` : '';
@@ -595,7 +685,7 @@ function AppContent() {
 
       return `
         <div style="margin-bottom: 25px; page-break-inside: avoid;">
-          <h3 style="color: #eb5d00; border-bottom: 1px solid #f3eedd; padding-bottom: 3px; margin-bottom: 10px;">Slide ${slide}</h3>
+          <h3 style="color: #eb5d00; border-bottom: 1px solid #f3eedd; padding-bottom: 3px; margin-bottom: 10px;">${getTabTitle(slide)}</h3>
           ${slidePreviewHtml}
           ${htmlContent}
           ${drawingSvgHtml}
@@ -1593,38 +1683,94 @@ function AppContent() {
                             1,
                             maxSlideSeen,
                             presentation?.currentSlide || 1,
-                            ...Object.keys(notesTextMap).map(Number),
-                            ...Object.keys(notesDrawingsMap).map(Number),
-                            ...Object.keys(pushedSlidesMap).map(Number)
+                            ...Object.keys(notesTextMap).map(Number).filter(n => !isNaN(n)),
+                            ...Object.keys(notesDrawingsMap).map(Number).filter(n => !isNaN(n)),
+                            ...Object.keys(pushedSlidesMap).map(Number).filter(n => !isNaN(n))
                           );
 
-                          const allTabs: string[] = [];
+                          const allTabs: Array<{ id: string; label: string; position: number; isCustom: boolean }> = [];
                           for (let i = 1; i <= maxSlide; i++) {
-                            allTabs.push(String(i));
+                            allTabs.push({
+                              id: String(i),
+                              label: presentation?.showSlidePreview !== false ? `Slide ${i}` : `\u00A0\u00A0\u00A0\u00A0`,
+                              position: i,
+                              isCustom: false
+                            });
                           }
+
+                          customTabs.forEach(ct => {
+                            allTabs.push({
+                              id: ct.id,
+                              label: ct.label,
+                              position: ct.position,
+                              isCustom: true
+                            });
+                          });
+
+                          allTabs.sort((a, b) => a.position - b.position);
 
                           return (
                             <div className="flex flex-col space-y-1 w-full">
-                              <span className="text-[8px] font-black uppercase tracking-wider text-slate-500">Slides Overview</span>
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="text-[8px] font-black uppercase tracking-wider text-slate-500">Slides Overview</span>
+                                <button
+                                  type="button"
+                                  onClick={handleAddCustomTab}
+                                  className="flex items-center gap-1 px-1.5 py-0.5 text-[8px] font-bold text-purple-300 bg-purple-950/80 hover:bg-purple-900 border border-purple-500/40 hover:border-purple-400 rounded transition-all cursor-pointer active:scale-95 shadow-sm"
+                                  title="Add a new blank note tab for website or non-PPT content"
+                                >
+                                  <Plus className="w-2.5 h-2.5 text-purple-400" />
+                                  <span>+ Blank Note</span>
+                                </button>
+                              </div>
                               <div className="w-full max-h-24 overflow-y-auto pr-0.5 custom-scrollbar">
                                 <div className="flex flex-row flex-wrap items-center gap-1 py-0.5 select-none">
-                                  {allTabs.map(slide => {
-                                    const isCurrentTab = slide === activeTab;
-                                    const isPresenterSlide = slide === presenterSlide;
-                                    const hasContent = slidesWithNotes.includes(slide);
+                                  {allTabs.map(tab => {
+                                    const isCurrentTab = tab.id === activeTab;
+                                    const isPresenterSlide = tab.id === presenterSlide;
+                                    const hasContent = slidesWithNotes.includes(tab.id);
+
+                                    if (tab.isCustom) {
+                                      return (
+                                        <button
+                                          key={tab.id}
+                                          type="button"
+                                          onClick={() => setActiveTab(tab.id)}
+                                          className={`px-2.5 py-0.5 text-[9px] font-bold rounded border transition-all flex items-center gap-1 cursor-pointer shrink-0 group ${
+                                            isCurrentTab 
+                                              ? 'bg-purple-600 border-purple-500 text-white shadow-sm font-bold'
+                                              : 'bg-purple-950/80 border-purple-500/40 text-purple-200 hover:bg-purple-900 hover:border-purple-400 hover:text-white'
+                                          }`}
+                                          title={`Custom Note Tab: ${tab.label}`}
+                                        >
+                                          <FileText className="w-2.5 h-2.5 text-purple-300 shrink-0" />
+                                          <span>{tab.label}</span>
+                                          {hasContent && !isCurrentTab && (
+                                            <span className="w-0.5 h-0.5 rounded-full bg-purple-300/80" />
+                                          )}
+                                          <span 
+                                            onClick={(e) => handleDeleteCustomTab(tab.id, e)}
+                                            className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-purple-800/80 rounded transition-opacity ml-0.5 cursor-pointer"
+                                            title="Delete note tab"
+                                          >
+                                            <X className="w-2 h-2 text-purple-200 hover:text-white" />
+                                          </span>
+                                        </button>
+                                      );
+                                    }
 
                                     return (
                                       <button
-                                        key={slide}
+                                        key={tab.id}
                                         type="button"
-                                        onClick={() => setActiveTab(slide)}
+                                        onClick={() => setActiveTab(tab.id)}
                                         className={`px-2.5 py-0.5 text-[9px] font-bold rounded border transition-all flex items-center gap-1 cursor-pointer shrink-0 ${
                                           isCurrentTab 
                                             ? 'bg-osu-orange border-osu-orange text-white shadow-sm'
                                             : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
                                         }`}
                                       >
-                                        <span>{presentation?.showSlidePreview !== false ? `Slide ${slide}` : `\u00A0\u00A0\u00A0\u00A0`}</span>
+                                        <span>{tab.label}</span>
                                         {isPresenterSlide && (
                                           <span className="w-1 h-1 rounded-full bg-green-400 animate-pulse border border-green-300" />
                                         )}
@@ -1634,6 +1780,16 @@ function AppContent() {
                                       </button>
                                     );
                                   })}
+
+                                  <button
+                                    type="button"
+                                    onClick={handleAddCustomTab}
+                                    className="px-2 py-0.5 text-[8px] font-bold rounded border border-dashed border-purple-500/50 text-purple-300 bg-purple-950/40 hover:bg-purple-900/60 hover:border-purple-400 transition-all flex items-center gap-1 cursor-pointer shrink-0 active:scale-95"
+                                    title="Add a new blank note tab"
+                                  >
+                                    <Plus className="w-2.5 h-2.5 text-purple-400" />
+                                    <span>+ Note</span>
+                                  </button>
                                 </div>
                               </div>
                             </div>
@@ -1875,44 +2031,98 @@ function AppContent() {
                         ? String(presentation.currentSlide) 
                         : '1';
                       
-                      // Determine the highest slide index dynamically (never removing tabs once reached)
                       const maxSlide = Math.max(
                         1,
                         maxSlideSeen,
                         presentation?.currentSlide || 1,
-                        ...Object.keys(notesTextMap).map(Number),
-                        ...Object.keys(notesDrawingsMap).map(Number),
-                        ...Object.keys(pushedSlidesMap).map(Number)
+                        ...Object.keys(notesTextMap).map(Number).filter(n => !isNaN(n)),
+                        ...Object.keys(notesDrawingsMap).map(Number).filter(n => !isNaN(n)),
+                        ...Object.keys(pushedSlidesMap).map(Number).filter(n => !isNaN(n))
                       );
 
-                      // Create a contiguous array of slide numbers from 1 to maxSlide
-                      const allTabs: string[] = [];
+                      const allTabs: Array<{ id: string; label: string; position: number; isCustom: boolean }> = [];
                       for (let i = 1; i <= maxSlide; i++) {
-                        allTabs.push(String(i));
+                        allTabs.push({
+                          id: String(i),
+                          label: presentation?.showSlidePreview !== false ? `Slide ${i}` : `\u00A0\u00A0\u00A0\u00A0`,
+                          position: i,
+                          isCustom: false
+                        });
                       }
+
+                      customTabs.forEach(ct => {
+                        allTabs.push({
+                          id: ct.id,
+                          label: ct.label,
+                          position: ct.position,
+                          isCustom: true
+                        });
+                      });
+
+                      allTabs.sort((a, b) => a.position - b.position);
 
                       return (
                         <div className="flex flex-col space-y-1 flex-1 min-w-0">
-                          <span className="text-[8px] font-black uppercase tracking-wider text-slate-500">Slides Overview</span>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[8px] font-black uppercase tracking-wider text-slate-500">Slides Overview</span>
+                            <button
+                              type="button"
+                              onClick={handleAddCustomTab}
+                              className="flex items-center gap-1 px-2 py-0.5 text-[9px] font-bold text-purple-300 bg-purple-950/80 hover:bg-purple-900 border border-purple-500/40 hover:border-purple-400 rounded-md transition-all cursor-pointer active:scale-95 shadow-sm"
+                              title="Add a new blank note tab for website or non-PPT content"
+                            >
+                              <Plus className="w-2.5 h-2.5 text-purple-400" />
+                              <span>+ Blank Note</span>
+                            </button>
+                          </div>
                           <div className="w-full max-h-32 overflow-y-auto pr-1 custom-scrollbar">
                             <div className="flex flex-row flex-wrap items-center gap-1.5 py-1 select-none">
-                              {allTabs.map(slide => {
-                                const isCurrentTab = slide === activeTab;
-                                const isPresenterSlide = slide === presenterSlide;
-                                const hasContent = slidesWithNotes.includes(slide);
+                              {allTabs.map(tab => {
+                                const isCurrentTab = tab.id === activeTab;
+                                const isPresenterSlide = tab.id === presenterSlide;
+                                const hasContent = slidesWithNotes.includes(tab.id);
+
+                                if (tab.isCustom) {
+                                  return (
+                                    <button
+                                      key={tab.id}
+                                      type="button"
+                                      onClick={() => setActiveTab(tab.id)}
+                                      className={`px-3 py-1 text-[10px] font-bold rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer shrink-0 group ${
+                                        isCurrentTab 
+                                          ? 'bg-purple-600 border-purple-500 text-white shadow-md shadow-purple-500/20 font-bold'
+                                          : 'bg-purple-950/80 border-purple-500/40 text-purple-200 hover:bg-purple-900 hover:border-purple-400 hover:text-white'
+                                      }`}
+                                      title={`Custom Blank Note Tab: ${tab.label}`}
+                                    >
+                                      <FileText className="w-3 h-3 text-purple-300 shrink-0" />
+                                      <span>{tab.label}</span>
+                                      {hasContent && !isCurrentTab && (
+                                        <span className="w-1 h-1 rounded-full bg-purple-300/80" title="Has notes" />
+                                      )}
+                                      <span 
+                                        onClick={(e) => handleDeleteCustomTab(tab.id, e)}
+                                        className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-purple-800/80 rounded transition-opacity ml-0.5 cursor-pointer"
+                                        title="Delete note tab"
+                                      >
+                                        <X className="w-2.5 h-2.5 text-purple-200 hover:text-white" />
+                                      </span>
+                                    </button>
+                                  );
+                                }
 
                                 return (
                                   <button
-                                    key={slide}
+                                    key={tab.id}
                                     type="button"
-                                    onClick={() => setActiveTab(slide)}
+                                    onClick={() => setActiveTab(tab.id)}
                                     className={`px-3 py-1 text-[10px] font-bold rounded-lg border transition-all flex items-center gap-1 cursor-pointer shrink-0 ${
                                       isCurrentTab 
                                         ? 'bg-osu-orange border-osu-orange text-white shadow-md shadow-orange-500/10'
                                         : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
                                     }`}
                                   >
-                                    <span>{presentation?.showSlidePreview !== false ? `Slide ${slide}` : `\u00A0\u00A0\u00A0\u00A0`}</span>
+                                    <span>{tab.label}</span>
                                     {isPresenterSlide && (
                                       <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse border border-green-300" title="Presenter is currently on this slide" />
                                     )}
@@ -1922,6 +2132,16 @@ function AppContent() {
                                   </button>
                                 );
                               })}
+
+                              <button
+                                type="button"
+                                onClick={handleAddCustomTab}
+                                className="px-2.5 py-1 text-[10px] font-bold rounded-lg border border-dashed border-purple-500/50 text-purple-300 bg-purple-950/40 hover:bg-purple-900/60 hover:border-purple-400 transition-all flex items-center gap-1 cursor-pointer shrink-0 active:scale-95"
+                                title="Add a new blank note tab"
+                              >
+                                <Plus className="w-3 h-3 text-purple-400" />
+                                <span>+ Note</span>
+                              </button>
                             </div>
                           </div>
                         </div>
@@ -1934,7 +2154,7 @@ function AppContent() {
                     <div className="flex items-center justify-between p-2 rounded-xl bg-orange-500/10 border border-orange-500/20 text-[10px] shrink-0 text-orange-200 animate-in fade-in slide-in-from-top-2 duration-300">
                       <span className="flex items-center gap-1.5 font-medium">
                         <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse shrink-0" />
-                        Presenter is on Slide {presentation.currentSlide} (You are on Slide {activeTab})
+                        Presenter is on Slide {presentation.currentSlide} (You are on {getTabTitle(activeTab)})
                       </span>
                       <button
                         type="button"
@@ -1997,7 +2217,7 @@ function AppContent() {
                           }}
                           onFocus={() => setIsEditorFocused(true)}
                           onBlur={() => setIsEditorFocused(false)}
-                          placeholder={presentation?.showSlidePreview !== false ? `Type your notes for Slide ${activeTab} here...` : `Type your notes here...`}
+                          placeholder={presentation?.showSlidePreview !== false ? `Type your notes for ${getTabTitle(activeTab)} here...` : `Type your notes here...`}
                           className="flex-1 min-h-[120px]"
                         />
                       ) : (
@@ -2009,7 +2229,7 @@ function AppContent() {
                               [activeTab]: newVal
                             }));
                           }}
-                          placeholder={presentation?.showSlidePreview !== false ? `Draw your notes for Slide ${activeTab} here...` : `Draw your notes here...`}
+                          placeholder={presentation?.showSlidePreview !== false ? `Draw your notes for ${getTabTitle(activeTab)} here...` : `Draw your notes here...`}
                         />
                       )}
                     </div>
@@ -2032,7 +2252,7 @@ function AppContent() {
                       <div 
                         className="flex flex-col min-w-0 min-h-[200px] md:min-h-0 rounded-xl border border-slate-800 bg-slate-950 select-none group shadow-xl relative overflow-hidden"
                         style={{ flex: `1 1 ${100 - notesSplitRatio}%`, minWidth: '150px' }}
-                        title={pushedSlidesMap[activeTab] ? `Slide ${activeTab} Preview (Click to Zoom)` : "No slide preview shared yet"}
+                        title={pushedSlidesMap[activeTab] ? `${getTabTitle(activeTab)} Preview (Click to Zoom)` : "No slide preview shared yet"}
                       >
                         {pushedSlidesMap[activeTab] ? (
                           <div className="w-full h-full relative flex flex-col h-full justify-between">
@@ -2046,7 +2266,7 @@ function AppContent() {
                             >
                               <img 
                                 src={pushedSlidesMap[activeTab]} 
-                                alt={`Slide ${activeTab} Preview`}
+                                alt={`${getTabTitle(activeTab)} Preview`}
                                 className="absolute inset-0 w-full h-full object-contain transition-transform duration-300 group-hover/preview:scale-[1.01]"
                               />
                               {/* Floating Glassmorphic Expand Icon */}
@@ -2055,7 +2275,7 @@ function AppContent() {
                               </div>
                             </div>
                             <div className="bg-slate-900/90 backdrop-blur-sm py-2 px-3 flex items-center justify-between border-t border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-300 shrink-0">
-                              <span className="text-slate-400">Slide {activeTab}</span>
+                              <span className="text-slate-400">{getTabTitle(activeTab)}</span>
                               <span className="text-osu-orange group-hover:text-white font-black animate-pulse flex items-center gap-1">
                                 <span className="w-1.5 h-1.5 rounded-full bg-osu-orange inline-block"></span>
                                 Live Preview (Click to Zoom)
@@ -2065,7 +2285,7 @@ function AppContent() {
                         ) : (
                           <div className="w-full h-full flex flex-col items-center justify-center p-4 bg-slate-950 text-slate-500 text-center min-h-[150px] md:min-h-0">
                             <Tv className="w-8 h-8 text-slate-700 mb-2" />
-                            <span className="text-xs font-black uppercase tracking-widest text-slate-500 leading-none">Slide {activeTab}</span>
+                            <span className="text-xs font-black uppercase tracking-widest text-slate-500 leading-none">{getTabTitle(activeTab)}</span>
                             <span className="text-[9px] font-bold text-slate-600 uppercase leading-none mt-2">No Preview Available</span>
                           </div>
                         )}
@@ -2100,7 +2320,7 @@ function AppContent() {
         isOpen={isLightboxOpen} 
         onClose={() => setIsLightboxOpen(false)} 
         imageUrl={lightboxImgUrl} 
-        title={`Slide ${activeTab} Preview`} 
+        title={`${getTabTitle(activeTab)} Preview`} 
       />
     </>
   );
