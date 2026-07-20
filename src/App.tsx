@@ -255,6 +255,7 @@ function AppContent() {
   const [notesDrawingsMap, setNotesDrawingsMap] = useState<Record<string, string>>({});
   const [notesMode, setNotesMode] = useState<'text' | 'pen'>('text');
   const [activeTab, setActiveTab] = useState<string>('1');
+  const [maxSlideSeen, setMaxSlideSeen] = useState<number>(1);
   const [isEditorFocused, setIsEditorFocused] = useState(false);
   const [lastTypedAt, setLastTypedAt] = useState<number>(0);
   const [notesTitle, setNotesTitle] = useState('');
@@ -277,6 +278,45 @@ function AppContent() {
 
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 768 : false);
   const [mobileTab, setMobileTab] = useState<'chat' | 'notes'>('chat');
+
+  // Maintain maxSlideSeen so slide tabs only grow and never get removed when presenter moves backwards
+  useEffect(() => {
+    const candidates: number[] = [1, maxSlideSeen];
+    if (presentation?.currentSlide && typeof presentation.currentSlide === 'number') {
+      candidates.push(presentation.currentSlide);
+    }
+    if (activeTab) {
+      const numTab = parseInt(activeTab, 10);
+      if (!isNaN(numTab) && numTab > 0) candidates.push(numTab);
+    }
+    Object.keys(notesTextMap).forEach(k => {
+      const n = parseInt(k, 10);
+      if (!isNaN(n) && n > 0) candidates.push(n);
+    });
+    Object.keys(notesDrawingsMap).forEach(k => {
+      const n = parseInt(k, 10);
+      if (!isNaN(n) && n > 0) candidates.push(n);
+    });
+    Object.keys(pushedSlidesMap).forEach(k => {
+      const n = parseInt(k, 10);
+      if (!isNaN(n) && n > 0) candidates.push(n);
+    });
+
+    const highest = Math.max(...candidates);
+    if (highest > maxSlideSeen) {
+      setMaxSlideSeen(highest);
+    }
+  }, [presentation?.currentSlide, activeTab, notesTextMap, notesDrawingsMap, pushedSlidesMap, maxSlideSeen]);
+
+  // Reset maxSlideSeen when changing presentation session
+  useEffect(() => {
+    if (!activePresentationId) {
+      setMaxSlideSeen(1);
+      return;
+    }
+    const initial = presentation?.currentSlide || 1;
+    setMaxSlideSeen(initial);
+  }, [activePresentationId]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -1551,8 +1591,11 @@ function AppContent() {
                           
                           const maxSlide = Math.max(
                             1,
+                            maxSlideSeen,
                             presentation?.currentSlide || 1,
-                            ...Object.keys(notesTextMap).map(Number)
+                            ...Object.keys(notesTextMap).map(Number),
+                            ...Object.keys(notesDrawingsMap).map(Number),
+                            ...Object.keys(pushedSlidesMap).map(Number)
                           );
 
                           const allTabs: string[] = [];
@@ -1832,11 +1875,14 @@ function AppContent() {
                         ? String(presentation.currentSlide) 
                         : '1';
                       
-                      // Determine the highest slide index dynamically
+                      // Determine the highest slide index dynamically (never removing tabs once reached)
                       const maxSlide = Math.max(
                         1,
+                        maxSlideSeen,
                         presentation?.currentSlide || 1,
-                        ...Object.keys(notesTextMap).map(Number)
+                        ...Object.keys(notesTextMap).map(Number),
+                        ...Object.keys(notesDrawingsMap).map(Number),
+                        ...Object.keys(pushedSlidesMap).map(Number)
                       );
 
                       // Create a contiguous array of slide numbers from 1 to maxSlide
