@@ -154,9 +154,9 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   };
 
   return (
-    <div className={`flex flex-col border border-slate-200 rounded-xl bg-white text-slate-900 shadow-sm overflow-hidden transition-all focus-within:ring-1 focus-within:ring-osu-orange focus-within:border-osu-orange ${className}`}>
+    <div className={`flex flex-col border border-slate-200 rounded-xl bg-white text-slate-900 shadow-sm relative z-10 transition-all focus-within:ring-1 focus-within:ring-osu-orange focus-within:border-osu-orange ${className}`}>
       {/* Rich Text Toolbar */}
-      <div className="flex flex-row overflow-x-auto md:flex-wrap items-center gap-0.5 p-1 bg-slate-50 border-b border-slate-100 select-none shrink-0 scrollbar-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="flex flex-row flex-wrap items-center gap-0.5 p-1 bg-slate-50 border-b border-slate-100 select-none shrink-0 rounded-t-xl relative z-20">
         <button
           type="button"
           onMouseDown={(e) => {
@@ -229,7 +229,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
 
           {isTextColorOpen && (
             <div 
-              className="absolute left-0 mt-1 p-2 bg-white border border-slate-200 rounded-lg shadow-lg z-50 min-w-[140px]"
+              className="absolute left-0 top-full mt-1 p-2 bg-white border border-slate-200 rounded-xl shadow-2xl z-[100] min-w-[150px] animate-in fade-in slide-in-from-top-1 duration-150"
               onMouseDown={(e) => e.preventDefault()} // Keep focus on contentEditable
             >
               <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5 px-0.5">
@@ -294,7 +294,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
 
           {isHighlightColorOpen && (
             <div 
-              className="absolute left-0 mt-1 p-2 bg-white border border-slate-200 rounded-lg shadow-lg z-50 min-w-[140px]"
+              className="absolute left-0 top-full mt-1 p-2 bg-white border border-slate-200 rounded-xl shadow-2xl z-[100] min-w-[150px] animate-in fade-in slide-in-from-top-1 duration-150"
               onMouseDown={(e) => e.preventDefault()} // Keep focus on contentEditable
             >
               <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5 px-0.5">
@@ -467,7 +467,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         onInput={handleInput}
         onFocus={onFocus}
         onBlur={onBlur}
-        className="rich-text-editor flex-1 p-3 outline-none overflow-y-auto leading-relaxed focus:ring-0 focus:outline-none text-slate-900"
+        className="rich-text-editor flex-1 p-3 outline-none overflow-y-auto leading-relaxed focus:ring-0 focus:outline-none text-slate-900 rounded-b-xl"
         style={{ minHeight: '120px', fontSize: `${fontSize}px` }}
         {...{ placeholder } as any}
       />
