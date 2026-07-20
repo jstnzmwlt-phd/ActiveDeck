@@ -270,16 +270,16 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
   return (
     <div className={`p-4 bg-white border-b border-slate-200 h-14 py-1.5 relative w-full flex-shrink-0 ${(isAdminModalOpen || isExportModalOpen) ? 'z-[200]' : 'z-50'}`}>
       <div className="flex items-center justify-between relative h-full">
-        <div className="flex items-center gap-4 z-10">
-          <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-            <Monitor className="w-4 h-4 text-osu-orange" />
-            Screen Presentation
+        <div className="flex items-center gap-2 z-10 shrink-0">
+          <h2 className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+            <Monitor className="w-3.5 h-3.5 text-osu-orange" />
+            <span className="hidden sm:inline">Screen Presentation</span>
           </h2>
           
           <button 
             onClick={() => !isBridgeConnected && setUseWithoutBridge(false)}
             disabled={isBridgeConnected}
-            className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[10px] font-bold uppercase tracking-wider transition-all duration-300 ${
+            className={`flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold uppercase tracking-wider transition-all duration-300 ${
               isBridgeConnected 
                 ? 'bg-green-50 border-green-200 text-green-600 cursor-default' 
                 : 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100 hover:border-red-300 cursor-pointer'
@@ -293,10 +293,10 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
           {(presentationId || sessionStorage.getItem('activePresenterEmail')) && (
             <button
               onClick={handleNewSession}
-              className="flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-800 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-700 hover:bg-slate-800 text-white text-[11px] font-black uppercase tracking-wider rounded-lg transition-all shadow-sm active:scale-95 cursor-pointer"
               title="Start a new presentation session (Resets chat & attendance)"
             >
-              <Monitor className="w-3.5 h-3.5 text-osu-orange" />
+              <Monitor className="w-3 h-3 text-osu-orange" />
               <span>New Session</span>
             </button>
           )}
@@ -313,19 +313,19 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
                 url.searchParams.set('view', 'projector');
                 window.open(url.toString(), '_blank');
               }}
-              className="flex items-center gap-2 px-3 py-1.5 bg-osu-orange hover:bg-[#c03900] text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 py-1 bg-osu-orange hover:bg-[#c03900] text-white text-[11px] font-black uppercase tracking-wider rounded-lg transition-all shadow-sm active:scale-95 cursor-pointer"
               title="Launch Projector Mode in a new tab"
             >
-              <Tv className="w-3.5 h-3.5 text-white" />
+              <Tv className="w-3 h-3 text-white" />
               <span>Projector Mode</span>
             </button>
           )}
         </div>
 
         {/* Centered ActiveDeck Logo */}
-        <div className="absolute inset-0 flex items-center justify-center">
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
             <h1 
-              className="text-xl font-black tracking-tight text-slate-800 cursor-pointer hover:opacity-80 transition-opacity"
+              className="pointer-events-auto text-xl font-black tracking-tight text-slate-800 cursor-pointer hover:opacity-80 transition-opacity"
               onClick={() => {
                 console.log('Header - Admin click');
                 setIsAdminModalOpen(true);
@@ -335,59 +335,59 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
             </h1>
         </div>
 
-        <div className="flex items-center gap-4 z-10">
+        <div className="flex items-center gap-2 z-10 shrink-0">
           {/* PPT Preview Toggle (only visible to presenters) */}
           {presentationId && onNewSession && (
-            <div className="flex items-center gap-2.5 bg-slate-100 px-4 py-1.5 rounded-xl border-2 border-slate-205 shadow-sm select-none">
-              <span className="text-slate-550 font-black uppercase text-[10px] tracking-wider flex items-center gap-1.5">
-                <Tv className="w-3.5 h-3.5 text-osu-orange" />
-                Using PPT:
+            <div className="flex items-center gap-1.5 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 shadow-xs select-none">
+              <span className="text-slate-600 font-black uppercase text-[10px] tracking-wider">
+                PPT:
               </span>
               <button
                 onClick={handleTogglePPT}
-                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                className={`relative inline-flex h-4.5 w-8 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                   showSlidePreview ? 'bg-osu-orange' : 'bg-slate-350'
                 }`}
                 title={showSlidePreview ? "Slide previews are visible in audience portal" : "Slide previews are hidden in audience portal"}
               >
                 <span
-                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-205 ease-in-out ${
-                    showSlidePreview ? 'translate-x-4' : 'translate-x-0'
+                  className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow ring-0 transition duration-205 ease-in-out ${
+                    showSlidePreview ? 'translate-x-3.5' : 'translate-x-0'
                   }`}
                 />
               </button>
-              <span className={`text-[11px] font-black uppercase tracking-wider w-8 ${showSlidePreview ? 'text-osu-orange' : 'text-slate-400'}`}>
+              <span className={`text-[10px] font-black uppercase tracking-wider w-6 ${showSlidePreview ? 'text-osu-orange' : 'text-slate-400'}`}>
                 {showSlidePreview ? 'ON' : 'OFF'}
               </span>
             </div>
           )}
 
           {/* Join URL Display */}
-          <div className="flex items-center gap-2 bg-slate-100 px-4 py-1 rounded-xl border-2 border-slate-205 shadow-sm select-none">
-            <span className="text-slate-550 font-black uppercase text-[12px] tracking-wider">Join Here:</span>
-            <span className="text-osu-orange select-all font-mono font-black text-[18px]">active-deck.app/chat</span>
+          <div className="flex items-center gap-1.5 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 shadow-xs select-none">
+            <span className="text-slate-600 font-black uppercase text-[10px] tracking-wider hidden lg:inline">Join Here:</span>
+            <span className="text-osu-orange select-all font-mono font-black text-sm">active-deck.app/chat</span>
           </div>
 
           {presentationId && showAttendance && (
             <button
               onClick={() => setIsExportModalOpen(true)}
-              className="flex items-center gap-2 px-3 py-1.5 bg-osu-orange hover:bg-[#c03900] text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-orange-500/10 active:scale-95 cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 py-1 bg-osu-orange hover:bg-[#c03900] text-white text-[11px] font-black uppercase tracking-wider rounded-lg transition-all shadow-sm active:scale-95 cursor-pointer"
               title="Export or Email Student Attendance"
             >
-              <Download className="w-3.5 h-3.5" />
-              <span>Download Attendance</span>
+              <Download className="w-3 h-3" />
+              <span className="hidden xl:inline">Download Attendance</span>
+              <span className="xl:hidden">Attendance</span>
             </button>
           )}
 
-          <div className="flex items-center gap-2 text-lg font-mono font-bold text-slate-800 bg-white px-3 py-1 rounded-lg border-2 border-osu-orange shadow-sm">
-            <Clock className="w-4 h-4 text-osu-orange" />
+          <div className="flex items-center gap-1.5 text-sm font-mono font-bold text-slate-800 bg-white px-2 py-0.5 rounded-lg border border-osu-orange shadow-xs">
+            <Clock className="w-3.5 h-3.5 text-osu-orange" />
             <div className="flex items-baseline">
               <span>{displayHours}:{minutes}</span>
               <span className="text-[0.7em] opacity-60 ml-0.5">:{seconds}</span>
-              <span className="text-[0.8em] ml-1.5 font-sans font-black text-osu-orange">{amPm}</span>
+              <span className="text-[0.8em] ml-1 font-sans font-black text-osu-orange">{amPm}</span>
             </div>
           </div>
-          <div className="flex items-center gap-1 border-l border-slate-200 pl-4 relative">
+          <div className="flex items-center gap-1 border-l border-slate-200 pl-2 relative">
             {wakeLockError && (
               <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-red-600 text-white text-[10px] rounded shadow-lg animate-in fade-in slide-in-from-bottom-1">
                 {wakeLockError}
