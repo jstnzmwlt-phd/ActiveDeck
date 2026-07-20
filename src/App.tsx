@@ -1780,16 +1780,6 @@ function AppContent() {
                                       </button>
                                     );
                                   })}
-
-                                  <button
-                                    type="button"
-                                    onClick={handleAddCustomTab}
-                                    className="px-2 py-0.5 text-[8px] font-bold rounded border border-dashed border-purple-500/50 text-purple-300 bg-purple-950/40 hover:bg-purple-900/60 hover:border-purple-400 transition-all flex items-center gap-1 cursor-pointer shrink-0 active:scale-95"
-                                    title="Add a new blank note tab"
-                                  >
-                                    <Plus className="w-2.5 h-2.5 text-purple-400" />
-                                    <span>+ Note</span>
-                                  </button>
                                 </div>
                               </div>
                             </div>
@@ -2132,16 +2122,6 @@ function AppContent() {
                                   </button>
                                 );
                               })}
-
-                              <button
-                                type="button"
-                                onClick={handleAddCustomTab}
-                                className="px-2.5 py-1 text-[10px] font-bold rounded-lg border border-dashed border-purple-500/50 text-purple-300 bg-purple-950/40 hover:bg-purple-900/60 hover:border-purple-400 transition-all flex items-center gap-1 cursor-pointer shrink-0 active:scale-95"
-                                title="Add a new blank note tab"
-                              >
-                                <Plus className="w-3 h-3 text-purple-400" />
-                                <span>+ Note</span>
-                              </button>
                             </div>
                           </div>
                         </div>
