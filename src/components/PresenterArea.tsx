@@ -319,7 +319,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           const customTabId = `note_pushed_${timestamp}`;
           const fileId = Math.random().toString(36).substring(2, 11);
           const fileName = `Pushed_Notes_Image_${timestamp}.jpg`;
-          const storagePath = `presentations/${presentation.id}/pushed_notes/${fileId}_${fileName}`;
+          const storagePath = `presentations/${presentation.id}/documents/${fileId}_${fileName}`;
           const storageRef = ref(storage, storagePath);
 
           await uploadBytes(storageRef, blob);
