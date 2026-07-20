@@ -424,17 +424,57 @@ function AppContent() {
 
     const unsubPreviews = onSnapshot(qPreviews, (snapshot) => {
       const newPreviewsMap: Record<string, string> = {};
-      
+      const incomingCustomTabs: Array<{ id: string; label: string; position: number }> = [];
+      let latestPushedId: string | null = null;
+      let latestTime = 0;
+
       snapshot.docs.forEach(docSnap => {
         const data = docSnap.data();
         if (data.isBackgroundPreview && data.fileUrl && data.slide !== undefined && data.slide !== null) {
-          const slideNum = String(data.slide);
-          newPreviewsMap[slideNum] = data.fileUrl;
+          const slideId = String(data.slide);
+          newPreviewsMap[slideId] = data.fileUrl;
+
+          if (data.isCustomNoteTab || slideId.startsWith('note_')) {
+            const pos = data.position || 999;
+            const label = data.label || '';
+            incomingCustomTabs.push({ id: slideId, label, position: pos });
+
+            const timestampVal = data.timestamp?.seconds ? data.timestamp.seconds * 1000 : 0;
+            if (timestampVal > latestTime) {
+              latestTime = timestampVal;
+              latestPushedId = slideId;
+            }
+          }
         }
       });
-      
+
       console.log("[SlidePreview] Updated background slidePreviewsMap:", newPreviewsMap);
       setPushedSlidesMap(newPreviewsMap);
+
+      if (incomingCustomTabs.length > 0) {
+        setCustomTabs(prev => {
+          let updated = [...prev];
+          let addedCount = 0;
+
+          incomingCustomTabs.forEach(ict => {
+            if (!updated.some(t => t.id === ict.id)) {
+              addedCount++;
+              const labelIndex = updated.length + 1;
+              updated.push({
+                id: ict.id,
+                label: ict.label || `Notes ${labelIndex}`,
+                position: ict.position
+              });
+            }
+          });
+
+          if (addedCount > 0 && latestPushedId) {
+            setActiveTab(latestPushedId);
+          }
+
+          return updated;
+        });
+      }
     }, (error) => {
       console.error("[SlidePreview] Slide previews subscription error:", error);
     });

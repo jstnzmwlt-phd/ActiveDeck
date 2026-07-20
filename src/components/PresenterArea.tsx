@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Presentation } from '../types';
 import { ScreenCapture } from './ScreenCapture';
-import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play, X, Loader2, Tv, Minimize, Maximize, FileText, Square } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play, X, Loader2, Tv, Minimize, Maximize, FileText, Square, Send } from 'lucide-react';
 import { useBridge } from '../contexts/BridgeContext';
 import { auth, db, storage } from '../firebase';
 import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
@@ -279,6 +279,78 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   }, []);
 
 
+
+  const [isPushingToNotes, setIsPushingToNotes] = useState(false);
+
+  const handlePushImageToNotes = async () => {
+    if (!presentation?.id || isPushingToNotes) return;
+
+    try {
+      setIsPushingToNotes(true);
+      const video = containerRef.current?.querySelector('video') || videoRef.current;
+      if (!video) {
+        alert("No active display stream found to capture. Please start presenting first.");
+        setIsPushingToNotes(false);
+        return;
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 1920;
+      canvas.height = video.videoHeight || 1080;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        setIsPushingToNotes(false);
+        return;
+      }
+
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      canvas.toBlob(async (blob) => {
+        if (!blob) {
+          setIsPushingToNotes(false);
+          return;
+        }
+
+        try {
+          const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+          const { collection, addDoc, serverTimestamp } = await import('firebase/firestore');
+
+          const timestamp = Date.now();
+          const customTabId = `note_pushed_${timestamp}`;
+          const fileId = Math.random().toString(36).substring(2, 11);
+          const fileName = `Pushed_Notes_Image_${timestamp}.jpg`;
+          const storagePath = `presentations/${presentation.id}/pushed_notes/${fileId}_${fileName}`;
+          const storageRef = ref(storage, storagePath);
+
+          await uploadBytes(storageRef, blob);
+          const downloadUrl = await getDownloadURL(storageRef);
+
+          const currentSlideNum = currentSlide !== null ? currentSlide : (presentation?.currentSlide || 1);
+
+          await addDoc(collection(db, 'messages'), {
+            presentationId: presentation.id,
+            slide: customTabId,
+            fileUrl: downloadUrl,
+            isBackgroundPreview: true,
+            isCustomNoteTab: true,
+            position: currentSlideNum + 0.1,
+            timestamp: serverTimestamp()
+          });
+
+          console.log(`[Push Image to Notes] Successfully pushed display image for tab ${customTabId}!`);
+        } catch (err) {
+          console.error("[Push Image to Notes] Upload error:", err);
+          alert("Failed to push image to notes. Please try again.");
+        } finally {
+          setIsPushingToNotes(false);
+        }
+      }, 'image/jpeg', 0.85);
+
+    } catch (err) {
+      console.error("[Push Image to Notes] Capture error:", err);
+      setIsPushingToNotes(false);
+    }
+  };
 
   const updateLaserPositionInFirebase = async (x: number, y: number, active: boolean) => {
     if (!presentation?.id) return;
@@ -617,7 +689,20 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
           {/* Right Side: Presenter Controls */}
           <div className="flex items-center gap-2">
-
+            {/* Push Image to Notes Button */}
+            <button
+              onClick={handlePushImageToNotes}
+              disabled={isPushingToNotes}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-500 text-white text-[9px] font-black uppercase tracking-wider rounded-lg border border-orange-500/30 shadow-lg shadow-orange-500/15 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+              title="Push current display window image to audience notes as a new note tab"
+            >
+              {isPushingToNotes ? (
+                <Loader2 className="w-3 h-3 animate-spin text-white" />
+              ) : (
+                <Send className="w-3 h-3 text-white" />
+              )}
+              <span>{isPushingToNotes ? 'Pushing...' : 'Push Image to Notes'}</span>
+            </button>
 
             {/* Present with Notes Toggle Switch */}
             <button
