@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Presentation } from '../types';
 import { ScreenCapture } from './ScreenCapture';
-import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play, X, Loader2, Tv, Minimize, Maximize, FileText, Square, Send } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play, X, Loader2, Tv, Minimize, Maximize, FileText, Square, Send, CheckCircle2, Check, Clock } from 'lucide-react';
 import { useBridge } from '../contexts/BridgeContext';
 import { auth, db, storage } from '../firebase';
 import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
@@ -38,6 +38,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
   const [currentSlidePreviewUrl, setCurrentSlidePreviewUrl] = useState<string | null>(null);
   const [nextSlidePreviewUrl, setNextSlidePreviewUrl] = useState<string | null>(null);
+  const [isUploadingPreview, setIsUploadingPreview] = useState(false);
 
   useEffect(() => {
     if (!presentation?.id || currentSlide === null) {
@@ -207,14 +208,14 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     const activeSlideNum = currentSlide !== null ? currentSlide : (presentation?.currentSlide || 1);
 
     console.log(`[SlidePreview Auto] Scheduling background preview capture for slide ${activeSlideNum} (trigger: ${captureTrigger})...`);
+    setIsUploadingPreview(true);
 
-    // Capture after 1.5 seconds of "stillness" to avoid capturing while the presenter is scrolling through slides
     const timeoutId = setTimeout(async () => {
       try {
-        // Query the video element INSIDE the timeout to guarantee React has finished rendering the video container!
         const video = containerRef.current?.querySelector('video');
         if (!video) {
           console.warn("[SlidePreview Auto] No active video stream found in DOM inside timeout to capture slide preview.");
+          setIsUploadingPreview(false);
           return;
         }
 
@@ -224,12 +225,18 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         canvas.width = video.videoWidth || 1280;
         canvas.height = video.videoHeight || 720;
         const ctx = canvas.getContext('2d');
-        if (!ctx) return;
+        if (!ctx) {
+          setIsUploadingPreview(false);
+          return;
+        }
 
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
         canvas.toBlob(async (blob) => {
-          if (!blob) return;
+          if (!blob) {
+            setIsUploadingPreview(false);
+            return;
+          }
 
           try {
             const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
@@ -257,11 +264,14 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             console.log(`[SlidePreview Auto] Background slide preview uploaded successfully for slide ${activeSlideNum}!`);
           } catch (uploadErr) {
             console.error("[SlidePreview Auto] Background slide preview upload failed:", uploadErr);
+          } finally {
+            setIsUploadingPreview(false);
           }
         }, 'image/jpeg', 0.65);
 
       } catch (err) {
         console.error("[SlidePreview Auto] Error in background slide capture process:", err);
+        setIsUploadingPreview(false);
       }
     }, 3000);
 
@@ -313,7 +323,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
         try {
           const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
-          const { collection, addDoc, serverTimestamp } = await import('firebase/firestore');
+          const { collection, addDoc, doc, setDoc, serverTimestamp } = await import('firebase/firestore');
 
           const timestamp = Date.now();
           const customTabId = `note_pushed_${timestamp}`;
@@ -334,6 +344,17 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             isBackgroundPreview: true,
             isCustomNoteTab: true,
             position: currentSlideNum + 0.1,
+            timestamp: serverTimestamp()
+          });
+
+          // Also set standard slide preview doc for active slide so indicator turns green immediately
+          const previewDocId = `${presentation.id}_preview_slide_${currentSlideNum}`;
+          await setDoc(doc(db, 'messages', previewDocId), {
+            presentationId: presentation.id,
+            slide: currentSlideNum,
+            fileUrl: downloadUrl,
+            isBackgroundPreview: true,
+            isPushedSlide: true,
             timestamp: serverTimestamp()
           });
 
@@ -1395,7 +1416,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
 
       {/* Footer Navigation Bar - Always visible when presenting */}
-      {isCapturing && !isProjectorMode && isBridgeConnected && (
+      {isCapturing && !isProjectorMode && (
         <div className="bg-slate-900 border-t border-slate-800 px-4 py-3 flex items-center justify-center z-[70] shrink-0 select-none relative">
           
           {/* Left Side: Decoupled Fullscreen Toggle */}
@@ -1436,6 +1457,35 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             >
               <ChevronRight className="w-5 h-5 group-hover/btn:translate-x-0.5 transition-transform" />
             </button>
+          </div>
+
+          {/* Right Side: Audience Slide Preview Pushed Status Indicator */}
+          <div className="absolute right-4 flex items-center gap-2">
+            {currentSlidePreviewUrl ? (
+              <div 
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 text-[11px] font-bold rounded-xl shadow-lg animate-in fade-in duration-200"
+                title="Current slide image preview is live and displayed on audience chat/notes page"
+              >
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className="tracking-wide">Audience Preview Pushed</span>
+              </div>
+            ) : isUploadingPreview || isPushingToNotes ? (
+              <div 
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-950/80 border border-amber-500/40 text-amber-400 text-[11px] font-bold rounded-xl shadow-lg animate-pulse"
+                title="Capturing and pushing slide image preview to audience page..."
+              >
+                <Loader2 className="w-4 h-4 text-amber-400 animate-spin shrink-0" />
+                <span className="tracking-wide">Pushing Preview...</span>
+              </div>
+            ) : (
+              <div 
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-950/80 border border-slate-800 text-slate-400 text-[11px] font-medium rounded-xl shadow-sm"
+                title="Waiting for slide image preview to push to audience page"
+              >
+                <Clock className="w-4 h-4 text-slate-400 shrink-0" />
+                <span className="tracking-wide">Preview Pending</span>
+              </div>
+            )}
           </div>
         </div>
       )}
