@@ -276,13 +276,14 @@ export const Header: React.FC<HeaderProps> = ({ presentationId }) => {
         {/* Centered ActiveDeck Logo */}
         <div className="absolute inset-0 flex items-center justify-center">
             <h1 
-              className="text-xl font-black tracking-tight text-slate-800 cursor-pointer hover:opacity-80 transition-opacity"
+              className="text-xl font-black tracking-tight text-slate-800 cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-1.5"
               onClick={() => {
                 console.log('Header - Admin click');
                 setIsAdminModalOpen(true);
               }}
             >
-              Active<span className="text-osu-orange">Deck</span>
+              <span>Active<span className="text-osu-orange">Deck</span></span>
+              <span className="text-[10px] font-black uppercase tracking-wider bg-osu-orange/10 text-osu-orange px-1.5 py-0.5 rounded border border-osu-orange/20">v2.0</span>
             </h1>
         </div>
 

@@ -574,7 +574,7 @@ function AppContent() {
       </div>
 
       <footer className="px-6 pb-3 pt-1 flex items-center justify-between text-[11px] font-bold tracking-wider text-slate-400 uppercase select-none">
-        <span>v1.1</span>
+        <span>v2.0</span>
         <span className="opacity-65">ActiveDeck &copy; {new Date().getFullYear()}</span>
       </footer>
     </div>

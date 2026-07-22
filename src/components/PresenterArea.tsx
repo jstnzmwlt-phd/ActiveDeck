@@ -34,7 +34,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const [error, setError] = useState<string | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
   const [laserEnabled, setLaserEnabled] = useState(true);
-  const [presentWithNotes, setPresentWithNotes] = useState(false);
+  const [presentWithNotes, setPresentWithNotes] = useState(true);
 
   const [currentSlidePreviewUrl, setCurrentSlidePreviewUrl] = useState<string | null>(null);
   const [nextSlidePreviewUrl, setNextSlidePreviewUrl] = useState<string | null>(null);
