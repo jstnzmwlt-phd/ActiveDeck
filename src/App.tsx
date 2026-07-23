@@ -31,6 +31,31 @@ import {
 
 console.log('App.tsx - Module loaded');
 
+const getStrokePath = (stroke: DrawingStroke): string => {
+  if (!stroke.points || stroke.points.length === 0) return '';
+  if (stroke.isArrow && stroke.points.length >= 2) {
+    const p1 = stroke.points[0];
+    const p2 = stroke.points[stroke.points.length - 1];
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+    const angle = Math.atan2(dy, dx);
+    const headLength = Math.max(25, stroke.width * 4);
+    const arrowAngle = Math.PI / 6;
+
+    const h1x = p2.x - headLength * Math.cos(angle - arrowAngle);
+    const h1y = p2.y - headLength * Math.sin(angle - arrowAngle);
+    const h2x = p2.x - headLength * Math.cos(angle + arrowAngle);
+    const h2y = p2.y - headLength * Math.sin(angle + arrowAngle);
+
+    return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y} M ${p2.x} ${p2.y} L ${h1x.toFixed(1)} ${h1y.toFixed(1)} M ${p2.x} ${p2.y} L ${h2x.toFixed(1)} ${h2y.toFixed(1)}`;
+  }
+  if (stroke.points.length === 1) {
+    const pt = stroke.points[0];
+    return `M ${pt.x} ${pt.y} L ${pt.x + 0.1} ${pt.y + 0.1}`;
+  }
+  return stroke.points.reduce((acc, pt, i) => i === 0 ? `M ${pt.x} ${pt.y}` : `${acc} L ${pt.x} ${pt.y}`, '');
+};
+
 // Global error handler for debugging
 window.onerror = (msg, url, lineNo, columnNo, error) => {
   console.error('Global Error:', msg, 'at', url, ':', lineNo, ':', columnNo, error);
@@ -665,13 +690,35 @@ function AppContent() {
           ctx.strokeStyle = stroke.color === '#FFFFFF' ? '#cbd5e1' : stroke.color;
         }
         
-        stroke.points.forEach((p: any, i: number) => {
-          if (i === 0) {
-            ctx.moveTo(p.x, p.y);
-          } else {
-            ctx.lineTo(p.x, p.y);
-          }
-        });
+        if (stroke.isArrow && stroke.points.length >= 2) {
+          const p1 = stroke.points[0];
+          const p2 = stroke.points[stroke.points.length - 1];
+          const dx = p2.x - p1.x;
+          const dy = p2.y - p1.y;
+          const angle = Math.atan2(dy, dx);
+          const headLength = Math.max(25, stroke.width * 4);
+          const arrowAngle = Math.PI / 6;
+
+          const h1x = p2.x - headLength * Math.cos(angle - arrowAngle);
+          const h1y = p2.y - headLength * Math.sin(angle - arrowAngle);
+          const h2x = p2.x - headLength * Math.cos(angle + arrowAngle);
+          const h2y = p2.y - headLength * Math.sin(angle + arrowAngle);
+
+          ctx.moveTo(p1.x, p1.y);
+          ctx.lineTo(p2.x, p2.y);
+          ctx.moveTo(p2.x, p2.y);
+          ctx.lineTo(h1x, h1y);
+          ctx.moveTo(p2.x, p2.y);
+          ctx.lineTo(h2x, h2y);
+        } else {
+          stroke.points.forEach((p: any, i: number) => {
+            if (i === 0) {
+              ctx.moveTo(p.x, p.y);
+            } else {
+              ctx.lineTo(p.x, p.y);
+            }
+          });
+        }
         ctx.stroke();
       });
       
@@ -1762,10 +1809,8 @@ function AppContent() {
                               className="absolute inset-0 w-full h-full pointer-events-none z-10"
                             >
                               {strokes.map((stroke, idx) => {
-                                if (!stroke.points || stroke.points.length === 0) return null;
-                                const pathD = stroke.points.length === 1
-                                  ? `M ${stroke.points[0].x} ${stroke.points[0].y} L ${stroke.points[0].x + 0.1} ${stroke.points[0].y + 0.1}`
-                                  : stroke.points.reduce((acc, pt, i) => i === 0 ? `M ${pt.x} ${pt.y}` : `${acc} L ${pt.x} ${pt.y}`, '');
+                                const pathD = getStrokePath(stroke);
+                                if (!pathD) return null;
                                 return (
                                   <path
                                     key={`mobile-preview-stroke-${idx}`}
@@ -1799,25 +1844,8 @@ function AppContent() {
                               className="absolute inset-0 w-full h-full pointer-events-none z-20"
                             >
                               {strokes.map((stroke, idx) => {
-                                if (!stroke.points || stroke.points.length === 0) return null;
-                                const pathD = stroke.isArrow && stroke.points.length >= 2
-                                  ? (() => {
-                                      const p1 = stroke.points[0];
-                                      const p2 = stroke.points[stroke.points.length - 1];
-                                      const dx = p2.x - p1.x;
-                                      const dy = p2.y - p1.y;
-                                      const angle = Math.atan2(dy, dx);
-                                      const headLength = Math.max(25, stroke.width * 4);
-                                      const arrowAngle = Math.PI / 6;
-                                      const h1x = p2.x - headLength * Math.cos(angle - arrowAngle);
-                                      const h1y = p2.y - headLength * Math.sin(angle - arrowAngle);
-                                      const h2x = p2.x - headLength * Math.cos(angle + arrowAngle);
-                                      const h2y = p2.y - headLength * Math.sin(angle + arrowAngle);
-                                      return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y} M ${p2.x} ${p2.y} L ${h1x.toFixed(1)} ${h1y.toFixed(1)} M ${p2.x} ${p2.y} L ${h2x.toFixed(1)} ${h2y.toFixed(1)}`;
-                                    })()
-                                  : stroke.points.length === 1
-                                  ? `M ${stroke.points[0].x} ${stroke.points[0].y} L ${stroke.points[0].x + 0.1} ${stroke.points[0].y + 0.1}`
-                                  : stroke.points.reduce((acc, pt, i) => i === 0 ? `M ${pt.x} ${pt.y}` : `${acc} L ${pt.x} ${pt.y}`, '');
+                                const pathD = getStrokePath(stroke);
+                                if (!pathD) return null;
                                 return (
                                   <path
                                     key={`mobile-student-stroke-${idx}`}
@@ -2574,10 +2602,8 @@ function AppContent() {
                                       className="absolute inset-0 w-full h-full pointer-events-none z-10"
                                     >
                                       {strokes.map((stroke, idx) => {
-                                        if (!stroke.points || stroke.points.length === 0) return null;
-                                        const pathD = stroke.points.length === 1
-                                          ? `M ${stroke.points[0].x} ${stroke.points[0].y} L ${stroke.points[0].x + 0.1} ${stroke.points[0].y + 0.1}`
-                                          : stroke.points.reduce((acc, pt, i) => i === 0 ? `M ${pt.x} ${pt.y}` : `${acc} L ${pt.x} ${pt.y}`, '');
+                                        const pathD = getStrokePath(stroke);
+                                        if (!pathD) return null;
                                         return (
                                           <path
                                             key={`desktop-preview-stroke-${idx}`}
@@ -2611,25 +2637,8 @@ function AppContent() {
                                       className="absolute inset-0 w-full h-full pointer-events-none z-20"
                                     >
                                       {strokes.map((stroke, idx) => {
-                                        if (!stroke.points || stroke.points.length === 0) return null;
-                                        const pathD = stroke.isArrow && stroke.points.length >= 2
-                                          ? (() => {
-                                              const p1 = stroke.points[0];
-                                              const p2 = stroke.points[stroke.points.length - 1];
-                                              const dx = p2.x - p1.x;
-                                              const dy = p2.y - p1.y;
-                                              const angle = Math.atan2(dy, dx);
-                                              const headLength = Math.max(25, stroke.width * 4);
-                                              const arrowAngle = Math.PI / 6;
-                                              const h1x = p2.x - headLength * Math.cos(angle - arrowAngle);
-                                              const h1y = p2.y - headLength * Math.sin(angle - arrowAngle);
-                                              const h2x = p2.x - headLength * Math.cos(angle + arrowAngle);
-                                              const h2y = p2.y - headLength * Math.sin(angle + arrowAngle);
-                                              return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y} M ${p2.x} ${p2.y} L ${h1x.toFixed(1)} ${h1y.toFixed(1)} M ${p2.x} ${p2.y} L ${h2x.toFixed(1)} ${h2y.toFixed(1)}`;
-                                            })()
-                                          : stroke.points.length === 1
-                                          ? `M ${stroke.points[0].x} ${stroke.points[0].y} L ${stroke.points[0].x + 0.1} ${stroke.points[0].y + 0.1}`
-                                          : stroke.points.reduce((acc, pt, i) => i === 0 ? `M ${pt.x} ${pt.y}` : `${acc} L ${pt.x} ${pt.y}`, '');
+                                        const pathD = getStrokePath(stroke);
+                                        if (!pathD) return null;
                                         return (
                                           <path
                                             key={`desktop-student-stroke-${idx}`}

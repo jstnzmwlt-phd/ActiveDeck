@@ -28,15 +28,21 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
   const activeVideoRef = videoRef || localVideoRef;
 
   useEffect(() => {
-    if (activeVideoRef.current && stream) {
-      activeVideoRef.current.srcObject = stream;
-      activeVideoRef.current.play().catch(err => {
-        console.error("ActiveDeck: Error playing video stream:", err);
+    const videoElem = activeVideoRef.current;
+    if (videoElem && stream && isCapturing) {
+      videoElem.srcObject = stream;
+      videoElem.play().catch(err => {
+        console.warn("ActiveDeck: Initial video play attempt failed, retrying...", err);
+        requestAnimationFrame(() => {
+          if (videoElem && stream) {
+            videoElem.play().catch(e => console.error("ActiveDeck: Video stream play retry failed:", e));
+          }
+        });
       });
-    } else if (activeVideoRef.current) {
-      activeVideoRef.current.srcObject = null;
+    } else if (videoElem && (!stream || !isCapturing)) {
+      videoElem.srcObject = null;
     }
-  }, [stream]);
+  }, [stream, isCapturing]);
 
   return (
     <div className="relative w-full h-full flex flex-col bg-slate-900 overflow-hidden group">
