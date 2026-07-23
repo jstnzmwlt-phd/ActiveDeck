@@ -267,6 +267,7 @@ function AppContent() {
 
   const [notesTextMap, setNotesTextMap] = useState<Record<string, string>>({});
   const [notesDrawingsMap, setNotesDrawingsMap] = useState<Record<string, string>>({});
+  const [studentSlideDrawingsMap, setStudentSlideDrawingsMap] = useState<Record<string, string>>({});
   const [notesMode, setNotesMode] = useState<'text' | 'pen'>('text');
   const [activeTab, setActiveTab] = useState<string>('1');
   const [maxSlideSeen, setMaxSlideSeen] = useState<number>(1);
@@ -530,6 +531,15 @@ function AppContent() {
     }
     setNotesDrawingsMap(parsedDrawingsMap);
 
+    const savedStudentSlideDrawings = localStorage.getItem(`activeDeckStudentSlideDrawings_${activePresentationId}`) || '';
+    let parsedStudentSlideDrawings: Record<string, string> = {};
+    if (savedStudentSlideDrawings) {
+      try {
+        parsedStudentSlideDrawings = JSON.parse(savedStudentSlideDrawings);
+      } catch (e) {}
+    }
+    setStudentSlideDrawingsMap(parsedStudentSlideDrawings);
+
     setNotesTitle(savedTitle || '');
     setSaveStatus('');
     
@@ -557,10 +567,12 @@ function AppContent() {
     
     const savedNotes = localStorage.getItem(`activeDeckNotes_${activePresentationId}`) || '';
     const savedDrawings = localStorage.getItem(`activeDeckDrawings_${activePresentationId}`) || '';
+    const savedStudentSlideDrawings = localStorage.getItem(`activeDeckStudentSlideDrawings_${activePresentationId}`) || '';
     const savedTitle = localStorage.getItem(`activeDeckNotesTitle_${activePresentationId}`) || '';
     
     const currentNotesRaw = JSON.stringify(notesTextMap);
     const currentDrawingsRaw = JSON.stringify(notesDrawingsMap);
+    const currentStudentSlideDrawingsRaw = JSON.stringify(studentSlideDrawingsMap);
     
     // Check if anything actually changed to avoid redundant saves and flicker
     let isSameNotes = false;
@@ -579,7 +591,15 @@ function AppContent() {
       isSameDrawings = false;
     }
 
-    if (isSameNotes && isSameDrawings && notesTitle === savedTitle) {
+    let isSameStudentSlideDrawings = false;
+    try {
+      const parsedSaved = JSON.parse(savedStudentSlideDrawings);
+      isSameStudentSlideDrawings = JSON.stringify(parsedSaved) === currentStudentSlideDrawingsRaw;
+    } catch (e) {
+      isSameStudentSlideDrawings = false;
+    }
+
+    if (isSameNotes && isSameDrawings && isSameStudentSlideDrawings && notesTitle === savedTitle) {
       return;
     }
 
@@ -587,6 +607,7 @@ function AppContent() {
     const timer = setTimeout(() => {
       localStorage.setItem(`activeDeckNotes_${activePresentationId}`, currentNotesRaw);
       localStorage.setItem(`activeDeckDrawings_${activePresentationId}`, currentDrawingsRaw);
+      localStorage.setItem(`activeDeckStudentSlideDrawings_${activePresentationId}`, currentStudentSlideDrawingsRaw);
       localStorage.setItem(`activeDeckNotesTitle_${activePresentationId}`, notesTitle);
       setSaveStatus('saved');
       
@@ -595,7 +616,7 @@ function AppContent() {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [notesTextMap, notesDrawingsMap, notesTitle, activePresentationId]);
+  }, [notesTextMap, notesDrawingsMap, studentSlideDrawingsMap, notesTitle, activePresentationId]);
 
   const convertStrokesToPng = (drawingJson: string): string => {
     if (!drawingJson) return '';
@@ -1764,6 +1785,58 @@ function AppContent() {
                           return null;
                         }
                       })()}
+                      {/* Student Personal Slide Markings Layer */}
+                      {(() => {
+                        const studentJson = studentSlideDrawingsMap[activeTab];
+                        if (!studentJson) return null;
+                        try {
+                          const strokes: DrawingStroke[] = JSON.parse(studentJson);
+                          if (!Array.isArray(strokes) || strokes.length === 0) return null;
+                          return (
+                            <svg
+                              viewBox="0 0 1000 1000"
+                              preserveAspectRatio="none"
+                              className="absolute inset-0 w-full h-full pointer-events-none z-20"
+                            >
+                              {strokes.map((stroke, idx) => {
+                                if (!stroke.points || stroke.points.length === 0) return null;
+                                const pathD = stroke.isArrow && stroke.points.length >= 2
+                                  ? (() => {
+                                      const p1 = stroke.points[0];
+                                      const p2 = stroke.points[stroke.points.length - 1];
+                                      const dx = p2.x - p1.x;
+                                      const dy = p2.y - p1.y;
+                                      const angle = Math.atan2(dy, dx);
+                                      const headLength = Math.max(25, stroke.width * 4);
+                                      const arrowAngle = Math.PI / 6;
+                                      const h1x = p2.x - headLength * Math.cos(angle - arrowAngle);
+                                      const h1y = p2.y - headLength * Math.sin(angle - arrowAngle);
+                                      const h2x = p2.x - headLength * Math.cos(angle + arrowAngle);
+                                      const h2y = p2.y - headLength * Math.sin(angle + arrowAngle);
+                                      return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y} M ${p2.x} ${p2.y} L ${h1x.toFixed(1)} ${h1y.toFixed(1)} M ${p2.x} ${p2.y} L ${h2x.toFixed(1)} ${h2y.toFixed(1)}`;
+                                    })()
+                                  : stroke.points.length === 1
+                                  ? `M ${stroke.points[0].x} ${stroke.points[0].y} L ${stroke.points[0].x + 0.1} ${stroke.points[0].y + 0.1}`
+                                  : stroke.points.reduce((acc, pt, i) => i === 0 ? `M ${pt.x} ${pt.y}` : `${acc} L ${pt.x} ${pt.y}`, '');
+                                return (
+                                  <path
+                                    key={`mobile-student-stroke-${idx}`}
+                                    d={pathD}
+                                    stroke={stroke.color}
+                                    strokeWidth={stroke.width}
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    fill="none"
+                                    opacity={stroke.isHighlighter ? 0.45 : 1}
+                                  />
+                                );
+                              })}
+                            </svg>
+                          );
+                        } catch {
+                          return null;
+                        }
+                      })()}
                       {/* Floating badge */}
                       <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-black/60 border border-white/10 text-white text-[9px] font-bold">
                         Slide {activeTab}
@@ -2098,6 +2171,14 @@ function AppContent() {
             imageUrl={lightboxImgUrl} 
             title={`Slide ${activeTab} Preview`} 
             drawingStrokesJson={presentation?.presenterDrawings?.[activeTab]}
+            allowStudentDrawing={notesMode === 'pen'}
+            studentStrokesJson={studentSlideDrawingsMap[activeTab] || ''}
+            onStudentStrokesChange={(newJson) => {
+              setStudentSlideDrawingsMap(prev => ({
+                ...prev,
+                [activeTab]: newJson
+              }));
+            }}
           />
         </>
       );
@@ -2516,6 +2597,58 @@ function AppContent() {
                                   return null;
                                 }
                               })()}
+                              {/* Student Personal Slide Markings Layer */}
+                              {(() => {
+                                const studentJson = studentSlideDrawingsMap[activeTab];
+                                if (!studentJson) return null;
+                                try {
+                                  const strokes: DrawingStroke[] = JSON.parse(studentJson);
+                                  if (!Array.isArray(strokes) || strokes.length === 0) return null;
+                                  return (
+                                    <svg
+                                      viewBox="0 0 1000 1000"
+                                      preserveAspectRatio="none"
+                                      className="absolute inset-0 w-full h-full pointer-events-none z-20"
+                                    >
+                                      {strokes.map((stroke, idx) => {
+                                        if (!stroke.points || stroke.points.length === 0) return null;
+                                        const pathD = stroke.isArrow && stroke.points.length >= 2
+                                          ? (() => {
+                                              const p1 = stroke.points[0];
+                                              const p2 = stroke.points[stroke.points.length - 1];
+                                              const dx = p2.x - p1.x;
+                                              const dy = p2.y - p1.y;
+                                              const angle = Math.atan2(dy, dx);
+                                              const headLength = Math.max(25, stroke.width * 4);
+                                              const arrowAngle = Math.PI / 6;
+                                              const h1x = p2.x - headLength * Math.cos(angle - arrowAngle);
+                                              const h1y = p2.y - headLength * Math.sin(angle - arrowAngle);
+                                              const h2x = p2.x - headLength * Math.cos(angle + arrowAngle);
+                                              const h2y = p2.y - headLength * Math.sin(angle + arrowAngle);
+                                              return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y} M ${p2.x} ${p2.y} L ${h1x.toFixed(1)} ${h1y.toFixed(1)} M ${p2.x} ${p2.y} L ${h2x.toFixed(1)} ${h2y.toFixed(1)}`;
+                                            })()
+                                          : stroke.points.length === 1
+                                          ? `M ${stroke.points[0].x} ${stroke.points[0].y} L ${stroke.points[0].x + 0.1} ${stroke.points[0].y + 0.1}`
+                                          : stroke.points.reduce((acc, pt, i) => i === 0 ? `M ${pt.x} ${pt.y}` : `${acc} L ${pt.x} ${pt.y}`, '');
+                                        return (
+                                          <path
+                                            key={`desktop-student-stroke-${idx}`}
+                                            d={pathD}
+                                            stroke={stroke.color}
+                                            strokeWidth={stroke.width}
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            fill="none"
+                                            opacity={stroke.isHighlighter ? 0.45 : 1}
+                                          />
+                                        );
+                                      })}
+                                    </svg>
+                                  );
+                                } catch {
+                                  return null;
+                                }
+                              })()}
                               {/* Floating Glassmorphic Expand Icon */}
                               <div className="absolute top-2.5 right-2.5 p-2 rounded-lg bg-black/60 border border-white/10 text-white/70 group-hover/preview:text-white group-hover/preview:bg-osu-orange group-hover/preview:border-osu-orange/50 shadow-lg backdrop-blur-md opacity-0 group-hover/preview:opacity-100 transition-all duration-300 transform scale-95 group-hover/preview:scale-100 flex items-center justify-center">
                                 <Maximize className="w-4 h-4" />
@@ -2569,6 +2702,14 @@ function AppContent() {
         imageUrl={lightboxImgUrl} 
         title={`${getTabTitle(activeTab)} Preview`} 
         drawingStrokesJson={presentation?.presenterDrawings?.[activeTab]}
+        allowStudentDrawing={notesMode === 'pen'}
+        studentStrokesJson={studentSlideDrawingsMap[activeTab] || ''}
+        onStudentStrokesChange={(newJson) => {
+          setStudentSlideDrawingsMap(prev => ({
+            ...prev,
+            [activeTab]: newJson
+          }));
+        }}
       />
     </>
   );
@@ -2625,6 +2766,14 @@ function AppContent() {
         imageUrl={lightboxImgUrl} 
         title={`Slide ${activeTab} Preview`} 
         drawingStrokesJson={presentation?.presenterDrawings?.[activeTab]}
+        allowStudentDrawing={notesMode === 'pen'}
+        studentStrokesJson={studentSlideDrawingsMap[activeTab] || ''}
+        onStudentStrokesChange={(newJson) => {
+          setStudentSlideDrawingsMap(prev => ({
+            ...prev,
+            [activeTab]: newJson
+          }));
+        }}
       />
     </div>
   );
