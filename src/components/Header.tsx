@@ -393,17 +393,6 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
             <span className="text-osu-orange select-all font-mono font-black text-sm">active-deck.app/chat</span>
           </div>
 
-          {presentationId && showAttendance && (
-            <button
-              onClick={() => setIsExportModalOpen(true)}
-              className="flex items-center gap-1.5 px-2.5 py-1 bg-osu-orange hover:bg-[#c03900] text-white text-[11px] font-black uppercase tracking-wider rounded-lg transition-all shadow-sm active:scale-95 cursor-pointer"
-              title="Export or Email Student Attendance"
-            >
-              <Download className="w-3 h-3" />
-              <span className="hidden xl:inline">Download Attendance</span>
-              <span className="xl:hidden">Attendance</span>
-            </button>
-          )}
 
           <div className="flex items-center gap-1.5 text-sm font-mono font-bold text-slate-800 bg-white px-2 py-0.5 rounded-lg border border-osu-orange shadow-xs">
             <Clock className="w-3.5 h-3.5 text-osu-orange" />

@@ -36,6 +36,7 @@ export interface Presentation {
   currentIcon?: string;
   previousIcon?: string;
   iconRotatedAt?: number;
+  attendanceToken?: string;
   lastManualActivityAt?: number;
   hasActivity?: boolean;
   laserX?: number;

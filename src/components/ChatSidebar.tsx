@@ -1965,8 +1965,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   // Construct chat-only URL for QR code
   const baseUrl = window.location.origin + window.location.pathname;
   const chatOnlyUrl = presentation?.id ? `${baseUrl}?view=chat&id=${presentation.id}` : `${baseUrl}?view=chat`;
-  const dynamicChatUrl = presentation?.id && activeToken && !presentation?.disableAttendance && showAttendance
-    ? `${window.location.origin}${window.location.pathname}?view=chat&id=${presentation.id}&token=${activeToken}`
+  const effectiveToken = activeToken || presentation?.attendanceToken || null;
+  const dynamicChatUrl = presentation?.id && effectiveToken && !presentation?.disableAttendance && showAttendance
+    ? `${window.location.origin}${window.location.pathname}?view=chat&id=${presentation.id}&token=${effectiveToken}`
     : chatOnlyUrl;
 
   useEffect(() => {
@@ -2355,33 +2356,39 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     return () => clearInterval(interval);
   }, [isChatOnly, presentation?.currentIcon, presentation?.iconRotatedAt, presentation?.disableAttendance, urlToken]);
 
-  // Presenter Token Rotation and countdown effect (every 10s unified loop)
+  // Presenter & Projector Token Rotation and countdown effect (every 10s unified loop)
   useEffect(() => {
-    if (isChatOnly || !presentation?.id || !showAttendance || presentation?.disableAttendance) {
-      setActiveToken(null);
-      return;
+    if ((isChatOnly && !isProjector) || !presentation?.id || !showAttendance || presentation?.disableAttendance) {
+      if (!isProjector) {
+        setActiveToken(null);
+        return;
+      }
     }
 
-    generateNewToken();
+    if (canModerate) {
+      generateNewToken();
 
-    const interval = setInterval(() => {
-      const now = Date.now();
-      const elapsed = (now - lastTokenGenerationTimeRef.current) / 1000;
+      const interval = setInterval(() => {
+        const now = Date.now();
+        const elapsed = (now - lastTokenGenerationTimeRef.current) / 1000;
 
-      if (elapsed >= 10) {
-        generateNewToken();
-        setTimeLeft(10);
-      } else {
-        setTimeLeft(Number((10 - elapsed).toFixed(1)));
-      }
-    }, 100);
+        if (elapsed >= 10) {
+          generateNewToken();
+          setTimeLeft(10);
+        } else {
+          setTimeLeft(Number((10 - elapsed).toFixed(1)));
+        }
+      }, 100);
 
-    return () => {
-      clearInterval(interval);
-      const now = Date.now();
-      cleanExpiredTokens(now + 100000);
-    };
-  }, [presentation?.id, isChatOnly, presentation?.disableAttendance]);
+      return () => {
+        clearInterval(interval);
+        const now = Date.now();
+        cleanExpiredTokens(now + 100000);
+      };
+    } else if (isProjector && presentation?.attendanceToken) {
+      setActiveToken(presentation.attendanceToken);
+    }
+  }, [presentation?.id, isChatOnly, isProjector, canModerate, presentation?.disableAttendance, presentation?.attendanceToken, showAttendance]);
 
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -3851,7 +3858,16 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden relative">
                   <div 
                     className="h-full bg-osu-orange transition-all duration-100 ease-linear"
-                    style={{ width: `${(timeLeft / 10) * 100}%` }}
+                    style={{ 
+                      width: `${(
+                        (canModerate 
+                          ? timeLeft 
+                          : (presentation?.iconRotatedAt 
+                              ? Math.max(0, 10 - ((Date.now() - presentation.iconRotatedAt) / 1000 % 10)) 
+                              : 10)
+                        ) / 10
+                      ) * 100}%` 
+                    }}
                   />
                 </div>
               )}

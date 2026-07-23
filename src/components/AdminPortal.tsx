@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { doc, getDoc, setDoc, addDoc, collection, onSnapshot, deleteDoc, query, orderBy, limit, Timestamp, getDocs, where, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, setDoc, addDoc, collection, onSnapshot, deleteDoc, query, orderBy, limit, Timestamp, getDocs, where, serverTimestamp, writeBatch, updateDoc } from 'firebase/firestore';
 import { db, storage } from '../firebase';
 import { ref, listAll, deleteObject } from 'firebase/storage';
 import { Theme, SavedTheme, Message, Poll, WordCloud, OpenEndedQuestion } from '../types';
@@ -1338,7 +1338,22 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                       <div className="text-[11px] text-slate-500">Show the attendance features and download options in the chat and header.</div>
                     </div>
                     <button
-                      onClick={() => setShowAttendance(!showAttendance)}
+                      onClick={async () => {
+                        const newShow = !showAttendance;
+                        setShowAttendance(newShow);
+                        try {
+                          await setDoc(doc(db, 'settings', 'global'), {
+                            showAttendance: newShow
+                          }, { merge: true });
+                          if (newShow && presentationId) {
+                            await updateDoc(doc(db, 'presentations', presentationId), {
+                              disableAttendance: false
+                            });
+                          }
+                        } catch (err) {
+                          console.error("AdminPortal: Error updating showAttendance setting:", err);
+                        }
+                      }}
                       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
                         showAttendance ? 'bg-osu-orange' : 'bg-slate-800'
                       }`}
@@ -1649,21 +1664,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                           onClick={handleDownloadCSV}
                           disabled={filteredAttendance.length === 0}
                           className="flex items-center gap-2 h-11 px-5 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-orange-500/10 cursor-pointer"
+                          title={filteredAttendance.length === 0 ? "No attendance records to export for this session" : "Download Attendance CSV Sheet"}
                         >
                           <Download className="w-4 h-4" />
-                          Export CSV Sheet
-                        </button>
-                        <button
-                          onClick={() => handleDownloadChatLog()}
-                          disabled={isDownloadingChatLog}
-                          className="flex items-center gap-2 h-11 px-5 bg-slate-800 hover:bg-slate-750 disabled:bg-slate-900 disabled:text-slate-650 text-slate-200 text-xs font-black uppercase tracking-wider rounded-xl transition-all border border-slate-700/50 cursor-pointer"
-                        >
-                          {isDownloadingChatLog ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Download className="w-4 h-4" />
-                          )}
-                          Download Chat Log
+                          Download Attendance CSV
                         </button>
                       </div>
                     </div>

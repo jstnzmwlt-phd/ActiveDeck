@@ -159,12 +159,13 @@ function AppContent() {
     if (!user) return '';
     try {
       const pinCode = await generateUniquePin();
+      const isAttendanceActive = settings?.showAttendance !== false;
       const docRef = await addDoc(collection(db, 'presentations'), {
         presenterId: user.uid,
         embedUrl: '',
         createdAt: serverTimestamp(),
         allowAnonymousChat: false,
-        disableAttendance: true,
+        disableAttendance: !isAttendanceActive,
         hideComments: false,
         presenterEmail: sessionStorage.getItem('activePresenterEmail') || '',
         pinCode: pinCode,
