@@ -16,6 +16,7 @@ export interface DrawingStroke {
   color: string;
   width: number;
   isHighlighter?: boolean;
+  isArrow?: boolean;
 }
 
 export interface SavedTheme {

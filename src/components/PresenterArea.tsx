@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Presentation } from '../types';
 import { ScreenCapture } from './ScreenCapture';
-import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play, X, Loader2, Tv, Minimize, Maximize, FileText, Square, Send, CheckCircle2, Check, Clock, Pen, Eraser, Highlighter, Undo2, Redo2, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play, X, Loader2, Tv, Minimize, Maximize, FileText, Square, Send, CheckCircle2, Check, Clock, Pen, Eraser, Highlighter, MoveRight, Undo2, Redo2, Trash2 } from 'lucide-react';
 import { useBridge } from '../contexts/BridgeContext';
 import { auth, db, storage } from '../firebase';
 import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
@@ -17,6 +17,7 @@ export interface DrawingStroke {
   color: string;
   width: number;
   isHighlighter?: boolean;
+  isArrow?: boolean;
 }
 
 interface PresenterAreaProps {
@@ -51,7 +52,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
   // Presenter Live Slide Drawing State
   const [isPenActive, setIsPenActive] = useState<boolean>(false);
-  const [penTool, setPenTool] = useState<'pen' | 'highlighter' | 'eraser'>('pen');
+  const [penTool, setPenTool] = useState<'pen' | 'arrow' | 'highlighter' | 'eraser'>('pen');
   const [penColor, setPenColor] = useState<string>('#EF4444'); // Default Red
   const [highlighterColor, setHighlighterColor] = useState<string>('#EAB308'); // Default Yellow
   const [penWidth, setPenWidth] = useState<number>(6);
@@ -73,6 +74,22 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
   const renderStrokePath = (stroke: DrawingStroke): string => {
     if (!stroke.points || stroke.points.length === 0) return '';
+    if (stroke.isArrow && stroke.points.length >= 2) {
+      const p1 = stroke.points[0];
+      const p2 = stroke.points[stroke.points.length - 1]; // tip point
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const angle = Math.atan2(dy, dx);
+      const headLength = Math.max(25, stroke.width * 4);
+      const arrowAngle = Math.PI / 6;
+
+      const h1x = p2.x - headLength * Math.cos(angle - arrowAngle);
+      const h1y = p2.y - headLength * Math.sin(angle - arrowAngle);
+      const h2x = p2.x - headLength * Math.cos(angle + arrowAngle);
+      const h2y = p2.y - headLength * Math.sin(angle + arrowAngle);
+
+      return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y} M ${p2.x} ${p2.y} L ${h1x.toFixed(1)} ${h1y.toFixed(1)} M ${p2.x} ${p2.y} L ${h2x.toFixed(1)} ${h2y.toFixed(1)}`;
+    }
     if (stroke.points.length === 1) {
       const pt = stroke.points[0];
       return `M ${pt.x} ${pt.y} L ${pt.x + 0.1} ${pt.y + 0.1}`;
@@ -151,6 +168,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         if (isProjectorMode && e.data.slide === activeSlideKey) {
           setActiveDrawingStroke(e.data.activeStroke);
         }
+      } else if (e.data && e.data.type === 'clear-all-drawings' && e.data.presentationId === presentation?.id) {
+        setPresenterStrokesMap({});
+        setActiveDrawingStroke(null);
+        activeDrawingStrokeRef.current = null;
       }
     };
     channel.addEventListener('message', handleMessage);
@@ -233,6 +254,16 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
     if (penTool === 'eraser') {
       eraseStrokeAtPoint(coords);
+    } else if (penTool === 'arrow') {
+      const newStroke: DrawingStroke = {
+        points: [coords, coords],
+        color: penColor,
+        width: penWidth,
+        isArrow: true
+      };
+      activeDrawingStrokeRef.current = newStroke;
+      setActiveDrawingStroke(newStroke);
+      broadcastActiveStrokeLive(newStroke);
     } else {
       const newStroke: DrawingStroke = {
         points: [coords],
@@ -255,6 +286,15 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
     if (penTool === 'eraser') {
       eraseStrokeAtPoint(coords);
+    } else if (penTool === 'arrow' && activeDrawingStrokeRef.current) {
+      const startPoint = activeDrawingStrokeRef.current.points[0];
+      const updatedStroke: DrawingStroke = {
+        ...activeDrawingStrokeRef.current,
+        points: [startPoint, coords]
+      };
+      activeDrawingStrokeRef.current = updatedStroke;
+      setActiveDrawingStroke(updatedStroke);
+      broadcastActiveStrokeLive(updatedStroke);
     } else if (activeDrawingStrokeRef.current) {
       const updatedStroke: DrawingStroke = {
         ...activeDrawingStrokeRef.current,
@@ -863,6 +903,33 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     }
     setIsCapturing(false);
     (window as any).activeDeckStream = null;
+
+    // Reset drawings locally and exit pen mode
+    setIsPenActive(false);
+    setPresenterStrokesMap({});
+    setActiveDrawingStroke(null);
+    activeDrawingStrokeRef.current = null;
+    setDrawingUndoStack({});
+    setDrawingRedoStack({});
+
+    // Erase drawings in Firebase and broadcast clear-all-drawings to student & projector screens
+    if (presentation?.id) {
+      updateDoc(doc(db, 'presentations', presentation.id), {
+        presenterDrawings: {},
+        activeDrawingStrokeJSON: null
+      }).catch(err => {
+        console.error("ActiveDeck: Error clearing drawings in Firebase on stop capture:", err);
+      });
+    }
+
+    try {
+      const channel = new BroadcastChannel('activedeck-presenter-drawing');
+      channel.postMessage({
+        type: 'clear-all-drawings',
+        presentationId: presentation?.id
+      });
+      channel.close();
+    } catch (e) {}
 
     // Broadcast that stream has stopped
     try {
@@ -1950,10 +2017,20 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                   penTool === 'pen' ? 'bg-osu-orange text-white shadow-md' : 'text-slate-400 hover:text-white'
                 }`}
-                title="Pen Tool"
+                title="Freehand Pen Tool"
               >
                 <Pen className="w-3.5 h-3.5" />
                 <span>Pen</span>
+              </button>
+              <button
+                onClick={() => setPenTool('arrow')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  penTool === 'arrow' ? 'bg-osu-orange text-white shadow-md' : 'text-slate-400 hover:text-white'
+                }`}
+                title="Arrow Tool (Drag from start to tip)"
+              >
+                <MoveRight className="w-3.5 h-3.5" />
+                <span>Arrow</span>
               </button>
               <button
                 onClick={() => setPenTool('highlighter')}
@@ -1977,8 +2054,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               </button>
             </div>
 
-            {/* Color Palette (Pen vs Highlighter) */}
-            {penTool === 'pen' ? (
+            {/* Color Palette (Pen / Arrow vs Highlighter) */}
+            {penTool === 'pen' || penTool === 'arrow' ? (
               <div className="flex items-center gap-1.5 border-l border-slate-800 pl-3">
                 {[
                   { color: '#EF4444', name: 'Red (Default)' },
