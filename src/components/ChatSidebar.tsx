@@ -3625,18 +3625,19 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
       {/* Join Code Bar - Only for Presenter/Main View */}
       {(!isChatOnly || isProjector) && (
-        <div className="bg-slate-900 text-white px-3.5 py-3.5 border-b border-slate-800">
-          <div className="flex items-center justify-between gap-2.5">
-            <div className="flex flex-col min-w-0 flex-1 gap-1.5">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-osu-orange animate-pulse" />
-                <span className="text-xs font-black text-osu-orange uppercase tracking-wider">
+        <div className="bg-slate-900 text-white px-3.5 py-3 border-b border-slate-800 shrink-0 select-none">
+          <div className="flex items-center justify-between gap-2 min-w-0">
+            {/* Left Column: Join Code */}
+            <div className="flex flex-col min-w-0 flex-1 gap-1 overflow-hidden">
+              <div className="flex items-center gap-1.5 shrink-0">
+                <div className="w-2 h-2 rounded-full bg-osu-orange animate-pulse shrink-0" />
+                <span className="text-[11px] font-black text-osu-orange uppercase tracking-wider truncate">
                   Join Code:
                 </span>
               </div>
               {presentation?.pinCode && (
-                <div className="mt-1.5">
-                  <span className="text-[26px] font-mono font-black tracking-tight text-osu-orange bg-osu-orange/10 border border-osu-orange/20 px-3 py-1.5 rounded-xl leading-none select-all shadow-sm inline-block whitespace-nowrap">
+                <div className="mt-0.5 min-w-0">
+                  <span className="text-lg sm:text-xl font-mono font-black tracking-tight text-osu-orange bg-osu-orange/10 border border-osu-orange/20 px-2 py-1 rounded-xl leading-none select-all shadow-sm inline-block max-w-full truncate">
                     {presentation.pinCode.replace(/(\d{3})(\d{3})/, '$1 $2')}
                   </span>
                 </div>
@@ -3646,7 +3647,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
             <div className="flex items-center gap-2 shrink-0">
               {/* Rotating Dynamic Icon Badge */}
               {showAttendance && !presentation?.disableAttendance && (
-                <div className="flex flex-col items-center bg-slate-950 px-2 py-1.5 rounded-xl border border-slate-800 shadow-inner">
+                <div className="flex flex-col items-center bg-slate-950 px-2 py-1.5 rounded-xl border border-slate-800 shadow-inner shrink-0">
                   <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest leading-none">ICON</span>
                   <div className="w-8 h-8 flex items-center justify-center mt-1 bg-slate-900/50 rounded-lg border border-slate-800/30">
                     {presentation?.currentIcon ? (
