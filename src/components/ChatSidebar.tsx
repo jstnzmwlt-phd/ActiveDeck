@@ -102,7 +102,6 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
     path
   }
   console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
 }
 
 interface LocalTokenTracker {
