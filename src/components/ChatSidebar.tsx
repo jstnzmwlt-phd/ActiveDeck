@@ -3623,12 +3623,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         </div>
       )}
 
-      {/* Join Code Bar - Only for Presenter/Main View */}
+      {/* Join Code Bar - Presenter & Projector Modes */}
       {(!isChatOnly || isProjector) && (
-        <div className="bg-slate-900 text-white px-3 py-3 border-b border-slate-800 shrink-0 select-none">
-          <div className="flex items-center justify-between gap-2.5 min-w-0">
+        <div className="bg-slate-900 text-white px-3 py-2.5 border-b border-slate-800 shrink-0 select-none">
+          <div className="flex items-center min-w-0 gap-2 sm:gap-2.5">
             {/* Left Section: Join PIN Code */}
-            <div className="flex flex-col min-w-0 flex-1 justify-center gap-1 overflow-hidden">
+            <div className="flex flex-col min-w-0 justify-center gap-0.5 shrink-0">
               <div className="flex items-center gap-1.5 min-w-0">
                 <div className="w-2 h-2 rounded-full bg-osu-orange animate-pulse shrink-0" />
                 <span className="text-[10px] font-black text-osu-orange uppercase tracking-wider whitespace-nowrap">
@@ -3638,20 +3638,20 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               
               {presentation?.pinCode && (
                 <div className="flex items-center mt-0.5">
-                  <span className="text-xl font-mono font-black tracking-wider text-osu-orange bg-osu-orange/10 border border-osu-orange/20 px-2.5 py-1 rounded-xl leading-none select-all shadow-sm whitespace-nowrap">
+                  <span className="text-lg sm:text-xl font-mono font-black tracking-wider text-osu-orange bg-osu-orange/10 border border-osu-orange/20 px-2 py-0.5 rounded-xl leading-none select-all shadow-sm whitespace-nowrap">
                     {presentation.pinCode.replace(/(\d{3})(\d{3})/, '$1 $2')}
                   </span>
                 </div>
               )}
             </div>
 
-            {/* Middle Section: Full-Size Rotating Dynamic Icon Badge */}
+            {/* Middle Section: Bigger Rotating Dynamic Icon Badge */}
             {showAttendance && !presentation?.disableAttendance && (
-              <div className="flex flex-col items-center bg-slate-950 px-2 py-1.5 rounded-xl border border-slate-800 shadow-inner shrink-0" title="Screen Verification Icon">
-                <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest leading-none">ICON</span>
-                <div className="w-8 h-8 flex items-center justify-center mt-1 bg-slate-900/50 rounded-lg border border-slate-800/30">
+              <div className="flex flex-col items-center bg-slate-950 px-2 py-1 rounded-xl border border-slate-800 shadow-inner shrink-0" title="Screen Verification Icon">
+                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">ICON</span>
+                <div className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center bg-slate-900/60 rounded-lg border border-slate-800/40">
                   {presentation?.currentIcon ? (
-                    <MedicalIcon name={presentation.currentIcon} className="w-5 h-5 text-osu-orange" />
+                    <MedicalIcon name={presentation.currentIcon} className="w-6 h-6 sm:w-6.5 sm:h-6.5 text-osu-orange" />
                   ) : (
                     <span className="text-slate-600 text-[10px] font-bold">---</span>
                   )}
@@ -3662,12 +3662,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
             {/* Right Section: Clickable QR Code Thumbnail */}
             <div 
               onClick={() => setIsQRExpanded(!isQRExpanded)}
-              className="bg-white p-1 rounded-xl border border-slate-800 shadow-sm flex flex-col items-center justify-center cursor-pointer hover:border-osu-orange hover:shadow-md transition-all group/qr shrink-0"
+              className="bg-white p-1 rounded-xl border border-slate-800 shadow-sm flex flex-col items-center justify-center cursor-pointer hover:border-osu-orange hover:shadow-md transition-all group/qr shrink-0 ml-auto"
               title={isQRExpanded ? "Click to minimize QR code" : "Click to expand QR code"}
             >
               <QRCodeSVG 
                 value={dynamicChatUrl} 
-                size={68}
+                size={66}
                 level="M"
                 includeMargin={false}
                 imageSettings={{
