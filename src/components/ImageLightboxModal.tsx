@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, ZoomIn, ZoomOut, RotateCcw, Pen, MoveRight, Highlighter, Eraser, Undo2, Redo2, Trash2, Hand } from 'lucide-react';
+import { X, ZoomIn, ZoomOut, RotateCcw, Pen, MoveRight, Highlighter, Eraser, Type, Undo2, Redo2, Trash2, Hand } from 'lucide-react';
 import { DrawingStroke, DrawingPoint } from '../types';
 
 interface ImageLightboxModalProps {
@@ -31,7 +31,7 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
 
   // Student Drawing Tool States inside Lightbox
   const [interactionMode, setInteractionMode] = useState<'draw' | 'pan'>(allowStudentDrawing ? 'draw' : 'pan');
-  const [studentPenTool, setStudentPenTool] = useState<'pen' | 'arrow' | 'highlighter' | 'eraser'>('pen');
+  const [studentPenTool, setStudentPenTool] = useState<'pen' | 'arrow' | 'highlighter' | 'text' | 'eraser'>('pen');
   const [studentPenColor, setStudentPenColor] = useState<string>('#EF4444'); // Default Red
   const [studentHighlighterColor, setStudentHighlighterColor] = useState<string>('#EAB308'); // Default Yellow
   const [studentPenWidth, setStudentPenWidth] = useState<number>(6);
@@ -215,6 +215,20 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
 
     if (studentPenTool === 'eraser') {
       eraseStudentStrokeAtPoint(coords);
+    } else if (studentPenTool === 'text') {
+      const enteredText = window.prompt("Enter text for slide note:");
+      if (enteredText && enteredText.trim()) {
+        const textStroke: DrawingStroke = {
+          points: [coords],
+          color: studentPenColor,
+          width: studentPenWidth,
+          text: enteredText.trim()
+        };
+        const updated = [...studentStrokes, textStroke];
+        setUndoStack(prev => [...prev, studentStrokes]);
+        setRedoStack([]);
+        saveStudentStrokes(updated);
+      }
     } else if (studentPenTool === 'arrow') {
       const newStroke: DrawingStroke = {
         points: [coords, coords],
@@ -372,6 +386,15 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
                     <Highlighter className="w-3 h-3" />
                   </button>
                   <button
+                    onClick={() => setStudentPenTool('text')}
+                    className={`px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                      studentPenTool === 'text' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                    }`}
+                    title="Text Tool (Click on slide to add text)"
+                  >
+                    <Type className="w-3 h-3" />
+                  </button>
+                  <button
                     onClick={() => setStudentPenTool('eraser')}
                     className={`px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
                       studentPenTool === 'eraser' ? 'bg-red-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
@@ -383,7 +406,7 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
                 </div>
 
                 {/* Color Swatches */}
-                {studentPenTool === 'pen' || studentPenTool === 'arrow' ? (
+                {studentPenTool === 'pen' || studentPenTool === 'arrow' || studentPenTool === 'text' ? (
                   <div className="flex items-center gap-1 border-l border-slate-800 pl-2">
                     {[
                       { color: '#EF4444', name: 'Red' },
@@ -504,6 +527,24 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
               className="absolute inset-0 w-full h-full pointer-events-none z-10"
             >
               {presenterStrokes.map((stroke, idx) => {
+                if (stroke.text) {
+                  const pt = stroke.points[0];
+                  if (!pt) return null;
+                  const fontSize = Math.max(26, stroke.width * 5);
+                  return (
+                    <text
+                      key={`presenter-text-${idx}`}
+                      x={pt.x}
+                      y={pt.y}
+                      fill={stroke.color}
+                      fontSize={fontSize}
+                      fontWeight="bold"
+                      fontFamily="sans-serif"
+                    >
+                      {stroke.text}
+                    </text>
+                  );
+                }
                 const pathD = renderStrokePath(stroke);
                 if (!pathD) return null;
                 return (
@@ -535,6 +576,24 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
             onPointerLeave={allowStudentDrawing && interactionMode === 'draw' ? handleStudentPointerUp : undefined}
           >
             {studentStrokes.map((stroke, idx) => {
+              if (stroke.text) {
+                const pt = stroke.points[0];
+                if (!pt) return null;
+                const fontSize = Math.max(26, stroke.width * 5);
+                return (
+                  <text
+                    key={`student-text-${idx}`}
+                    x={pt.x}
+                    y={pt.y}
+                    fill={stroke.color}
+                    fontSize={fontSize}
+                    fontWeight="bold"
+                    fontFamily="sans-serif"
+                  >
+                    {stroke.text}
+                  </text>
+                );
+              }
               const pathD = renderStrokePath(stroke);
               if (!pathD) return null;
               return (

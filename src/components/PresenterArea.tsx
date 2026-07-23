@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Presentation } from '../types';
 import { ScreenCapture } from './ScreenCapture';
-import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play, X, Loader2, Tv, Minimize, Maximize, FileText, Square, Send, CheckCircle2, Check, Clock, Pen, Eraser, Highlighter, MoveRight, Undo2, Redo2, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play, X, Loader2, Tv, Minimize, Maximize, FileText, Square, Send, CheckCircle2, Check, Clock, Pen, Eraser, Highlighter, MoveRight, Type, Undo2, Redo2, Trash2 } from 'lucide-react';
 import { useBridge } from '../contexts/BridgeContext';
 import { auth, db, storage } from '../firebase';
 import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
@@ -18,6 +18,7 @@ export interface DrawingStroke {
   width: number;
   isHighlighter?: boolean;
   isArrow?: boolean;
+  text?: string;
 }
 
 interface PresenterAreaProps {
@@ -58,7 +59,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
   // Presenter Live Slide Drawing State
   const [isPenActive, setIsPenActive] = useState<boolean>(false);
-  const [penTool, setPenTool] = useState<'pen' | 'arrow' | 'highlighter' | 'eraser'>('pen');
+  const [penTool, setPenTool] = useState<'pen' | 'arrow' | 'highlighter' | 'text' | 'eraser'>('pen');
   const [penColor, setPenColor] = useState<string>('#EF4444'); // Default Red
   const [highlighterColor, setHighlighterColor] = useState<string>('#EAB308'); // Default Yellow
   const [penWidth, setPenWidth] = useState<number>(6);
@@ -260,6 +261,26 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
     if (penTool === 'eraser') {
       eraseStrokeAtPoint(coords);
+    } else if (penTool === 'text') {
+      const enteredText = window.prompt("Enter text to display on slide:");
+      if (enteredText && enteredText.trim()) {
+        const textStroke: DrawingStroke = {
+          points: [coords],
+          color: penColor,
+          width: penWidth,
+          text: enteredText.trim()
+        };
+        const updatedStrokes = [...currentSlideStrokes, textStroke];
+        setDrawingUndoStack(prev => ({
+          ...prev,
+          [activeSlideKey]: [...(prev[activeSlideKey] || []), currentSlideStrokes]
+        }));
+        setDrawingRedoStack(prev => ({
+          ...prev,
+          [activeSlideKey]: []
+        }));
+        updatePresenterStrokes(activeSlideKey, updatedStrokes);
+      }
     } else if (penTool === 'arrow') {
       const newStroke: DrawingStroke = {
         points: [coords, coords],
@@ -1184,6 +1205,24 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         onPointerLeave={isPenActive && !isProjectorMode ? handleDrawingPointerUp : undefined}
                       >
                         {currentSlideStrokes.map((stroke, idx) => {
+                          if (stroke.text) {
+                            const pt = stroke.points[0];
+                            if (!pt) return null;
+                            const fontSize = Math.max(26, stroke.width * 5);
+                            return (
+                              <text
+                                key={`split-text-stroke-${idx}`}
+                                x={pt.x}
+                                y={pt.y}
+                                fill={stroke.color}
+                                fontSize={fontSize}
+                                fontWeight="bold"
+                                fontFamily="sans-serif"
+                              >
+                                {stroke.text}
+                              </text>
+                            );
+                          }
                           const pathD = renderStrokePath(stroke);
                           if (!pathD) return null;
                           return (
@@ -2049,6 +2088,16 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 <span>Highlighter</span>
               </button>
               <button
+                onClick={() => setPenTool('text')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  penTool === 'text' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                }`}
+                title="Text Tool (Click on slide to add text)"
+              >
+                <Type className="w-3.5 h-3.5" />
+                <span>Text</span>
+              </button>
+              <button
                 onClick={() => setPenTool('eraser')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                   penTool === 'eraser' ? 'bg-red-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
@@ -2060,8 +2109,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               </button>
             </div>
 
-            {/* Color Palette (Pen / Arrow vs Highlighter) */}
-            {penTool === 'pen' || penTool === 'arrow' ? (
+            {/* Color Palette (Pen / Arrow / Text vs Highlighter) */}
+            {penTool === 'pen' || penTool === 'arrow' || penTool === 'text' ? (
               <div className="flex items-center gap-1.5 border-l border-slate-800 pl-3">
                 {[
                   { color: '#EF4444', name: 'Red (Default)' },

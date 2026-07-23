@@ -1809,6 +1809,24 @@ function AppContent() {
                               className="absolute inset-0 w-full h-full pointer-events-none z-10"
                             >
                               {strokes.map((stroke, idx) => {
+                                if (stroke.text) {
+                                  const pt = stroke.points[0];
+                                  if (!pt) return null;
+                                  const fontSize = Math.max(26, stroke.width * 5);
+                                  return (
+                                    <text
+                                      key={`mobile-preview-text-${idx}`}
+                                      x={pt.x}
+                                      y={pt.y}
+                                      fill={stroke.color}
+                                      fontSize={fontSize}
+                                      fontWeight="bold"
+                                      fontFamily="sans-serif"
+                                    >
+                                      {stroke.text}
+                                    </text>
+                                  );
+                                }
                                 const pathD = getStrokePath(stroke);
                                 if (!pathD) return null;
                                 return (
@@ -1844,6 +1862,24 @@ function AppContent() {
                               className="absolute inset-0 w-full h-full pointer-events-none z-20"
                             >
                               {strokes.map((stroke, idx) => {
+                                if (stroke.text) {
+                                  const pt = stroke.points[0];
+                                  if (!pt) return null;
+                                  const fontSize = Math.max(26, stroke.width * 5);
+                                  return (
+                                    <text
+                                      key={`mobile-student-text-${idx}`}
+                                      x={pt.x}
+                                      y={pt.y}
+                                      fill={stroke.color}
+                                      fontSize={fontSize}
+                                      fontWeight="bold"
+                                      fontFamily="sans-serif"
+                                    >
+                                      {stroke.text}
+                                    </text>
+                                  );
+                                }
                                 const pathD = getStrokePath(stroke);
                                 if (!pathD) return null;
                                 return (
@@ -2602,6 +2638,24 @@ function AppContent() {
                                       className="absolute inset-0 w-full h-full pointer-events-none z-10"
                                     >
                                       {strokes.map((stroke, idx) => {
+                                        if (stroke.text) {
+                                          const pt = stroke.points[0];
+                                          if (!pt) return null;
+                                          const fontSize = Math.max(26, stroke.width * 5);
+                                          return (
+                                            <text
+                                              key={`desktop-preview-text-${idx}`}
+                                              x={pt.x}
+                                              y={pt.y}
+                                              fill={stroke.color}
+                                              fontSize={fontSize}
+                                              fontWeight="bold"
+                                              fontFamily="sans-serif"
+                                            >
+                                              {stroke.text}
+                                            </text>
+                                          );
+                                        }
                                         const pathD = getStrokePath(stroke);
                                         if (!pathD) return null;
                                         return (
@@ -2637,6 +2691,24 @@ function AppContent() {
                                       className="absolute inset-0 w-full h-full pointer-events-none z-20"
                                     >
                                       {strokes.map((stroke, idx) => {
+                                        if (stroke.text) {
+                                          const pt = stroke.points[0];
+                                          if (!pt) return null;
+                                          const fontSize = Math.max(26, stroke.width * 5);
+                                          return (
+                                            <text
+                                              key={`desktop-student-text-${idx}`}
+                                              x={pt.x}
+                                              y={pt.y}
+                                              fill={stroke.color}
+                                              fontSize={fontSize}
+                                              fontWeight="bold"
+                                              fontFamily="sans-serif"
+                                            >
+                                              {stroke.text}
+                                            </text>
+                                          );
+                                        }
                                         const pathD = getStrokePath(stroke);
                                         if (!pathD) return null;
                                         return (
