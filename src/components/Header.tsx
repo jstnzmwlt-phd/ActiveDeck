@@ -22,6 +22,31 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   const [showSlidePreview, setShowSlidePreview] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
+  const toggleFullscreen = async () => {
+    if (!document.fullscreenElement) {
+      try {
+        await document.documentElement.requestFullscreen();
+      } catch (err) {
+        console.error("Header: Error attempting to enable fullscreen:", err);
+      }
+    } else {
+      if (document.exitFullscreen) {
+        await document.exitFullscreen();
+      }
+    }
+  };
 
   useEffect(() => {
     if (!presentationId) return;
@@ -416,6 +441,18 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
                 <AlertCircle className="w-5 h-5" />
               ) : (
                 <Moon className="w-5 h-5" />
+              )}
+            </button>
+
+            <button
+              onClick={toggleFullscreen}
+              className="p-1.5 rounded-md transition-colors hover:bg-slate-100 text-slate-600 cursor-pointer"
+              title={isFullscreen ? "Exit Full Screen" : "Enter Full Screen"}
+            >
+              {isFullscreen ? (
+                <Minimize className="w-5 h-5 text-osu-orange" />
+              ) : (
+                <Maximize className="w-5 h-5" />
               )}
             </button>
           </div>
