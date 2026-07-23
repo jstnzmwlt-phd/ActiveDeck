@@ -3,7 +3,7 @@ import { AuthProvider, useAuth } from './components/AuthProvider';
 import { PresenterArea } from './components/PresenterArea';
 import { ChatSidebar } from './components/ChatSidebar';
 import { Header } from './components/Header';
-import { Presentation, GlobalSettings } from './types';
+import { Presentation, GlobalSettings, DrawingStroke } from './types';
 import { db } from './firebase';
 import { collection, query, orderBy, limit, onSnapshot, doc, addDoc, serverTimestamp, updateDoc, getDoc, setDoc, increment, where } from 'firebase/firestore';
 import { Presentation as PresentationIcon, Loader2, AlertCircle, Maximize, Minimize, Lock, Keyboard, Pen, Tv, ArrowLeftRight, MessageSquare, NotebookPen, Plus, FileText, X } from 'lucide-react';
@@ -1727,6 +1727,43 @@ function AppContent() {
                         alt={`Slide ${activeTab} Preview`}
                         className="w-full h-full object-contain"
                       />
+                      {/* Presenter Live Slide Drawing Layer */}
+                      {(() => {
+                        const drawingsJson = presentation?.presenterDrawings?.[activeTab];
+                        if (!drawingsJson) return null;
+                        try {
+                          const strokes: DrawingStroke[] = JSON.parse(drawingsJson);
+                          if (!Array.isArray(strokes) || strokes.length === 0) return null;
+                          return (
+                            <svg
+                              viewBox="0 0 1000 1000"
+                              preserveAspectRatio="none"
+                              className="absolute inset-0 w-full h-full pointer-events-none z-10"
+                            >
+                              {strokes.map((stroke, idx) => {
+                                if (!stroke.points || stroke.points.length === 0) return null;
+                                const pathD = stroke.points.length === 1
+                                  ? `M ${stroke.points[0].x} ${stroke.points[0].y} L ${stroke.points[0].x + 0.1} ${stroke.points[0].y + 0.1}`
+                                  : stroke.points.reduce((acc, pt, i) => i === 0 ? `M ${pt.x} ${pt.y}` : `${acc} L ${pt.x} ${pt.y}`, '');
+                                return (
+                                  <path
+                                    key={`mobile-preview-stroke-${idx}`}
+                                    d={pathD}
+                                    stroke={stroke.color}
+                                    strokeWidth={stroke.width}
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    fill="none"
+                                    opacity={stroke.isHighlighter ? 0.45 : 1}
+                                  />
+                                );
+                              })}
+                            </svg>
+                          );
+                        } catch {
+                          return null;
+                        }
+                      })()}
                       {/* Floating badge */}
                       <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-black/60 border border-white/10 text-white text-[9px] font-bold">
                         Slide {activeTab}
@@ -2060,6 +2097,7 @@ function AppContent() {
             onClose={() => setIsLightboxOpen(false)} 
             imageUrl={lightboxImgUrl} 
             title={`Slide ${activeTab} Preview`} 
+            drawingStrokesJson={presentation?.presenterDrawings?.[activeTab]}
           />
         </>
       );
@@ -2441,6 +2479,43 @@ function AppContent() {
                                 alt={`${getTabTitle(activeTab)} Preview`}
                                 className="absolute inset-0 w-full h-full object-contain transition-transform duration-300 group-hover/preview:scale-[1.01]"
                               />
+                              {/* Presenter Live Slide Drawing Layer */}
+                              {(() => {
+                                const drawingsJson = presentation?.presenterDrawings?.[activeTab];
+                                if (!drawingsJson) return null;
+                                try {
+                                  const strokes: DrawingStroke[] = JSON.parse(drawingsJson);
+                                  if (!Array.isArray(strokes) || strokes.length === 0) return null;
+                                  return (
+                                    <svg
+                                      viewBox="0 0 1000 1000"
+                                      preserveAspectRatio="none"
+                                      className="absolute inset-0 w-full h-full pointer-events-none z-10"
+                                    >
+                                      {strokes.map((stroke, idx) => {
+                                        if (!stroke.points || stroke.points.length === 0) return null;
+                                        const pathD = stroke.points.length === 1
+                                          ? `M ${stroke.points[0].x} ${stroke.points[0].y} L ${stroke.points[0].x + 0.1} ${stroke.points[0].y + 0.1}`
+                                          : stroke.points.reduce((acc, pt, i) => i === 0 ? `M ${pt.x} ${pt.y}` : `${acc} L ${pt.x} ${pt.y}`, '');
+                                        return (
+                                          <path
+                                            key={`desktop-preview-stroke-${idx}`}
+                                            d={pathD}
+                                            stroke={stroke.color}
+                                            strokeWidth={stroke.width}
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            fill="none"
+                                            opacity={stroke.isHighlighter ? 0.45 : 1}
+                                          />
+                                        );
+                                      })}
+                                    </svg>
+                                  );
+                                } catch {
+                                  return null;
+                                }
+                              })()}
                               {/* Floating Glassmorphic Expand Icon */}
                               <div className="absolute top-2.5 right-2.5 p-2 rounded-lg bg-black/60 border border-white/10 text-white/70 group-hover/preview:text-white group-hover/preview:bg-osu-orange group-hover/preview:border-osu-orange/50 shadow-lg backdrop-blur-md opacity-0 group-hover/preview:opacity-100 transition-all duration-300 transform scale-95 group-hover/preview:scale-100 flex items-center justify-center">
                                 <Maximize className="w-4 h-4" />
@@ -2493,6 +2568,7 @@ function AppContent() {
         onClose={() => setIsLightboxOpen(false)} 
         imageUrl={lightboxImgUrl} 
         title={`${getTabTitle(activeTab)} Preview`} 
+        drawingStrokesJson={presentation?.presenterDrawings?.[activeTab]}
       />
     </>
   );
@@ -2548,6 +2624,7 @@ function AppContent() {
         onClose={() => setIsLightboxOpen(false)} 
         imageUrl={lightboxImgUrl} 
         title={`Slide ${activeTab} Preview`} 
+        drawingStrokesJson={presentation?.presenterDrawings?.[activeTab]}
       />
     </div>
   );

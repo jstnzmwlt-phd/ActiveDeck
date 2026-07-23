@@ -6,6 +6,18 @@ export interface Theme {
   logoUrl: string;
 }
 
+export interface DrawingPoint {
+  x: number;
+  y: number;
+}
+
+export interface DrawingStroke {
+  points: DrawingPoint[];
+  color: string;
+  width: number;
+  isHighlighter?: boolean;
+}
+
 export interface SavedTheme {
   id: string;
   name: string;
