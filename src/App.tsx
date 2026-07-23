@@ -1540,21 +1540,10 @@ function AppContent() {
         <button
           type="button"
           onClick={toggleFullscreen}
-          className={`fixed bottom-6 left-6 z-[9999] p-2.5 rounded-full shadow-2xl transition-all duration-300 backdrop-blur-md cursor-pointer flex items-center justify-center hover:scale-110 active:scale-95 outline-none border ${
-            isFullscreen 
-              ? 'bg-osu-orange text-white border-white/40 shadow-orange-500/30 opacity-100 ring-2 ring-osu-orange/60' 
-              : 'bg-slate-900/80 text-slate-400 hover:text-white border-slate-800 hover:border-osu-orange opacity-70 hover:opacity-100'
-          }`}
-          title={isFullscreen ? "Exit Full Screen Mode (Esc)" : "Enter Full Screen Mode"}
+          className="absolute bottom-10 left-10 z-[100] p-3 rounded-full bg-slate-900/80 hover:bg-osu-orange border border-slate-800 hover:border-osu-orange text-slate-400 hover:text-white shadow-2xl transition-all duration-300 backdrop-blur-md cursor-pointer opacity-0 group-hover:opacity-100 flex items-center justify-center hover:scale-110 active:scale-95 outline-none"
+          title={isFullscreen ? "Exit Full Screen" : "Enter Full Screen"}
         >
-          {isFullscreen ? (
-            <div className="flex items-center gap-1.5 px-1.5 py-0.5">
-              <Minimize className="w-4 h-4 text-white" />
-              <span className="text-[11px] font-black uppercase tracking-wider text-white">Exit Full Screen</span>
-            </div>
-          ) : (
-            <Maximize className="w-5 h-5" />
-          )}
+          {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
         </button>
       </div>
     );

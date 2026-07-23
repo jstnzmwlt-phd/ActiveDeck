@@ -22,31 +22,6 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   const [showSlidePreview, setShowSlidePreview] = useState(true);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-    };
-  }, []);
-
-  const toggleFullscreen = async () => {
-    if (!document.fullscreenElement) {
-      try {
-        await document.documentElement.requestFullscreen();
-      } catch (err) {
-        console.error("Header: Error attempting to enable fullscreen:", err);
-      }
-    } else {
-      if (document.exitFullscreen) {
-        await document.exitFullscreen();
-      }
-    }
-  };
 
   useEffect(() => {
     if (!presentationId) return;
@@ -345,15 +320,6 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
               <span>Projector Mode</span>
             </button>
           )}
-
-          <button
-            onClick={toggleFullscreen}
-            className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-[11px] font-black uppercase tracking-wider rounded-lg transition-all shadow-sm active:scale-95 cursor-pointer border border-slate-700"
-            title={isFullscreen ? "Exit Full Screen Mode (Esc)" : "Enter Full Screen Mode"}
-          >
-            {isFullscreen ? <Minimize className="w-3 h-3 text-osu-orange" /> : <Maximize className="w-3 h-3 text-slate-300" />}
-            <span>{isFullscreen ? "Exit Fullscreen" : "Fullscreen"}</span>
-          </button>
         </div>
 
         {/* Centered ActiveDeck Logo */}
