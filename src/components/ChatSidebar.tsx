@@ -3626,9 +3626,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       {/* Join Code Bar - Presenter & Projector Modes */}
       {(!isChatOnly || isProjector) && (
         <div className="bg-slate-900 text-white px-3 py-2.5 border-b border-slate-800 shrink-0 select-none">
-          <div className="flex items-center min-w-0 gap-2 sm:gap-2.5">
+          <div className={cn("flex items-center min-w-0 gap-2 sm:gap-2.5", isProjector ? "justify-end" : "")}>
             {/* Left Section: Join PIN Code */}
-            <div className="flex flex-col min-w-0 justify-center gap-0.5 shrink-0">
+            <div className={cn("flex flex-col min-w-0 justify-center gap-0.5 shrink-0", isProjector ? "ml-auto" : "")}>
               <div className="flex items-center gap-1.5 min-w-0">
                 <div className="w-2 h-2 rounded-full bg-osu-orange animate-pulse shrink-0" />
                 <span className="text-[10px] font-black text-osu-orange uppercase tracking-wider whitespace-nowrap">
@@ -3662,7 +3662,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
             {/* Right Section: Clickable QR Code Thumbnail */}
             <div 
               onClick={() => setIsQRExpanded(!isQRExpanded)}
-              className="bg-white p-1 rounded-xl border border-slate-800 shadow-sm flex flex-col items-center justify-center cursor-pointer hover:border-osu-orange hover:shadow-md transition-all group/qr shrink-0 ml-auto"
+              className={cn("bg-white p-1 rounded-xl border border-slate-800 shadow-sm flex flex-col items-center justify-center cursor-pointer hover:border-osu-orange hover:shadow-md transition-all group/qr shrink-0", !isProjector && "ml-auto")}
               title={isQRExpanded ? "Click to minimize QR code" : "Click to expand QR code"}
             >
               <QRCodeSVG 
@@ -3696,7 +3696,13 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
             </h2>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-1 flex-shrink-0">
+        <div className="flex flex-wrap items-center gap-1.5 flex-shrink-0">
+          {isProjector && showAttendance && !presentation?.disableAttendance && (
+            <div className="px-2.5 py-1 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-xs font-bold flex items-center gap-1.5 shadow-sm">
+              <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse shrink-0" />
+              <span>Attendance Tracking On</span>
+            </div>
+          )}
           {canModerate && (
             <>
               {showAttendance && (
