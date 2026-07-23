@@ -1917,10 +1917,10 @@ function AppContent() {
     return (
       <>
         <div className={`h-full w-full flex flex-col ${chatLayoutDirection === 'right' ? 'md:flex-row-reverse' : 'md:flex-row'} bg-slate-950 font-sans antialiased overflow-hidden`}>
-          {/* Left Side: The Chat Sidebar */}
+          {/* Left Side: The Chat Sidebar / Join Screen */}
           <div 
-            style={{ width: `${audienceChatWidth}px` }}
-            className="w-full md:w-auto h-full bg-white relative flex-shrink-0"
+            style={{ width: !hasJoinedChat ? '660px' : `${audienceChatWidth}px` }}
+            className="w-full md:w-auto h-full bg-slate-950 relative flex-shrink-0 transition-all duration-300"
           >
           <ChatSidebar 
             isChatOnly={true} 

@@ -3388,7 +3388,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           </div>
         )}
 
-        <div className="w-full bg-slate-900 border border-slate-800 rounded-3xl p-5 md:p-8 shadow-2xl z-10 animate-in fade-in zoom-in-95 duration-300 relative max-w-md lg:max-w-3xl">
+        <div className="w-full bg-slate-900 border border-slate-800 rounded-3xl p-5 md:p-8 shadow-2xl z-10 animate-in fade-in zoom-in-95 duration-300 relative max-w-2xl lg:max-w-3xl">
           <form onSubmit={handleJoin} className="space-y-6">
             
             {/* If we need manual attendance check, show responsive 2-column grid */}
