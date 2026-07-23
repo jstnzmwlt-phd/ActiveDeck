@@ -75,7 +75,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const [drawingRedoStack, setDrawingRedoStack] = useState<Record<string, DrawingStroke[][]>>({});
 
   const activeSlideKey = String(currentSlide !== null ? currentSlide : (presentation?.currentSlide || 1));
-  const currentSlideStrokes = presenterStrokesMap[activeSlideKey] || [];
+  const currentSlideStrokes = isCapturing ? (presenterStrokesMap[activeSlideKey] || []) : [];
 
   const lastActiveStrokeBroadcastRef = useRef<number>(0);
 
@@ -133,6 +133,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
   // Sync presenter drawings from Firestore
   useEffect(() => {
+    if (!isCapturing) {
+      setPresenterStrokesMap({});
+      return;
+    }
     if (presentation?.presenterDrawings) {
       const parsedMap: Record<string, DrawingStroke[]> = {};
       Object.entries(presentation.presenterDrawings).forEach(([slideKey, jsonStr]) => {
@@ -144,8 +148,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         } catch {}
       });
       setPresenterStrokesMap(parsedMap);
+    } else {
+      setPresenterStrokesMap({});
     }
-  }, [presentation?.presenterDrawings]);
+  }, [presentation?.presenterDrawings, isCapturing]);
 
   // Sync live active drawing stroke on Projector Mode from Firebase
   useEffect(() => {
@@ -1162,8 +1168,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         className={`${presentWithNotes && isCapturing && !isProjectorMode ? 'flex-[2]' : 'flex-1'} relative bg-black overflow-hidden flex items-center justify-center transition-all duration-300`}
       >
         {!isProjectorMode ? (
-          <div className={`w-full h-full p-4 flex flex-col ${presentWithNotes ? 'md:flex-row gap-4 items-start justify-between max-w-[1650px]' : 'items-center justify-center max-w-[1450px]'} mx-auto select-none overflow-y-auto custom-scrollbar`}>
-            {presentWithNotes ? (
+          <div className={`w-full h-full p-4 flex flex-col ${presentWithNotes && isCapturing ? 'md:flex-row gap-4 items-start justify-between max-w-[1650px]' : 'items-center justify-center max-w-[1450px]'} mx-auto select-none overflow-y-auto custom-scrollbar`}>
+            {presentWithNotes && isCapturing ? (
               <>
                 {/* SPLIT SCREEN LAYOUT: Notes ON */}
                 {/* Left Column (Current Slide + Presenter Notes below it) */}

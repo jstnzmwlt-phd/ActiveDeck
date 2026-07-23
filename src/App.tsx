@@ -1306,6 +1306,22 @@ function AppContent() {
     };
   }, [isProjector]);
 
+  // Listen for clear-all-drawings broadcast when presentation stops
+  useEffect(() => {
+    try {
+      const channel = new BroadcastChannel('activedeck-presenter-drawing');
+      channel.onmessage = (event) => {
+        if (event.data?.type === 'clear-all-drawings') {
+          console.log('AppContent - Received clear-all-drawings broadcast');
+          setPresentation(prev => prev ? { ...prev, presenterDrawings: {} } : null);
+        }
+      };
+      return () => {
+        channel.close();
+      };
+    } catch (e) {}
+  }, []);
+
   const toggleFullscreen = async () => {
     if (!document.fullscreenElement) {
       try {
