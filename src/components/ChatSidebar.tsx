@@ -2356,39 +2356,40 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     return () => clearInterval(interval);
   }, [isChatOnly, presentation?.currentIcon, presentation?.iconRotatedAt, presentation?.disableAttendance, urlToken]);
 
-  // Presenter & Projector Token Rotation and countdown effect (every 10s unified loop)
+  // Presenter Token Rotation and countdown effect (every 10s unified loop)
   useEffect(() => {
-    if ((isChatOnly && !isProjector) || !presentation?.id || !showAttendance || presentation?.disableAttendance) {
-      if (!isProjector) {
-        setActiveToken(null);
-        return;
-      }
+    if (isChatOnly || !presentation?.id || !showAttendance || presentation?.disableAttendance) {
+      setActiveToken(null);
+      return;
     }
 
-    if (canModerate) {
-      generateNewToken();
+    generateNewToken();
 
-      const interval = setInterval(() => {
-        const now = Date.now();
-        const elapsed = (now - lastTokenGenerationTimeRef.current) / 1000;
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const elapsed = (now - lastTokenGenerationTimeRef.current) / 1000;
 
-        if (elapsed >= 10) {
-          generateNewToken();
-          setTimeLeft(10);
-        } else {
-          setTimeLeft(Number((10 - elapsed).toFixed(1)));
-        }
-      }, 100);
+      if (elapsed >= 10) {
+        generateNewToken();
+        setTimeLeft(10);
+      } else {
+        setTimeLeft(Number((10 - elapsed).toFixed(1)));
+      }
+    }, 100);
 
-      return () => {
-        clearInterval(interval);
-        const now = Date.now();
-        cleanExpiredTokens(now + 100000);
-      };
-    } else if (isProjector && presentation?.attendanceToken) {
+    return () => {
+      clearInterval(interval);
+      const now = Date.now();
+      cleanExpiredTokens(now + 100000);
+    };
+  }, [presentation?.id, isChatOnly, showAttendance, presentation?.disableAttendance]);
+
+  // Projector Mode: Sync activeToken from Firestore presentation document
+  useEffect(() => {
+    if (isProjector && presentation?.attendanceToken) {
       setActiveToken(presentation.attendanceToken);
     }
-  }, [presentation?.id, isChatOnly, isProjector, canModerate, presentation?.disableAttendance, presentation?.attendanceToken, showAttendance]);
+  }, [isProjector, presentation?.attendanceToken]);
 
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
