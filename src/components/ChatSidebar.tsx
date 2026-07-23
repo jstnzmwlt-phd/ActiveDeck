@@ -3625,29 +3625,15 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
       {/* Join Code Bar - Only for Presenter/Main View */}
       {(!isChatOnly || isProjector) && (
-        <div className="bg-slate-900 text-white px-3 py-2.5 border-b border-slate-800 shrink-0 select-none">
-          <div className="flex items-center justify-between gap-2 min-w-0">
-            {/* Left Section: Join PIN Code & Icon */}
-            <div className="flex flex-col min-w-0 flex-1 justify-center gap-1">
-              <div className="flex items-center justify-between gap-1 pr-1">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <div className="w-2 h-2 rounded-full bg-osu-orange animate-pulse shrink-0" />
-                  <span className="text-[10px] font-black text-osu-orange uppercase tracking-wider whitespace-nowrap">
-                    JOIN CODE:
-                  </span>
-                </div>
-                
-                {/* Rotating Dynamic Icon Badge */}
-                {showAttendance && !presentation?.disableAttendance && (
-                  <div className="flex items-center gap-1 bg-slate-950 px-1.5 py-0.5 rounded-lg border border-slate-800 shadow-inner shrink-0" title="Screen Verification Icon">
-                    <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest leading-none">ICON</span>
-                    {presentation?.currentIcon ? (
-                      <MedicalIcon name={presentation.currentIcon} className="w-3.5 h-3.5 text-osu-orange shrink-0" />
-                    ) : (
-                      <span className="text-slate-600 text-[8px] font-bold">---</span>
-                    )}
-                  </div>
-                )}
+        <div className="bg-slate-900 text-white px-3 py-3 border-b border-slate-800 shrink-0 select-none">
+          <div className="flex items-center justify-between gap-2.5 min-w-0">
+            {/* Left Section: Join PIN Code */}
+            <div className="flex flex-col min-w-0 flex-1 justify-center gap-1 overflow-hidden">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <div className="w-2 h-2 rounded-full bg-osu-orange animate-pulse shrink-0" />
+                <span className="text-[10px] font-black text-osu-orange uppercase tracking-wider whitespace-nowrap">
+                  JOIN CODE:
+                </span>
               </div>
               
               {presentation?.pinCode && (
@@ -3658,6 +3644,20 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 </div>
               )}
             </div>
+
+            {/* Middle Section: Full-Size Rotating Dynamic Icon Badge */}
+            {showAttendance && !presentation?.disableAttendance && (
+              <div className="flex flex-col items-center bg-slate-950 px-2 py-1.5 rounded-xl border border-slate-800 shadow-inner shrink-0" title="Screen Verification Icon">
+                <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest leading-none">ICON</span>
+                <div className="w-8 h-8 flex items-center justify-center mt-1 bg-slate-900/50 rounded-lg border border-slate-800/30">
+                  {presentation?.currentIcon ? (
+                    <MedicalIcon name={presentation.currentIcon} className="w-5 h-5 text-osu-orange" />
+                  ) : (
+                    <span className="text-slate-600 text-[10px] font-bold">---</span>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Right Section: Clickable QR Code Thumbnail */}
             <div 
@@ -3703,14 +3703,14 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 <button 
                   onClick={handleToggleDisableAttendance}
                   className={cn(
-                    "px-2 py-1 rounded transition-colors flex items-center gap-1.5 text-xs font-medium",
+                    "px-2 py-1 rounded transition-colors flex items-center gap-1.5 text-xs font-bold",
                     presentation?.disableAttendance 
                       ? "text-red-400 hover:bg-slate-800 hover:text-red-300" 
-                      : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                      : "text-green-400 hover:bg-slate-800 hover:text-green-300"
                   )}
                   title={presentation?.disableAttendance ? "Attendance Disabled (QR displays static join link)" : "Attendance Enabled (QR rotates dynamic tokens)"}
                 >
-                  {presentation?.disableAttendance ? <ToggleRight className="w-4 h-4 text-red-400" /> : <ToggleLeft className="w-4 h-4" />}
+                  {presentation?.disableAttendance ? <ToggleRight className="w-4 h-4 text-red-400" /> : <ToggleLeft className="w-4 h-4 text-green-400" />}
                   <span className="inline">
                     {presentation?.disableAttendance ? "Attendance Off" : "Attendance On"}
                   </span>
