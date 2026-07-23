@@ -1,11 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Presentation } from '../types';
 import { ScreenCapture } from './ScreenCapture';
-import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play, X, Loader2, Tv, Minimize, Maximize, FileText, Square, Send, CheckCircle2, Check, Clock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play, X, Loader2, Tv, Minimize, Maximize, FileText, Square, Send, CheckCircle2, Check, Clock, Pen, Eraser, Highlighter, Undo2, Redo2, Trash2 } from 'lucide-react';
 import { useBridge } from '../contexts/BridgeContext';
 import { auth, db, storage } from '../firebase';
 import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { QRCodeSVG } from 'qrcode.react';
+
+export interface DrawingPoint {
+  x: number;
+  y: number;
+}
+
+export interface DrawingStroke {
+  points: DrawingPoint[];
+  color: string;
+  width: number;
+  isHighlighter?: boolean;
+}
 
 interface PresenterAreaProps {
   presentation: Presentation | null;
@@ -35,6 +47,220 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const [showInstructions, setShowInstructions] = useState(false);
   const [laserEnabled, setLaserEnabled] = useState(true);
   const [presentWithNotes, setPresentWithNotes] = useState(true);
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Presenter Live Slide Drawing State
+  const [isPenActive, setIsPenActive] = useState<boolean>(false);
+  const [penTool, setPenTool] = useState<'pen' | 'highlighter' | 'eraser'>('pen');
+  const [penColor, setPenColor] = useState<string>('#eb5d00'); // OSU Orange
+  const [penWidth, setPenWidth] = useState<number>(6);
+  const [presenterStrokesMap, setPresenterStrokesMap] = useState<Record<string, DrawingStroke[]>>({});
+  const [activeDrawingStroke, setActiveDrawingStroke] = useState<DrawingStroke | null>(null);
+  const [isDrawingPointerDown, setIsDrawingPointerDown] = useState<boolean>(false);
+
+  const [drawingUndoStack, setDrawingUndoStack] = useState<Record<string, DrawingStroke[][]>>({});
+  const [drawingRedoStack, setDrawingRedoStack] = useState<Record<string, DrawingStroke[][]>>({});
+
+  const activeSlideKey = String(currentSlide !== null ? currentSlide : (presentation?.currentSlide || 1));
+  const currentSlideStrokes = presenterStrokesMap[activeSlideKey] || [];
+
+  // Sync presenter drawings from Firestore
+  useEffect(() => {
+    if (presentation?.presenterDrawings) {
+      const parsedMap: Record<string, DrawingStroke[]> = {};
+      Object.entries(presentation.presenterDrawings).forEach(([slideKey, jsonStr]) => {
+        try {
+          const parsed = JSON.parse(jsonStr);
+          if (Array.isArray(parsed)) {
+            parsedMap[slideKey] = parsed;
+          }
+        } catch {}
+      });
+      setPresenterStrokesMap(parsedMap);
+    }
+  }, [presentation?.presenterDrawings]);
+
+  // Fast local multi-window sync via BroadcastChannel (e.g. Presenter -> Projector mode popup)
+  useEffect(() => {
+    const channel = new BroadcastChannel('activedeck-presenter-drawing');
+    const handleMessage = (e: MessageEvent) => {
+      if (e.data && e.data.type === 'slide-drawing-update' && e.data.presentationId === presentation?.id) {
+        setPresenterStrokesMap(prev => ({
+          ...prev,
+          [e.data.slide]: e.data.strokes
+        }));
+      }
+    };
+    channel.addEventListener('message', handleMessage);
+    return () => {
+      channel.removeEventListener('message', handleMessage);
+      channel.close();
+    };
+  }, [presentation?.id]);
+
+  const updatePresenterStrokes = async (slideKey: string, newStrokes: DrawingStroke[]) => {
+    setPresenterStrokesMap(prev => ({
+      ...prev,
+      [slideKey]: newStrokes
+    }));
+
+    try {
+      const channel = new BroadcastChannel('activedeck-presenter-drawing');
+      channel.postMessage({
+        type: 'slide-drawing-update',
+        presentationId: presentation?.id,
+        slide: slideKey,
+        strokes: newStrokes
+      });
+      channel.close();
+    } catch (e) {
+      console.warn("Failed to broadcast presenter drawing update:", e);
+    }
+
+    if (presentation?.id) {
+      try {
+        await updateDoc(doc(db, 'presentations', presentation.id), {
+          [`presenterDrawings.${slideKey}`]: JSON.stringify(newStrokes)
+        });
+      } catch (err) {
+        console.error("Error updating presenter drawings in Firebase:", err);
+      }
+    }
+  };
+
+  const getDrawingCoordinates = (e: React.PointerEvent<SVGSVGElement>): DrawingPoint | null => {
+    const svgElem = e.currentTarget;
+    if (!svgElem) return null;
+    const rect = svgElem.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return null;
+    
+    const x = ((e.clientX - rect.left) / rect.width) * 1000;
+    const y = ((e.clientY - rect.top) / rect.height) * 1000;
+    return { x: Number(x.toFixed(1)), y: Number(y.toFixed(1)) };
+  };
+
+  const eraseStrokeAtPoint = (point: DrawingPoint) => {
+    const eraserRadius = 35;
+    const remainingStrokes = currentSlideStrokes.filter(stroke => {
+      return !stroke.points.some(p => {
+        const dx = p.x - point.x;
+        const dy = p.y - point.y;
+        return Math.sqrt(dx * dx + dy * dy) < eraserRadius;
+      });
+    });
+
+    if (remainingStrokes.length !== currentSlideStrokes.length) {
+      setDrawingUndoStack(prev => ({
+        ...prev,
+        [activeSlideKey]: [...(prev[activeSlideKey] || []), currentSlideStrokes]
+      }));
+      updatePresenterStrokes(activeSlideKey, remainingStrokes);
+    }
+  };
+
+  const handleDrawingPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (!isPenActive || e.button !== 0) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    
+    const coords = getDrawingCoordinates(e);
+    if (!coords) return;
+
+    setIsDrawingPointerDown(true);
+
+    if (penTool === 'eraser') {
+      eraseStrokeAtPoint(coords);
+    } else {
+      const newStroke: DrawingStroke = {
+        points: [coords],
+        color: penTool === 'highlighter' ? '#EAB308' : penColor,
+        width: penTool === 'highlighter' ? 24 : penWidth,
+        isHighlighter: penTool === 'highlighter'
+      };
+      setActiveDrawingStroke(newStroke);
+    }
+  };
+
+  const handleDrawingPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (!isPenActive || !isDrawingPointerDown) return;
+    e.preventDefault();
+
+    const coords = getDrawingCoordinates(e);
+    if (!coords) return;
+
+    if (penTool === 'eraser') {
+      eraseStrokeAtPoint(coords);
+    } else if (activeDrawingStroke) {
+      setActiveDrawingStroke(prev => prev ? {
+        ...prev,
+        points: [...prev.points, coords]
+      } : null);
+    }
+  };
+
+  const handleDrawingPointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (!isPenActive || !isDrawingPointerDown) return;
+    e.preventDefault();
+    setIsDrawingPointerDown(false);
+
+    if (activeDrawingStroke && activeDrawingStroke.points.length > 0) {
+      const updatedStrokes = [...currentSlideStrokes, activeDrawingStroke];
+      setDrawingUndoStack(prev => ({
+        ...prev,
+        [activeSlideKey]: [...(prev[activeSlideKey] || []), currentSlideStrokes]
+      }));
+      setDrawingRedoStack(prev => ({ ...prev, [activeSlideKey]: [] }));
+
+      updatePresenterStrokes(activeSlideKey, updatedStrokes);
+    }
+    setActiveDrawingStroke(null);
+  };
+
+  const handleUndoDrawing = () => {
+    const stack = drawingUndoStack[activeSlideKey] || [];
+    if (stack.length === 0) return;
+    const previousState = stack[stack.length - 1];
+    const newStack = stack.slice(0, stack.length - 1);
+
+    setDrawingRedoStack(prev => ({
+      ...prev,
+      [activeSlideKey]: [...(prev[activeSlideKey] || []), currentSlideStrokes]
+    }));
+    setDrawingUndoStack(prev => ({
+      ...prev,
+      [activeSlideKey]: newStack
+    }));
+
+    updatePresenterStrokes(activeSlideKey, previousState);
+  };
+
+  const handleRedoDrawing = () => {
+    const stack = drawingRedoStack[activeSlideKey] || [];
+    if (stack.length === 0) return;
+    const nextState = stack[stack.length - 1];
+    const newStack = stack.slice(0, stack.length - 1);
+
+    setDrawingUndoStack(prev => ({
+      ...prev,
+      [activeSlideKey]: [...(prev[activeSlideKey] || []), currentSlideStrokes]
+    }));
+    setDrawingRedoStack(prev => ({
+      ...prev,
+      [activeSlideKey]: newStack
+    }));
+
+    updatePresenterStrokes(activeSlideKey, nextState);
+  };
+
+  const handleClearSlideDrawing = () => {
+    if (currentSlideStrokes.length === 0) return;
+    setDrawingUndoStack(prev => ({
+      ...prev,
+      [activeSlideKey]: [...(prev[activeSlideKey] || []), currentSlideStrokes]
+    }));
+    setDrawingRedoStack(prev => ({ ...prev, [activeSlideKey]: [] }));
+    updatePresenterStrokes(activeSlideKey, []);
+  };
 
   const [currentSlidePreviewUrl, setCurrentSlidePreviewUrl] = useState<string | null>(null);
   const [nextSlidePreviewUrl, setNextSlidePreviewUrl] = useState<string | null>(null);
@@ -756,6 +982,20 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               <div className={`w-1.5 h-1.5 rounded-full ${laserEnabled ? 'bg-white animate-pulse' : 'bg-slate-500'}`} />
               <span>Laser {laserEnabled ? 'ON' : 'OFF'}</span>
             </button>
+
+            {/* Slide Pen Toggle Switch */}
+            <button
+              onClick={() => setIsPenActive(!isPenActive)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all duration-200 shadow-lg cursor-pointer hover:scale-105 active:scale-95 ${
+                isPenActive 
+                  ? 'bg-amber-500 border-amber-400 text-white hover:bg-amber-600 hover:border-amber-500 shadow-amber-500/20 ring-2 ring-amber-400/40' 
+                  : 'bg-slate-900/90 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800 hover:border-slate-600 shadow-slate-955/25'
+              }`}
+              title="Toggle Slide Pen & Drawing Mode"
+            >
+              <Pen className="w-3 h-3 text-white" />
+              <span>Pen {isPenActive ? 'ON' : 'OFF'}</span>
+            </button>
           </div>
         </div>
       )}
@@ -800,6 +1040,51 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         videoRef={videoRef}
                         onLoadedMetadata={handleVideoLoadedMetadata}
                       />
+
+                      {/* Real-time Presenter Live Slide Drawing Layer */}
+                      <svg
+                        viewBox="0 0 1000 1000"
+                        preserveAspectRatio="none"
+                        className={`absolute inset-0 w-full h-full ${
+                          isPenActive && !isProjectorMode ? 'cursor-crosshair pointer-events-auto z-70' : 'pointer-events-none z-70'
+                        }`}
+                        onPointerDown={isPenActive && !isProjectorMode ? handleDrawingPointerDown : undefined}
+                        onPointerMove={isPenActive && !isProjectorMode ? handleDrawingPointerMove : undefined}
+                        onPointerUp={isPenActive && !isProjectorMode ? handleDrawingPointerUp : undefined}
+                        onPointerLeave={isPenActive && !isProjectorMode ? handleDrawingPointerUp : undefined}
+                      >
+                        {currentSlideStrokes.map((stroke, idx) => {
+                          if (!stroke.points || stroke.points.length === 0) return null;
+                          const pathD = stroke.points.reduce((acc, pt, i) => {
+                            return i === 0 ? `M ${pt.x} ${pt.y}` : `${acc} L ${pt.x} ${pt.y}`;
+                          }, '');
+                          return (
+                            <path
+                              key={`split-stroke-${idx}`}
+                              d={pathD}
+                              stroke={stroke.color}
+                              strokeWidth={stroke.width}
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              fill="none"
+                              opacity={stroke.isHighlighter ? 0.45 : 1}
+                            />
+                          );
+                        })}
+                        {activeDrawingStroke && activeDrawingStroke.points.length > 0 && (
+                          <path
+                            d={activeDrawingStroke.points.reduce((acc, pt, i) => {
+                              return i === 0 ? `M ${pt.x} ${pt.y}` : `${acc} L ${pt.x} ${pt.y}`;
+                            }, '')}
+                            stroke={activeDrawingStroke.color}
+                            strokeWidth={activeDrawingStroke.width}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            fill="none"
+                            opacity={activeDrawingStroke.isHighlighter ? 0.45 : 1}
+                          />
+                        )}
+                      </svg>
 
                       {/* Real-time Virtual Laser Pointer Dot rendered inside the aspect-ratio locked frame */}
                       {presentation?.laserActive && presentation.laserX !== undefined && presentation.laserY !== undefined && (
@@ -907,6 +1192,15 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                       </div>
                     )}
                   </div>
+                  {/* Clock Display under Next Slide Preview */}
+                  <div className="mt-2 flex items-center justify-center gap-2 p-3 bg-slate-950 border border-slate-850 rounded-2xl shadow-lg text-slate-100 select-none">
+                    <Clock className="w-4 h-4 text-osu-orange" />
+                    <div className="flex items-baseline font-mono font-bold text-base md:text-lg">
+                      <span>{(currentTime.getHours() % 12 || 12).toString().padStart(2, '0')}:{currentTime.getMinutes().toString().padStart(2, '0')}</span>
+                      <span className="text-[0.7em] opacity-60 ml-0.5">:{currentTime.getSeconds().toString().padStart(2, '0')}</span>
+                      <span className="text-[0.8em] ml-1.5 font-sans font-black text-osu-orange">{currentTime.getHours() >= 12 ? 'PM' : 'AM'}</span>
+                    </div>
+                  </div>
                 </div>
               </>
             ) : (
@@ -937,6 +1231,124 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     onLoadedMetadata={handleVideoLoadedMetadata}
                   />
 
+                      {/* Real-time Presenter Live Slide Drawing Layer */}
+                      <svg
+                        viewBox="0 0 1000 1000"
+                        preserveAspectRatio="none"
+                        className={`absolute inset-0 w-full h-full ${
+                          isPenActive && !isProjectorMode ? 'cursor-crosshair pointer-events-auto z-70' : 'pointer-events-none z-70'
+                        }`}
+                        onPointerDown={isPenActive && !isProjectorMode ? handleDrawingPointerDown : undefined}
+                        onPointerMove={isPenActive && !isProjectorMode ? handleDrawingPointerMove : undefined}
+                        onPointerUp={isPenActive && !isProjectorMode ? handleDrawingPointerUp : undefined}
+                        onPointerLeave={isPenActive && !isProjectorMode ? handleDrawingPointerUp : undefined}
+                      >
+                        {currentSlideStrokes.map((stroke, idx) => {
+                          if (!stroke.points || stroke.points.length === 0) return null;
+                          const pathD = stroke.points.reduce((acc, pt, i) => {
+                            return i === 0 ? `M ${pt.x} ${pt.y}` : `${acc} L ${pt.x} ${pt.y}`;
+                          }, '');
+                          return (
+                            <path
+                              key={`single-stroke-${idx}`}
+                              d={pathD}
+                              stroke={stroke.color}
+                              strokeWidth={stroke.width}
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              fill="none"
+                              opacity={stroke.isHighlighter ? 0.45 : 1}
+                            />
+                          );
+                        })}
+                        {activeDrawingStroke && activeDrawingStroke.points.length > 0 && (
+                          <path
+                            d={activeDrawingStroke.points.reduce((acc, pt, i) => {
+                              return i === 0 ? `M ${pt.x} ${pt.y}` : `${acc} L ${pt.x} ${pt.y}`;
+                            }, '')}
+                            stroke={activeDrawingStroke.color}
+                            strokeWidth={activeDrawingStroke.width}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            fill="none"
+                            opacity={activeDrawingStroke.isHighlighter ? 0.45 : 1}
+                          />
+                        )}
+                      </svg>
+
+                      {/* Real-time Virtual Laser Pointer Dot rendered inside the aspect-ratio locked frame */}
+                      {presentation?.laserActive && presentation.laserX !== undefined && presentation.laserY !== undefined && (
+                        <div 
+                          style={{
+                            left: `${presentation.laserX}%`,
+                            top: `${presentation.laserY}%`,
+                            transform: 'translate(-50%, -50%)',
+                            width: '15px',
+                            height: '15px',
+                            borderRadius: '50%',
+                            backgroundColor: 'red',
+                            boxShadow: '0 0 8px 3px rgba(255, 0, 0, 0.8), 0 0 15px 5px rgba(255, 0, 0, 0.4)',
+                            position: 'absolute',
+                            pointerEvents: 'none',
+                            zIndex: 80,
+                            transition: 'top 0.05s ease-out, left 0.05s ease-out'
+                          }}
+                        />
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center w-full h-full p-4 relative">
+                <div 
+                  style={{ 
+                    aspectRatio: `${videoAspectRatio}`,
+                    width: '100%',
+                    height: 'auto',
+                    maxWidth: '100%',
+                    maxHeight: 'calc(100% - 40px)',
+                  }}
+                  className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden p-1.5 flex items-center justify-center shadow-2xl mx-auto"
+                >
+                  <ScreenCapture 
+                    isCapturing={isCapturing} 
+                    stream={stream} 
+                    error={error} 
+                    onStart={startCapture} 
+                    onStop={stopCapture} 
+                    logoUrl={logoUrl}
+                    isProjectorMode={isProjectorMode}
+                    videoRef={videoRef}
+                    onLoadedMetadata={handleVideoLoadedMetadata}
+                  />
+
+                  {/* Real-time Presenter Live Slide Drawing Layer for Projector Screen */}
+                  <svg
+                    viewBox="0 0 1000 1000"
+                    preserveAspectRatio="none"
+                    className="absolute inset-0 w-full h-full pointer-events-none z-70"
+                  >
+                    {currentSlideStrokes.map((stroke, idx) => {
+                      if (!stroke.points || stroke.points.length === 0) return null;
+                      const pathD = stroke.points.reduce((acc, pt, i) => {
+                        return i === 0 ? `M ${pt.x} ${pt.y}` : `${acc} L ${pt.x} ${pt.y}`;
+                      }, '');
+                      return (
+                        <path
+                          key={`projector-stroke-${idx}`}
+                          d={pathD}
+                          stroke={stroke.color}
+                          strokeWidth={stroke.width}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          fill="none"
+                          opacity={stroke.isHighlighter ? 0.45 : 1}
+                        />
+                      );
+                    })}
+                  </svg>
+
                   {/* Real-time Virtual Laser Pointer Dot rendered inside the aspect-ratio locked frame */}
                   {presentation?.laserActive && presentation.laserX !== undefined && presentation.laserY !== undefined && (
                     <div 
@@ -956,53 +1368,6 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                       }}
                     />
                   )}
-                </div>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center w-full h-full p-4 relative">
-            <div 
-              style={{ 
-                aspectRatio: `${videoAspectRatio}`,
-                width: '100%',
-                height: 'auto',
-                maxWidth: '100%',
-                maxHeight: 'calc(100% - 40px)',
-              }}
-              className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden p-1.5 flex items-center justify-center shadow-2xl mx-auto"
-            >
-              <ScreenCapture 
-                isCapturing={isCapturing} 
-                stream={stream} 
-                error={error} 
-                onStart={startCapture} 
-                onStop={stopCapture} 
-                logoUrl={logoUrl}
-                isProjectorMode={isProjectorMode}
-                videoRef={videoRef}
-                onLoadedMetadata={handleVideoLoadedMetadata}
-              />
-
-              {/* Real-time Virtual Laser Pointer Dot rendered inside the aspect-ratio locked frame */}
-              {presentation?.laserActive && presentation.laserX !== undefined && presentation.laserY !== undefined && (
-                <div 
-                  style={{
-                    left: `${presentation.laserX}%`,
-                    top: `${presentation.laserY}%`,
-                    transform: 'translate(-50%, -50%)',
-                    width: '15px',
-                    height: '15px',
-                    borderRadius: '50%',
-                    backgroundColor: 'red',
-                    boxShadow: '0 0 8px 3px rgba(255, 0, 0, 0.8), 0 0 15px 5px rgba(255, 0, 0, 0.4)',
-                    position: 'absolute',
-                    pointerEvents: 'none',
-                    zIndex: 80,
-                    transition: 'top 0.05s ease-out, left 0.05s ease-out'
-                  }}
-                />
-              )}
             </div>
 
             {/* Unobtrusive Centered Slide Number under slide display in Projector Mode */}
@@ -1496,6 +1861,228 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Popped-out Full Preview Display with Pen Function Menu */}
+      {isPenActive && !isProjectorMode && (
+        <div className="fixed inset-0 z-[150] bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center p-3 animate-in fade-in duration-200 select-none">
+          
+          {/* Floating Top Pen Function Menu */}
+          <div className="mb-3 px-4 py-2 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-wrap items-center justify-center gap-3 z-50 text-slate-100 max-w-full">
+            
+            {/* Tool Selector */}
+            <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-850">
+              <button
+                onClick={() => setPenTool('pen')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  penTool === 'pen' ? 'bg-osu-orange text-white shadow-md' : 'text-slate-400 hover:text-white'
+                }`}
+                title="Pen Tool"
+              >
+                <Pen className="w-3.5 h-3.5" />
+                <span>Pen</span>
+              </button>
+              <button
+                onClick={() => setPenTool('highlighter')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  penTool === 'highlighter' ? 'bg-amber-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                }`}
+                title="Highlighter Tool"
+              >
+                <Highlighter className="w-3.5 h-3.5" />
+                <span>Highlighter</span>
+              </button>
+              <button
+                onClick={() => setPenTool('eraser')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  penTool === 'eraser' ? 'bg-red-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                }`}
+                title="Eraser Tool"
+              >
+                <Eraser className="w-3.5 h-3.5" />
+                <span>Eraser</span>
+              </button>
+            </div>
+
+            {/* Color Palette */}
+            {penTool !== 'eraser' && (
+              <div className="flex items-center gap-1.5 border-l border-slate-800 pl-3">
+                {[
+                  { color: '#eb5d00', name: 'OSU Orange' },
+                  { color: '#EF4444', name: 'Red' },
+                  { color: '#EAB308', name: 'Yellow' },
+                  { color: '#22C55E', name: 'Green' },
+                  { color: '#3B82F6', name: 'Blue' },
+                  { color: '#FFFFFF', name: 'White' },
+                  { color: '#000000', name: 'Black' }
+                ].map(c => (
+                  <button
+                    key={c.color}
+                    onClick={() => {
+                      setPenColor(c.color);
+                      if (penTool === 'highlighter') setPenTool('pen');
+                    }}
+                    className={`w-6 h-6 rounded-full border-2 transition-transform cursor-pointer ${
+                      penColor === c.color
+                        ? 'scale-125 border-white ring-2 ring-osu-orange'
+                        : 'border-slate-700 hover:scale-110'
+                    }`}
+                    style={{ backgroundColor: c.color }}
+                    title={c.name}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Stroke Thickness */}
+            {penTool !== 'eraser' && (
+              <div className="flex items-center gap-1 border-l border-slate-800 pl-3 bg-slate-950 p-1 rounded-xl">
+                {[
+                  { label: 'Fine', value: 3 },
+                  { label: 'Med', value: 6 },
+                  { label: 'Bold', value: 12 }
+                ].map(w => (
+                  <button
+                    key={w.value}
+                    onClick={() => setPenWidth(w.value)}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                      penWidth === w.value ? 'bg-slate-800 text-osu-orange border border-osu-orange/40' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {w.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Actions: Undo / Redo / Clear */}
+            <div className="flex items-center gap-1.5 border-l border-slate-800 pl-3">
+              <button
+                onClick={handleUndoDrawing}
+                disabled={!(drawingUndoStack[activeSlideKey]?.length > 0)}
+                className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                title="Undo Stroke"
+              >
+                <Undo2 className="w-4 h-4" />
+              </button>
+              <button
+                onClick={handleRedoDrawing}
+                disabled={!(drawingRedoStack[activeSlideKey]?.length > 0)}
+                className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                title="Redo Stroke"
+              >
+                <Redo2 className="w-4 h-4" />
+              </button>
+              <button
+                onClick={handleClearSlideDrawing}
+                disabled={currentSlideStrokes.length === 0}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-950/60 border border-red-800/60 text-red-300 hover:bg-red-900 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed text-xs font-bold transition-all cursor-pointer"
+                title="Clear all drawings on this slide"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Clear Slide</span>
+              </button>
+            </div>
+
+            {/* Close Pen Mode */}
+            <button
+              onClick={() => setIsPenActive(false)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-osu-orange hover:bg-[#c03900] text-white rounded-xl text-xs font-bold transition-all ml-auto cursor-pointer shadow-lg"
+              title="Exit Pen Drawing Mode"
+            >
+              <X className="w-4 h-4" />
+              <span>Exit Pen</span>
+            </button>
+
+          </div>
+
+          {/* Popped-out Full Slide Drawing Frame */}
+          <div 
+            style={{
+              aspectRatio: `${videoAspectRatio}`,
+              width: '100%',
+              height: 'auto',
+              maxWidth: `calc((100vh - 160px) * ${videoAspectRatio})`,
+              maxHeight: 'calc(100vh - 160px)'
+            }}
+            className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden p-1.5 flex items-center justify-center shadow-2xl mx-auto"
+          >
+            <ScreenCapture 
+              isCapturing={isCapturing} 
+              stream={stream} 
+              error={error} 
+              onStart={startCapture} 
+              onStop={stopCapture} 
+              logoUrl={logoUrl}
+              isProjectorMode={isProjectorMode}
+              videoRef={videoRef}
+              onLoadedMetadata={handleVideoLoadedMetadata}
+            />
+
+            {/* Interactive SVG Drawing Layer */}
+            <svg
+              viewBox="0 0 1000 1000"
+              preserveAspectRatio="none"
+              className="absolute inset-0 w-full h-full cursor-crosshair pointer-events-auto z-70"
+              onPointerDown={handleDrawingPointerDown}
+              onPointerMove={handleDrawingPointerMove}
+              onPointerUp={handleDrawingPointerUp}
+              onPointerLeave={handleDrawingPointerUp}
+            >
+              {currentSlideStrokes.map((stroke, idx) => {
+                if (!stroke.points || stroke.points.length === 0) return null;
+                const pathD = stroke.points.reduce((acc, pt, i) => {
+                  return i === 0 ? `M ${pt.x} ${pt.y}` : `${acc} L ${pt.x} ${pt.y}`;
+                }, '');
+                return (
+                  <path
+                    key={`popped-stroke-${idx}`}
+                    d={pathD}
+                    stroke={stroke.color}
+                    strokeWidth={stroke.width}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    fill="none"
+                    opacity={stroke.isHighlighter ? 0.45 : 1}
+                  />
+                );
+              })}
+              {activeDrawingStroke && activeDrawingStroke.points.length > 0 && (
+                <path
+                  d={activeDrawingStroke.points.reduce((acc, pt, i) => {
+                    return i === 0 ? `M ${pt.x} ${pt.y}` : `${acc} L ${pt.x} ${pt.y}`;
+                  }, '')}
+                  stroke={activeDrawingStroke.color}
+                  strokeWidth={activeDrawingStroke.width}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  fill="none"
+                  opacity={activeDrawingStroke.isHighlighter ? 0.45 : 1}
+                />
+              )}
+            </svg>
+
+            {/* Virtual Laser Dot inside popped-out display */}
+            {presentation?.laserActive && presentation.laserX !== undefined && presentation.laserY !== undefined && (
+              <div 
+                style={{
+                  left: `${presentation.laserX}%`,
+                  top: `${presentation.laserY}%`,
+                  transform: 'translate(-50%, -50%)',
+                  width: '15px',
+                  height: '15px',
+                  borderRadius: '50%',
+                  backgroundColor: 'red',
+                  boxShadow: '0 0 8px 3px rgba(255, 0, 0, 0.8), 0 0 15px 5px rgba(255, 0, 0, 0.4)',
+                  position: 'absolute',
+                  pointerEvents: 'none',
+                  zIndex: 80,
+                }}
+              />
+            )}
+          </div>
+
         </div>
       )}
 

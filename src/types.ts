@@ -49,6 +49,7 @@ export interface Presentation {
   presenterEmail?: string;
   isEnded?: boolean;
   showSlidePreview?: boolean;
+  presenterDrawings?: Record<string, string>;
 }
 
 export interface Message {

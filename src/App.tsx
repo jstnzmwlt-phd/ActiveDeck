@@ -15,6 +15,19 @@ import { JoinScreen } from './components/JoinScreen';
 import { RichTextEditor } from './components/RichTextEditor';
 import { HandwrittenCanvas } from './components/HandwrittenCanvas';
 import { ImageLightboxModal } from './components/ImageLightboxModal';
+import { 
+  Document, 
+  Packer, 
+  Paragraph, 
+  TextRun, 
+  HeadingLevel, 
+  ImageRun, 
+  Table, 
+  TableRow, 
+  TableCell, 
+  BorderStyle, 
+  WidthType 
+} from 'docx';
 
 console.log('App.tsx - Module loaded');
 
@@ -648,13 +661,119 @@ function AppContent() {
     }
   };
 
-  const handleDownloadNotes = () => {
+  const dataUriToUint8Array = (dataUrl: string): Uint8Array | null => {
+    try {
+      const parts = dataUrl.split(',');
+      if (parts.length < 2) return null;
+      const base64 = parts[1];
+      const binaryStr = window.atob(base64);
+      const len = binaryStr.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binaryStr.charCodeAt(i);
+      }
+      return bytes;
+    } catch (e) {
+      console.error("Failed to convert data URI to Uint8Array:", e);
+      return null;
+    }
+  };
+
+  const fetchImageAsUint8Array = async (url: string): Promise<Uint8Array | null> => {
+    if (url.startsWith('data:')) {
+      return dataUriToUint8Array(url);
+    }
+    try {
+      const response = await fetch(url);
+      const arrayBuffer = await response.arrayBuffer();
+      return new Uint8Array(arrayBuffer);
+    } catch (e) {
+      console.error("Failed to fetch image URL as Uint8Array:", e);
+      return null;
+    }
+  };
+
+  const parseHtmlToDocxParagraphs = (htmlString: string): Paragraph[] => {
+    if (!htmlString) return [];
+    const paragraphs: Paragraph[] = [];
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(`<div>${htmlString}</div>`, 'text/html');
+    const root = doc.body.firstElementChild || doc.body;
+
+    const processNode = (
+      node: Node, 
+      currentRuns: TextRun[], 
+      inheritedStyle: { bold?: boolean; italics?: boolean; underline?: boolean; color?: string }
+    ) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = node.textContent;
+        if (text) {
+          currentRuns.push(new TextRun({
+            text: text,
+            bold: inheritedStyle.bold,
+            italics: inheritedStyle.italics,
+            underline: inheritedStyle.underline ? {} : undefined,
+            color: inheritedStyle.color,
+            font: "Arial"
+          }));
+        }
+        return;
+      }
+
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const elem = node as HTMLElement;
+        const tag = elem.tagName.toLowerCase();
+
+        const newStyle = { ...inheritedStyle };
+        if (tag === 'b' || tag === 'strong') newStyle.bold = true;
+        if (tag === 'i' || tag === 'em') newStyle.italics = true;
+        if (tag === 'u') newStyle.underline = true;
+        if (elem.style && elem.style.color) newStyle.color = elem.style.color.replace('#', '');
+
+        if (['p', 'div', 'li', 'h1', 'h2', 'h3'].includes(tag)) {
+          const childRuns: TextRun[] = [];
+          elem.childNodes.forEach(child => processNode(child, childRuns, newStyle));
+          if (childRuns.length > 0) {
+            paragraphs.push(new Paragraph({
+              children: childRuns,
+              bullet: tag === 'li' ? { level: 0 } : undefined,
+              heading: tag === 'h1' ? HeadingLevel.HEADING_1 : tag === 'h2' ? HeadingLevel.HEADING_2 : tag === 'h3' ? HeadingLevel.HEADING_3 : undefined,
+              spacing: { after: 120 }
+            }));
+          }
+        } else {
+          elem.childNodes.forEach(child => processNode(child, currentRuns, newStyle));
+        }
+      }
+    };
+
+    const hasBlocks = root.querySelector('p, div, li, h1, h2, h3');
+    if (hasBlocks) {
+      root.childNodes.forEach(child => {
+        const runs: TextRun[] = [];
+        processNode(child, runs, {});
+        if (runs.length > 0 && !['p','div','li','h1','h2','h3'].includes((child as HTMLElement).tagName?.toLowerCase() || '')) {
+          paragraphs.push(new Paragraph({ children: runs, spacing: { after: 120 } }));
+        }
+      });
+    } else {
+      const runs: TextRun[] = [];
+      root.childNodes.forEach(child => processNode(child, runs, {}));
+      if (runs.length > 0) {
+        paragraphs.push(new Paragraph({ children: runs, spacing: { after: 120 } }));
+      }
+    }
+
+    return paragraphs;
+  };
+
+  const handleDownloadNotes = async () => {
     if (isNotesEmpty(notesTextMap, notesDrawingsMap) && Object.keys(pushedSlidesMap).length === 0) {
       alert("Nothing to export. Connect to a presentation or take some notes first!");
       return;
     }
     const title = notesTitle.trim() || `Session_${presentation?.pinCode || 'Notes'}`;
-    const filename = `ActiveDeck_Notes_${title.replace(/[^a-z0-9_-]/gi, '_')}.doc`;
+    const filename = `ActiveDeck_Notes_${title.replace(/[^a-z0-9_-]/gi, '_')}.docx`;
     
     const presenterName = presentation?.presenterEmail ? presentation.presenterEmail.split('@')[0] : 'Presenter';
     const pin = presentation?.pinCode || 'N/A';
@@ -666,7 +785,6 @@ function AppContent() {
       return isNaN(num) ? 999999 : num;
     };
 
-    // Sort slides & custom tabs numerically by position and compile notes + drawings + slide images
     const sortedSlides = Array.from(new Set([
       ...Object.keys(notesTextMap),
       ...Object.keys(notesDrawingsMap),
@@ -692,108 +810,141 @@ function AppContent() {
       })
       .sort((a, b) => getTabPos(a) - getTabPos(b));
 
-    const notesContentHtml = sortedSlides.map(slide => {
-      const htmlContent = notesTextMap[slide] ? `<div>${notesTextMap[slide]}</div>` : '';
-      
-      let slidePreviewHtml = '';
+    const slideElements: (Paragraph | Table)[] = [];
+
+    for (const slide of sortedSlides) {
+      slideElements.push(
+        new Paragraph({
+          text: getTabTitle(slide),
+          heading: HeadingLevel.HEADING_2,
+          spacing: { before: 240, after: 120 }
+        })
+      );
+
       const slideImgUrl = pushedSlidesMap[slide];
       if (slideImgUrl) {
-        slidePreviewHtml = `
-          <div style="margin-top: 10px; margin-bottom: 15px;">
-            <h4 style="color: #475569; font-size: 10pt; margin-bottom: 5px; font-weight: bold;">Slide Image:</h4>
-            <div style="padding: 5px; width: 500px; height: 280px; background-color: #000000; border-radius: 8px; text-align: center; vertical-align: middle;">
-              <img src="${slideImgUrl}" width="500" height="280" style="border-radius: 8px; border: 1px solid #e2e8f0; object-fit: contain;" />
-            </div>
-          </div>
-        `;
+        const imgBytes = await fetchImageAsUint8Array(slideImgUrl);
+        if (imgBytes) {
+          slideElements.push(
+            new Paragraph({
+              children: [
+                new TextRun({ text: "Slide Image:", bold: true, color: "475569", size: 20, font: "Arial" }),
+              ],
+              spacing: { before: 80, after: 60 }
+            })
+          );
+          slideElements.push(
+            new Paragraph({
+              children: [
+                new ImageRun({
+                  data: imgBytes,
+                  transformation: { width: 500, height: 280 },
+                  type: 'png'
+                })
+              ],
+              spacing: { after: 180 }
+            })
+          );
+        }
       }
 
-      let drawingSvgHtml = '';
+      const htmlContent = notesTextMap[slide];
+      if (htmlContent) {
+        const textParagraphs = parseHtmlToDocxParagraphs(htmlContent);
+        slideElements.push(...textParagraphs);
+      }
+
       const drawingJson = notesDrawingsMap[slide];
       if (drawingJson) {
         const pngDataUrl = convertStrokesToPng(drawingJson);
         if (pngDataUrl) {
-          drawingSvgHtml = `
-            <div style="margin-top: 15px; margin-bottom: 10px;">
-              <h4 style="color: #475569; font-size: 10pt; margin-bottom: 5px; font-weight: bold;">Handwritten Drawing:</h4>
-              <div style="padding: 5px; width: 500px; height: 350px;">
-                <img src="${pngDataUrl}" width="500" height="350" style="border-radius: 8px; border: 1px solid #e2e8f0;" />
-              </div>
-            </div>
-          `;
+          const drawingBytes = dataUriToUint8Array(pngDataUrl);
+          if (drawingBytes) {
+            slideElements.push(
+              new Paragraph({
+                children: [
+                  new TextRun({ text: "Handwritten Drawing:", bold: true, color: "475569", size: 20, font: "Arial" }),
+                ],
+                spacing: { before: 120, after: 60 }
+              })
+            );
+            slideElements.push(
+              new Paragraph({
+                children: [
+                  new ImageRun({
+                    data: drawingBytes,
+                    transformation: { width: 500, height: 350 },
+                    type: 'png'
+                  })
+                ],
+                spacing: { after: 180 }
+              })
+            );
+          }
         }
       }
+    }
 
-      return `
-        <div style="margin-bottom: 25px; page-break-inside: avoid;">
-          <h3 style="color: #eb5d00; border-bottom: 1px solid #f3eedd; padding-bottom: 3px; margin-bottom: 10px;">${getTabTitle(slide)}</h3>
-          ${slidePreviewHtml}
-          ${htmlContent}
-          ${drawingSvgHtml}
-        </div>
-      `;
-    }).join('');
+    const doc = new Document({
+      sections: [{
+        properties: {},
+        children: [
+          new Paragraph({
+            text: "ActiveDeck Study Notes",
+            heading: HeadingLevel.HEADING_1,
+            spacing: { after: 200 }
+          }),
+          new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            borders: {
+              top: { style: BorderStyle.NONE, size: 0, color: "auto" },
+              bottom: { style: BorderStyle.NONE, size: 0, color: "auto" },
+              left: { style: BorderStyle.SINGLE, size: 24, color: "EB5D00" },
+              right: { style: BorderStyle.NONE, size: 0, color: "auto" },
+            },
+            rows: [
+              new TableRow({
+                children: [
+                  new TableCell({
+                    shading: { fill: "F8F9FA" },
+                    children: [
+                      new Paragraph({
+                        children: [
+                          new TextRun({ text: "Presenter: ", bold: true, color: "111111", font: "Arial" }),
+                          new TextRun({ text: presenterName, font: "Arial" }),
+                        ],
+                      }),
+                      new Paragraph({
+                        children: [
+                          new TextRun({ text: "Session PIN: ", bold: true, color: "111111", font: "Arial" }),
+                          new TextRun({ text: pin, font: "Arial" }),
+                        ],
+                      }),
+                      new Paragraph({
+                        children: [
+                          new TextRun({ text: "Notes Title: ", bold: true, color: "111111", font: "Arial" }),
+                          new TextRun({ text: title, font: "Arial" }),
+                        ],
+                      }),
+                      new Paragraph({
+                        children: [
+                          new TextRun({ text: "Date: ", bold: true, color: "111111", font: "Arial" }),
+                          new TextRun({ text: new Date().toLocaleDateString(), font: "Arial" }),
+                        ],
+                      }),
+                    ],
+                  }),
+                ],
+              }),
+            ],
+          }),
+          new Paragraph({ spacing: { after: 240 } }),
+          ...slideElements
+        ]
+      }]
+    });
 
-    const docHtml = `
-      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-      <head>
-        <!--[if gte mso 9]>
-        <xml>
-          <w:WordDocument>
-            <w:View>Print</w:View>
-            <w:Zoom>100</w:Zoom>
-          </w:WordDocument>
-        </xml>
-        <![endif]-->
-        <style>
-          body {
-            font-family: 'Arial', sans-serif;
-            font-size: 11pt;
-            line-height: 1.5;
-            color: #333333;
-          }
-          h2 {
-            font-family: 'Arial', sans-serif;
-            font-size: 16pt;
-            color: #eb5d00; /* OSU Orange */
-            border-bottom: 2px solid #eb5d00;
-            padding-bottom: 4px;
-            margin-top: 0;
-          }
-          .metadata-box {
-            background-color: #f8f9fa;
-            border-left: 4px solid #eb5d00;
-            padding: 10px 15px;
-            margin-bottom: 20px;
-            font-size: 10pt;
-            color: #555555;
-          }
-          .metadata-label {
-            font-weight: bold;
-            color: #111111;
-          }
-          .notes-container {
-            font-size: 11pt;
-            color: #222222;
-          }
-        </style>
-      </head>
-      <body>
-        <h2>ActiveDeck Study Notes</h2>
-        <div class="metadata-box">
-          <span class="metadata-label">Presenter:</span> ${presenterName}<br/>
-          <span class="metadata-label">Session PIN:</span> ${pin}<br/>
-          <span class="metadata-label">Notes Title:</span> ${title}<br/>
-          <span class="metadata-label">Date:</span> ${new Date().toLocaleDateString()}<br/>
-        </div>
-        <div class="notes-container">
-          ${notesContentHtml}
-        </div>
-      </body>
-      </html>
-    `;
-
-    const blob = new Blob(['\ufeff' + docHtml], { type: 'application/msword;charset=utf-8' });
+    const blob = await Packer.toBlob(doc);
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
