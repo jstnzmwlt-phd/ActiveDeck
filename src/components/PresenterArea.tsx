@@ -1420,6 +1420,24 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         onPointerLeave={isPenActive && !isProjectorMode ? handleDrawingPointerUp : undefined}
                       >
                         {currentSlideStrokes.map((stroke, idx) => {
+                          if (stroke.text) {
+                            const pt = stroke.points[0];
+                            if (!pt) return null;
+                            const fontSize = Math.max(26, stroke.width * 5);
+                            return (
+                              <text
+                                key={`single-text-stroke-${idx}`}
+                                x={pt.x}
+                                y={pt.y}
+                                fill={stroke.color}
+                                fontSize={fontSize}
+                                fontWeight="bold"
+                                fontFamily="sans-serif"
+                              >
+                                {stroke.text}
+                              </text>
+                            );
+                          }
                           const pathD = renderStrokePath(stroke);
                           if (!pathD) return null;
                           return (
@@ -1502,6 +1520,24 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     className="absolute inset-0 w-full h-full pointer-events-none z-70"
                   >
                     {currentSlideStrokes.map((stroke, idx) => {
+                      if (stroke.text) {
+                        const pt = stroke.points[0];
+                        if (!pt) return null;
+                        const fontSize = Math.max(26, stroke.width * 5);
+                        return (
+                          <text
+                            key={`projector-text-stroke-${idx}`}
+                            x={pt.x}
+                            y={pt.y}
+                            fill={stroke.color}
+                            fontSize={fontSize}
+                            fontWeight="bold"
+                            fontFamily="sans-serif"
+                          >
+                            {stroke.text}
+                          </text>
+                        );
+                      }
                       const pathD = renderStrokePath(stroke);
                       if (!pathD) return null;
                       return (
@@ -2264,6 +2300,24 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               onPointerLeave={handleDrawingPointerUp}
             >
               {currentSlideStrokes.map((stroke, idx) => {
+                if (stroke.text) {
+                  const pt = stroke.points[0];
+                  if (!pt) return null;
+                  const fontSize = Math.max(26, stroke.width * 5);
+                  return (
+                    <text
+                      key={`popped-text-stroke-${idx}`}
+                      x={pt.x}
+                      y={pt.y}
+                      fill={stroke.color}
+                      fontSize={fontSize}
+                      fontWeight="bold"
+                      fontFamily="sans-serif"
+                    >
+                      {stroke.text}
+                    </text>
+                  );
+                }
                 const pathD = renderStrokePath(stroke);
                 if (!pathD) return null;
                 return (
