@@ -50,6 +50,12 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const [presentWithNotes, setPresentWithNotes] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
 
+  // Update live clock every second
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   // Presenter Live Slide Drawing State
   const [isPenActive, setIsPenActive] = useState<boolean>(false);
   const [penTool, setPenTool] = useState<'pen' | 'arrow' | 'highlighter' | 'eraser'>('pen');
