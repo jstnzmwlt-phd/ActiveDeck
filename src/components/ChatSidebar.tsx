@@ -3626,9 +3626,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       {/* Join Code Bar - Presenter & Projector Modes */}
       {(!isChatOnly || isProjector) && (
         <div className="bg-slate-900 text-white px-3 py-2.5 border-b border-slate-800 shrink-0 select-none">
-          <div className={cn("flex items-center min-w-0 gap-2 sm:gap-2.5", isProjector ? "justify-end" : "")}>
+          <div className="flex items-center justify-between min-w-0 gap-2">
             {/* Left Section: Join PIN Code */}
-            <div className={cn("flex flex-col min-w-0 justify-center gap-0.5 shrink-0", isProjector ? "ml-auto" : "")}>
+            <div className="flex flex-col min-w-0 justify-center gap-0.5 shrink-0">
               <div className="flex items-center gap-1.5 min-w-0">
                 <div className="w-2 h-2 rounded-full bg-osu-orange animate-pulse shrink-0" />
                 <span className="text-[10px] font-black text-osu-orange uppercase tracking-wider whitespace-nowrap">
@@ -3638,7 +3638,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               
               {presentation?.pinCode && (
                 <div className="flex items-center mt-0.5">
-                  <span className="text-lg sm:text-xl font-mono font-black tracking-wider text-osu-orange bg-osu-orange/10 border border-osu-orange/20 px-2 py-0.5 rounded-xl leading-none select-all shadow-sm whitespace-nowrap">
+                  <span className="text-base sm:text-lg font-mono font-black tracking-wider text-osu-orange bg-osu-orange/10 border border-osu-orange/20 px-2 py-0.5 rounded-xl leading-none select-all shadow-sm whitespace-nowrap">
                     {presentation.pinCode.replace(/(\d{3})(\d{3})/, '$1 $2')}
                   </span>
                 </div>
@@ -3662,7 +3662,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
             {/* Right Section: Clickable QR Code Thumbnail */}
             <div 
               onClick={() => setIsQRExpanded(!isQRExpanded)}
-              className={cn("bg-white p-1 rounded-xl border border-slate-800 shadow-sm flex flex-col items-center justify-center cursor-pointer hover:border-osu-orange hover:shadow-md transition-all group/qr shrink-0", !isProjector && "ml-auto")}
+              className="bg-white p-1 rounded-xl border border-slate-800 shadow-sm flex flex-col items-center justify-center cursor-pointer hover:border-osu-orange hover:shadow-md transition-all group/qr shrink-0"
               title={isQRExpanded ? "Click to minimize QR code" : "Click to expand QR code"}
             >
               <QRCodeSVG 
@@ -3685,12 +3685,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       )}
 
       {/* Chat Header */}
-      <div className={cn("text-white flex flex-wrap items-center justify-between gap-2 min-w-0", isProjector ? "p-5 bg-osu-black" : "p-4 bg-osu-black")}>
-        <div className="flex items-center gap-2 min-w-0">
-          <MessageSquare className={cn("text-osu-orange flex-shrink-0", isProjector ? "w-6 h-6" : "w-5 h-5")} />
+      <div className={cn("text-white flex flex-wrap items-center justify-between gap-2 min-w-0", isProjector ? "px-3 py-2.5 bg-osu-black" : "p-4 bg-osu-black")}>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <MessageSquare className={cn("text-osu-orange flex-shrink-0", isProjector ? "w-4.5 h-4.5" : "w-5 h-5")} />
           <div className="flex flex-col min-w-0">
             <h2 className={cn(
-              isProjector ? "normal-case text-white text-sm sm:text-base select-all font-black font-mono tracking-tight whitespace-nowrap" : "uppercase font-bold tracking-tight text-sm leading-tight"
+              isProjector ? "normal-case text-white text-[11px] sm:text-xs md:text-sm select-all font-black font-mono tracking-tight whitespace-nowrap" : "uppercase font-bold tracking-tight text-sm leading-tight"
             )}>
               {isProjector ? "https://active-deck.app/chat" : "ActiveDeck Chat"}
             </h2>
@@ -3698,8 +3698,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         </div>
         <div className="flex flex-wrap items-center gap-1.5 flex-shrink-0">
           {isProjector && showAttendance && !presentation?.disableAttendance && (
-            <div className="px-2.5 py-1 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-xs font-bold flex items-center gap-1.5 shadow-sm">
-              <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse shrink-0" />
+            <div className="px-2 py-0.5 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] sm:text-[11px] font-bold flex items-center gap-1 shadow-sm">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse shrink-0" />
               <span>Attendance Tracking On</span>
             </div>
           )}

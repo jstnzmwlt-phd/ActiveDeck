@@ -1068,7 +1068,7 @@ function AppContent() {
       if (isDraggingProjectorRef.current) {
         const containerPadding = 24; // p-6 is 24px
         const calculatedWidth = window.innerWidth - clientX - containerPadding;
-        const constrainedWidth = Math.max(320, Math.min(600, calculatedWidth));
+        const constrainedWidth = Math.max(260, Math.min(600, calculatedWidth));
         setSidebarWidth(constrainedWidth);
         localStorage.setItem('activeDeckProjectorSidebarWidth', constrainedWidth.toString());
       }
@@ -1524,7 +1524,7 @@ function AppContent() {
 
         {/* Expanded Read-Only Sidebar Q&A Display */}
         <div 
-          style={{ width: `${sidebarWidth}px`, minWidth: '320px' }}
+          style={{ width: `${sidebarWidth}px`, minWidth: '260px' }}
           className="h-full flex-shrink-0 rounded-2xl overflow-hidden border-2 border-osu-orange bg-slate-900 shadow-2xl"
         >
           <ChatSidebar 
