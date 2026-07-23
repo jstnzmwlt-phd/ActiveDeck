@@ -1482,28 +1482,6 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         </div>
       )}
 
-      {/* Floating Glassmorphic Fullscreen Toggle Button - Always visible and accessible */}
-      {!isProjectorMode && (
-        <button
-          type="button"
-          onClick={toggleFullscreen}
-          className={`fixed bottom-4 left-4 z-[9999] p-2.5 rounded-full shadow-2xl transition-all duration-300 backdrop-blur-md cursor-pointer flex items-center justify-center hover:scale-110 active:scale-95 outline-none border ${
-            isFullscreen 
-              ? 'bg-osu-orange text-white border-white/40 shadow-orange-500/30 opacity-100 ring-2 ring-osu-orange/60' 
-              : 'bg-slate-900/90 text-slate-300 hover:text-white border-slate-700 hover:bg-slate-800 opacity-80 hover:opacity-100'
-          }`}
-          title={isFullscreen ? "Exit Full Screen Mode (Esc)" : "Enter Full Screen Mode"}
-        >
-          {isFullscreen ? (
-            <div className="flex items-center gap-1.5 px-1.5 py-0.5">
-              <Minimize className="w-4 h-4 text-white" />
-              <span className="text-[11px] font-black uppercase tracking-wider text-white">Exit Full Screen</span>
-            </div>
-          ) : (
-            <Maximize className="w-4 h-4" />
-          )}
-        </button>
-      )}
     </div>
   );
 };
