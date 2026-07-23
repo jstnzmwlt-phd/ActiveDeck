@@ -566,26 +566,21 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     }
   };
 
-  // Background Automatic Slide Preview Capture & Upload Effect
+  // Background 2-Stage Automatic Slide Preview Capture & Upload Effect (Immediate + Delayed Animation Capture)
   useEffect(() => {
     if (!presentation?.id || !isCapturing) return;
 
     const activeSlideNum = currentSlide !== null ? currentSlide : (presentation?.currentSlide || 1);
-
-    console.log(`[SlidePreview Auto] Scheduling background preview capture for slide ${activeSlideNum} (trigger: ${captureTrigger})...`);
     setIsUploadingPreview(true);
 
-    const timeoutId = setTimeout(async () => {
+    const captureAndUpload = async (stageName: string) => {
       try {
         const video = containerRef.current?.querySelector('video');
-        if (!video) {
-          console.warn("[SlidePreview Auto] No active video stream found in DOM inside timeout to capture slide preview.");
+        if (!video || !video.videoWidth || !video.videoHeight) {
           setIsUploadingPreview(false);
           return;
         }
 
-        console.log(`[SlidePreview Auto] Triggering background slide preview capture for slide ${activeSlideNum}...`);
-        
         const canvas = document.createElement('canvas');
         canvas.width = video.videoWidth || 1280;
         canvas.height = video.videoHeight || 720;
@@ -615,7 +610,6 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             await uploadBytes(storageRef, blob);
             const downloadUrl = await getDownloadURL(storageRef);
 
-            // Save to messages with deterministic ID (presentationId_preview_slide_slideNum)
             const docId = `${presentation.id}_preview_slide_${activeSlideNum}`;
             await setDoc(doc(db, 'messages', docId), {
               presentationId: presentation.id,
@@ -626,22 +620,33 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               timestamp: serverTimestamp()
             });
 
-            console.log(`[SlidePreview Auto] Background slide preview uploaded successfully for slide ${activeSlideNum}!`);
+            console.log(`[SlidePreview 2-Stage] ${stageName} upload complete for slide ${activeSlideNum}!`);
           } catch (uploadErr) {
-            console.error("[SlidePreview Auto] Background slide preview upload failed:", uploadErr);
+            console.error(`[SlidePreview 2-Stage] ${stageName} upload failed:`, uploadErr);
           } finally {
             setIsUploadingPreview(false);
           }
         }, 'image/jpeg', 0.65);
 
       } catch (err) {
-        console.error("[SlidePreview Auto] Error in background slide capture process:", err);
+        console.error(`[SlidePreview 2-Stage] Error in ${stageName}:`, err);
         setIsUploadingPreview(false);
       }
-    }, 3000);
+    };
+
+    // Stage 1: Immediate push (250ms) so students see the slide instantly
+    const immediateTimeoutId = setTimeout(() => {
+      captureAndUpload('Stage 1 (Immediate)');
+    }, 250);
+
+    // Stage 2: Updated push after animations/build-ins complete (3500ms)
+    const delayedTimeoutId = setTimeout(() => {
+      captureAndUpload('Stage 2 (Animation Complete)');
+    }, 3500);
 
     return () => {
-      clearTimeout(timeoutId);
+      clearTimeout(immediateTimeoutId);
+      clearTimeout(delayedTimeoutId);
     };
   }, [currentSlide, presentation?.currentSlide, isCapturing, presentation?.id, captureTrigger]);
 

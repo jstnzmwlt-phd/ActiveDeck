@@ -835,6 +835,121 @@ function AppContent() {
     return paragraphs;
   };
 
+  const compositeSlideWithAnnotations = (
+    slideImgUrl: string,
+    presenterDrawingsJson?: string,
+    studentDrawingsJson?: string
+  ): Promise<Uint8Array | null> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth || 1920;
+        canvas.height = img.naturalHeight || 1080;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(null);
+          return;
+        }
+
+        // 1. Draw base slide image
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        const drawStrokeList = (strokes: DrawingStroke[]) => {
+          strokes.forEach(stroke => {
+            if (!stroke.points || stroke.points.length === 0) return;
+            ctx.save();
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            const scaleX = canvas.width / 1000;
+            const scaleY = canvas.height / 1000;
+            const avgScale = (scaleX + scaleY) / 2;
+
+            ctx.lineWidth = stroke.width * avgScale;
+
+            if (stroke.isHighlighter) {
+              ctx.strokeStyle = 'rgba(234, 179, 8, 0.45)';
+            } else {
+              ctx.strokeStyle = stroke.color === '#FFFFFF' ? '#cbd5e1' : stroke.color;
+              ctx.fillStyle = stroke.color === '#FFFFFF' ? '#cbd5e1' : stroke.color;
+            }
+
+            const pts = stroke.points.map(p => ({
+              x: p.x * scaleX,
+              y: p.y * scaleY
+            }));
+
+            if (stroke.text && pts[0]) {
+              const fontSize = Math.max(26, stroke.width * 5) * avgScale;
+              ctx.font = `bold ${fontSize}px sans-serif`;
+              ctx.fillText(stroke.text, pts[0].x, pts[0].y);
+            } else if (stroke.isArrow && pts.length >= 2) {
+              const p1 = pts[0];
+              const p2 = pts[pts.length - 1];
+              const dx = p2.x - p1.x;
+              const dy = p2.y - p1.y;
+              const angle = Math.atan2(dy, dx);
+              const headLength = Math.max(25, stroke.width * 4) * avgScale;
+              const arrowAngle = Math.PI / 6;
+
+              const h1x = p2.x - headLength * Math.cos(angle - arrowAngle);
+              const h1y = p2.y - headLength * Math.sin(angle - arrowAngle);
+              const h2x = p2.x - headLength * Math.cos(angle + arrowAngle);
+              const h2y = p2.y - headLength * Math.sin(angle + arrowAngle);
+
+              ctx.beginPath();
+              ctx.moveTo(p1.x, p1.y);
+              ctx.lineTo(p2.x, p2.y);
+              ctx.moveTo(p2.x, p2.y);
+              ctx.lineTo(h1x, h1y);
+              ctx.moveTo(p2.x, p2.y);
+              ctx.lineTo(h2x, h2y);
+              ctx.stroke();
+            } else {
+              ctx.beginPath();
+              pts.forEach((p, i) => {
+                if (i === 0) ctx.moveTo(p.x, p.y);
+                else ctx.lineTo(p.x, p.y);
+              });
+              if (pts.length === 1) {
+                ctx.lineTo(pts[0].x + 0.1, pts[0].y + 0.1);
+              }
+              ctx.stroke();
+            }
+            ctx.restore();
+          });
+        };
+
+        // 2. Draw Presenter Annotations (Read-only base layer)
+        if (presenterDrawingsJson) {
+          try {
+            const pStrokes = JSON.parse(presenterDrawingsJson);
+            if (Array.isArray(pStrokes)) drawStrokeList(pStrokes);
+          } catch {}
+        }
+
+        // 3. Draw Student Personal Annotations
+        if (studentDrawingsJson) {
+          try {
+            const sStrokes = JSON.parse(studentDrawingsJson);
+            if (Array.isArray(sStrokes)) drawStrokeList(sStrokes);
+          } catch {}
+        }
+
+        const dataUrl = canvas.toDataURL('image/png');
+        resolve(dataUriToUint8Array(dataUrl));
+      };
+
+      img.onerror = () => {
+        fetchImageAsUint8Array(slideImgUrl).then(resolve);
+      };
+
+      img.src = slideImgUrl;
+    });
+  };
+
   const handleDownloadNotes = async () => {
     if (isNotesEmpty(notesTextMap, notesDrawingsMap) && Object.keys(pushedSlidesMap).length === 0) {
       alert("Nothing to export. Connect to a presentation or take some notes first!");
@@ -891,7 +1006,14 @@ function AppContent() {
 
       const slideImgUrl = pushedSlidesMap[slide];
       if (slideImgUrl) {
-        const imgBytes = await fetchImageAsUint8Array(slideImgUrl);
+        const presenterJson = presentation?.presenterDrawings?.[slide];
+        const studentJson = studentSlideDrawingsMap[slide];
+
+        const imgBytes = await compositeSlideWithAnnotations(
+          slideImgUrl,
+          presenterJson,
+          studentJson
+        );
         if (imgBytes) {
           slideElements.push(
             new Paragraph({
