@@ -59,6 +59,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const [activeDrawingStroke, setActiveDrawingStroke] = useState<DrawingStroke | null>(null);
   const [isDrawingPointerDown, setIsDrawingPointerDown] = useState<boolean>(false);
 
+  // Refs for tracking active stroke during pointermove events to prevent React state closure lag
+  const activeDrawingStrokeRef = useRef<DrawingStroke | null>(null);
+  const isDrawingPointerDownRef = useRef<boolean>(false);
+
   const [drawingUndoStack, setDrawingUndoStack] = useState<Record<string, DrawingStroke[][]>>({});
   const [drawingRedoStack, setDrawingRedoStack] = useState<Record<string, DrawingStroke[][]>>({});
 
@@ -66,6 +70,17 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const currentSlideStrokes = presenterStrokesMap[activeSlideKey] || [];
 
   const lastActiveStrokeBroadcastRef = useRef<number>(0);
+
+  const renderStrokePath = (stroke: DrawingStroke): string => {
+    if (!stroke.points || stroke.points.length === 0) return '';
+    if (stroke.points.length === 1) {
+      const pt = stroke.points[0];
+      return `M ${pt.x} ${pt.y} L ${pt.x + 0.1} ${pt.y + 0.1}`;
+    }
+    return stroke.points.reduce((acc, pt, i) => {
+      return i === 0 ? `M ${pt.x} ${pt.y}` : `${acc} L ${pt.x} ${pt.y}`;
+    }, '');
+  };
 
   const broadcastActiveStrokeLive = (stroke: DrawingStroke | null) => {
     // Local BroadcastChannel for instant <16ms projector popout sync
@@ -213,6 +228,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     const coords = getDrawingCoordinates(e);
     if (!coords) return;
 
+    isDrawingPointerDownRef.current = true;
     setIsDrawingPointerDown(true);
 
     if (penTool === 'eraser') {
@@ -224,13 +240,14 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         width: penTool === 'highlighter' ? 24 : penWidth,
         isHighlighter: penTool === 'highlighter'
       };
+      activeDrawingStrokeRef.current = newStroke;
       setActiveDrawingStroke(newStroke);
       broadcastActiveStrokeLive(newStroke);
     }
   };
 
   const handleDrawingPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (!isPenActive || !isDrawingPointerDown) return;
+    if (!isPenActive || !isDrawingPointerDownRef.current) return;
     e.preventDefault();
 
     const coords = getDrawingCoordinates(e);
@@ -238,23 +255,26 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
     if (penTool === 'eraser') {
       eraseStrokeAtPoint(coords);
-    } else if (activeDrawingStroke) {
-      const updatedStroke = {
-        ...activeDrawingStroke,
-        points: [...activeDrawingStroke.points, coords]
+    } else if (activeDrawingStrokeRef.current) {
+      const updatedStroke: DrawingStroke = {
+        ...activeDrawingStrokeRef.current,
+        points: [...activeDrawingStrokeRef.current.points, coords]
       };
+      activeDrawingStrokeRef.current = updatedStroke;
       setActiveDrawingStroke(updatedStroke);
       broadcastActiveStrokeLive(updatedStroke);
     }
   };
 
   const handleDrawingPointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (!isPenActive || !isDrawingPointerDown) return;
+    if (!isPenActive || !isDrawingPointerDownRef.current) return;
     e.preventDefault();
+    isDrawingPointerDownRef.current = false;
     setIsDrawingPointerDown(false);
 
-    if (activeDrawingStroke && activeDrawingStroke.points.length > 0) {
-      const updatedStrokes = [...currentSlideStrokes, activeDrawingStroke];
+    const currentStroke = activeDrawingStrokeRef.current;
+    if (currentStroke && currentStroke.points.length > 0) {
+      const updatedStrokes = [...currentSlideStrokes, currentStroke];
       setDrawingUndoStack(prev => ({
         ...prev,
         [activeSlideKey]: [...(prev[activeSlideKey] || []), currentSlideStrokes]
@@ -263,6 +283,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
       updatePresenterStrokes(activeSlideKey, updatedStrokes);
     }
+    activeDrawingStrokeRef.current = null;
     setActiveDrawingStroke(null);
     broadcastActiveStrokeLive(null);
   };
@@ -1090,10 +1111,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         onPointerLeave={isPenActive && !isProjectorMode ? handleDrawingPointerUp : undefined}
                       >
                         {currentSlideStrokes.map((stroke, idx) => {
-                          if (!stroke.points || stroke.points.length === 0) return null;
-                          const pathD = stroke.points.reduce((acc, pt, i) => {
-                            return i === 0 ? `M ${pt.x} ${pt.y}` : `${acc} L ${pt.x} ${pt.y}`;
-                          }, '');
+                          const pathD = renderStrokePath(stroke);
+                          if (!pathD) return null;
                           return (
                             <path
                               key={`split-stroke-${idx}`}
@@ -1107,11 +1126,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                             />
                           );
                         })}
-                        {activeDrawingStroke && activeDrawingStroke.points.length > 0 && (
+                        {activeDrawingStroke && (
                           <path
-                            d={activeDrawingStroke.points.reduce((acc, pt, i) => {
-                              return i === 0 ? `M ${pt.x} ${pt.y}` : `${acc} L ${pt.x} ${pt.y}`;
-                            }, '')}
+                            d={renderStrokePath(activeDrawingStroke)}
                             stroke={activeDrawingStroke.color}
                             strokeWidth={activeDrawingStroke.width}
                             strokeLinecap="round"
@@ -1280,10 +1297,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         onPointerLeave={isPenActive && !isProjectorMode ? handleDrawingPointerUp : undefined}
                       >
                         {currentSlideStrokes.map((stroke, idx) => {
-                          if (!stroke.points || stroke.points.length === 0) return null;
-                          const pathD = stroke.points.reduce((acc, pt, i) => {
-                            return i === 0 ? `M ${pt.x} ${pt.y}` : `${acc} L ${pt.x} ${pt.y}`;
-                          }, '');
+                          const pathD = renderStrokePath(stroke);
+                          if (!pathD) return null;
                           return (
                             <path
                               key={`single-stroke-${idx}`}
@@ -1297,11 +1312,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                             />
                           );
                         })}
-                        {activeDrawingStroke && activeDrawingStroke.points.length > 0 && (
+                        {activeDrawingStroke && (
                           <path
-                            d={activeDrawingStroke.points.reduce((acc, pt, i) => {
-                              return i === 0 ? `M ${pt.x} ${pt.y}` : `${acc} L ${pt.x} ${pt.y}`;
-                            }, '')}
+                            d={renderStrokePath(activeDrawingStroke)}
                             stroke={activeDrawingStroke.color}
                             strokeWidth={activeDrawingStroke.width}
                             strokeLinecap="round"
@@ -1366,10 +1379,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     className="absolute inset-0 w-full h-full pointer-events-none z-70"
                   >
                     {currentSlideStrokes.map((stroke, idx) => {
-                      if (!stroke.points || stroke.points.length === 0) return null;
-                      const pathD = stroke.points.reduce((acc, pt, i) => {
-                        return i === 0 ? `M ${pt.x} ${pt.y}` : `${acc} L ${pt.x} ${pt.y}`;
-                      }, '');
+                      const pathD = renderStrokePath(stroke);
+                      if (!pathD) return null;
                       return (
                         <path
                           key={`projector-stroke-${idx}`}
@@ -1383,6 +1394,17 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         />
                       );
                     })}
+                    {activeDrawingStroke && (
+                      <path
+                        d={renderStrokePath(activeDrawingStroke)}
+                        stroke={activeDrawingStroke.color}
+                        strokeWidth={activeDrawingStroke.width}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        fill="none"
+                        opacity={activeDrawingStroke.isHighlighter ? 0.45 : 1}
+                      />
+                    )}
                   </svg>
 
                   {/* Real-time Virtual Laser Pointer Dot rendered inside the aspect-ratio locked frame */}
@@ -2099,10 +2121,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               onPointerLeave={handleDrawingPointerUp}
             >
               {currentSlideStrokes.map((stroke, idx) => {
-                if (!stroke.points || stroke.points.length === 0) return null;
-                const pathD = stroke.points.reduce((acc, pt, i) => {
-                  return i === 0 ? `M ${pt.x} ${pt.y}` : `${acc} L ${pt.x} ${pt.y}`;
-                }, '');
+                const pathD = renderStrokePath(stroke);
+                if (!pathD) return null;
                 return (
                   <path
                     key={`popped-stroke-${idx}`}
@@ -2116,11 +2136,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                   />
                 );
               })}
-              {activeDrawingStroke && activeDrawingStroke.points.length > 0 && (
+              {activeDrawingStroke && (
                 <path
-                  d={activeDrawingStroke.points.reduce((acc, pt, i) => {
-                    return i === 0 ? `M ${pt.x} ${pt.y}` : `${acc} L ${pt.x} ${pt.y}`;
-                  }, '')}
+                  d={renderStrokePath(activeDrawingStroke)}
                   stroke={activeDrawingStroke.color}
                   strokeWidth={activeDrawingStroke.width}
                   strokeLinecap="round"
