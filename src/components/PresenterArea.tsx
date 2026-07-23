@@ -961,46 +961,63 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             )}
           </div>
         ) : (
-          <div 
-            style={{ 
-              aspectRatio: `${videoAspectRatio}`,
-              width: '100%',
-              height: 'auto',
-              maxWidth: '100%',
-              maxHeight: '100%',
-            }}
-            className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden p-1.5 flex items-center justify-center shadow-2xl mx-auto"
-          >
-            <ScreenCapture 
-              isCapturing={isCapturing} 
-              stream={stream} 
-              error={error} 
-              onStart={startCapture} 
-              onStop={stopCapture} 
-              logoUrl={logoUrl}
-              isProjectorMode={isProjectorMode}
-              videoRef={videoRef}
-              onLoadedMetadata={handleVideoLoadedMetadata}
-            />
-
-            {/* Real-time Virtual Laser Pointer Dot rendered inside the aspect-ratio locked frame */}
-            {presentation?.laserActive && presentation.laserX !== undefined && presentation.laserY !== undefined && (
-              <div 
-                style={{
-                  left: `${presentation.laserX}%`,
-                  top: `${presentation.laserY}%`,
-                  transform: 'translate(-50%, -50%)',
-                  width: '15px',
-                  height: '15px',
-                  borderRadius: '50%',
-                  backgroundColor: 'red',
-                  boxShadow: '0 0 8px 3px rgba(255, 0, 0, 0.8), 0 0 15px 5px rgba(255, 0, 0, 0.4)',
-                  position: 'absolute',
-                  pointerEvents: 'none',
-                  zIndex: 80,
-                  transition: 'top 0.05s ease-out, left 0.05s ease-out'
-                }}
+          <div className="flex flex-col items-center justify-center w-full h-full p-4 relative">
+            <div 
+              style={{ 
+                aspectRatio: `${videoAspectRatio}`,
+                width: '100%',
+                height: 'auto',
+                maxWidth: '100%',
+                maxHeight: 'calc(100% - 40px)',
+              }}
+              className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden p-1.5 flex items-center justify-center shadow-2xl mx-auto"
+            >
+              <ScreenCapture 
+                isCapturing={isCapturing} 
+                stream={stream} 
+                error={error} 
+                onStart={startCapture} 
+                onStop={stopCapture} 
+                logoUrl={logoUrl}
+                isProjectorMode={isProjectorMode}
+                videoRef={videoRef}
+                onLoadedMetadata={handleVideoLoadedMetadata}
               />
+
+              {/* Real-time Virtual Laser Pointer Dot rendered inside the aspect-ratio locked frame */}
+              {presentation?.laserActive && presentation.laserX !== undefined && presentation.laserY !== undefined && (
+                <div 
+                  style={{
+                    left: `${presentation.laserX}%`,
+                    top: `${presentation.laserY}%`,
+                    transform: 'translate(-50%, -50%)',
+                    width: '15px',
+                    height: '15px',
+                    borderRadius: '50%',
+                    backgroundColor: 'red',
+                    boxShadow: '0 0 8px 3px rgba(255, 0, 0, 0.8), 0 0 15px 5px rgba(255, 0, 0, 0.4)',
+                    position: 'absolute',
+                    pointerEvents: 'none',
+                    zIndex: 80,
+                    transition: 'top 0.05s ease-out, left 0.05s ease-out'
+                  }}
+                />
+              )}
+            </div>
+
+            {/* Unobtrusive Centered Slide Number under slide display in Projector Mode */}
+            {isCapturing && (
+              <div className="mt-2.5 flex items-center justify-center shrink-0 z-20">
+                <div className="px-3.5 py-1 rounded-full bg-slate-900/80 backdrop-blur-md border border-slate-800/80 text-slate-300 shadow-xl flex items-center gap-1.5 text-xs font-semibold tracking-wide select-none">
+                  <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400">Slide</span>
+                  <span className="font-mono font-bold text-osu-orange text-sm">
+                    {currentSlide !== null ? currentSlide : (presentation?.currentSlide ?? 1)}
+                  </span>
+                  {totalSlides ? (
+                    <span className="text-slate-500 text-xs font-mono">/ {totalSlides}</span>
+                  ) : null}
+                </div>
+              </div>
             )}
           </div>
         )}
