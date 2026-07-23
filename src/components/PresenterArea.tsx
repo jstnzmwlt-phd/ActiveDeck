@@ -1319,7 +1319,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     )}
                   </div>
                   {/* Clock Display under Next Slide Preview */}
-                  <div className="mt-2 flex items-center justify-center gap-2.5 px-3 py-2 bg-slate-950/95 border border-slate-800 rounded-xl shadow-xl text-slate-100 select-none w-full max-w-full overflow-hidden shrink-0">
+                  <div className="mt-2 flex items-center justify-center gap-2.5 px-5 py-2 bg-slate-950/95 border border-slate-800 rounded-xl shadow-xl text-slate-100 select-none w-fit mx-auto shrink-0">
                     <Clock className="w-6 h-6 md:w-7 md:h-7 text-osu-orange shrink-0 animate-pulse" />
                     <div className="flex items-baseline font-mono font-black text-2xl md:text-3xl lg:text-4xl tracking-tight leading-none">
                       <span>{(currentTime.getHours() % 12 || 12).toString().padStart(2, '0')}:{currentTime.getMinutes().toString().padStart(2, '0')}</span>

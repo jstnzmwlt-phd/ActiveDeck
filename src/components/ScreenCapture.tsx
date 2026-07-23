@@ -29,17 +29,31 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
 
   useEffect(() => {
     const videoElem = activeVideoRef.current;
-    if (videoElem && stream && isCapturing) {
-      videoElem.srcObject = stream;
-      videoElem.play().catch(err => {
-        console.warn("ActiveDeck: Initial video play attempt failed, retrying...", err);
-        requestAnimationFrame(() => {
-          if (videoElem && stream) {
-            videoElem.play().catch(e => console.error("ActiveDeck: Video stream play retry failed:", e));
-          }
+    if (!videoElem) return;
+
+    if (stream && isCapturing) {
+      if (videoElem.srcObject !== stream) {
+        videoElem.srcObject = stream;
+      }
+      
+      const playVideo = () => {
+        videoElem.play().catch(err => {
+          console.warn("ActiveDeck: Initial video play failed, retrying...", err);
+          setTimeout(() => {
+            if (videoElem && stream) {
+              videoElem.play().catch(e => console.error("ActiveDeck: Video play retry failed:", e));
+            }
+          }, 250);
         });
-      });
-    } else if (videoElem && (!stream || !isCapturing)) {
+      };
+
+      if (videoElem.readyState >= 2) {
+        playVideo();
+      } else {
+        videoElem.onloadedmetadata = () => playVideo();
+        playVideo();
+      }
+    } else if (!stream || !isCapturing) {
       videoElem.srcObject = null;
     }
   }, [stream, isCapturing]);
@@ -61,11 +75,23 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
         )}
         
         <video
-          ref={activeVideoRef}
+          ref={(el) => {
+            if (videoRef) {
+              (videoRef as any).current = el;
+            }
+            (localVideoRef as any).current = el;
+            if (el && stream && isCapturing && el.srcObject !== stream) {
+              el.srcObject = stream;
+              el.play().catch(() => {});
+            }
+          }}
           autoPlay
           playsInline
           muted
-          onLoadedMetadata={onLoadedMetadata}
+          onLoadedMetadata={(e) => {
+            e.currentTarget.play().catch(() => {});
+            if (onLoadedMetadata) onLoadedMetadata(e);
+          }}
           className={`absolute inset-0 w-full h-full object-contain z-10 ${isCapturing ? 'opacity-100' : 'opacity-0'}`}
         />
         

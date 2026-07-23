@@ -357,7 +357,6 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
               }}
             >
               <span>Active<span className="text-osu-orange">Deck</span></span>
-              <span className="text-[10px] font-black uppercase tracking-wider bg-osu-orange/10 text-osu-orange px-1.5 py-0.5 rounded border border-osu-orange/20">v2.0</span>
             </h1>
         </div>
 
