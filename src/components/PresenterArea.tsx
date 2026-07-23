@@ -52,7 +52,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   // Presenter Live Slide Drawing State
   const [isPenActive, setIsPenActive] = useState<boolean>(false);
   const [penTool, setPenTool] = useState<'pen' | 'highlighter' | 'eraser'>('pen');
-  const [penColor, setPenColor] = useState<string>('#eb5d00'); // OSU Orange
+  const [penColor, setPenColor] = useState<string>('#EF4444'); // Default Red
+  const [highlighterColor, setHighlighterColor] = useState<string>('#EAB308'); // Default Yellow
   const [penWidth, setPenWidth] = useState<number>(6);
   const [presenterStrokesMap, setPresenterStrokesMap] = useState<Record<string, DrawingStroke[]>>({});
   const [activeDrawingStroke, setActiveDrawingStroke] = useState<DrawingStroke | null>(null);
@@ -63,6 +64,33 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
   const activeSlideKey = String(currentSlide !== null ? currentSlide : (presentation?.currentSlide || 1));
   const currentSlideStrokes = presenterStrokesMap[activeSlideKey] || [];
+
+  const lastActiveStrokeBroadcastRef = useRef<number>(0);
+
+  const broadcastActiveStrokeLive = (stroke: DrawingStroke | null) => {
+    // Local BroadcastChannel for instant <16ms projector popout sync
+    try {
+      const channel = new BroadcastChannel('activedeck-presenter-drawing');
+      channel.postMessage({
+        type: 'active-stroke-update',
+        presentationId: presentation?.id,
+        slide: activeSlideKey,
+        activeStroke: stroke
+      });
+      channel.close();
+    } catch (e) {}
+
+    // Throttled Firebase update for remote projector windows (every 50ms)
+    const now = Date.now();
+    if (presentation?.id && (now - lastActiveStrokeBroadcastRef.current > 50 || stroke === null)) {
+      lastActiveStrokeBroadcastRef.current = now;
+      updateDoc(doc(db, 'presentations', presentation.id), {
+        activeDrawingStrokeJSON: stroke ? JSON.stringify(stroke) : null
+      }).catch(err => {
+        console.warn("Failed to update active drawing stroke in Firebase:", err);
+      });
+    }
+  };
 
   // Sync presenter drawings from Firestore
   useEffect(() => {
@@ -80,6 +108,21 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     }
   }, [presentation?.presenterDrawings]);
 
+  // Sync live active drawing stroke on Projector Mode from Firebase
+  useEffect(() => {
+    if (!isProjectorMode) return;
+    if (!presentation?.activeDrawingStrokeJSON) {
+      setActiveDrawingStroke(null);
+      return;
+    }
+    try {
+      const parsed = JSON.parse(presentation.activeDrawingStrokeJSON);
+      setActiveDrawingStroke(parsed);
+    } catch {
+      setActiveDrawingStroke(null);
+    }
+  }, [isProjectorMode, presentation?.activeDrawingStrokeJSON]);
+
   // Fast local multi-window sync via BroadcastChannel (e.g. Presenter -> Projector mode popup)
   useEffect(() => {
     const channel = new BroadcastChannel('activedeck-presenter-drawing');
@@ -89,6 +132,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           ...prev,
           [e.data.slide]: e.data.strokes
         }));
+      } else if (e.data && e.data.type === 'active-stroke-update' && e.data.presentationId === presentation?.id) {
+        if (isProjectorMode && e.data.slide === activeSlideKey) {
+          setActiveDrawingStroke(e.data.activeStroke);
+        }
       }
     };
     channel.addEventListener('message', handleMessage);
@@ -96,7 +143,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       channel.removeEventListener('message', handleMessage);
       channel.close();
     };
-  }, [presentation?.id]);
+  }, [presentation?.id, isProjectorMode, activeSlideKey]);
 
   const updatePresenterStrokes = async (slideKey: string, newStrokes: DrawingStroke[]) => {
     setPresenterStrokesMap(prev => ({
@@ -173,11 +220,12 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     } else {
       const newStroke: DrawingStroke = {
         points: [coords],
-        color: penTool === 'highlighter' ? '#EAB308' : penColor,
+        color: penTool === 'highlighter' ? highlighterColor : penColor,
         width: penTool === 'highlighter' ? 24 : penWidth,
         isHighlighter: penTool === 'highlighter'
       };
       setActiveDrawingStroke(newStroke);
+      broadcastActiveStrokeLive(newStroke);
     }
   };
 
@@ -191,10 +239,12 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     if (penTool === 'eraser') {
       eraseStrokeAtPoint(coords);
     } else if (activeDrawingStroke) {
-      setActiveDrawingStroke(prev => prev ? {
-        ...prev,
-        points: [...prev.points, coords]
-      } : null);
+      const updatedStroke = {
+        ...activeDrawingStroke,
+        points: [...activeDrawingStroke.points, coords]
+      };
+      setActiveDrawingStroke(updatedStroke);
+      broadcastActiveStrokeLive(updatedStroke);
     }
   };
 
@@ -214,6 +264,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       updatePresenterStrokes(activeSlideKey, updatedStrokes);
     }
     setActiveDrawingStroke(null);
+    broadcastActiveStrokeLive(null);
   };
 
   const handleUndoDrawing = () => {
@@ -928,21 +979,6 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
           {/* Right Side: Presenter Controls */}
           <div className="flex items-center gap-2">
-            {/* Push Image to Notes Button */}
-            <button
-              onClick={handlePushImageToNotes}
-              disabled={isPushingToNotes}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-500 text-white text-[9px] font-black uppercase tracking-wider rounded-lg border border-orange-500/30 shadow-lg shadow-orange-500/15 transition-all hover:scale-105 active:scale-95 cursor-pointer"
-              title="Push current display window image to audience notes as a new note tab"
-            >
-              {isPushingToNotes ? (
-                <Loader2 className="w-3 h-3 animate-spin text-white" />
-              ) : (
-                <Send className="w-3 h-3 text-white" />
-              )}
-              <span>{isPushingToNotes ? 'Pushing...' : 'Push Image to Notes'}</span>
-            </button>
-
             {/* Present with Notes Toggle Switch */}
             <button
               onClick={() => {
@@ -1193,12 +1229,12 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     )}
                   </div>
                   {/* Clock Display under Next Slide Preview */}
-                  <div className="mt-2 flex items-center justify-center gap-2 p-3 bg-slate-950 border border-slate-850 rounded-2xl shadow-lg text-slate-100 select-none">
-                    <Clock className="w-4 h-4 text-osu-orange" />
-                    <div className="flex items-baseline font-mono font-bold text-base md:text-lg">
+                  <div className="mt-2 flex items-center justify-center gap-2.5 px-3 py-2 bg-slate-950/95 border border-slate-800 rounded-xl shadow-xl text-slate-100 select-none w-full max-w-full overflow-hidden shrink-0">
+                    <Clock className="w-6 h-6 md:w-7 md:h-7 text-osu-orange shrink-0 animate-pulse" />
+                    <div className="flex items-baseline font-mono font-black text-2xl md:text-3xl lg:text-4xl tracking-tight leading-none">
                       <span>{(currentTime.getHours() % 12 || 12).toString().padStart(2, '0')}:{currentTime.getMinutes().toString().padStart(2, '0')}</span>
-                      <span className="text-[0.7em] opacity-60 ml-0.5">:{currentTime.getSeconds().toString().padStart(2, '0')}</span>
-                      <span className="text-[0.8em] ml-1.5 font-sans font-black text-osu-orange">{currentTime.getHours() >= 12 ? 'PM' : 'AM'}</span>
+                      <span className="text-[0.6em] text-slate-400 font-semibold ml-0.5">:{currentTime.getSeconds().toString().padStart(2, '0')}</span>
+                      <span className="text-[0.65em] ml-1.5 font-sans font-black text-osu-orange uppercase">{currentTime.getHours() >= 12 ? 'PM' : 'AM'}</span>
                     </div>
                   </div>
                 </div>
@@ -1833,8 +1869,22 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             </button>
           </div>
 
-          {/* Right Side: Audience Slide Preview Pushed Status Indicator */}
+          {/* Right Side: Audience Slide Preview Pushed Status Indicator & Push Action */}
           <div className="absolute right-4 flex items-center gap-2">
+            {/* Push Image to Notes Button */}
+            <button
+              onClick={handlePushImageToNotes}
+              disabled={isPushingToNotes}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-500 text-white text-[11px] font-bold uppercase tracking-wider rounded-xl border border-orange-500/30 shadow-lg shadow-orange-500/15 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+              title="Push current display window image to audience notes as a new note tab"
+            >
+              {isPushingToNotes ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+              ) : (
+                <Send className="w-3.5 h-3.5 text-white" />
+              )}
+              <span>{isPushingToNotes ? 'Pushing...' : 'Push Image to Notes'}</span>
+            </button>
             {currentSlidePreviewUrl ? (
               <div 
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 text-[11px] font-bold rounded-xl shadow-lg animate-in fade-in duration-200"
@@ -1905,12 +1955,12 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               </button>
             </div>
 
-            {/* Color Palette */}
-            {penTool !== 'eraser' && (
+            {/* Color Palette (Pen vs Highlighter) */}
+            {penTool === 'pen' ? (
               <div className="flex items-center gap-1.5 border-l border-slate-800 pl-3">
                 {[
+                  { color: '#EF4444', name: 'Red (Default)' },
                   { color: '#eb5d00', name: 'OSU Orange' },
-                  { color: '#EF4444', name: 'Red' },
                   { color: '#EAB308', name: 'Yellow' },
                   { color: '#22C55E', name: 'Green' },
                   { color: '#3B82F6', name: 'Blue' },
@@ -1919,13 +1969,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 ].map(c => (
                   <button
                     key={c.color}
-                    onClick={() => {
-                      setPenColor(c.color);
-                      if (penTool === 'highlighter') setPenTool('pen');
-                    }}
+                    onClick={() => setPenColor(c.color)}
                     className={`w-6 h-6 rounded-full border-2 transition-transform cursor-pointer ${
                       penColor === c.color
-                        ? 'scale-125 border-white ring-2 ring-osu-orange'
+                        ? 'scale-125 border-white ring-2 ring-red-500'
                         : 'border-slate-700 hover:scale-110'
                     }`}
                     style={{ backgroundColor: c.color }}
@@ -1933,7 +1980,28 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                   />
                 ))}
               </div>
-            )}
+            ) : penTool === 'highlighter' ? (
+              <div className="flex items-center gap-1.5 border-l border-slate-800 pl-3">
+                {[
+                  { color: '#EAB308', name: 'Yellow Highlighter' },
+                  { color: '#EF4444', name: 'Red Highlighter' },
+                  { color: '#22C55E', name: 'Green Highlighter' },
+                  { color: '#3B82F6', name: 'Blue Highlighter' }
+                ].map(c => (
+                  <button
+                    key={c.color}
+                    onClick={() => setHighlighterColor(c.color)}
+                    className={`w-6 h-6 rounded-full border-2 transition-transform cursor-pointer ${
+                      highlighterColor === c.color
+                        ? 'scale-125 border-white ring-2 ring-amber-400'
+                        : 'border-slate-700 hover:scale-110'
+                    }`}
+                    style={{ backgroundColor: c.color }}
+                    title={c.name}
+                  />
+                ))}
+              </div>
+            ) : null}
 
             {/* Stroke Thickness */}
             {penTool !== 'eraser' && (

@@ -50,6 +50,7 @@ export interface Presentation {
   isEnded?: boolean;
   showSlidePreview?: boolean;
   presenterDrawings?: Record<string, string>;
+  activeDrawingStrokeJSON?: string | null;
 }
 
 export interface Message {
