@@ -4,7 +4,7 @@ interface BridgeContextType {
   isBridgeConnected: boolean;
   useWithoutBridge: boolean;
   setUseWithoutBridge: (value: boolean) => void;
-  sendSlideCommand: (direction: 'next' | 'prev') => void;
+  sendSlideCommand: (direction: 'next' | 'prev' | number) => void;
   currentSlide: number | null;
   currentSlideBase64: string | null;
   nextSlide: number | null;
@@ -114,15 +114,16 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
   }, []);
 
-  const sendSlideCommand = (direction: 'next' | 'prev') => {
+  const sendSlideCommand = (direction: 'next' | 'prev' | number) => {
+    const cmd = String(direction);
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      console.log(`ActiveDeck: Sending '${direction}' command via WebSocket...`);
-      wsRef.current.send(direction);
+      console.log(`ActiveDeck: Sending '${cmd}' command via WebSocket...`);
+      wsRef.current.send(cmd);
     } else {
-      console.warn(`ActiveDeck: WebSocket not connected. Falling back to background trigger for ${direction}...`);
+      console.warn(`ActiveDeck: WebSocket not connected. Falling back to background trigger for ${cmd}...`);
       // Fallback to Image trick if WebSocket is unavailable
       const img = new Image();
-      img.src = `http://127.0.0.1:5000/${direction}?t=${new Date().getTime()}`;
+      img.src = `http://127.0.0.1:5000/${cmd}?t=${new Date().getTime()}`;
     }
   };
 

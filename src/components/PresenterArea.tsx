@@ -49,6 +49,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const [error, setError] = useState<string | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
   const [laserEnabled, setLaserEnabled] = useState(true);
+  const [showSlideSelector, setShowSlideSelector] = useState(false);
+  const selectorRef = useRef<HTMLButtonElement>(null);
   const [presentWithNotes, setPresentWithNotes] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -874,6 +876,17 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     };
     fetchTheme();
   }, []);
+
+  useEffect(() => {
+    if (!showSlideSelector) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (selectorRef.current && !selectorRef.current.contains(e.target as Node)) {
+        setShowSlideSelector(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showSlideSelector]);
 
   const handleSlideMove = (direction: 'next' | 'prev') => {
     sendSlideCommand(direction);
@@ -2080,9 +2093,41 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             {totalSlides !== null && currentSlide !== null ? (
               <>
                 <div className="w-px h-6 bg-slate-800/80" />
-                <div className="px-4 py-1 text-[11px] font-black uppercase tracking-widest text-slate-200 bg-slate-950/80 rounded-lg border border-slate-850/50 min-w-[120px] text-center font-mono">
-                  Slide {currentSlide} of {totalSlides}
-                </div>
+                <button
+                  ref={selectorRef}
+                  onClick={() => setShowSlideSelector(prev => !prev)}
+                  className="relative px-4 py-1 text-[11px] font-black uppercase tracking-widest text-slate-200 bg-slate-950/80 hover:bg-slate-900 rounded-lg border border-slate-850/50 min-w-[125px] text-center font-mono cursor-pointer transition-all flex items-center justify-center gap-1.5 select-none group/indicator"
+                  title="Jump to Slide..."
+                >
+                  <span>Slide {currentSlide} of {totalSlides}</span>
+                  <span className="text-[7px] text-slate-400 group-hover/indicator:text-osu-orange transition-colors">▼</span>
+                  
+                  {/* Slide Quick-Selector Grid Dropdown */}
+                  {showSlideSelector && (
+                    <div 
+                      onClick={(e) => e.stopPropagation()}
+                      className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 bg-slate-950 border border-slate-800/85 rounded-xl shadow-2xl p-2.5 w-52 max-h-64 overflow-y-auto grid grid-cols-4 gap-1.5 z-[9999] animate-in fade-in slide-in-from-bottom-2 duration-150"
+                    >
+                      {Array.from({ length: totalSlides }, (_, i) => i + 1).map((sNum) => (
+                        <button
+                          key={`select-slide-${sNum}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            sendSlideCommand(sNum);
+                            setShowSlideSelector(false);
+                          }}
+                          className={`h-8 w-full rounded-lg flex items-center justify-center text-xs font-bold font-mono transition-all duration-150 cursor-pointer ${
+                            sNum === currentSlide
+                              ? 'bg-osu-orange text-white shadow-lg shadow-orange-500/10 scale-105 border border-orange-500/30'
+                              : 'bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-850'
+                          }`}
+                        >
+                          {sNum}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </button>
                 <div className="w-px h-6 bg-slate-800/80" />
               </>
             ) : null}

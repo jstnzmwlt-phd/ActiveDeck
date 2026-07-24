@@ -1929,12 +1929,13 @@ function AppContent() {
                   title={pushedSlidesMap[activeTab] ? `Slide ${activeTab} Preview (Tap to Zoom)` : "No slide preview shared yet"}
                 >
                   {pushedSlidesMap[activeTab] ? (
-                    <div className="w-full h-full relative cursor-zoom-in">
-                      <img 
-                        src={pushedSlidesMap[activeTab]} 
-                        alt={`Slide ${activeTab} Preview`}
-                        className="w-full h-full object-contain"
-                      />
+                    <div className="relative w-full h-full flex items-center justify-center cursor-zoom-in bg-black">
+                      <div className="relative max-w-full max-h-full flex items-center justify-center">
+                        <img 
+                          src={pushedSlidesMap[activeTab]} 
+                          alt={`Slide ${activeTab} Preview`}
+                          className="max-w-full max-h-[25vh] object-contain pointer-events-none"
+                        />
                       {/* Presenter Live Slide Drawing Layer */}
                       {(() => {
                         const drawingsJson = presentation?.presenterDrawings?.[activeTab];
@@ -2042,6 +2043,7 @@ function AppContent() {
                         }
                       })()}
                       {/* Floating badge */}
+                      </div>
                       <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-black/60 border border-white/10 text-white text-[9px] font-bold">
                         Slide {activeTab}
                       </div>
@@ -2759,11 +2761,12 @@ function AppContent() {
                               className="flex-1 relative overflow-hidden bg-black flex items-center justify-center min-h-0 cursor-zoom-in group/preview"
                               title="Click to zoom in"
                             >
-                              <img 
-                                src={pushedSlidesMap[activeTab]} 
-                                alt={`${getTabTitle(activeTab)} Preview`}
-                                className="absolute inset-0 w-full h-full object-contain transition-transform duration-300 group-hover/preview:scale-[1.01]"
-                              />
+                              <div className="relative max-w-full max-h-full flex items-center justify-center">
+                                <img 
+                                  src={pushedSlidesMap[activeTab]} 
+                                  alt={`${getTabTitle(activeTab)} Preview`}
+                                  className="max-w-full max-h-full object-contain transition-transform duration-300 group-hover/preview:scale-[1.01] pointer-events-none"
+                                />
                               {/* Presenter Live Slide Drawing Layer */}
                               {(() => {
                                 const drawingsJson = presentation?.presenterDrawings?.[activeTab];
@@ -2870,6 +2873,7 @@ function AppContent() {
                                   return null;
                                 }
                               })()}
+                              </div>
                               {/* Floating Glassmorphic Expand Icon */}
                               <div className="absolute top-2.5 right-2.5 p-2 rounded-lg bg-black/60 border border-white/10 text-white/70 group-hover/preview:text-white group-hover/preview:bg-osu-orange group-hover/preview:border-osu-orange/50 shadow-lg backdrop-blur-md opacity-0 group-hover/preview:opacity-100 transition-all duration-300 transform scale-95 group-hover/preview:scale-100 flex items-center justify-center">
                                 <Maximize className="w-4 h-4" />

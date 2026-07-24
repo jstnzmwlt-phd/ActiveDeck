@@ -32,15 +32,32 @@ def move_ppt_windows(direction):
             view = ppt_app.SlideShowWindows(1).View
             if direction == "next":
                 view.Next()
-            else:
+            elif direction == "prev":
                 view.Previous()
+            else:
+                try:
+                    slide_num = int(direction)
+                    presentation = ppt_app.SlideShowWindows(1).Presentation
+                    if 1 <= slide_num <= presentation.Slides.Count:
+                        view.GotoSlide(slide_num)
+                except ValueError:
+                    pass
     except Exception:
         pass
     finally:
         pythoncom.CoUninitialize()
 
 def move_ppt_mac(direction):
-    script = 'tell application "Microsoft PowerPoint" to go to next slide slide show view of slide show window 1' if direction == "next" else 'tell application "Microsoft PowerPoint" to go to previous slide slide show view of slide show window 1'
+    if direction == "next":
+        script = 'tell application "Microsoft PowerPoint" to go to next slide slide show view of slide show window 1'
+    elif direction == "prev":
+        script = 'tell application "Microsoft PowerPoint" to go to previous slide slide show view of slide show window 1'
+    else:
+        try:
+            slide_num = int(direction)
+            script = f'tell application "Microsoft PowerPoint" to go to slide {slide_num} slide show view of slide show window 1'
+        except ValueError:
+            return
     try:
         subprocess.run(["osascript", "-e", script], capture_output=True, text=True, check=True)
     except Exception:
@@ -176,7 +193,7 @@ def handle_ws(ws):
     while True:
         try:
             message = ws.receive(timeout=0.5)
-            if message in ['next', 'prev']:
+            if message:
                 move_ppt_silently(message)
         except Exception:
             pass
