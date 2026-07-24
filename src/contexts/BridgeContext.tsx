@@ -6,6 +6,7 @@ interface BridgeContextType {
   setUseWithoutBridge: (value: boolean) => void;
   sendSlideCommand: (direction: 'next' | 'prev') => void;
   currentSlide: number | null;
+  currentSlideBase64: string | null;
   nextSlide: number | null;
   nextSlideBase64: string | null;
   totalSlides: number | null;
@@ -20,12 +21,14 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isBridgeConnected, setIsBridgeConnected] = useState(false);
   const [useWithoutBridge, setUseWithoutBridge] = useState(false);
   const [currentSlide, setCurrentSlide] = useState<number | null>(null);
+  const [currentSlideBase64, setCurrentSlideBase64] = useState<string | null>(null);
   const [nextSlide, setNextSlide] = useState<number | null>(null);
   const [nextSlideBase64, setNextSlideBase64] = useState<string | null>(null);
   const [totalSlides, setTotalSlides] = useState<number | null>(null);
   const [notes, setNotes] = useState<string | null>(null);
 
   const clearNotesState = () => {
+    setCurrentSlideBase64(null);
     setNextSlide(null);
     setNextSlideBase64(null);
     setTotalSlides(null);
@@ -68,6 +71,7 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             if (data && typeof data.current_slide === 'number') {
               console.log('ActiveDeck: Rich payload received (JSON):', data);
               setCurrentSlide(data.current_slide);
+              setCurrentSlideBase64(typeof data.current_slide_base64 === 'string' ? data.current_slide_base64 : null);
               setNextSlide(typeof data.next_slide === 'number' ? data.next_slide : null);
               setNextSlideBase64(typeof data.next_slide_base64 === 'string' ? data.next_slide_base64 : null);
               setTotalSlides(typeof data.total_slides === 'number' ? data.total_slides : null);
@@ -129,6 +133,7 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setUseWithoutBridge, 
       sendSlideCommand,
       currentSlide,
+      currentSlideBase64,
       nextSlide,
       nextSlideBase64,
       totalSlides,

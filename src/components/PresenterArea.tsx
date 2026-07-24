@@ -35,6 +35,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     isBridgeConnected, 
     useWithoutBridge, 
     setUseWithoutBridge,
+    currentSlideBase64,
     nextSlide,
     nextSlideBase64,
     totalSlides,
@@ -583,8 +584,21 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       try {
         let blob: Blob | null = null;
 
-        // Try to fetch clean, static slide image exported by the PowerPoint bridge if connected
-        if (isBridgeConnected) {
+        // 1. Try to use WebSocket currentSlideBase64 if connected, matching activeSlideNum, and available
+        if (isBridgeConnected && currentSlideBase64 && activeSlideNum === currentSlide) {
+          try {
+            const response = await fetch(currentSlideBase64);
+            if (response.ok) {
+              blob = await response.blob();
+              console.log(`[SlidePreview 2-Stage] ${stageName} retrieved clean slide image from currentSlideBase64 for slide ${activeSlideNum}`);
+            }
+          } catch (base64Err) {
+            console.warn(`[SlidePreview 2-Stage] ${stageName} failed to get blob from currentSlideBase64, falling back to bridge fetch:`, base64Err);
+          }
+        }
+
+        // 2. Try to fetch clean, static slide image exported by the PowerPoint bridge if connected
+        if (!blob && isBridgeConnected) {
           try {
             const slideUrl = `http://127.0.0.1:5000/slides/${activeSlideNum}.jpg`;
             const response = await fetch(slideUrl);
@@ -599,7 +613,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           }
         }
 
-        // Fallback to capturing the live screen shared video element if bridge image is unavailable
+        // 3. Fallback to capturing the live screen shared video element if bridge image is unavailable
         if (!blob) {
           const video = containerRef.current?.querySelector('video') || videoRef.current;
           if (!video || !video.videoWidth || !video.videoHeight) {
