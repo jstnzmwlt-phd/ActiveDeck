@@ -2375,7 +2375,7 @@ function AppContent() {
             imageUrl={lightboxImgUrl} 
             title={`Slide ${activeTab} Preview`} 
             drawingStrokesJson={presentation?.presenterDrawings?.[activeTab]}
-            allowStudentDrawing={notesMode === 'pen'}
+            allowStudentDrawing={true}
             studentStrokesJson={studentSlideDrawingsMap[activeTab] || ''}
             onStudentStrokesChange={(newJson) => {
               setStudentSlideDrawingsMap(prev => ({
@@ -2923,7 +2923,7 @@ function AppContent() {
         imageUrl={lightboxImgUrl} 
         title={`${getTabTitle(activeTab)} Preview`} 
         drawingStrokesJson={presentation?.presenterDrawings?.[activeTab]}
-        allowStudentDrawing={notesMode === 'pen'}
+        allowStudentDrawing={true}
         studentStrokesJson={studentSlideDrawingsMap[activeTab] || ''}
         onStudentStrokesChange={(newJson) => {
           setStudentSlideDrawingsMap(prev => ({
@@ -2987,7 +2987,7 @@ function AppContent() {
         imageUrl={lightboxImgUrl} 
         title={`Slide ${activeTab} Preview`} 
         drawingStrokesJson={presentation?.presenterDrawings?.[activeTab]}
-        allowStudentDrawing={notesMode === 'pen'}
+        allowStudentDrawing={true}
         studentStrokesJson={studentSlideDrawingsMap[activeTab] || ''}
         onStudentStrokesChange={(newJson) => {
           setStudentSlideDrawingsMap(prev => ({

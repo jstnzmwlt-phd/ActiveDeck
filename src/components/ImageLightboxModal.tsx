@@ -19,7 +19,7 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
   imageUrl,
   title = "Pushed Slide View",
   drawingStrokesJson,
-  allowStudentDrawing = false,
+  allowStudentDrawing = true,
   studentStrokesJson = '',
   onStudentStrokesChange
 }) => {
