@@ -398,7 +398,9 @@ function AppContent() {
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [lightboxImgUrl, setLightboxImgUrl] = useState('');
 
-  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+  const [isMobile, setIsMobile] = useState(() => 
+    typeof window !== 'undefined' ? (window.innerWidth < 768 || window.innerHeight > window.innerWidth) : false
+  );
   const [mobileTab, setMobileTab] = useState<'chat' | 'notes'>('chat');
 
   // Maintain maxSlideSeen so slide tabs only grow and never get removed when presenter moves backwards
@@ -442,7 +444,7 @@ function AppContent() {
 
   useEffect(() => {
     const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
+      setIsMobile(window.innerWidth < 768 || window.innerHeight > window.innerWidth);
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
