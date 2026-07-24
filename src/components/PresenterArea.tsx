@@ -2354,13 +2354,19 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             <button
               onClick={handleDownloadPresentation}
               disabled={isDownloadingPresentation}
-              className="flex items-center justify-center w-10 h-10 bg-slate-950/40 hover:bg-slate-850 disabled:bg-slate-800/20 disabled:text-slate-600 text-slate-400 hover:text-white rounded-xl transition-all active:scale-95 border border-slate-800 cursor-pointer shadow-lg hover:scale-105"
+              className="flex items-center gap-2 px-3.5 py-2 bg-slate-955/40 hover:bg-slate-850 disabled:bg-slate-800/20 disabled:text-slate-600 text-slate-400 hover:text-white rounded-xl transition-all active:scale-95 border border-slate-800 cursor-pointer shadow-lg hover:scale-105 text-[10px] font-black uppercase tracking-wider whitespace-nowrap"
               title="Download presentation annotations (.docx)"
             >
               {isDownloadingPresentation ? (
-                <Loader2 className="w-4 h-4 animate-spin text-osu-orange" />
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-osu-orange" />
+                  <span>Downloading...</span>
+                </>
               ) : (
-                <Download className="w-4 h-4" />
+                <>
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download Presentation</span>
+                </>
               )}
             </button>
           </div>
