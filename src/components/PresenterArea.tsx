@@ -41,7 +41,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     notes,
     clearNotesState
   } = useBridge();
-  const [activeTab, setActiveTab] = useState<'single' | 'dual' | 'manual'>('single');
+  const [activeTab, setActiveTab] = useState<'single' | 'dual' | 'manual'>('dual');
   const [secondaryColor, setSecondaryColor] = useState<string>('#ff3e00');
   const [isCapturing, setIsCapturing] = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -1765,11 +1765,12 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     Bridge Connected & Ready
                   </span>
                 ) : (
-                  <span>Choose your presentation type to get started.</span>
+                  <span>Follow the steps below to set up your presentation.</span>
                 )}
               </div>
               
-              {/* Tabbed Interface */}
+              {/* Tabbed Interface - Hidden to only show Dual Screen */}
+              {/*
               <div className="flex p-1 bg-slate-100 rounded-xl mb-4">
                 <button
                   onClick={() => setActiveTab('single')}
@@ -1799,8 +1800,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                   Manual Mode
                 </button>
               </div>
+              */}
 
               <div className="text-left mb-4 min-h-[380px] flex flex-col">
+                {/* Single Screen - Hidden to only show Dual Screen */}
+                {/*
                 {activeTab === 'single' && (
                   <div className="flex-1 flex flex-col space-y-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
                     <div>
@@ -1871,11 +1875,12 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     </div>
                   </div>
                 )}
+                */}
 
                 {activeTab === 'dual' && (
                   <div className="flex-1 flex flex-col space-y-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
                     <div>
-                      <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider mb-2">Scenario 2: Dual Screen Pro</h3>
+                      <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider mb-2">Scenario: Dual Screen Setup</h3>
                       <div className="space-y-1.5">
                         <div className="flex gap-2.5">
                           <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">1</div>
@@ -1891,11 +1896,15 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         </div>
                         <div className="flex gap-2.5">
                           <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">4</div>
-                          <p className="text-xs text-slate-600 leading-relaxed">Open PPT and start <span className="font-bold">Slide Show (F5)</span> on projector.</p>
+                          <p className="text-xs text-slate-600 leading-relaxed">Open PPT and start <span className="font-bold">Slide Show (F5)</span> on your computer.</p>
                         </div>
                         <div className="flex gap-2.5">
                           <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">5</div>
-                          <p className="text-xs text-slate-600 leading-relaxed">Drag this browser to your <span className="font-bold">secondary monitor</span>.</p>
+                          <p className="text-xs text-slate-600 leading-relaxed">Click the <span className="font-bold">Projector Mode</span> button in the top bar to launch the audience screen window.</p>
+                        </div>
+                        <div className="flex gap-2.5">
+                          <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">6</div>
+                          <p className="text-xs text-slate-600 leading-relaxed">Drag the new <span className="font-bold">Projector Mode</span> window to the projector or audience display screen.</p>
                         </div>
                         <div 
                           className="mt-1.5 p-2 bg-slate-50 rounded-lg border-2" 
@@ -1943,6 +1952,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                   </div>
                 )}
 
+                {/* Manual Mode - Hidden to only show Dual Screen */}
+                {/*
                 {activeTab === 'manual' && (
                   <div className="flex-1 flex flex-col space-y-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
                     <div>
@@ -1984,18 +1995,15 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     </div>
                   </div>
                 )}
+                */}
               </div>
               
-
-              
               <div className="pt-4 border-t border-slate-100 flex items-center justify-center gap-2 text-slate-400">
-                <div className={`w-2 h-2 rounded-full animate-pulse ${isBridgeConnected || activeTab === 'manual' ? 'bg-green-500' : 'bg-red-500'}`} />
+                <div className={`w-2 h-2 rounded-full animate-pulse ${isBridgeConnected ? 'bg-green-500' : 'bg-red-500'}`} />
                 <span className="text-[10px] font-bold uppercase tracking-widest">
-                  {activeTab === 'manual' 
-                    ? 'Ready for manual presentation' 
-                    : isBridgeConnected 
-                      ? 'Bridge Online & Ready' 
-                      : 'Waiting for ActiveDeck connection...'}
+                  {isBridgeConnected 
+                    ? 'Bridge Online & Ready' 
+                    : 'Waiting for ActiveDeck connection...'}
                 </span>
               </div>
             </div>
