@@ -204,7 +204,7 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
   };
 
   const handleStudentPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (interactionMode !== 'draw' || e.button !== 0) return;
+    if (interactionMode !== 'draw' || (e.pointerType === 'mouse' && e.button !== 0)) return;
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
 
@@ -567,6 +567,7 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
           <svg
             viewBox="0 0 1000 1000"
             preserveAspectRatio="none"
+            style={{ touchAction: 'none' }}
             className={`absolute inset-0 w-full h-full z-20 ${
               allowStudentDrawing && interactionMode === 'draw' ? 'pointer-events-auto cursor-crosshair' : 'pointer-events-none'
             }`}

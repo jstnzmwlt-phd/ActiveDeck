@@ -255,7 +255,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   };
 
   const handleDrawingPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (!isPenActive || e.button !== 0) return;
+    if (!isPenActive || (e.pointerType === 'mouse' && e.button !== 0)) return;
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
     
@@ -1207,6 +1207,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                       <svg
                         viewBox="0 0 1000 1000"
                         preserveAspectRatio="none"
+                        style={{ touchAction: 'none' }}
                         className={`absolute inset-0 w-full h-full ${
                           isPenActive && !isProjectorMode ? 'cursor-crosshair pointer-events-auto z-70' : 'pointer-events-none z-70'
                         }`}
@@ -1411,6 +1412,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                       <svg
                         viewBox="0 0 1000 1000"
                         preserveAspectRatio="none"
+                        style={{ touchAction: 'none' }}
                         className={`absolute inset-0 w-full h-full ${
                           isPenActive && !isProjectorMode ? 'cursor-crosshair pointer-events-auto z-70' : 'pointer-events-none z-70'
                         }`}
