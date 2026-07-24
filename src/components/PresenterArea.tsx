@@ -54,7 +54,14 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const [presentWithNotes, setPresentWithNotes] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isDownloadingPresentation, setIsDownloadingPresentation] = useState(false);
-  const [leftOffSlide, setLeftOffSlide] = useState<number | null>(null);
+  const [furthestSlide, setFurthestSlide] = useState<number>(1);
+
+  // Sync furthest slide reached
+  useEffect(() => {
+    if (currentSlide !== null && currentSlide > furthestSlide) {
+      setFurthestSlide(currentSlide);
+    }
+  }, [currentSlide, furthestSlide]);
 
   // Update live clock every second
   useEffect(() => {
@@ -2397,7 +2404,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                   {showSlideSelector && (
                     <div 
                       onClick={(e) => e.stopPropagation()}
-                      className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 bg-slate-950 border border-slate-800/85 rounded-xl shadow-2xl p-3 w-56 max-h-80 z-[9999] animate-in fade-in slide-in-from-bottom-2 duration-150 flex flex-col gap-2.5"
+                      className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 bg-black border border-slate-800 rounded-xl shadow-2xl p-3.5 w-56 max-h-80 z-[9999] animate-in fade-in slide-in-from-bottom-2 duration-150 flex flex-col gap-2.5"
                     >
                       <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-900 pb-1.5 mb-0.5 text-center">
                         Select Slide to Jump
@@ -2406,46 +2413,45 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                       <div className="grid grid-cols-4 gap-1.5 overflow-y-auto max-h-48 pr-0.5 custom-scrollbar">
                         {Array.from({ length: totalSlides }, (_, i) => i + 1).map((sNum) => {
                           const isCurrent = sNum === currentSlide;
-                          const isLeftOff = sNum === leftOffSlide;
+                          const isFurthest = sNum === furthestSlide;
+                          const isDisabled = sNum > furthestSlide;
                           return (
                             <button
                               key={`select-slide-${sNum}`}
+                              disabled={isDisabled}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                if (currentSlide !== null) {
-                                  setLeftOffSlide(currentSlide);
-                                }
                                 sendSlideCommand(sNum);
                                 setShowSlideSelector(false);
                               }}
-                              className={`h-8 w-full rounded-lg flex flex-col items-center justify-center text-xs font-bold font-mono transition-all duration-150 cursor-pointer relative ${
+                              className={`h-8 w-full rounded-lg flex flex-col items-center justify-center text-xs font-bold font-mono transition-all duration-150 relative ${
                                 isCurrent
-                                  ? 'bg-osu-orange text-white shadow-lg shadow-orange-500/10 scale-105 border border-orange-500/30'
-                                  : isLeftOff
-                                    ? 'bg-emerald-950/40 border border-emerald-500/50 text-emerald-400 hover:bg-emerald-900/40'
-                                    : 'bg-slate-900 hover:bg-slate-850 text-slate-300 hover:text-white border border-slate-850'
+                                  ? 'bg-osu-orange text-white shadow-lg shadow-orange-500/10 scale-105 border border-orange-500/30 cursor-pointer'
+                                  : isDisabled
+                                    ? 'bg-slate-900/60 text-slate-700 border border-slate-950 cursor-not-allowed opacity-35'
+                                    : 'bg-white hover:bg-slate-100 text-black border border-slate-200 cursor-pointer'
                               }`}
-                              title={isLeftOff ? "Where you left off" : `Jump to Slide ${sNum}`}
+                              title={isFurthest ? "Where you left off (furthest slide)" : isDisabled ? "Slide not yet shown to audience" : `Jump to Slide ${sNum}`}
                             >
                               <span>{sNum}</span>
-                              {isLeftOff && (
-                                <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                              {isFurthest && (
+                                <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                               )}
                             </button>
                           );
                         })}
                       </div>
 
-                      {leftOffSlide !== null && leftOffSlide !== currentSlide && (
+                      {furthestSlide !== null && furthestSlide !== currentSlide && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            sendSlideCommand(leftOffSlide);
+                            sendSlideCommand(furthestSlide);
                             setShowSlideSelector(false);
                           }}
                           className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-wider rounded-lg border border-emerald-500/30 shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1 shrink-0"
                         >
-                          <span>Resume from Slide {leftOffSlide}</span>
+                          <span>Resume from Slide {furthestSlide}</span>
                           <span className="text-[8px]">➜</span>
                         </button>
                       )}
