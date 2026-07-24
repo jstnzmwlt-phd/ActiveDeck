@@ -50,10 +50,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const [showInstructions, setShowInstructions] = useState(false);
   const [laserEnabled, setLaserEnabled] = useState(true);
   const [showSlideSelector, setShowSlideSelector] = useState(false);
-  const selectorRef = useRef<HTMLButtonElement>(null);
+  const selectorRef = useRef<HTMLDivElement>(null);
   const [presentWithNotes, setPresentWithNotes] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isDownloadingPresentation, setIsDownloadingPresentation] = useState(false);
+  const [leftOffSlide, setLeftOffSlide] = useState<number | null>(null);
 
   // Update live clock every second
   useEffect(() => {
@@ -2377,7 +2378,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             {totalSlides !== null && currentSlide !== null ? (
               <>
                 <div className="w-px h-6 bg-slate-800/80" />
-                <button
+                <div
                   ref={selectorRef}
                   onClick={() => setShowSlideSelector(prev => !prev)}
                   className="relative px-4 py-1 text-[11px] font-black uppercase tracking-widest text-slate-200 bg-slate-950/80 hover:bg-slate-900 rounded-lg border border-slate-850/50 min-w-[125px] text-center font-mono cursor-pointer transition-all flex items-center justify-center gap-1.5 select-none group/indicator"
@@ -2390,28 +2391,61 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                   {showSlideSelector && (
                     <div 
                       onClick={(e) => e.stopPropagation()}
-                      className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 bg-slate-950 border border-slate-800/85 rounded-xl shadow-2xl p-2.5 w-52 max-h-64 overflow-y-auto grid grid-cols-4 gap-1.5 z-[9999] animate-in fade-in slide-in-from-bottom-2 duration-150"
+                      className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 bg-slate-950 border border-slate-800/85 rounded-xl shadow-2xl p-3 w-56 max-h-80 z-[9999] animate-in fade-in slide-in-from-bottom-2 duration-150 flex flex-col gap-2.5"
                     >
-                      {Array.from({ length: totalSlides }, (_, i) => i + 1).map((sNum) => (
+                      <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-900 pb-1.5 mb-0.5 text-center">
+                        Select Slide to Jump
+                      </div>
+                      
+                      <div className="grid grid-cols-4 gap-1.5 overflow-y-auto max-h-48 pr-0.5 custom-scrollbar">
+                        {Array.from({ length: totalSlides }, (_, i) => i + 1).map((sNum) => {
+                          const isCurrent = sNum === currentSlide;
+                          const isLeftOff = sNum === leftOffSlide;
+                          return (
+                            <button
+                              key={`select-slide-${sNum}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (currentSlide !== null) {
+                                  setLeftOffSlide(currentSlide);
+                                }
+                                sendSlideCommand(sNum);
+                                setShowSlideSelector(false);
+                              }}
+                              className={`h-8 w-full rounded-lg flex flex-col items-center justify-center text-xs font-bold font-mono transition-all duration-150 cursor-pointer relative ${
+                                isCurrent
+                                  ? 'bg-osu-orange text-white shadow-lg shadow-orange-500/10 scale-105 border border-orange-500/30'
+                                  : isLeftOff
+                                    ? 'bg-emerald-950/40 border border-emerald-500/50 text-emerald-400 hover:bg-emerald-900/40'
+                                    : 'bg-slate-900 hover:bg-slate-850 text-slate-300 hover:text-white border border-slate-850'
+                              }`}
+                              title={isLeftOff ? "Where you left off" : `Jump to Slide ${sNum}`}
+                            >
+                              <span>{sNum}</span>
+                              {isLeftOff && (
+                                <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {leftOffSlide !== null && leftOffSlide !== currentSlide && (
                         <button
-                          key={`select-slide-${sNum}`}
                           onClick={(e) => {
                             e.stopPropagation();
-                            sendSlideCommand(sNum);
+                            sendSlideCommand(leftOffSlide);
                             setShowSlideSelector(false);
                           }}
-                          className={`h-8 w-full rounded-lg flex items-center justify-center text-xs font-bold font-mono transition-all duration-150 cursor-pointer ${
-                            sNum === currentSlide
-                              ? 'bg-osu-orange text-white shadow-lg shadow-orange-500/10 scale-105 border border-orange-500/30'
-                              : 'bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-850'
-                          }`}
+                          className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-wider rounded-lg border border-emerald-500/30 shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1 shrink-0"
                         >
-                          {sNum}
+                          <span>Resume from Slide {leftOffSlide}</span>
+                          <span className="text-[8px]">➜</span>
                         </button>
-                      ))}
+                      )}
                     </div>
                   )}
-                </button>
+                </div>
                 <div className="w-px h-6 bg-slate-800/80" />
               </>
             ) : null}
