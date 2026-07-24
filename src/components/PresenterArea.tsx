@@ -581,74 +581,96 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
     const captureAndUpload = async (stageName: string) => {
       try {
-        const video = containerRef.current?.querySelector('video');
-        if (!video || !video.videoWidth || !video.videoHeight) {
-          setIsUploadingPreview(false);
-          return;
+        let blob: Blob | null = null;
+
+        // Try to fetch clean, static slide image exported by the PowerPoint bridge if connected
+        if (isBridgeConnected) {
+          try {
+            const slideUrl = `http://127.0.0.1:5000/slides/${activeSlideNum}.jpg`;
+            const response = await fetch(slideUrl);
+            if (response.ok) {
+              blob = await response.blob();
+              console.log(`[SlidePreview 2-Stage] ${stageName} fetched clean slide image from local bridge for slide ${activeSlideNum}`);
+            } else {
+              console.warn(`[SlidePreview 2-Stage] Local bridge returned status ${response.status} for slide ${activeSlideNum}`);
+            }
+          } catch (fetchErr) {
+            console.warn(`[SlidePreview 2-Stage] ${stageName} failed to fetch clean slide image from bridge, falling back to video capture:`, fetchErr);
+          }
         }
 
-        const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth || 1280;
-        canvas.height = video.videoHeight || 720;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          setIsUploadingPreview(false);
-          return;
-        }
-
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-        canvas.toBlob(async (blob) => {
-          if (!blob) {
+        // Fallback to capturing the live screen shared video element if bridge image is unavailable
+        if (!blob) {
+          const video = containerRef.current?.querySelector('video') || videoRef.current;
+          if (!video || !video.videoWidth || !video.videoHeight) {
             setIsUploadingPreview(false);
             return;
           }
 
-          try {
-            const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
-            const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
-
-            const fileId = Math.random().toString(36).substring(2, 11);
-            const fileName = `Slide_Preview_Slide_${activeSlideNum}_${Date.now()}.jpg`;
-            const storagePath = `presentations/${presentation.id}/documents/${fileId}_${fileName}`;
-            const storageRef = ref(storage, storagePath);
-
-            await uploadBytes(storageRef, blob);
-            const downloadUrl = await getDownloadURL(storageRef);
-
-            const docId = `${presentation.id}_preview_slide_${activeSlideNum}`;
-            await setDoc(doc(db, 'messages', docId), {
-              presentationId: presentation.id,
-              slide: activeSlideNum,
-              fileUrl: downloadUrl,
-              isBackgroundPreview: true,
-              isPushedSlide: false,
-              timestamp: serverTimestamp()
-            });
-
-            console.log(`[SlidePreview 2-Stage] ${stageName} upload complete for slide ${activeSlideNum}!`);
-          } catch (uploadErr) {
-            console.error(`[SlidePreview 2-Stage] ${stageName} upload failed:`, uploadErr);
-          } finally {
+          const canvas = document.createElement('canvas');
+          canvas.width = video.videoWidth || 1280;
+          canvas.height = video.videoHeight || 720;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
             setIsUploadingPreview(false);
+            return;
           }
-        }, 'image/jpeg', 0.65);
 
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          
+          blob = await new Promise<Blob | null>((resolveBlob) => {
+            canvas.toBlob((b) => resolveBlob(b), 'image/jpeg', 0.65);
+          });
+        }
+
+        if (!blob) {
+          setIsUploadingPreview(false);
+          return;
+        }
+
+        try {
+          const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+          const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
+
+          const fileId = Math.random().toString(36).substring(2, 11);
+          const fileName = `Slide_Preview_Slide_${activeSlideNum}_${Date.now()}.jpg`;
+          const storagePath = `presentations/${presentation.id}/documents/${fileId}_${fileName}`;
+          const storageRef = ref(storage, storagePath);
+
+          await uploadBytes(storageRef, blob);
+          const downloadUrl = await getDownloadURL(storageRef);
+
+          const docId = `${presentation.id}_preview_slide_${activeSlideNum}`;
+          await setDoc(doc(db, 'messages', docId), {
+            presentationId: presentation.id,
+            slide: activeSlideNum,
+            fileUrl: downloadUrl,
+            isBackgroundPreview: true,
+            isPushedSlide: false,
+            timestamp: serverTimestamp()
+          });
+
+          console.log(`[SlidePreview 2-Stage] ${stageName} upload complete for slide ${activeSlideNum}!`);
+        } catch (uploadErr) {
+          console.error(`[SlidePreview 2-Stage] ${stageName} upload failed:`, uploadErr);
+        } finally {
+          setIsUploadingPreview(false);
+        }
       } catch (err) {
         console.error(`[SlidePreview 2-Stage] Error in ${stageName}:`, err);
         setIsUploadingPreview(false);
       }
     };
 
-    // Stage 1: Immediate push (250ms) so students see the slide instantly
+    // Stage 1: Delayed push (1500ms) so transitions are finished before capture
     const immediateTimeoutId = setTimeout(() => {
-      captureAndUpload('Stage 1 (Immediate)');
-    }, 250);
+      captureAndUpload('Stage 1 (Delayed)');
+    }, 1500);
 
-    // Stage 2: Updated push after animations/build-ins complete (3500ms)
+    // Stage 2: Updated push after animations/build-ins complete (4000ms)
     const delayedTimeoutId = setTimeout(() => {
       captureAndUpload('Stage 2 (Animation Complete)');
-    }, 3500);
+    }, 4000);
 
     return () => {
       clearTimeout(immediateTimeoutId);
