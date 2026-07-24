@@ -53,6 +53,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const selectorRef = useRef<HTMLButtonElement>(null);
   const [presentWithNotes, setPresentWithNotes] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [isDownloadingPresentation, setIsDownloadingPresentation] = useState(false);
 
   // Update live clock every second
   useEffect(() => {
@@ -919,6 +920,273 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     };
   }, [isCapturing, currentSlide, presentation?.currentSlide]);
 
+  const compositeSlideWithAnnotations = (
+    slideImgUrl: string,
+    presenterDrawingsJson?: string
+  ): Promise<Uint8Array | null> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth || 1920;
+        canvas.height = img.naturalHeight || 1080;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(null);
+          return;
+        }
+
+        // Draw base slide image
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        const drawStrokeList = (strokes: any[]) => {
+          strokes.forEach(stroke => {
+            if (!stroke.points || stroke.points.length === 0) return;
+            ctx.save();
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            const scaleX = canvas.width / 1000;
+            const scaleY = canvas.height / 1000;
+            const avgScale = (scaleX + scaleY) / 2;
+
+            ctx.lineWidth = stroke.width * avgScale;
+
+            if (stroke.isHighlighter) {
+              ctx.strokeStyle = 'rgba(234, 179, 8, 0.45)';
+            } else {
+              ctx.strokeStyle = stroke.color === '#FFFFFF' ? '#cbd5e1' : stroke.color;
+              ctx.fillStyle = stroke.color === '#FFFFFF' ? '#cbd5e1' : stroke.color;
+            }
+
+            const pts = stroke.points.map((p: any) => ({
+              x: p.x * scaleX,
+              y: p.y * scaleY
+            }));
+
+            if (stroke.text && pts[0]) {
+              const fontSize = Math.max(26, stroke.width * 5) * avgScale;
+              ctx.font = `bold ${fontSize}px sans-serif`;
+              ctx.fillText(stroke.text, pts[0].x, pts[0].y);
+            } else if (stroke.isArrow && pts.length >= 2) {
+              const p1 = pts[0];
+              const p2 = pts[pts.length - 1];
+              const dx = p2.x - p1.x;
+              const dy = p2.y - p1.y;
+              const angle = Math.atan2(dy, dx);
+              const headLength = Math.max(25, stroke.width * 4) * avgScale;
+              const arrowAngle = Math.PI / 6;
+
+              const h1x = p2.x - headLength * Math.cos(angle - arrowAngle);
+              const h1y = p2.y - headLength * Math.sin(angle - arrowAngle);
+              const h2x = p2.x - headLength * Math.cos(angle + arrowAngle);
+              const h2y = p2.y - headLength * Math.sin(angle + arrowAngle);
+
+              ctx.beginPath();
+              ctx.moveTo(p1.x, p1.y);
+              ctx.lineTo(p2.x, p2.y);
+              ctx.moveTo(p2.x, p2.y);
+              ctx.lineTo(h1x, h1y);
+              ctx.moveTo(p2.x, p2.y);
+              ctx.lineTo(h2x, h2y);
+              ctx.stroke();
+            } else {
+              ctx.beginPath();
+              pts.forEach((p: any, i: number) => {
+                if (i === 0) ctx.moveTo(p.x, p.y);
+                else ctx.lineTo(p.x, p.y);
+              });
+              if (pts.length === 1) {
+                ctx.lineTo(pts[0].x + 0.1, pts[0].y + 0.1);
+              }
+              ctx.stroke();
+            }
+            ctx.restore();
+          });
+        };
+
+        // Draw Presenter Drawings
+        if (presenterDrawingsJson) {
+          try {
+            const pStrokes = JSON.parse(presenterDrawingsJson);
+            if (Array.isArray(pStrokes)) drawStrokeList(pStrokes);
+          } catch {}
+        }
+
+        // Convert base64 dataUri to Uint8Array directly
+        try {
+          const dataUrl = canvas.toDataURL('image/png');
+          const parts = dataUrl.split(',');
+          if (parts.length >= 2) {
+            const binaryStr = window.atob(parts[1]);
+            const len = binaryStr.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+              bytes[i] = binaryStr.charCodeAt(i);
+            }
+            resolve(bytes);
+          } else {
+            resolve(null);
+          }
+        } catch (e) {
+          resolve(null);
+        }
+      };
+
+      img.onerror = () => {
+        // Fallback fetch
+        fetch(slideImgUrl)
+          .then(res => res.arrayBuffer())
+          .then(buf => resolve(new Uint8Array(buf)))
+          .catch(() => resolve(null));
+      };
+
+      img.src = slideImgUrl;
+    });
+  };
+
+  const handleDownloadPresentation = async () => {
+    if (!presentation?.id) return;
+    setIsDownloadingPresentation(true);
+    try {
+      const { collection, query, where, getDocs } = await import('firebase/firestore');
+      const { Document, Packer, Paragraph, TextRun, HeadingLevel, ImageRun, Table, TableRow, TableCell, WidthType, BorderStyle } = await import('docx');
+
+      const q = query(
+        collection(db, 'messages'),
+        where('presentationId', '==', presentation.id),
+        where('isBackgroundPreview', '==', true)
+      );
+
+      const querySnapshot = await getDocs(q);
+      const previewsMap: Record<string, string> = {};
+      querySnapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        if (data.slide !== undefined && data.slide !== null && data.fileUrl) {
+          previewsMap[String(data.slide)] = data.fileUrl;
+        }
+      });
+
+      const sortedSlides = Object.keys(previewsMap).sort((a, b) => {
+        const numA = Number(a);
+        const numB = Number(b);
+        if (isNaN(numA) || isNaN(numB)) return a.localeCompare(b);
+        return numA - numB;
+      });
+
+      if (sortedSlides.length === 0) {
+        alert("No slides have been captured yet for this presentation. Present slides first!");
+        setIsDownloadingPresentation(false);
+        return;
+      }
+
+      const slideElements: any[] = [];
+
+      for (const slide of sortedSlides) {
+        const slideNum = Number(slide);
+        const titleStr = isNaN(slideNum) ? slide : `Slide ${slide}`;
+        slideElements.push(
+          new Paragraph({
+            text: titleStr,
+            heading: HeadingLevel.HEADING_2,
+            spacing: { before: 240, after: 120 }
+          })
+        );
+
+        const slideImgUrl = previewsMap[slide];
+        if (slideImgUrl) {
+          const presenterJson = presentation?.presenterDrawings?.[slide];
+          const imgBytes = await compositeSlideWithAnnotations(slideImgUrl, presenterJson);
+          if (imgBytes) {
+            slideElements.push(
+              new Paragraph({
+                children: [
+                  new ImageRun({
+                    data: imgBytes,
+                    transformation: { width: 500, height: 280 },
+                    type: 'png'
+                  })
+                ],
+                spacing: { after: 180 }
+              })
+            );
+          }
+        }
+      }
+
+      const docFilename = `ActiveDeck_Presentation_${presentation.pinCode || 'Export'}.docx`;
+
+      const docxFile = new Document({
+        sections: [{
+          properties: {},
+          children: [
+            new Paragraph({
+              text: "ActiveDeck Presentation Export",
+              heading: HeadingLevel.HEADING_1,
+              spacing: { after: 200 }
+            }),
+            new Table({
+              width: { size: 100, type: WidthType.PERCENTAGE },
+              borders: {
+                top: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                bottom: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                left: { style: BorderStyle.SINGLE, size: 24, color: "EB5D00" },
+                right: { style: BorderStyle.NONE, size: 0, color: "auto" },
+              },
+              rows: [
+                new TableRow({
+                  children: [
+                    new TableCell({
+                      shading: { fill: "F8F9FA" },
+                      children: [
+                        new Paragraph({
+                          children: [
+                            new TextRun({ text: "Presenter Email: ", bold: true, color: "111111", font: "Arial" }),
+                            new TextRun({ text: presentation.presenterEmail || 'N/A', font: "Arial" }),
+                          ],
+                        }),
+                        new Paragraph({
+                          children: [
+                            new TextRun({ text: "Session PIN: ", bold: true, color: "111111", font: "Arial" }),
+                            new TextRun({ text: presentation.pinCode || 'N/A', font: "Arial" }),
+                          ],
+                        }),
+                        new Paragraph({
+                          children: [
+                            new TextRun({ text: "Date: ", bold: true, color: "111111", font: "Arial" }),
+                            new TextRun({ text: new Date().toLocaleDateString(), font: "Arial" }),
+                          ],
+                        }),
+                      ],
+                    }),
+                  ],
+                }),
+              ],
+            }),
+            new Paragraph({ spacing: { after: 240 } }),
+            ...slideElements
+          ]
+        }]
+      });
+
+      const docBlob = await Packer.toBlob(docxFile);
+      const docUrl = URL.createObjectURL(docBlob);
+      const link = document.createElement('a');
+      link.href = docUrl;
+      link.download = docFilename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(docUrl);
+    } catch (err) {
+      console.error("Failed to compile presentation export:", err);
+      alert("Failed to export presentation document.");
+    } finally {
+      setIsDownloadingPresentation(false);
+    }
+  };
+
   const startCapture = () => {
     setError(null);
     navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
@@ -1335,11 +1603,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                   </div>
 
                   {/* Confined Presenter Notes UI panel positioned immediately below the Current Slide preview */}
-                  <div className="flex flex-col bg-slate-950 border border-slate-850 rounded-2xl p-5 min-h-[350px] max-h-[480px] select-none animate-in slide-in-from-bottom duration-300 shadow-xl">
-                    <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-slate-900/60 select-none">
+                  <div className="flex flex-col bg-slate-100 border border-slate-300 rounded-2xl p-5 min-h-[350px] max-h-[480px] select-none animate-in slide-in-from-bottom duration-300 shadow-md">
+                    <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-slate-200 select-none">
                       <div className="flex items-center gap-2">
                         <FileText className="w-4 h-4 text-osu-orange" />
-                        <span className="text-xs font-black uppercase tracking-wider text-slate-300">Presenter Notes</span>
+                        <span className="text-xs font-black uppercase tracking-wider text-slate-800">Presenter Notes</span>
                       </div>
                       {totalSlides !== null && currentSlide !== null && (
                         <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
@@ -1347,11 +1615,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         </span>
                       )}
                     </div>
-                    <div className="flex-1 overflow-y-auto text-base md:text-[17px] text-slate-100 font-bold leading-relaxed pr-2 custom-scrollbar space-y-2">
+                    <div className="flex-1 bg-white/70 border border-slate-200 rounded-xl p-4 overflow-y-auto text-base md:text-[16px] text-slate-700 font-semibold leading-relaxed pr-2 custom-scrollbar select-text cursor-not-allowed">
                       {notes ? (
-                        <div className="whitespace-pre-wrap">{notes.replace(/\r/g, '\n')}</div>
+                        <div className="whitespace-pre-wrap select-text cursor-text">{notes.replace(/\r/g, '\n')}</div>
                       ) : (
-                        <div className="text-sm text-slate-500 italic flex items-center justify-center h-full">
+                        <div className="text-sm text-slate-400 italic flex items-center justify-center h-full select-none">
                           No notes available for this slide.
                         </div>
                       )}
@@ -2077,6 +2345,22 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               title={isFullscreen ? "Exit Full Screen" : "Enter Full Screen"}
             >
               {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+            </button>
+          </div>
+
+          {/* Mid-Left: Download Presentation Button */}
+          <div className="absolute left-[25%] -translate-x-1/2">
+            <button
+              onClick={handleDownloadPresentation}
+              disabled={isDownloadingPresentation}
+              className="flex items-center justify-center w-10 h-10 bg-slate-950/40 hover:bg-slate-850 disabled:bg-slate-800/20 disabled:text-slate-600 text-slate-400 hover:text-white rounded-xl transition-all active:scale-95 border border-slate-800 cursor-pointer shadow-lg hover:scale-105"
+              title="Download presentation annotations (.docx)"
+            >
+              {isDownloadingPresentation ? (
+                <Loader2 className="w-4 h-4 animate-spin text-osu-orange" />
+              ) : (
+                <Download className="w-4 h-4" />
+              )}
             </button>
           </div>
 
