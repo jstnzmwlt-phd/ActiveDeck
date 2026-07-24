@@ -2449,10 +2449,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                             sendSlideCommand(furthestSlide);
                             setShowSlideSelector(false);
                           }}
-                          className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-wider rounded-lg border border-emerald-500/30 shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1 shrink-0"
+                          className="w-full py-2 bg-osu-orange hover:bg-[#c03900] text-white text-[11px] font-black uppercase tracking-wider rounded-lg border border-orange-500/30 shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1 shrink-0"
                         >
                           <span>Resume from Slide {furthestSlide}</span>
-                          <span className="text-[8px]">➜</span>
+                          <span className="text-[8.5px]">➜</span>
                         </button>
                       )}
                     </div>
@@ -2521,65 +2521,65 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         <div className="fixed inset-0 z-[150] bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center p-3 animate-in fade-in duration-200 select-none">
           
           {/* Floating Top Pen Function Menu */}
-          <div className="mb-3 px-4 py-2 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-wrap items-center justify-center gap-3 z-50 text-slate-100 max-w-full">
+          <div className="mb-3 px-5 py-3 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-wrap items-center justify-center gap-4 z-50 text-slate-100 max-w-full">
             
             {/* Tool Selector */}
-            <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-850">
+            <div className="flex items-center gap-1.5 bg-slate-950 p-1.5 rounded-xl border border-slate-850">
               <button
                 onClick={() => setPenTool('pen')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                className={`px-4.5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
                   penTool === 'pen' ? 'bg-osu-orange text-white shadow-md' : 'text-slate-400 hover:text-white'
                 }`}
                 title="Freehand Pen Tool"
               >
-                <Pen className="w-3.5 h-3.5" />
+                <Pen className="w-5 h-5" />
                 <span>Pen</span>
               </button>
               <button
                 onClick={() => setPenTool('arrow')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                className={`px-4.5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
                   penTool === 'arrow' ? 'bg-osu-orange text-white shadow-md' : 'text-slate-400 hover:text-white'
                 }`}
                 title="Arrow Tool (Drag from start to tip)"
               >
-                <MoveRight className="w-3.5 h-3.5" />
+                <MoveRight className="w-5 h-5" />
                 <span>Arrow</span>
               </button>
               <button
                 onClick={() => setPenTool('highlighter')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                className={`px-4.5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
                   penTool === 'highlighter' ? 'bg-amber-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
                 }`}
                 title="Highlighter Tool"
               >
-                <Highlighter className="w-3.5 h-3.5" />
+                <Highlighter className="w-5 h-5" />
                 <span>Highlighter</span>
               </button>
               <button
                 onClick={() => setPenTool('text')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                className={`px-4.5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
                   penTool === 'text' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
                 }`}
                 title="Text Tool (Click on slide to add text)"
               >
-                <Type className="w-3.5 h-3.5" />
+                <Type className="w-5 h-5" />
                 <span>Text</span>
               </button>
               <button
                 onClick={() => setPenTool('eraser')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                className={`px-4.5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
                   penTool === 'eraser' ? 'bg-red-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
                 }`}
                 title="Eraser Tool"
               >
-                <Eraser className="w-3.5 h-3.5" />
+                <Eraser className="w-5 h-5" />
                 <span>Eraser</span>
               </button>
             </div>
 
             {/* Color Palette (Pen / Arrow / Text vs Highlighter) */}
             {penTool === 'pen' || penTool === 'arrow' || penTool === 'text' ? (
-              <div className="flex items-center gap-1.5 border-l border-slate-800 pl-3">
+              <div className="flex items-center gap-2 border-l border-slate-800 pl-4">
                 {[
                   { color: '#EF4444', name: 'Red (Default)' },
                   { color: '#eb5d00', name: 'OSU Orange' },
@@ -2592,7 +2592,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                   <button
                     key={c.color}
                     onClick={() => setPenColor(c.color)}
-                    className={`w-6 h-6 rounded-full border-2 transition-transform cursor-pointer ${
+                    className={`w-8 h-8 rounded-full border-2 transition-transform cursor-pointer ${
                       penColor === c.color
                         ? 'scale-125 border-white ring-2 ring-red-500'
                         : 'border-slate-700 hover:scale-110'
@@ -2603,7 +2603,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 ))}
               </div>
             ) : penTool === 'highlighter' ? (
-              <div className="flex items-center gap-1.5 border-l border-slate-800 pl-3">
+              <div className="flex items-center gap-2 border-l border-slate-800 pl-4">
                 {[
                   { color: '#EAB308', name: 'Yellow Highlighter' },
                   { color: '#EF4444', name: 'Red Highlighter' },
@@ -2613,7 +2613,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                   <button
                     key={c.color}
                     onClick={() => setHighlighterColor(c.color)}
-                    className={`w-6 h-6 rounded-full border-2 transition-transform cursor-pointer ${
+                    className={`w-8 h-8 rounded-full border-2 transition-transform cursor-pointer ${
                       highlighterColor === c.color
                         ? 'scale-125 border-white ring-2 ring-amber-400'
                         : 'border-slate-700 hover:scale-110'
@@ -2627,7 +2627,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
             {/* Stroke Thickness */}
             {penTool !== 'eraser' && (
-              <div className="flex items-center gap-1 border-l border-slate-800 pl-3 bg-slate-950 p-1 rounded-xl">
+              <div className="flex items-center gap-1.5 border-l border-slate-800 pl-4 bg-slate-950 p-1.5 rounded-xl">
                 {[
                   { label: 'Fine', value: 3 },
                   { label: 'Med', value: 6 },
@@ -2636,7 +2636,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                   <button
                     key={w.value}
                     onClick={() => setPenWidth(w.value)}
-                    className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
                       penWidth === w.value ? 'bg-slate-800 text-osu-orange border border-osu-orange/40' : 'text-slate-400 hover:text-white'
                     }`}
                   >
@@ -2647,30 +2647,30 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             )}
 
             {/* Actions: Undo / Redo / Clear */}
-            <div className="flex items-center gap-1.5 border-l border-slate-800 pl-3">
+            <div className="flex items-center gap-2 border-l border-slate-800 pl-4">
               <button
                 onClick={handleUndoDrawing}
                 disabled={!(drawingUndoStack[activeSlideKey]?.length > 0)}
-                className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                className="p-2.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
                 title="Undo Stroke"
               >
-                <Undo2 className="w-4 h-4" />
+                <Undo2 className="w-5 h-5" />
               </button>
               <button
                 onClick={handleRedoDrawing}
                 disabled={!(drawingRedoStack[activeSlideKey]?.length > 0)}
-                className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                className="p-2.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
                 title="Redo Stroke"
               >
-                <Redo2 className="w-4 h-4" />
+                <Redo2 className="w-5 h-5" />
               </button>
               <button
                 onClick={handleClearSlideDrawing}
                 disabled={currentSlideStrokes.length === 0}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-950/60 border border-red-800/60 text-red-300 hover:bg-red-900 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed text-xs font-bold transition-all cursor-pointer"
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-red-950/60 border border-red-800/60 text-red-300 hover:bg-red-900 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed text-sm font-bold transition-all cursor-pointer"
                 title="Clear all drawings on this slide"
               >
-                <Trash2 className="w-3.5 h-3.5" />
+                <Trash2 className="w-4.5 h-4.5" />
                 <span>Clear Slide</span>
               </button>
             </div>
@@ -2678,10 +2678,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             {/* Close Pen Mode */}
             <button
               onClick={() => setIsPenActive(false)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-osu-orange hover:bg-[#c03900] text-white rounded-xl text-xs font-bold transition-all ml-auto cursor-pointer shadow-lg"
+              className="flex items-center gap-2 px-4.5 py-2.5 bg-osu-orange hover:bg-[#c03900] text-white rounded-xl text-sm font-bold transition-all ml-auto cursor-pointer shadow-lg"
               title="Exit Pen Drawing Mode"
             >
-              <X className="w-4 h-4" />
+              <X className="w-5 h-5" />
               <span>Exit Pen</span>
             </button>
 

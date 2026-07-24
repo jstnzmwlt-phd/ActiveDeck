@@ -329,27 +329,27 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
 
         {/* Student Pen Function Menu (Visible when Handwritten Notes mode is active) */}
         {allowStudentDrawing && (
-          <div className="flex flex-wrap items-center justify-center gap-2 px-3 py-1.5 bg-slate-950/90 border border-slate-800 rounded-2xl shadow-xl">
+          <div className="flex flex-wrap items-center justify-center gap-3 px-4 py-2 bg-slate-955 border border-slate-800 rounded-2xl shadow-xl">
             {/* Mode Switcher: Draw vs Pan */}
-            <div className="flex items-center gap-1 p-1 bg-slate-900 rounded-xl border border-slate-800">
+            <div className="flex items-center gap-1.5 p-1.5 bg-slate-900 rounded-xl border border-slate-800">
               <button
                 onClick={() => setInteractionMode('draw')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                className={`px-3.5 py-2 rounded-lg text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                   interactionMode === 'draw' ? 'bg-osu-orange text-white shadow-md' : 'text-slate-400 hover:text-white'
                 }`}
                 title="Draw mode: Write on slide"
               >
-                <Pen className="w-3.5 h-3.5" />
+                <Pen className="w-5 h-5" />
                 <span>Draw</span>
               </button>
               <button
                 onClick={() => setInteractionMode('pan')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                className={`px-3.5 py-2 rounded-lg text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                   interactionMode === 'pan' ? 'bg-osu-orange text-white shadow-md' : 'text-slate-400 hover:text-white'
                 }`}
                 title="Pan mode: Zoom and drag slide"
               >
-                <Hand className="w-3.5 h-3.5" />
+                <Hand className="w-5 h-5" />
                 <span>Pan/Zoom</span>
               </button>
             </div>
@@ -357,57 +357,57 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
             {/* Tools (Only when interactionMode === 'draw') */}
             {interactionMode === 'draw' && (
               <>
-                <div className="flex items-center gap-1 p-1 bg-slate-900 rounded-xl border border-slate-800">
+                <div className="flex items-center gap-1.5 p-1.5 bg-slate-900 rounded-xl border border-slate-800">
                   <button
                     onClick={() => setStudentPenTool('pen')}
-                    className={`px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                    className={`px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                       studentPenTool === 'pen' ? 'bg-osu-orange text-white shadow-md' : 'text-slate-400 hover:text-white'
                     }`}
                     title="Pen Tool"
                   >
-                    <Pen className="w-3 h-3" />
+                    <Pen className="w-4.5 h-4.5" />
                   </button>
                   <button
                     onClick={() => setStudentPenTool('arrow')}
-                    className={`px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                    className={`px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                       studentPenTool === 'arrow' ? 'bg-osu-orange text-white shadow-md' : 'text-slate-400 hover:text-white'
                     }`}
                     title="Arrow Tool (Drag from start to tip)"
                   >
-                    <MoveRight className="w-3 h-3" />
+                    <MoveRight className="w-4.5 h-4.5" />
                   </button>
                   <button
                     onClick={() => setStudentPenTool('highlighter')}
-                    className={`px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                    className={`px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                       studentPenTool === 'highlighter' ? 'bg-amber-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
                     }`}
                     title="Highlighter Tool"
                   >
-                    <Highlighter className="w-3 h-3" />
+                    <Highlighter className="w-4.5 h-4.5" />
                   </button>
                   <button
                     onClick={() => setStudentPenTool('text')}
-                    className={`px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                    className={`px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                       studentPenTool === 'text' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
                     }`}
                     title="Text Tool (Click on slide to add text)"
                   >
-                    <Type className="w-3 h-3" />
+                    <Type className="w-4.5 h-4.5" />
                   </button>
                   <button
                     onClick={() => setStudentPenTool('eraser')}
-                    className={`px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                    className={`px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                       studentPenTool === 'eraser' ? 'bg-red-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
                     }`}
                     title="Eraser Tool"
                   >
-                    <Eraser className="w-3 h-3" />
+                    <Eraser className="w-4.5 h-4.5" />
                   </button>
                 </div>
 
                 {/* Color Swatches */}
                 {studentPenTool === 'pen' || studentPenTool === 'arrow' || studentPenTool === 'text' ? (
-                  <div className="flex items-center gap-1 border-l border-slate-800 pl-2">
+                  <div className="flex items-center gap-1.5 border-l border-slate-800 pl-3">
                     {[
                       { color: '#EF4444', name: 'Red' },
                       { color: '#eb5d00', name: 'Orange' },
@@ -420,7 +420,7 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
                       <button
                         key={c.color}
                         onClick={() => setStudentPenColor(c.color)}
-                        className={`w-5 h-5 rounded-full border-2 transition-transform cursor-pointer ${
+                        className={`w-7 h-7 rounded-full border-2 transition-transform cursor-pointer ${
                           studentPenColor === c.color ? 'scale-125 border-white ring-2 ring-red-500' : 'border-slate-700 hover:scale-110'
                         }`}
                         style={{ backgroundColor: c.color }}
@@ -429,7 +429,7 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
                     ))}
                   </div>
                 ) : studentPenTool === 'highlighter' ? (
-                  <div className="flex items-center gap-1 border-l border-slate-800 pl-2">
+                  <div className="flex items-center gap-1.5 border-l border-slate-800 pl-3">
                     {[
                       { color: '#EAB308', name: 'Yellow' },
                       { color: '#EF4444', name: 'Red' },
@@ -439,7 +439,7 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
                       <button
                         key={c.color}
                         onClick={() => setStudentHighlighterColor(c.color)}
-                        className={`w-5 h-5 rounded-full border-2 transition-transform cursor-pointer ${
+                        className={`w-7 h-7 rounded-full border-2 transition-transform cursor-pointer ${
                           studentHighlighterColor === c.color ? 'scale-125 border-white ring-2 ring-amber-400' : 'border-slate-700 hover:scale-110'
                         }`}
                         style={{ backgroundColor: c.color }}
@@ -450,30 +450,30 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
                 ) : null}
 
                 {/* Actions: Undo / Redo / Clear */}
-                <div className="flex items-center gap-1 border-l border-slate-800 pl-2">
+                <div className="flex items-center gap-1.5 border-l border-slate-800 pl-3">
                   <button
                     onClick={handleStudentUndo}
                     disabled={undoStack.length === 0}
-                    className="p-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                    className="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
                     title="Undo stroke"
                   >
-                    <Undo2 className="w-3.5 h-3.5" />
+                    <Undo2 className="w-5 h-5" />
                   </button>
                   <button
                     onClick={handleStudentRedo}
                     disabled={redoStack.length === 0}
-                    className="p-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                    className="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
                     title="Redo stroke"
                   >
-                    <Redo2 className="w-3.5 h-3.5" />
+                    <Redo2 className="w-5 h-5" />
                   </button>
                   <button
                     onClick={handleStudentClear}
                     disabled={studentStrokes.length === 0}
-                    className="flex items-center gap-1 px-2 py-1 rounded-lg bg-red-950/60 border border-red-800/60 text-red-300 hover:bg-red-900 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed text-[10px] font-bold transition-all cursor-pointer"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-950/60 border border-red-800/60 text-red-300 hover:bg-red-900 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed text-xs font-bold transition-all cursor-pointer"
                     title="Clear my slide markings"
                   >
-                    <Trash2 className="w-3 h-3" />
+                    <Trash2 className="w-4 h-4" />
                     <span>Clear</span>
                   </button>
                 </div>
