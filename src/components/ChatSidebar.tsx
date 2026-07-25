@@ -1068,6 +1068,7 @@ interface MessageCardProps {
   forceCollapsed?: boolean;
   onToggleCollapse?: (msgId: string, collapsed: boolean) => void;
   onOpenImageLightbox?: (imageUrl: string, title?: string) => void;
+  isUnread?: boolean;
 }
 
 const MessageCard: React.FC<MessageCardProps> = ({ 
@@ -1083,7 +1084,8 @@ const MessageCard: React.FC<MessageCardProps> = ({
   onFocus,
   forceCollapsed,
   onToggleCollapse,
-  onOpenImageLightbox
+  onOpenImageLightbox,
+  isUnread = false
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : (forceCollapsed ?? initialCollapsed));
 
@@ -1177,6 +1179,11 @@ const MessageCard: React.FC<MessageCardProps> = ({
                   Presenter
                 </span>
               )}
+              {canModerate && isUnread && (
+                <span className="inline-flex items-center bg-red-100 text-red-600 font-extrabold px-1.5 py-0.5 rounded text-[8px] border border-red-200/50 uppercase tracking-wider">
+                  Unread
+                </span>
+              )}
             </span>
           </div>
         </div>
@@ -1221,87 +1228,111 @@ const MessageCard: React.FC<MessageCardProps> = ({
       </div>
       {!isCollapsed && (
         <>
-          <div className="text-slate-800 leading-relaxed transition-all duration-300 text-sm">
-            {msg.text && (
-              <span className="font-bold">
-                {renderTextWithLinks(msg.text)}
-              </span>
-            )}
-            {msg.fileUrl && (
-              msg.isPushedSlide ? (
-                <div 
-                  onClick={(e) => { 
-                    e.stopPropagation(); 
-                    onOpenImageLightbox?.(msg.fileUrl!, msg.text || "Pushed Slide"); 
-                  }}
-                  className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 shadow-md hover:shadow-lg hover:border-osu-orange/50 transition-all cursor-pointer relative group/img max-w-xl mx-auto w-full aspect-video flex flex-col justify-between"
+          {canModerate ? (
+            /* Presenter layout: comment text left-aligned, slide badge right-aligned */
+            <div className="flex items-start justify-between gap-3 w-full text-slate-800 text-sm mb-2">
+              {msg.text && (
+                <span className="font-bold text-left flex-1 min-w-0 break-words leading-relaxed">
+                  {renderTextWithLinks(msg.text)}
+                </span>
+              )}
+              {(msg.slide !== undefined && msg.slide !== null) && (
+                <span className={cn(
+                  "inline-flex items-center shrink-0 px-2.5 py-0.5 rounded-full text-[9px] font-black text-white border border-white/20 uppercase tracking-widest transition-all duration-300 shadow-sm",
+                  isPresenter 
+                    ? "bg-indigo-600 shadow-[0_2px_4px_rgba(79,70,229,0.2)]"
+                    : "bg-osu-orange shadow-[0_2px_4px_rgba(255,62,0,0.2)]"
+                )}>
+                  Slide {msg.slide}
+                </span>
+              )}
+            </div>
+          ) : (
+            /* Student view layout: original inline flow */
+            <div className="text-slate-800 leading-relaxed transition-all duration-300 text-sm mb-2">
+              {msg.text && (
+                <span className="font-bold">
+                  {renderTextWithLinks(msg.text)}
+                </span>
+              )}
+              {(msg.slide !== undefined && msg.slide !== null) && (
+                <span className={cn(
+                  "inline-flex items-center ml-1.5 px-2.5 py-1 rounded-full text-[11px] font-normal text-white border-2 border-white uppercase tracking-wider transition-all duration-300",
+                  isPresenter 
+                    ? "bg-indigo-600 shadow-[0_2px_4px_rgba(79,70,229,0.3)]"
+                    : "bg-[#ff3e00] shadow-[0_2px_4px_rgba(255,62,0,0.3)]"
+                )}>
+                  Slide {msg.slide}
+                </span>
+              )}
+            </div>
+          )}
+
+          {msg.fileUrl && (
+            msg.isPushedSlide ? (
+              <div 
+                onClick={(e) => { 
+                  e.stopPropagation(); 
+                  onOpenImageLightbox?.(msg.fileUrl!, msg.text || "Pushed Slide"); 
+                }}
+                className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 shadow-md hover:shadow-lg hover:border-osu-orange/50 transition-all cursor-pointer relative group/img max-w-xl mx-auto w-full aspect-video flex flex-col justify-between"
+              >
+                <div className="flex-1 w-full p-3.5 relative flex items-center justify-center bg-slate-950 overflow-hidden">
+                  <img 
+                    src={msg.fileUrl} 
+                    alt="Pushed Slide" 
+                    className="max-w-full max-h-full object-contain opacity-90 group-hover/img:opacity-100 transition-opacity duration-200" 
+                  />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity duration-200 flex items-center justify-center">
+                    <span className="px-3 py-1.5 bg-slate-900/90 text-white text-[10px] font-black uppercase tracking-wider rounded-lg border border-white/10 shadow-lg select-none">
+                      Click to Inspect / Zoom
+                    </span>
+                  </div>
+                </div>
+                <div className="p-2.5 bg-slate-900 border-t border-white/5 flex items-center justify-between text-white select-none shrink-0">
+                  <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Pushed Slide Preview</span>
+                  <span className="text-[9px] text-osu-orange font-bold uppercase tracking-wider group-hover/img:underline">Zoom In</span>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-2.5 p-3 bg-white/95 rounded-xl border border-slate-200/80 flex items-center justify-between gap-3 shadow-sm hover:border-indigo-400 hover:shadow-md transition-all group/doc">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg group-hover/doc:bg-indigo-100 group-hover/doc:text-indigo-700 transition-colors flex items-center justify-center shrink-0">
+                    <Download className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0 flex flex-col items-start">
+                    <span className="font-bold text-slate-800 truncate block w-full text-xs max-w-[130px]" title={msg.fileName}>
+                      {msg.fileName || "Shared Document"}
+                    </span>
+                    {msg.fileSize !== undefined && msg.fileSize !== null && (
+                      <span className="text-[9px] text-slate-500 font-semibold mt-0.5 block">
+                        {formatFileSize(msg.fileSize)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <a
+                  href={msg.fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  download={msg.fileName || "download"}
+                  className="shrink-0 px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.97] text-white rounded-lg transition-all shadow-sm flex items-center justify-center gap-1 text-[10px] font-extrabold uppercase tracking-wide select-none"
+                  title="Download Document"
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <div className="flex-1 w-full p-3.5 relative flex items-center justify-center bg-slate-950 overflow-hidden">
-                    <img 
-                      src={msg.fileUrl} 
-                      alt="Pushed Slide" 
-                      className="max-w-full max-h-full object-contain opacity-90 group-hover/img:opacity-100 transition-opacity duration-200" 
-                    />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity duration-200 flex items-center justify-center">
-                      <span className="px-3 py-1.5 bg-slate-900/90 text-white text-[10px] font-black uppercase tracking-wider rounded-lg border border-white/10 shadow-lg select-none">
-                        Click to Inspect / Zoom
-                      </span>
-                    </div>
-                  </div>
-                  <div className="p-2.5 bg-slate-900 border-t border-white/5 flex items-center justify-between text-white select-none shrink-0">
-                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Pushed Slide Preview</span>
-                    <span className="text-[9px] text-osu-orange font-bold uppercase tracking-wider group-hover/img:underline">Zoom In</span>
-                  </div>
-                </div>
-              ) : (
-                <div className="mt-2.5 p-3 bg-white/95 rounded-xl border border-slate-200/80 flex items-center justify-between gap-3 shadow-sm hover:border-indigo-400 hover:shadow-md transition-all group/doc">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg group-hover/doc:bg-indigo-100 group-hover/doc:text-indigo-700 transition-colors flex items-center justify-center shrink-0">
-                      <Download className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0 flex flex-col items-start">
-                      <span className="font-bold text-slate-800 truncate block w-full text-xs max-w-[130px]" title={msg.fileName}>
-                        {msg.fileName || "Shared Document"}
-                      </span>
-                      {msg.fileSize !== undefined && msg.fileSize !== null && (
-                        <span className="text-[9px] text-slate-500 font-semibold mt-0.5 block">
-                          {formatFileSize(msg.fileSize)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <a
-                    href={msg.fileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    download={msg.fileName || "download"}
-                    className="shrink-0 px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.97] text-white rounded-lg transition-all shadow-sm flex items-center justify-center gap-1 text-[10px] font-extrabold uppercase tracking-wide select-none"
-                    title="Download Document"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <Download className="w-3 h-3" />
-                    <span>Get</span>
-                  </a>
-                </div>
-              )
-            )}
-            {(msg.slide !== undefined && msg.slide !== null) && (
-              <span className={cn(
-                "inline-flex items-center ml-1.5 px-2.5 py-1 rounded-full text-[11px] font-normal text-white border-2 border-white uppercase tracking-wider transition-all duration-300",
-                isPresenter 
-                  ? "bg-indigo-600 shadow-[0_2px_4px_rgba(79,70,229,0.3)]"
-                  : "bg-[#ff3e00] shadow-[0_2px_4px_rgba(255,62,0,0.3)]"
-              )}>
-                Slide {msg.slide}
-              </span>
-            )}
-            {/* Diagnostic for missing slide */}
-            {(msg.slide === undefined || msg.slide === null) && (
-              <span className="text-[8px] text-slate-400 ml-1 italic">
-                (No slide data)
-              </span>
-            )}
-          </div>
+                  <Download className="w-3 h-3" />
+                  <span>Get</span>
+                </a>
+              </div>
+            )
+          )}
+
+          {/* Diagnostic for missing slide */}
+          {(msg.slide === undefined || msg.slide === null) && (
+            <span className="text-[8px] text-slate-400 ml-1 italic block mt-1">
+              (No slide data)
+            </span>
+          )}
           <div className="mt-2 text-slate-450 text-[9px] text-right">
             {msg.timestamp?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </div>
@@ -1374,6 +1405,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [isAllCollapsed, setIsAllCollapsed] = useState(false);
   const [isQRExpanded, setIsQRExpanded] = useState(false);
   const [collapsedMessageIds, setCollapsedMessageIds] = useState<Record<string, boolean>>({});
+  const [readMessageIds, setReadMessageIds] = useState<Record<string, boolean>>({});
 
   const hasInitializedFromPresentation = useRef(false);
 
@@ -3989,7 +4021,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 initialCollapsed={isAllCollapsed}
                 isInitiallyNew={false}
                 isPresenter={msg.isPresenterPost !== undefined ? msg.isPresenterPost : msg.userId === presentation?.presenterId}
+                isUnread={!readMessageIds[msg.id]}
                 onFocus={(msg) => {
+                  setReadMessageIds(prev => ({ ...prev, [msg.id]: true }));
                   const isAlreadyFocused = focusedMessage?.id === msg.id;
                   if (isAlreadyFocused) {
                     setCollapsedMessageIds(prev => ({ ...prev, [msg.id]: true }));
@@ -4170,7 +4204,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                   initialCollapsed={isAllCollapsed}
                   isInitiallyNew={isInitiallyNew}
                   isPresenter={msg.isPresenterPost !== undefined ? msg.isPresenterPost : msg.userId === presentation?.presenterId}
+                  isUnread={!readMessageIds[msg.id]}
                   onFocus={(msg) => {
+                    setReadMessageIds(prev => ({ ...prev, [msg.id]: true }));
                     const isAlreadyFocused = focusedMessage?.id === msg.id;
                     if (isAlreadyFocused) {
                       setCollapsedMessageIds(prev => ({ ...prev, [msg.id]: true }));
@@ -4601,15 +4637,15 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
           {/* Scrollable Content Wrapper */}
           <div className="pt-6 overflow-y-auto max-h-[60vh]">
-            {/* Streamlined Sender Metadata Subtitle (Circular Avatar Removed) */}
-            <div className="flex items-center justify-center gap-1.5 mb-4 text-center">
-              <span className="text-xs font-black uppercase tracking-wider text-slate-400">
-                Sent by:
+            {/* Streamlined Sender Metadata Subtitle */}
+            <div className="flex flex-col items-start gap-1 mb-4 pb-3 border-b border-slate-100/80 text-left">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                Message Sender
               </span>
-              <h4 className="text-sm font-black text-slate-700 uppercase tracking-tight flex items-center gap-1.5">
+              <h4 className="text-lg md:text-xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
                 {focusedMessage.userName || "Guest Participant"}
                 {(focusedMessage.isPresenterPost !== undefined ? focusedMessage.isPresenterPost : focusedMessage.userId === presentation?.presenterId) && (
-                  <span className="bg-indigo-600 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                  <span className="bg-indigo-600 text-white text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider">
                     Presenter
                   </span>
                 )}
@@ -4618,7 +4654,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
             {/* Message Body */}
             {focusedMessage.text && (
-              <div className="text-2xl md:text-3xl font-black text-osu-orange leading-relaxed text-center my-6 md:my-8 break-words select-text">
+              <div className="text-xl md:text-2xl font-black text-osu-orange leading-relaxed text-left px-1 my-5 md:my-7 break-words select-text">
                 {renderTextWithLinks(focusedMessage.text)}
               </div>
             )}
@@ -4687,17 +4723,17 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
             <div className="flex flex-wrap items-center justify-center gap-3 border-t border-slate-100 pt-6 mt-6">
               {(focusedMessage.slide !== undefined && focusedMessage.slide !== null) && (
                 <span className={cn(
-                  "inline-flex items-center gap-1 px-4 py-1.5 rounded-full text-xs font-black text-white uppercase tracking-wider shadow-md",
-                  (focusedMessage.isPresenterPost !== undefined ? focusedMessage.isPresenterPost : focusedMessage.userId === presentation?.presenterId) ? "bg-indigo-600 shadow-indigo-600/20" : "bg-[#ff3e00] shadow-[#ff3e00]/20"
+                  "inline-flex items-center gap-1 px-5 py-2.5 rounded-xl text-sm font-black text-white uppercase tracking-widest shadow-lg border border-white/10 transition-all hover:scale-[1.02]",
+                  (focusedMessage.isPresenterPost !== undefined ? focusedMessage.isPresenterPost : focusedMessage.userId === presentation?.presenterId) ? "bg-indigo-600 shadow-indigo-600/15" : "bg-osu-orange shadow-orange-600/15"
                 )}>
                   Slide {focusedMessage.slide}
                 </span>
               )}
-              <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-black bg-yellow-400 text-slate-900 shadow-md">
-                <ThumbsUp className="w-3.5 h-3.5 fill-current" />
+              <span className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-sm font-black bg-amber-400 text-slate-950 shadow-lg border border-amber-300/20 transition-all hover:scale-[1.02]">
+                <ThumbsUp className="w-4 h-4 fill-current" />
                 {focusedMessage.likes || 0} Likes
               </span>
-              <span className="inline-flex items-center gap-1 px-4 py-1.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-500">
+              <span className="inline-flex items-center gap-1 px-5 py-2.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200/50">
                 {focusedMessage.timestamp?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
             </div>
