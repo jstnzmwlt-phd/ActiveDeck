@@ -4,7 +4,7 @@ import { ScreenCapture } from './ScreenCapture';
 import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play, X, Loader2, Tv, Minimize, Maximize, FileText, Square, Send, CheckCircle2, Check, Clock, Pen, Eraser, Highlighter, MoveRight, Type, Undo2, Redo2, Trash2 } from 'lucide-react';
 import { useBridge } from '../contexts/BridgeContext';
 import { auth, db, storage } from '../firebase';
-import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, onSnapshot, collection, query, where } from 'firebase/firestore';
 import { QRCodeSVG } from 'qrcode.react';
 
 export interface DrawingPoint {
@@ -420,6 +420,34 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const [currentSlidePreviewUrl, setCurrentSlidePreviewUrl] = useState<string | null>(null);
   const [nextSlidePreviewUrl, setNextSlidePreviewUrl] = useState<string | null>(null);
   const [isUploadingPreview, setIsUploadingPreview] = useState(false);
+  const [slidePreviewsMap, setSlidePreviewsMap] = useState<Record<number, string>>({});
+  const [localImageErrors, setLocalImageErrors] = useState<Record<number, boolean>>({});
+
+  // Subscribe to all slide background previews for this presentation
+  useEffect(() => {
+    if (!presentation?.id) {
+      setSlidePreviewsMap({});
+      return;
+    }
+    const q = query(
+      collection(db, 'messages'),
+      where('presentationId', '==', presentation.id),
+      where('isBackgroundPreview', '==', true)
+    );
+    const unsub = onSnapshot(q, (snapshot) => {
+      const map: Record<number, string> = {};
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        if (data.slide !== undefined && data.slide !== null && data.fileUrl) {
+          map[data.slide] = data.fileUrl;
+        }
+      });
+      setSlidePreviewsMap(map);
+    }, (err) => {
+      console.warn("ActiveDeck: Error loading all slide previews:", err);
+    });
+    return () => unsub();
+  }, [presentation?.id]);
 
   useEffect(() => {
     if (!presentation?.id || currentSlide === null) {
@@ -1719,7 +1747,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
                   {/* Scrollable Slide Selector under Clock */}
                   {totalSlides !== null && currentSlide !== null && (
-                    <div className="mt-3 flex flex-col gap-2 w-full bg-slate-950/40 border border-slate-900 rounded-2xl p-3 shadow-lg flex-1 min-h-[180px] max-h-[300px] overflow-hidden">
+                    <div className="mt-3 flex flex-col gap-2 w-full bg-slate-950/40 border border-slate-900 rounded-2xl p-3 shadow-lg flex-1 min-h-[220px] max-h-[360px] overflow-hidden">
                       <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 pb-1.5 border-b border-slate-900/60 mb-1 flex items-center justify-between">
                         <span>Jump to Slide</span>
                         {furthestSlide !== null && (
@@ -1731,31 +1759,62 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                       
                       <div 
                         id="deck-navigator-scroll-container"
-                        className="relative grid grid-cols-6 gap-1 overflow-y-auto pr-0.5 custom-scrollbar flex-1 min-h-0"
+                        className="relative grid grid-cols-3 gap-2 overflow-y-auto pr-0.5 custom-scrollbar flex-1 min-h-0"
                       >
                         {Array.from({ length: totalSlides }, (_, i) => i + 1).map((sNum) => {
                           const isCurrent = sNum === currentSlide;
                           const isFurthest = sNum === furthestSlide;
                           const isDisabled = sNum > furthestSlide;
+                          
+                          const hasLocalError = localImageErrors[sNum];
+                          const localUrl = `http://127.0.0.1:5000/slides/${sNum}.jpg`;
+                          const firestoreUrl = slidePreviewsMap[sNum];
+                          const imgUrl = (isBridgeConnected && !hasLocalError) ? localUrl : (firestoreUrl || null);
+
                           return (
                             <button
                               id={`nav-slide-${sNum}`}
                               key={`nav-slide-${sNum}`}
                               disabled={isDisabled}
                               onClick={() => sendSlideCommand(sNum)}
-                              className={`h-6 w-full rounded-md flex flex-col items-center justify-center text-[10px] font-bold font-mono transition-all duration-150 relative ${
-                                isCurrent
-                                  ? 'bg-osu-orange text-white shadow-lg shadow-orange-500/10 scale-105 border border-orange-500/30 cursor-pointer'
-                                  : isDisabled
-                                    ? 'bg-slate-900/40 text-slate-700 border border-slate-950 cursor-not-allowed opacity-35'
-                                    : 'bg-white hover:bg-slate-100 text-black border border-slate-200 cursor-pointer'
+                              className={`flex flex-col items-center gap-1 group/tile cursor-pointer ${
+                                isDisabled ? 'opacity-35 cursor-not-allowed' : ''
                               }`}
                               title={isFurthest ? "Where you left off (furthest slide)" : isDisabled ? "Slide not yet shown to audience" : `Jump to Slide ${sNum}`}
                             >
-                              <span>{sNum}</span>
-                              {isFurthest && (
-                                <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                              )}
+                              <div className={`relative w-full aspect-video bg-slate-950 rounded-lg overflow-hidden flex items-center justify-center border transition-all ${
+                                isCurrent
+                                  ? 'border-osu-orange ring-2 ring-osu-orange/20 scale-[1.03]'
+                                  : 'border-slate-800 group-hover/tile:border-slate-600'
+                              }`}>
+                                {imgUrl ? (
+                                  <img
+                                    src={imgUrl}
+                                    alt={`Slide ${sNum}`}
+                                    className="w-full h-full object-cover bg-black"
+                                    loading="lazy"
+                                    onError={() => setLocalImageErrors(prev => ({ ...prev, [sNum]: true }))}
+                                  />
+                                ) : (
+                                  <div className="absolute inset-0 flex items-center justify-center text-slate-700 bg-slate-950">
+                                    <Monitor className="w-4 h-4 opacity-30" />
+                                  </div>
+                                )}
+                                
+                                {/* Slide Number Badge */}
+                                <span className={`absolute bottom-1 left-1 px-1.5 py-0.5 rounded font-mono font-black text-[9px] border leading-none ${
+                                  isCurrent
+                                    ? 'bg-osu-orange text-white border-orange-500/30 shadow-md'
+                                    : 'bg-slate-950/85 text-slate-300 border-slate-850'
+                                }`}>
+                                  {sNum}
+                                </span>
+
+                                {/* Furthest slide dot */}
+                                {isFurthest && (
+                                  <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                )}
+                              </div>
                             </button>
                           );
                         })}
