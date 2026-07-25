@@ -1764,7 +1764,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         {Array.from({ length: totalSlides }, (_, i) => i + 1).map((sNum) => {
                           const isCurrent = sNum === currentSlide;
                           const isFurthest = sNum === furthestSlide;
-                          const isDisabled = sNum > furthestSlide;
+                          const isUnshown = sNum > furthestSlide;
                           
                           const hasLocalError = localImageErrors[sNum];
                           const localUrl = `http://127.0.0.1:5000/slides/${sNum}.jpg`;
@@ -1775,12 +1775,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                             <button
                               id={`nav-slide-${sNum}`}
                               key={`nav-slide-${sNum}`}
-                              disabled={isDisabled}
                               onClick={() => sendSlideCommand(sNum)}
-                              className={`flex flex-col items-center gap-1 group/tile cursor-pointer ${
-                                isDisabled ? 'opacity-35 cursor-not-allowed' : ''
+                              className={`flex flex-col items-center gap-1 group/tile cursor-pointer transition-opacity duration-150 ${
+                                isUnshown ? 'opacity-10 hover:opacity-40' : 'opacity-100'
                               }`}
-                              title={isFurthest ? "Where you left off (furthest slide)" : isDisabled ? "Slide not yet shown to audience" : `Jump to Slide ${sNum}`}
+                              title={isFurthest ? "Where you left off (furthest slide)" : isUnshown ? "Slide not yet shown to audience (Click to jump)" : `Jump to Slide ${sNum}`}
                             >
                               <div className={`relative w-full aspect-video bg-slate-950 rounded-lg overflow-hidden flex items-center justify-center border transition-all ${
                                 isCurrent
