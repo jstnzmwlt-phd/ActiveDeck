@@ -1541,7 +1541,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         className={`${presentWithNotes && isCapturing && !isProjectorMode ? 'flex-[2]' : 'flex-1'} relative bg-black overflow-hidden flex items-center justify-center transition-all duration-300`}
       >
         {!isProjectorMode ? (
-          <div className={`w-full h-full p-4 flex flex-col ${presentWithNotes && isCapturing ? 'md:flex-row gap-4 items-start justify-between max-w-[1650px]' : 'items-center justify-center max-w-[1450px]'} mx-auto select-none overflow-y-auto custom-scrollbar`}>
+          <div className={`w-full h-full p-4 flex flex-col ${presentWithNotes && isCapturing ? 'md:flex-row gap-4 items-stretch justify-between max-w-[1650px]' : 'items-center justify-center max-w-[1450px]'} mx-auto select-none overflow-y-auto custom-scrollbar`}>
             {presentWithNotes && isCapturing ? (
               <>
                 {/* SPLIT SCREEN LAYOUT: Notes ON */}
@@ -1754,7 +1754,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
                   {/* Scrollable Slide Selector under Clock */}
                   {totalSlides !== null && currentSlide !== null && (
-                    <div className="mt-3 flex flex-col gap-2 w-full bg-slate-950/40 border border-slate-900 rounded-2xl p-3 shadow-lg flex-1 min-h-[220px] max-h-[360px] overflow-hidden">
+                    <div className="mt-3 flex flex-col gap-2 w-full bg-slate-950/40 border border-slate-900 rounded-2xl p-3 shadow-lg flex-1 min-h-[220px] overflow-hidden">
                       <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 pb-1.5 border-b border-slate-900/60 mb-1 flex items-center justify-between">
                         <span>Jump to Slide</span>
                         {furthestSlide !== null && (
