@@ -1731,7 +1731,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                       
                       <div 
                         id="deck-navigator-scroll-container"
-                        className="relative grid grid-cols-4 gap-1.5 overflow-y-auto pr-0.5 custom-scrollbar flex-1 min-h-0"
+                        className="relative grid grid-cols-6 gap-1 overflow-y-auto pr-0.5 custom-scrollbar flex-1 min-h-0"
                       >
                         {Array.from({ length: totalSlides }, (_, i) => i + 1).map((sNum) => {
                           const isCurrent = sNum === currentSlide;
@@ -1743,7 +1743,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                               key={`nav-slide-${sNum}`}
                               disabled={isDisabled}
                               onClick={() => sendSlideCommand(sNum)}
-                              className={`h-9 w-full rounded-lg flex flex-col items-center justify-center text-xs font-bold font-mono transition-all duration-150 relative ${
+                              className={`h-6 w-full rounded-md flex flex-col items-center justify-center text-[10px] font-bold font-mono transition-all duration-150 relative ${
                                 isCurrent
                                   ? 'bg-osu-orange text-white shadow-lg shadow-orange-500/10 scale-105 border border-orange-500/30 cursor-pointer'
                                   : isDisabled
@@ -1754,7 +1754,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                             >
                               <span>{sNum}</span>
                               {isFurthest && (
-                                <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                               )}
                             </button>
                           );
