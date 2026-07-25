@@ -4638,11 +4638,11 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           {/* Scrollable Content Wrapper */}
           <div className="pt-6 overflow-y-auto max-h-[60vh]">
             {/* Streamlined Sender Metadata Subtitle */}
-            <div className="flex flex-col items-start gap-1 mb-4 pb-3 border-b border-slate-100/80 text-left">
+            <div className="flex flex-col items-center gap-1 mb-4 pb-3 border-b border-slate-100/80 text-center">
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                 Message Sender
               </span>
-              <h4 className="text-lg md:text-xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
+              <h4 className="text-lg md:text-xl font-black text-slate-900 uppercase tracking-tight flex items-center justify-center gap-2">
                 {focusedMessage.userName || "Guest Participant"}
                 {(focusedMessage.isPresenterPost !== undefined ? focusedMessage.isPresenterPost : focusedMessage.userId === presentation?.presenterId) && (
                   <span className="bg-indigo-600 text-white text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider">
