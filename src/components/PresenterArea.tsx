@@ -884,19 +884,28 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     fetchTheme();
   }, []);
 
-  // Auto-scroll the active slide button in the deck navigator into view
+  // Auto-scroll the active slide button in the deck navigator into view only when out of bounds
   useEffect(() => {
     if (currentSlide !== null) {
       const container = document.getElementById('deck-navigator-scroll-container');
       const element = document.getElementById(`nav-slide-${currentSlide}`);
       if (container && element) {
-        const containerHeight = container.clientHeight;
+        const containerTop = container.scrollTop;
+        const containerBottom = containerTop + container.clientHeight;
         const elementTop = element.offsetTop;
-        const elementHeight = element.clientHeight;
-        container.scrollTo({
-          top: elementTop - containerHeight / 2 + elementHeight / 2,
-          behavior: 'smooth'
-        });
+        const elementBottom = elementTop + element.clientHeight;
+
+        if (elementTop < containerTop) {
+          container.scrollTo({
+            top: elementTop,
+            behavior: 'smooth'
+          });
+        } else if (elementBottom > containerBottom) {
+          container.scrollTo({
+            top: elementBottom - container.clientHeight,
+            behavior: 'smooth'
+          });
+        }
       }
     }
   }, [currentSlide]);
@@ -1722,7 +1731,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                       
                       <div 
                         id="deck-navigator-scroll-container"
-                        className="grid grid-cols-4 gap-1.5 overflow-y-auto pr-0.5 custom-scrollbar flex-1 min-h-0"
+                        className="relative grid grid-cols-4 gap-1.5 overflow-y-auto pr-0.5 custom-scrollbar flex-1 min-h-0"
                       >
                         {Array.from({ length: totalSlides }, (_, i) => i + 1).map((sNum) => {
                           const isCurrent = sNum === currentSlide;
