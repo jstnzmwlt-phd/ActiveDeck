@@ -49,8 +49,6 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const [error, setError] = useState<string | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
   const [laserEnabled, setLaserEnabled] = useState(true);
-  const [showSlideSelector, setShowSlideSelector] = useState(false);
-  const selectorRef = useRef<HTMLDivElement>(null);
   const [presentWithNotes, setPresentWithNotes] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isDownloadingPresentation, setIsDownloadingPresentation] = useState(false);
@@ -886,16 +884,22 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     fetchTheme();
   }, []);
 
+  // Auto-scroll the active slide button in the deck navigator into view
   useEffect(() => {
-    if (!showSlideSelector) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (selectorRef.current && !selectorRef.current.contains(e.target as Node)) {
-        setShowSlideSelector(false);
+    if (currentSlide !== null) {
+      const container = document.getElementById('deck-navigator-scroll-container');
+      const element = document.getElementById(`nav-slide-${currentSlide}`);
+      if (container && element) {
+        const containerHeight = container.clientHeight;
+        const elementTop = element.offsetTop;
+        const elementHeight = element.clientHeight;
+        container.scrollTo({
+          top: elementTop - containerHeight / 2 + elementHeight / 2,
+          behavior: 'smooth'
+        });
       }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showSlideSelector]);
+    }
+  }, [currentSlide]);
 
   const handleSlideMove = (direction: 'next' | 'prev') => {
     sendSlideCommand(direction);
@@ -1703,6 +1707,62 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                       <span className="text-[0.65em] ml-1.5 font-sans font-black text-osu-orange uppercase">{currentTime.getHours() >= 12 ? 'PM' : 'AM'}</span>
                     </div>
                   </div>
+
+                  {/* Scrollable Slide Selector under Clock */}
+                  {totalSlides !== null && currentSlide !== null && (
+                    <div className="mt-3 flex flex-col gap-2 w-full bg-slate-950/40 border border-slate-900 rounded-2xl p-3 shadow-lg flex-1 min-h-[180px] max-h-[300px] overflow-hidden">
+                      <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 pb-1.5 border-b border-slate-900/60 mb-1 flex items-center justify-between">
+                        <span>Jump to Slide</span>
+                        {furthestSlide !== null && (
+                          <span className="text-[9px] text-slate-500 font-medium normal-case font-mono">
+                            Furthest: Slide {furthestSlide}
+                          </span>
+                        )}
+                      </div>
+                      
+                      <div 
+                        id="deck-navigator-scroll-container"
+                        className="grid grid-cols-4 gap-1.5 overflow-y-auto pr-0.5 custom-scrollbar flex-1 min-h-0"
+                      >
+                        {Array.from({ length: totalSlides }, (_, i) => i + 1).map((sNum) => {
+                          const isCurrent = sNum === currentSlide;
+                          const isFurthest = sNum === furthestSlide;
+                          const isDisabled = sNum > furthestSlide;
+                          return (
+                            <button
+                              id={`nav-slide-${sNum}`}
+                              key={`nav-slide-${sNum}`}
+                              disabled={isDisabled}
+                              onClick={() => sendSlideCommand(sNum)}
+                              className={`h-9 w-full rounded-lg flex flex-col items-center justify-center text-xs font-bold font-mono transition-all duration-150 relative ${
+                                isCurrent
+                                  ? 'bg-osu-orange text-white shadow-lg shadow-orange-500/10 scale-105 border border-orange-500/30 cursor-pointer'
+                                  : isDisabled
+                                    ? 'bg-slate-900/40 text-slate-700 border border-slate-950 cursor-not-allowed opacity-35'
+                                    : 'bg-white hover:bg-slate-100 text-black border border-slate-200 cursor-pointer'
+                              }`}
+                              title={isFurthest ? "Where you left off (furthest slide)" : isDisabled ? "Slide not yet shown to audience" : `Jump to Slide ${sNum}`}
+                            >
+                              <span>{sNum}</span>
+                              {isFurthest && (
+                                <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {furthestSlide !== null && furthestSlide !== currentSlide && (
+                        <button
+                          onClick={() => sendSlideCommand(furthestSlide)}
+                          className="w-full mt-1.5 py-1.5 bg-osu-orange hover:bg-[#c03900] text-white text-[10px] font-black uppercase tracking-wider rounded-lg border border-orange-500/30 shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1 shrink-0"
+                        >
+                          <span>Resume from Slide {furthestSlide}</span>
+                          <span className="text-[8px]">➜</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </>
             ) : (
@@ -2392,71 +2452,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               <>
                 <div className="w-px h-6 bg-slate-800/80" />
                 <div
-                  ref={selectorRef}
-                  onClick={() => setShowSlideSelector(prev => !prev)}
-                  className="relative px-4 py-1 text-[11px] font-black uppercase tracking-widest text-slate-200 bg-slate-950/80 hover:bg-slate-900 rounded-lg border border-slate-850/50 min-w-[125px] text-center font-mono cursor-pointer transition-all flex items-center justify-center gap-1.5 select-none group/indicator"
-                  title="Jump to Slide..."
+                  className="px-4 py-1 text-[11px] font-black uppercase tracking-widest text-slate-400 bg-slate-950/40 rounded-lg border border-slate-850/30 min-w-[125px] text-center font-mono select-none"
                 >
-                  <span>Slide {currentSlide} of {totalSlides}</span>
-                  <span className="text-[7px] text-slate-400 group-hover/indicator:text-osu-orange transition-colors">▼</span>
-                  
-                  {/* Slide Quick-Selector Grid Dropdown */}
-                  {showSlideSelector && (
-                    <div 
-                      onClick={(e) => e.stopPropagation()}
-                      className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 bg-black border border-slate-800 rounded-xl shadow-2xl p-3.5 w-56 max-h-80 z-[9999] animate-in fade-in slide-in-from-bottom-2 duration-150 flex flex-col gap-2.5"
-                    >
-                      <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-900 pb-1.5 mb-0.5 text-center">
-                        Select Slide to Jump
-                      </div>
-                      
-                      <div className="grid grid-cols-4 gap-1.5 overflow-y-auto max-h-48 pr-0.5 custom-scrollbar">
-                        {Array.from({ length: totalSlides }, (_, i) => i + 1).map((sNum) => {
-                          const isCurrent = sNum === currentSlide;
-                          const isFurthest = sNum === furthestSlide;
-                          const isDisabled = sNum > furthestSlide;
-                          return (
-                            <button
-                              key={`select-slide-${sNum}`}
-                              disabled={isDisabled}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                sendSlideCommand(sNum);
-                                setShowSlideSelector(false);
-                              }}
-                              className={`h-8 w-full rounded-lg flex flex-col items-center justify-center text-xs font-bold font-mono transition-all duration-150 relative ${
-                                isCurrent
-                                  ? 'bg-osu-orange text-white shadow-lg shadow-orange-500/10 scale-105 border border-orange-500/30 cursor-pointer'
-                                  : isDisabled
-                                    ? 'bg-slate-900/60 text-slate-700 border border-slate-950 cursor-not-allowed opacity-35'
-                                    : 'bg-white hover:bg-slate-100 text-black border border-slate-200 cursor-pointer'
-                              }`}
-                              title={isFurthest ? "Where you left off (furthest slide)" : isDisabled ? "Slide not yet shown to audience" : `Jump to Slide ${sNum}`}
-                            >
-                              <span>{sNum}</span>
-                              {isFurthest && (
-                                <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      {furthestSlide !== null && furthestSlide !== currentSlide && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            sendSlideCommand(furthestSlide);
-                            setShowSlideSelector(false);
-                          }}
-                          className="w-full py-2 bg-osu-orange hover:bg-[#c03900] text-white text-[11px] font-black uppercase tracking-wider rounded-lg border border-orange-500/30 shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1 shrink-0"
-                        >
-                          <span>Resume from Slide {furthestSlide}</span>
-                          <span className="text-[8.5px]">➜</span>
-                        </button>
-                      )}
-                    </div>
-                  )}
+                  Slide {currentSlide} of {totalSlides}
                 </div>
                 <div className="w-px h-6 bg-slate-800/80" />
               </>
