@@ -53,11 +53,18 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isDownloadingPresentation, setIsDownloadingPresentation] = useState(false);
   const [furthestSlide, setFurthestSlide] = useState<number>(1);
+  const [visitedSlides, setVisitedSlides] = useState<Record<number, boolean>>({});
 
-  // Sync furthest slide reached
+  // Sync furthest slide reached & visited slides
   useEffect(() => {
-    if (currentSlide !== null && currentSlide > furthestSlide) {
-      setFurthestSlide(currentSlide);
+    if (currentSlide !== null) {
+      setVisitedSlides(prev => {
+        if (prev[currentSlide]) return prev;
+        return { ...prev, [currentSlide]: true };
+      });
+      if (currentSlide > furthestSlide) {
+        setFurthestSlide(currentSlide);
+      }
     }
   }, [currentSlide, furthestSlide]);
 
@@ -1764,7 +1771,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         {Array.from({ length: totalSlides }, (_, i) => i + 1).map((sNum) => {
                           const isCurrent = sNum === currentSlide;
                           const isFurthest = sNum === furthestSlide;
-                          const isUnshown = sNum > furthestSlide;
+                          const isUnshown = !visitedSlides[sNum];
                           
                           const hasLocalError = localImageErrors[sNum];
                           const localUrl = `http://127.0.0.1:5000/slides/${sNum}.jpg`;
