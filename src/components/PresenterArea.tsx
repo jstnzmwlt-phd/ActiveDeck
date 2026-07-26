@@ -525,6 +525,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const [leftWidthPercent, setLeftWidthPercent] = useState<number>(62); // Default starting width percentage for left panel
   const [isResizingNotes, setIsResizingNotes] = useState(false);
 
+  const [rightTopHeightPercent, setRightTopHeightPercent] = useState<number>(45); // Default starting height percentage for right top panel
+  const [isResizingRightSplit, setIsResizingRightSplit] = useState(false);
+
   const handleMouseDownPresenterNotesSplit = (e: React.MouseEvent) => {
     e.preventDefault();
     setIsResizingNotes(true);
@@ -534,6 +537,17 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
   const handleTouchStartPresenterNotesSplit = (e: React.TouchEvent) => {
     setIsResizingNotes(true);
+  };
+
+  const handleMouseDownRightSplit = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizingRightSplit(true);
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+  };
+
+  const handleTouchStartRightSplit = (e: React.TouchEvent) => {
+    setIsResizingRightSplit(true);
   };
 
   useEffect(() => {
@@ -574,6 +588,45 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       window.removeEventListener('touchend', handleMouseUp);
     };
   }, [isResizingNotes]);
+
+  useEffect(() => {
+    if (!isResizingRightSplit) return;
+
+    const handleMouseMove = (moveEvent: MouseEvent | TouchEvent) => {
+      if (!containerRef.current) return;
+      
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const clientY = 'touches' in moveEvent ? (moveEvent as TouchEvent).touches[0].clientY : (moveEvent as MouseEvent).clientY;
+      
+      // Calculate position relative to container
+      const relativeY = clientY - containerRect.top;
+      let percent = (relativeY / containerRect.height) * 100;
+      
+      // Apply boundaries (minimum 20%, maximum 80% to prevent complete squishing of top or bottom)
+      if (percent < 20) percent = 20;
+      if (percent > 80) percent = 80;
+      
+      setRightTopHeightPercent(percent);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingRightSplit(false);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('touchmove', handleMouseMove);
+    window.addEventListener('touchend', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('touchmove', handleMouseMove);
+      window.removeEventListener('touchend', handleMouseUp);
+    };
+  }, [isResizingRightSplit]);
 
   const handleVideoLoadedMetadata = (e: React.SyntheticEvent<HTMLVideoElement>) => {
     const video = e.currentTarget;
@@ -1445,7 +1498,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       {/* Presenter Control Bar - Displays off the slide area */}
       {isCapturing && !isProjectorMode && (
         <div className="bg-slate-900 border-b border-slate-800 px-4 py-2 flex items-center justify-between z-[70] shrink-0 select-none relative">
-          {/* Left Side: Status */}
+          {/* Left Side: Status & Controls */}
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5 px-2 py-1 bg-red-600/90 text-white text-[9px] font-black uppercase tracking-widest rounded-lg border border-red-500/20 shadow-lg shadow-red-500/5 animate-in fade-in duration-300">
               <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
@@ -1462,22 +1515,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               <Square className="w-2.5 h-2.5 fill-current" />
               Stop Presentation
             </button>
-          </div>
 
-          {/* Center: Slide Number */}
-          <div className="absolute left-1/2 -translate-x-1/2 z-50">
-            {(currentSlide !== null || presentation?.currentSlide !== undefined) && (
-              <div className="bg-[#ff3e00]/90 text-white px-2.5 py-1 rounded-lg border border-white/20 shadow-lg flex items-center gap-1.5 animate-in fade-in duration-300">
-                <span className="text-[9px] font-black uppercase tracking-wider opacity-85">Slide</span>
-                <span className="text-sm font-black font-mono">
-                  {currentSlide !== null ? currentSlide : presentation?.currentSlide}
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Right Side: Presenter Controls */}
-          <div className="flex items-center gap-2">
             {/* Present with Notes Toggle Switch */}
             <button
               onClick={() => {
@@ -1487,7 +1525,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                   clearNotesState();
                 }
               }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all duration-200 shadow-lg cursor-pointer hover:scale-105 active:scale-95 ${
+              className={`flex items-center gap-1.5 ml-2 px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all duration-200 shadow-lg cursor-pointer hover:scale-105 active:scale-95 ${
                 presentWithNotes 
                   ? 'bg-osu-orange border-osu-orange text-white hover:bg-[#c03900] hover:border-[#c03900] shadow-orange-500/10' 
                   : 'bg-slate-900/90 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800 hover:border-slate-600 shadow-slate-955/25'
@@ -1531,6 +1569,18 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               <Pen className="w-3 h-3 text-white" />
               <span>Pen {isPenActive ? 'ON' : 'OFF'}</span>
             </button>
+          </div>
+
+          {/* Slide Number (Slightly to the right to make some distance) */}
+          <div className="absolute left-[58%] -translate-x-1/2 z-50">
+            {(currentSlide !== null || presentation?.currentSlide !== undefined) && (
+              <div className="bg-[#ff3e00]/90 text-white px-2.5 py-1 rounded-lg border border-white/20 shadow-lg flex items-center gap-1.5 animate-in fade-in duration-300">
+                <span className="text-[9px] font-black uppercase tracking-wider opacity-85">Slide</span>
+                <span className="text-sm font-black font-mono">
+                  {currentSlide !== null ? currentSlide : presentation?.currentSlide}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1696,147 +1746,171 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
                 {/* Right Column (Next Slide): smaller preview */}
                 <div 
-                  className="flex flex-col gap-2 w-full md:flex-shrink-0 ml-auto"
+                  className="flex flex-col gap-2 w-full md:flex-shrink-0 ml-auto h-full"
                   style={{ width: `calc(${100 - leftWidthPercent}% - 8px)` }}
                 >
-                  <div className="flex items-center justify-between px-1">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Next Slide</span>
-                    {nextSlide !== null && (
-                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
-                        Slide {nextSlide}
-                      </span>
-                    )}
-                  </div>
-                  <div className="relative w-full aspect-video bg-black border border-slate-850 rounded-2xl overflow-hidden p-1 flex items-center justify-center shadow-lg">
-                    {isBridgeConnected && nextSlideBase64 ? (
-                      <img 
-                        src={nextSlideBase64} 
-                        alt="Next Slide Preview" 
-                        className="w-full h-full object-contain bg-black animate-in fade-in duration-300"
-                        key={`websocket-next-${nextSlide}`}
-                      />
-                    ) : isBridgeConnected && nextSlide !== null && !nextSlideImageError ? (
-                      <img 
-                        src={`http://127.0.0.1:5000/slides/${nextSlide}.jpg`} 
-                        alt="Next Slide Preview" 
-                        className="w-full h-full object-contain bg-black animate-in fade-in duration-300"
-                        key={`local-next-${nextSlide}`}
-                        onError={() => setNextSlideImageError(true)}
-                      />
-                    ) : nextSlidePreviewUrl ? (
-                      <img 
-                        src={nextSlidePreviewUrl} 
-                        alt="Next Slide Preview" 
-                        className="w-full h-full object-contain bg-black animate-in fade-in duration-300"
-                        key={`firestore-next-${nextSlide}`}
-                      />
-                    ) : (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600 text-center p-4">
-                        <Monitor className="w-8 h-8 mb-2 opacity-20" />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                          {nextSlide !== null ? `Slide ${nextSlide}` : 'No Next Slide'}
+                  {/* Top container: Next Slide Preview + Clock */}
+                  <div 
+                    className="flex flex-col gap-2 min-h-0 w-full"
+                    style={{ height: `calc(${rightTopHeightPercent}% - 6px)` }}
+                  >
+                    <div className="flex items-center justify-between px-1 flex-shrink-0">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Next Slide</span>
+                      {nextSlide !== null && (
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                          Slide {nextSlide}
                         </span>
-                        <span className="text-[9px] text-slate-600 mt-1">
-                          {nextSlide !== null ? 'Waiting for slide capture...' : 'End of presentation'}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  {/* Clock Display under Next Slide Preview */}
-                  <div className="mt-2 flex items-center justify-center gap-2.5 px-5 py-2 bg-slate-950/95 border border-slate-800 rounded-xl shadow-xl text-slate-100 select-none w-fit mx-auto shrink-0">
-                    <Clock className="w-6 h-6 md:w-7 md:h-7 text-osu-orange shrink-0 animate-pulse" />
-                    <div className="flex items-baseline font-mono font-black text-2xl md:text-3xl lg:text-4xl tracking-tight leading-none">
-                      <span>{(currentTime.getHours() % 12 || 12).toString().padStart(2, '0')}:{currentTime.getMinutes().toString().padStart(2, '0')}</span>
-                      <span className="text-[0.6em] text-slate-400 font-semibold ml-0.5">:{currentTime.getSeconds().toString().padStart(2, '0')}</span>
-                      <span className="text-[0.65em] ml-1.5 font-sans font-black text-osu-orange uppercase">{currentTime.getHours() >= 12 ? 'PM' : 'AM'}</span>
-                    </div>
-                  </div>
-
-                  {/* Scrollable Slide Selector under Clock */}
-                  {totalSlides !== null && currentSlide !== null && (
-                    <div className="mt-3 flex flex-col gap-2 w-full bg-slate-950/40 border border-slate-900 rounded-2xl p-3 shadow-lg flex-1 min-h-[220px] overflow-hidden">
-                      <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 pb-1.5 border-b border-slate-900/60 mb-1 flex items-center justify-between">
-                        <span>Jump to Slide</span>
-                        {furthestSlide !== null && (
-                          <span className="text-[9px] text-slate-500 font-medium normal-case font-mono">
-                            Furthest: Slide {furthestSlide}
-                          </span>
-                        )}
-                      </div>
-                      
-                      <div 
-                        id="deck-navigator-scroll-container"
-                        className="relative grid grid-cols-3 gap-2 overflow-y-auto pr-0.5 custom-scrollbar flex-1 min-h-0"
-                      >
-                        {Array.from({ length: totalSlides }, (_, i) => i + 1).map((sNum) => {
-                          const isCurrent = sNum === currentSlide;
-                          const isFurthest = sNum === furthestSlide;
-                          const isUnshown = !visitedSlides[sNum];
-                          
-                          const hasLocalError = localImageErrors[sNum];
-                          const localUrl = `http://127.0.0.1:5000/slides/${sNum}.jpg`;
-                          const firestoreUrl = slidePreviewsMap[sNum];
-                          const imgUrl = (isBridgeConnected && !hasLocalError) ? localUrl : (firestoreUrl || null);
-
-                          return (
-                            <button
-                              id={`nav-slide-${sNum}`}
-                              key={`nav-slide-${sNum}`}
-                              onClick={() => sendSlideCommand(sNum)}
-                              className={`flex flex-col items-center gap-1 group/tile cursor-pointer transition-opacity duration-150 ${
-                                isUnshown ? 'opacity-10 hover:opacity-40' : 'opacity-100'
-                              }`}
-                              title={isFurthest ? "Where you left off (furthest slide)" : isUnshown ? "Slide not yet shown to audience (Click to jump)" : `Jump to Slide ${sNum}`}
-                            >
-                              <div className={`relative w-full aspect-video bg-slate-950 rounded-lg overflow-hidden flex items-center justify-center border transition-all ${
-                                isCurrent
-                                  ? 'border-osu-orange ring-2 ring-osu-orange/20 scale-[1.03]'
-                                  : 'border-slate-800 group-hover/tile:border-slate-600'
-                              }`}>
-                                {imgUrl ? (
-                                  <img
-                                    src={imgUrl}
-                                    alt={`Slide ${sNum}`}
-                                    className="w-full h-full object-cover bg-black"
-                                    loading="lazy"
-                                    onError={() => setLocalImageErrors(prev => ({ ...prev, [sNum]: true }))}
-                                  />
-                                ) : (
-                                  <div className="absolute inset-0 flex items-center justify-center text-slate-700 bg-slate-950">
-                                    <Monitor className="w-4 h-4 opacity-30" />
-                                  </div>
-                                )}
-                                
-                                {/* Slide Number Badge */}
-                                <span className={`absolute bottom-1 left-1 px-1.5 py-0.5 rounded font-mono font-black text-[9px] border leading-none ${
-                                  isCurrent
-                                    ? 'bg-osu-orange text-white border-orange-500/30 shadow-md'
-                                    : 'bg-slate-950/85 text-slate-300 border-slate-850'
-                                }`}>
-                                  {sNum}
-                                </span>
-
-                                {/* Furthest slide dot */}
-                                {isFurthest && (
-                                  <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                )}
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      {furthestSlide !== null && furthestSlide !== currentSlide && (
-                        <button
-                          onClick={() => sendSlideCommand(furthestSlide)}
-                          className="w-full mt-1.5 py-1.5 bg-osu-orange hover:bg-[#c03900] text-white text-[10px] font-black uppercase tracking-wider rounded-lg border border-orange-500/30 shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1 shrink-0"
-                        >
-                          <span>Resume from Slide {furthestSlide}</span>
-                          <span className="text-[8px]">➜</span>
-                        </button>
                       )}
                     </div>
-                  )}
+                    
+                    {/* Changed aspect-video to flex-1 min-h-0 to resize dynamically */}
+                    <div className="relative w-full flex-1 min-h-0 bg-black border border-slate-850 rounded-2xl overflow-hidden p-1 flex items-center justify-center shadow-lg">
+                      {isBridgeConnected && nextSlideBase64 ? (
+                        <img 
+                          src={nextSlideBase64} 
+                          alt="Next Slide Preview" 
+                          className="w-full h-full object-contain bg-black animate-in fade-in duration-300"
+                          key={`websocket-next-${nextSlide}`}
+                        />
+                      ) : isBridgeConnected && nextSlide !== null && !nextSlideImageError ? (
+                        <img 
+                          src={`http://127.0.0.1:5000/slides/${nextSlide}.jpg`} 
+                          alt="Next Slide Preview" 
+                          className="w-full h-full object-contain bg-black animate-in fade-in duration-300"
+                          key={`local-next-${nextSlide}`}
+                          onError={() => setNextSlideImageError(true)}
+                        />
+                      ) : nextSlidePreviewUrl ? (
+                        <img 
+                          src={nextSlidePreviewUrl} 
+                          alt="Next Slide Preview" 
+                          className="w-full h-full object-contain bg-black animate-in fade-in duration-300"
+                          key={`firestore-next-${nextSlide}`}
+                        />
+                      ) : (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600 text-center p-4">
+                          <Monitor className="w-8 h-8 mb-2 opacity-20" />
+                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                            {nextSlide !== null ? `Slide ${nextSlide}` : 'No Next Slide'}
+                          </span>
+                          <span className="text-[9px] text-slate-600 mt-1">
+                            {nextSlide !== null ? 'Waiting for slide capture...' : 'End of presentation'}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    {/* Clock Display under Next Slide Preview */}
+                    <div className="mt-1 flex items-center justify-center gap-2.5 px-4 py-1.5 bg-slate-950/95 border border-slate-800 rounded-xl shadow-xl text-slate-100 select-none w-fit mx-auto shrink-0">
+                      <Clock className="w-5 h-5 text-osu-orange shrink-0 animate-pulse" />
+                      <div className="flex items-baseline font-mono font-black text-xl md:text-2xl lg:text-3xl tracking-tight leading-none">
+                        <span>{(currentTime.getHours() % 12 || 12).toString().padStart(2, '0')}:{currentTime.getMinutes().toString().padStart(2, '0')}</span>
+                        <span className="text-[0.6em] text-slate-400 font-semibold ml-0.5">:{currentTime.getSeconds().toString().padStart(2, '0')}</span>
+                        <span className="text-[0.65em] ml-1.5 font-sans font-black text-osu-orange uppercase">{currentTime.getHours() >= 12 ? 'PM' : 'AM'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Interactive Drag Splitter between Next Slide Preview (Top) and Slide Selector (Bottom) */}
+                  <div 
+                    onMouseDown={handleMouseDownRightSplit}
+                    onTouchStart={handleTouchStartRightSplit}
+                    onDoubleClick={() => setRightTopHeightPercent(45)}
+                    className="h-2.5 w-full cursor-row-resize flex items-center justify-center flex-shrink-0 group/right-splitter select-none bg-transparent hover:bg-white/[0.02] active:bg-white/[0.04] transition-all rounded-lg my-0.5"
+                    title="Drag to resize panels (double-click to reset)"
+                  >
+                    <div className="h-[3px] w-24 bg-slate-800/85 group-hover/right-splitter:bg-osu-orange/70 group-active/right-splitter:bg-osu-orange rounded-full transition-all duration-200" />
+                  </div>
+
+                  {/* Bottom container: Scrollable Slide Selector */}
+                  <div 
+                    className="flex flex-col min-h-0 w-full"
+                    style={{ height: `calc(${100 - rightTopHeightPercent}% - 6px)` }}
+                  >
+                    {totalSlides !== null && currentSlide !== null && (
+                      <div className="flex flex-col gap-2 w-full h-full bg-slate-950/40 border border-slate-900 rounded-2xl p-3 shadow-lg min-h-0 overflow-hidden">
+                        <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 pb-1.5 border-b border-slate-900/60 mb-1 flex items-center justify-between animate-in fade-in">
+                          <span>Jump to Slide</span>
+                          {furthestSlide !== null && (
+                            <span className="text-[9px] text-slate-500 font-medium normal-case font-mono">
+                              Furthest: Slide {furthestSlide}
+                            </span>
+                          )}
+                        </div>
+                        
+                        <div 
+                          id="deck-navigator-scroll-container"
+                          className="relative grid grid-cols-3 gap-2 overflow-y-auto pr-0.5 custom-scrollbar flex-1 min-h-0"
+                        >
+                          {Array.from({ length: totalSlides }, (_, i) => i + 1).map((sNum) => {
+                            const isCurrent = sNum === currentSlide;
+                            const isFurthest = sNum === furthestSlide;
+                            const isUnshown = !visitedSlides[sNum];
+                            
+                            const hasLocalError = localImageErrors[sNum];
+                            const localUrl = `http://127.0.0.1:5000/slides/${sNum}.jpg`;
+                            const firestoreUrl = slidePreviewsMap[sNum];
+                            const imgUrl = (isBridgeConnected && !hasLocalError) ? localUrl : (firestoreUrl || null);
+
+                            return (
+                              <button
+                                id={`nav-slide-${sNum}`}
+                                key={`nav-slide-${sNum}`}
+                                onClick={() => sendSlideCommand(sNum)}
+                                className={`flex flex-col items-center gap-1 group/tile cursor-pointer transition-opacity duration-150 ${
+                                  isUnshown ? 'opacity-10 hover:opacity-40' : 'opacity-100'
+                                }`}
+                                title={isFurthest ? "Where you left off (furthest slide)" : isUnshown ? "Slide not yet shown to audience (Click to jump)" : `Jump to Slide ${sNum}`}
+                              >
+                                <div className={`relative w-full aspect-video bg-slate-950 rounded-lg overflow-hidden flex items-center justify-center border transition-all ${
+                                  isCurrent
+                                    ? 'border-osu-orange ring-2 ring-osu-orange/20 scale-[1.03]'
+                                    : 'border-slate-800 group-hover/tile:border-slate-600'
+                                }`}>
+                                  {imgUrl ? (
+                                    <img
+                                      src={imgUrl}
+                                      alt={`Slide ${sNum}`}
+                                      className="w-full h-full object-cover bg-black"
+                                      loading="lazy"
+                                      onError={() => setLocalImageErrors(prev => ({ ...prev, [sNum]: true }))}
+                                    />
+                                  ) : (
+                                    <div className="absolute inset-0 flex items-center justify-center text-slate-700 bg-slate-950">
+                                      <Monitor className="w-4 h-4 opacity-30" />
+                                    </div>
+                                  )}
+                                  
+                                  {/* Slide Number Badge */}
+                                  <span className={`absolute bottom-1 left-1 px-1.5 py-0.5 rounded font-mono font-black text-[9px] border leading-none ${
+                                    isCurrent
+                                      ? 'bg-osu-orange text-white border-orange-500/30 shadow-md'
+                                      : 'bg-slate-950/85 text-slate-300 border-slate-850'
+                                  }`}>
+                                    {sNum}
+                                  </span>
+
+                                  {/* Furthest slide dot */}
+                                  {isFurthest && (
+                                    <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                  )}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {furthestSlide !== null && furthestSlide !== currentSlide && (
+                          <button
+                            onClick={() => sendSlideCommand(furthestSlide)}
+                            className="w-full mt-1.5 py-1.5 bg-osu-orange hover:bg-[#c03900] text-white text-[10px] font-black uppercase tracking-wider rounded-lg border border-orange-500/30 shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1 shrink-0"
+                          >
+                            <span>Resume from Slide {furthestSlide}</span>
+                            <span className="text-[8px]">➜</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </>
             ) : (
