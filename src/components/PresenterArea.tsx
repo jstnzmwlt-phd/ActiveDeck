@@ -1591,14 +1591,14 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         className={`${presentWithNotes && isCapturing && !isProjectorMode ? 'flex-[2]' : 'flex-1'} relative bg-black overflow-hidden flex items-center justify-center transition-all duration-300`}
       >
         {!isProjectorMode ? (
-          <div className={`w-full h-full p-4 flex flex-col ${presentWithNotes && isCapturing ? 'md:flex-row gap-4 items-stretch justify-between max-w-[1650px]' : 'items-center justify-center max-w-[1450px]'} mx-auto select-none overflow-y-auto custom-scrollbar`}>
+          <div className={`w-full h-full p-4 flex flex-col ${presentWithNotes && isCapturing ? 'md:flex-row gap-0 items-stretch justify-between max-w-[1650px]' : 'items-center justify-center max-w-[1450px]'} mx-auto select-none overflow-y-auto custom-scrollbar`}>
             {presentWithNotes && isCapturing ? (
               <>
                 {/* SPLIT SCREEN LAYOUT: Notes ON */}
                 {/* Left Column (Current Slide + Presenter Notes below it) */}
                 <div 
                   className="flex flex-col gap-4 w-full md:flex-shrink-0"
-                  style={{ width: `calc(${leftWidthPercent}% - 8px)` }}
+                  style={{ width: `calc(${leftWidthPercent}% - 9px)` }}
                 >
                   <div className="flex flex-col gap-2 w-full">
 
@@ -1747,7 +1747,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 {/* Right Column (Next Slide): smaller preview */}
                 <div 
                   className="flex flex-col gap-2 w-full md:flex-shrink-0 ml-auto h-full"
-                  style={{ width: `calc(${100 - leftWidthPercent}% - 8px)` }}
+                  style={{ width: `calc(${100 - leftWidthPercent}% - 9px)` }}
                 >
                   {/* Top container: Next Slide Preview + Clock */}
                   <div 
