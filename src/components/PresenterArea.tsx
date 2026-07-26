@@ -525,6 +525,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const [leftWidthPercent, setLeftWidthPercent] = useState<number>(62); // Default starting width percentage for left panel
   const [isResizingNotes, setIsResizingNotes] = useState(false);
 
+  const [leftTopHeightPercent, setLeftTopHeightPercent] = useState<number>(55); // Default starting height percentage for left top panel
+  const [isResizingLeftSplit, setIsResizingLeftSplit] = useState(false);
+
   const [rightTopHeightPercent, setRightTopHeightPercent] = useState<number>(45); // Default starting height percentage for right top panel
   const [isResizingRightSplit, setIsResizingRightSplit] = useState(false);
 
@@ -537,6 +540,17 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
   const handleTouchStartPresenterNotesSplit = (e: React.TouchEvent) => {
     setIsResizingNotes(true);
+  };
+
+  const handleMouseDownLeftSplit = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizingLeftSplit(true);
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+  };
+
+  const handleTouchStartLeftSplit = (e: React.TouchEvent) => {
+    setIsResizingLeftSplit(true);
   };
 
   const handleMouseDownRightSplit = (e: React.MouseEvent) => {
@@ -588,6 +602,45 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       window.removeEventListener('touchend', handleMouseUp);
     };
   }, [isResizingNotes]);
+
+  useEffect(() => {
+    if (!isResizingLeftSplit) return;
+
+    const handleMouseMove = (moveEvent: MouseEvent | TouchEvent) => {
+      if (!containerRef.current) return;
+      
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const clientY = 'touches' in moveEvent ? (moveEvent as TouchEvent).touches[0].clientY : (moveEvent as MouseEvent).clientY;
+      
+      // Calculate position relative to container
+      const relativeY = clientY - containerRect.top;
+      let percent = (relativeY / containerRect.height) * 100;
+      
+      // Apply boundaries (minimum 20%, maximum 80% to prevent complete squishing of top or bottom)
+      if (percent < 20) percent = 20;
+      if (percent > 80) percent = 80;
+      
+      setLeftTopHeightPercent(percent);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingLeftSplit(false);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('touchmove', handleMouseMove);
+    window.addEventListener('touchend', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('touchmove', handleMouseMove);
+      window.removeEventListener('touchend', handleMouseUp);
+    };
+  }, [isResizingLeftSplit]);
 
   useEffect(() => {
     if (!isResizingRightSplit) return;
@@ -1597,11 +1650,14 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 {/* SPLIT SCREEN LAYOUT: Notes ON */}
                 {/* Left Column (Current Slide + Presenter Notes below it) */}
                 <div 
-                  className="flex flex-col gap-4 w-full md:flex-shrink-0"
+                  className="flex flex-col gap-2 w-full md:flex-shrink-0 h-full"
                   style={{ width: `calc(${leftWidthPercent}% - 9px)` }}
                 >
-                  <div className="flex flex-col gap-2 w-full">
-
+                  {/* Top container: Slide Preview */}
+                  <div 
+                    className="flex flex-col gap-2 min-h-0 w-full"
+                    style={{ height: `calc(${leftTopHeightPercent}% - 6px)` }}
+                  >
                     <div 
                       onMouseMove={!isProjectorMode ? handleMouseMove : undefined}
                       onMouseLeave={!isProjectorMode ? handleMouseLeave : undefined}
@@ -1609,10 +1665,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         aspectRatio: `${videoAspectRatio}`,
                         width: '100%',
                         height: 'auto',
-                        maxWidth: `calc((100vh - 220px) * ${videoAspectRatio})`,
-                        maxHeight: 'calc(100vh - 220px)'
+                        maxWidth: '100%',
+                        maxHeight: '100%'
                       }}
-                      className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden p-1.5 flex items-center justify-center shadow-2xl cursor-crosshair mx-auto"
+                      className="relative flex-1 min-h-0 bg-black border border-slate-800 rounded-2xl overflow-hidden p-1.5 flex items-center justify-center shadow-2xl cursor-crosshair mx-auto"
                     >
                       <ScreenCapture 
                         isCapturing={isCapturing} 
@@ -1708,8 +1764,22 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     </div>
                   </div>
 
-                  {/* Confined Presenter Notes UI panel positioned immediately below the Current Slide preview */}
-                  <div className="flex flex-col bg-slate-100 border border-slate-300 rounded-2xl p-5 min-h-[350px] max-h-[480px] select-none animate-in slide-in-from-bottom duration-300 shadow-md">
+                  {/* Interactive Drag Splitter between Slide Preview (Top) and Presenter Notes (Bottom) */}
+                  <div 
+                    onMouseDown={handleMouseDownLeftSplit}
+                    onTouchStart={handleTouchStartLeftSplit}
+                    onDoubleClick={() => setLeftTopHeightPercent(55)}
+                    className="h-2.5 w-full cursor-row-resize flex items-center justify-center flex-shrink-0 group/left-splitter select-none bg-transparent hover:bg-white/[0.02] active:bg-white/[0.04] transition-all rounded-lg my-0.5"
+                    title="Drag to resize panels (double-click to reset)"
+                  >
+                    <div className="h-[3px] w-24 bg-slate-800/85 group-hover/left-splitter:bg-osu-orange/70 group-active/left-splitter:bg-osu-orange rounded-full transition-all duration-200" />
+                  </div>
+
+                  {/* Bottom container: Confined Presenter Notes UI panel */}
+                  <div 
+                    className="flex flex-col bg-slate-100 border border-slate-300 rounded-2xl p-5 select-none animate-in slide-in-from-bottom duration-300 shadow-md min-h-0 w-full"
+                    style={{ height: `calc(${100 - leftTopHeightPercent}% - 6px)` }}
+                  >
                     <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-slate-200 select-none">
                       <div className="flex items-center gap-2">
                         <FileText className="w-4 h-4 text-osu-orange" />
