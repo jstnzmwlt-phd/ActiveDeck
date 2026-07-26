@@ -1527,8 +1527,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               }}
               className={`flex items-center gap-1.5 ml-2 px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all duration-200 shadow-lg cursor-pointer hover:scale-105 active:scale-95 ${
                 presentWithNotes 
-                  ? 'bg-osu-orange border-osu-orange text-white hover:bg-[#c03900] hover:border-[#c03900] shadow-orange-500/10' 
-                  : 'bg-slate-900/90 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800 hover:border-slate-600 shadow-slate-955/25'
+                  ? 'bg-emerald-600 border-emerald-500 text-white hover:bg-emerald-700 hover:border-emerald-600 shadow-emerald-500/10' 
+                  : 'bg-red-600 border-red-500 text-white hover:bg-red-700 hover:border-red-600 shadow-red-500/10'
               }`}
               title="Toggle Present with Notes"
             >
@@ -1547,12 +1547,12 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               }}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all duration-200 shadow-lg cursor-pointer hover:scale-105 active:scale-95 ${
                 laserEnabled 
-                  ? 'bg-red-600 border-red-500 text-white hover:bg-red-700 hover:border-red-600 shadow-red-500/10' 
-                  : 'bg-slate-900/90 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800 hover:border-slate-600 shadow-slate-955/25'
+                  ? 'bg-emerald-600 border-emerald-500 text-white hover:bg-emerald-700 hover:border-emerald-600 shadow-emerald-500/10' 
+                  : 'bg-red-600 border-red-500 text-white hover:bg-red-700 hover:border-red-600 shadow-red-500/10'
               }`}
               title="Toggle Laser Pointer"
             >
-              <div className={`w-1.5 h-1.5 rounded-full ${laserEnabled ? 'bg-white animate-pulse' : 'bg-slate-500'}`} />
+              <div className={`w-1.5 h-1.5 rounded-full ${laserEnabled ? 'bg-white animate-pulse' : 'bg-white/60'}`} />
               <span>Laser {laserEnabled ? 'ON' : 'OFF'}</span>
             </button>
 
@@ -1561,8 +1561,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               onClick={() => setIsPenActive(!isPenActive)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all duration-200 shadow-lg cursor-pointer hover:scale-105 active:scale-95 ${
                 isPenActive 
-                  ? 'bg-amber-500 border-amber-400 text-white hover:bg-amber-600 hover:border-amber-500 shadow-amber-500/20 ring-2 ring-amber-400/40' 
-                  : 'bg-slate-900/90 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800 hover:border-slate-600 shadow-slate-955/25'
+                  ? 'bg-emerald-600 border-emerald-500 text-white hover:bg-emerald-700 hover:border-emerald-600 shadow-emerald-500/10 ring-2 ring-emerald-400/40' 
+                  : 'bg-red-600 border-red-500 text-white hover:bg-red-700 hover:border-red-600 shadow-red-500/10'
               }`}
               title="Toggle Slide Pen & Drawing Mode"
             >
