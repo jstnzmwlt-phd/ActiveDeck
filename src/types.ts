@@ -46,6 +46,7 @@ export interface Presentation {
   hideComments?: boolean;
   restrictToDomain?: boolean;
   currentSlide?: number;
+  totalSlides?: number;
   theme?: Theme;
   currentIcon?: string;
   previousIcon?: string;
