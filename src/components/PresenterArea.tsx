@@ -1719,10 +1719,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         ref={presenterFrameRef}
                         style={{
                           aspectRatio: `${effectiveAspectRatio}`,
-                          width: '100%',
-                          height: 'auto',
                           maxWidth: '100%',
                           maxHeight: '100%',
+                          width: 'auto',
+                          height: 'auto',
+                          alignSelf: 'center',
                         }}
                         className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden shadow-2xl mx-auto"
                       >
@@ -2059,12 +2060,13 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     ref={projectorFrameRef}
                     style={{ 
                       aspectRatio: `${effectiveAspectRatio}`,
-                      width: '100%',
-                      height: 'auto',
                       maxWidth: '100%',
                       maxHeight: '100%',
+                      width: 'auto',
+                      height: 'auto',
+                      alignSelf: 'center',
                     }}
-                    className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden flex items-center justify-center shadow-2xl mx-auto"
+                    className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden shadow-2xl mx-auto"
                   >
                   <ScreenCapture 
                     isCapturing={isCapturing} 
@@ -2587,13 +2589,14 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       <div className="w-full flex flex-col items-center justify-center h-full p-4">
         <div 
           style={{
-            aspectRatio: `${videoAspectRatio}`,
-            width: '100%',
+            aspectRatio: `${effectiveAspectRatio}`,
+            maxWidth: '100%',
+            maxHeight: '100%',
+            width: 'auto',
             height: 'auto',
-            maxWidth: `calc((100vh - 80px) * ${videoAspectRatio})`,
-            maxHeight: 'calc(100vh - 80px)',
+            alignSelf: 'center',
           }}
-          className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden p-1.5 flex items-center justify-center shadow-2xl mx-auto"
+          className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden shadow-2xl mx-auto"
         >
           <ScreenCapture 
             isCapturing={isCapturing} 
@@ -2605,6 +2608,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             isProjectorMode={isProjectorMode}
             videoRef={videoRef}
             onLoadedMetadata={handleVideoLoadedMetadata}
+            onSlideImageLoad={handleSlideImageLoad}
             isBridgeConnected={isBridgeConnected}
             currentSlideBase64={currentSlideBase64}
             currentSlide={currentSlide}
@@ -2613,78 +2617,79 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             onTogglePen={() => setIsPenActive(!isPenActive)}
           />
 
-          {/* Real-time Presenter Live Slide Drawing Layer for Projector Screen */}
-          <svg
-            viewBox="0 0 1000 1000"
-            preserveAspectRatio="none"
-            className="absolute inset-0 w-full h-full pointer-events-none z-70"
-          >
-            {currentSlideStrokes.map((stroke, idx) => {
-              if (stroke.text) {
-                const pt = stroke.points[0];
-                if (!pt) return null;
-                const fontSize = Math.max(26, stroke.width * 5);
+          {/* Real-time Presenter Live Slide Content Layer for Projector Screen (Drawings + Laser Dot) */}
+          <div className="absolute inset-0 pointer-events-none z-70">
+            <svg
+              viewBox="0 0 1000 1000"
+              preserveAspectRatio="none"
+              className="w-full h-full pointer-events-none"
+            >
+              {currentSlideStrokes.map((stroke, idx) => {
+                if (stroke.text) {
+                  const pt = stroke.points[0];
+                  if (!pt) return null;
+                  const fontSize = Math.max(26, stroke.width * 5);
+                  return (
+                    <text
+                      key={`projector-text-stroke-${idx}`}
+                      x={pt.x}
+                      y={pt.y}
+                      fill={stroke.color}
+                      fontSize={fontSize}
+                      fontWeight="bold"
+                      fontFamily="sans-serif"
+                    >
+                      {stroke.text}
+                    </text>
+                  );
+                }
+                const pathD = renderStrokePath(stroke);
+                if (!pathD) return null;
                 return (
-                  <text
-                    key={`projector-text-stroke-${idx}`}
-                    x={pt.x}
-                    y={pt.y}
-                    fill={stroke.color}
-                    fontSize={fontSize}
-                    fontWeight="bold"
-                    fontFamily="sans-serif"
-                  >
-                    {stroke.text}
-                  </text>
+                  <path
+                    key={`projector-stroke-${idx}`}
+                    d={pathD}
+                    stroke={stroke.color}
+                    strokeWidth={stroke.width}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    fill="none"
+                    opacity={stroke.isHighlighter ? 0.45 : 1}
+                  />
                 );
-              }
-              const pathD = renderStrokePath(stroke);
-              if (!pathD) return null;
-              return (
+              })}
+              {activeDrawingStroke && (
                 <path
-                  key={`projector-stroke-${idx}`}
-                  d={pathD}
-                  stroke={stroke.color}
-                  strokeWidth={stroke.width}
+                  d={renderStrokePath(activeDrawingStroke)}
+                  stroke={activeDrawingStroke.color}
+                  strokeWidth={activeDrawingStroke.width}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   fill="none"
-                  opacity={stroke.isHighlighter ? 0.45 : 1}
+                  opacity={activeDrawingStroke.isHighlighter ? 0.45 : 1}
                 />
-              );
-            })}
-            {activeDrawingStroke && (
-              <path
-                d={renderStrokePath(activeDrawingStroke)}
-                stroke={activeDrawingStroke.color}
-                strokeWidth={activeDrawingStroke.width}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                fill="none"
-                opacity={activeDrawingStroke.isHighlighter ? 0.45 : 1}
+              )}
+            </svg>
+
+            {/* Real-time Virtual Laser Pointer Dot */}
+            {presentation?.laserActive && presentation.laserX !== undefined && presentation.laserY !== undefined && (
+              <div 
+                style={{
+                  position: 'absolute',
+                  left: `${presentation.laserX}%`,
+                  top: `${presentation.laserY}%`,
+                  transform: 'translate(-50%, -50%)',
+                  width: '18px',
+                  height: '18px',
+                  borderRadius: '50%',
+                  backgroundColor: '#ef4444',
+                  boxShadow: '0 0 14px 5px rgba(239, 68, 68, 0.95), 0 0 28px 10px rgba(239, 68, 68, 0.6)',
+                  pointerEvents: 'none',
+                  zIndex: 80
+                }}
               />
             )}
-          </svg>
-
-          {/* Real-time Virtual Laser Pointer Dot rendered inside the aspect-ratio locked frame */}
-          {presentation?.laserActive && presentation.laserX !== undefined && presentation.laserY !== undefined && (
-            <div 
-              style={{
-                left: `${presentation.laserX}%`,
-                top: `${presentation.laserY}%`,
-                transform: 'translate(-50%, -50%)',
-                width: '15px',
-                height: '15px',
-                borderRadius: '50%',
-                backgroundColor: 'red',
-                boxShadow: '0 0 8px 3px rgba(255, 0, 0, 0.8), 0 0 15px 5px rgba(255, 0, 0, 0.4)',
-                position: 'absolute',
-                pointerEvents: 'none',
-                zIndex: 80,
-                transition: 'top 0.05s ease-out, left 0.05s ease-out'
-              }}
-            />
-          )}
+          </div>
         </div>
 
         {/* Unobtrusive Centered Slide Number under slide display in Projector Mode */}
