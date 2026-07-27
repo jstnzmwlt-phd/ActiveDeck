@@ -531,14 +531,18 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const effectiveCurrentSlide = currentSlide !== null ? currentSlide : (presentation?.currentSlide ?? 1);
   const mapSlidesCount = Object.keys(slidePreviewsMap).length;
   
-  const hasExplicitTotal = (totalSlides !== null && totalSlides > 0) || (presentation?.totalSlides !== undefined && presentation.totalSlides > 0);
-  const explicitTotal = (totalSlides !== null && totalSlides > 0) ? totalSlides : (presentation?.totalSlides || 0);
-  const knownTotal = Math.max(localSlidesCount, mapSlidesCount);
+  const explicitTotal = (totalSlides !== null && totalSlides > 0) 
+    ? totalSlides 
+    : (presentation?.totalSlides && presentation.totalSlides > 0) 
+      ? presentation.totalSlides 
+      : 0;
 
-  // If explicit total is known, use it; otherwise provide a generous default (min currentSlide + 3, at least 10) so Next Slide preview and selector grid never truncate prematurely
-  const effectiveTotalSlides = hasExplicitTotal
-    ? explicitTotal
-    : Math.max(knownTotal, effectiveCurrentSlide + 3, 10);
+  const knownTotal = Math.max(explicitTotal, localSlidesCount, mapSlidesCount);
+
+  // Use known total slides if available; otherwise default to at least 20 (or currentSlide + 3) so full deck selector is always accessible
+  const effectiveTotalSlides = knownTotal > 0 
+    ? knownTotal 
+    : Math.max(effectiveCurrentSlide + 3, 20);
 
   const effectiveNextSlide = (nextSlide !== null && nextSlide > 0)
     ? nextSlide
