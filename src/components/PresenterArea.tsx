@@ -1067,20 +1067,14 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (isProjectorMode || !presentation?.id || !isCapturing || !laserEnabled) return;
 
-    // Use the video element's bounding rect directly. The video fills the frame
-    // via `absolute inset-0 w-full h-full`, so its rect equals the frame's inner
-    // content area — this is exactly what worked in the July 26 version.
-    const videoElement = videoRef.current || (e.currentTarget.querySelector('video') as HTMLVideoElement | null);
-    if (!videoElement) return;
+    // e.currentTarget is the absolute inset-0 tracking div — its rect IS the
+    // slide content area (no border, no black bars). Same coordinate system as
+    // the projector's absolute inset-0 overlay div. Works in any layout.
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
 
-    const rect = videoElement.getBoundingClientRect();
-    if (!rect || rect.width === 0 || rect.height === 0) return;
-
-    const relativeX = Math.max(0, Math.min(rect.width,  e.clientX - rect.left));
-    const relativeY = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
-
-    const x = (relativeX / rect.width)  * 100;
-    const y = (relativeY / rect.height) * 100;
+    const x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width)  * 100));
+    const y = Math.max(0, Math.min(100, ((e.clientY - rect.top)  / rect.height) * 100));
 
     updateLaserPosition(x, y, true);
   };
@@ -1723,8 +1717,6 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     <div className="relative flex justify-center items-center w-full h-full">
                       <div 
                         ref={presenterFrameRef}
-                        onMouseMove={!isProjectorMode ? handleMouseMove : undefined}
-                        onMouseLeave={!isProjectorMode ? handleMouseLeave : undefined}
                         style={{
                           aspectRatio: `${effectiveAspectRatio}`,
                           width: '100%',
@@ -1732,7 +1724,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                           maxWidth: '100%',
                           maxHeight: '100%',
                         }}
-                        className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden flex items-center justify-center shadow-2xl cursor-crosshair mx-auto"
+                        className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden shadow-2xl mx-auto"
                       >
                       <ScreenCapture 
                         isCapturing={isCapturing} 
@@ -1753,13 +1745,27 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         onTogglePen={() => setIsPenActive(!isPenActive)}
                       />
 
-                      {/* Real-time Presenter Live Slide Content Layer (Drawings + Laser Dot) */}
-                      <div className="absolute inset-0 pointer-events-none z-70">
+                      {/*
+                        Laser tracking + drawing overlay.
+                        This div is `absolute inset-0` — no border, no padding.
+                        Its getBoundingClientRect() == the frame's content-box ==
+                        the projector's overlay getBoundingClientRect().
+                        onMouseMove fires here so coordinates share the SAME origin
+                        as left/top % rendering on BOTH screens.
+                      */}
+                      <div
+                        className={`absolute inset-0 z-70 ${
+                          laserEnabled && !isPenActive ? 'cursor-crosshair' : 'cursor-default'
+                        }`}
+                        onMouseMove={!isProjectorMode ? handleMouseMove : undefined}
+                        onMouseLeave={!isProjectorMode ? handleMouseLeave : undefined}
+                      >
+                        {/* Drawing SVG */}
                         <svg
                           viewBox="0 0 1000 1000"
                           preserveAspectRatio="none"
                           style={{ touchAction: 'none' }}
-                          className={`w-full h-full ${
+                          className={`absolute inset-0 w-full h-full ${
                             isPenActive && !isProjectorMode ? 'cursor-crosshair pointer-events-auto' : 'pointer-events-none'
                           }`}
                           onPointerDown={isPenActive && !isProjectorMode ? handleDrawingPointerDown : undefined}
@@ -1814,10 +1820,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                           )}
                         </svg>
 
-                        {/* Real-time Virtual Laser Pointer Dot */}
+                        {/* Laser dot — left/top % is relative to THIS inset-0 div */}
                         {presentation?.laserActive && presentation.laserX !== undefined && presentation.laserY !== undefined && (
-                          <div 
+                          <div
                             style={{
+                              position: 'absolute',
                               left: `${presentation.laserX}%`,
                               top: `${presentation.laserY}%`,
                               transform: 'translate(-50%, -50%)',
@@ -1825,10 +1832,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                               height: '16px',
                               borderRadius: '50%',
                               backgroundColor: '#ef4444',
-                              boxShadow: '0 0 10px 4px rgba(239, 68, 68, 0.9), 0 0 20px 8px rgba(239, 68, 68, 0.5)',
-                              position: 'absolute',
+                              boxShadow: '0 0 10px 4px rgba(239,68,68,0.9), 0 0 20px 8px rgba(239,68,68,0.5)',
                               pointerEvents: 'none',
-                              zIndex: 80
+                              zIndex: 80,
                             }}
                           />
                         )}
