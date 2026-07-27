@@ -1031,9 +1031,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     const container = e.currentTarget;
     if (!container) return;
 
-    // Find the displayed video, image fallback, or container bounding rect for accurate laser positioning
-    const targetElem = container.querySelector('video') || container.querySelector('img') || container;
-    const rect = targetElem.getBoundingClientRect();
+    const rect = container.getBoundingClientRect();
     if (!rect || rect.width === 0 || rect.height === 0) return;
 
     const relativeX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
@@ -1694,7 +1692,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         maxWidth: '100%',
                         maxHeight: '100%'
                       }}
-                      className="relative flex-1 min-h-0 bg-black border border-slate-800 rounded-2xl overflow-hidden p-1.5 flex items-center justify-center shadow-2xl cursor-crosshair mx-auto"
+                      className="relative flex-1 min-h-0 bg-black border border-slate-800 rounded-2xl overflow-hidden flex items-center justify-center shadow-2xl cursor-crosshair mx-auto"
                     >
                       <ScreenCapture 
                         isCapturing={isCapturing} 
@@ -2015,7 +2013,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     maxWidth: '100%',
                     maxHeight: 'calc(100% - 40px)',
                   }}
-                  className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden p-1.5 flex items-center justify-center shadow-2xl mx-auto"
+                  className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden flex items-center justify-center shadow-2xl mx-auto"
                 >
                   <ScreenCapture 
                     isCapturing={isCapturing} 
