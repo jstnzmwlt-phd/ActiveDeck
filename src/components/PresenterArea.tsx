@@ -1629,22 +1629,22 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       {/* Main Content Area */}
       <div 
         ref={containerRef}
-        className={`${presentWithNotes && isCapturing && !isProjectorMode ? 'flex-[2]' : 'flex-1'} relative bg-black overflow-hidden flex items-center justify-center transition-all duration-300`}
+        className={`${isCapturing && !isProjectorMode ? 'flex-[2]' : 'flex-1'} relative bg-black overflow-hidden flex items-center justify-center transition-all duration-300`}
       >
-        {!isProjectorMode ? (
-          <div className={`w-full h-full p-4 flex flex-col ${presentWithNotes && isCapturing ? 'md:flex-row gap-0 items-stretch justify-between max-w-[1650px]' : 'items-center justify-center max-w-[1450px]'} mx-auto select-none overflow-y-auto custom-scrollbar`}>
-            {presentWithNotes && isCapturing ? (
+        {!isProjectorMode && (
+          <div className={`w-full h-full p-4 flex flex-col ${isCapturing ? 'md:flex-row gap-0 items-stretch justify-between max-w-[1650px]' : 'items-center justify-center max-w-[1450px]'} mx-auto select-none overflow-y-auto custom-scrollbar`}>
+            {isCapturing ? (
               <>
-                {/* SPLIT SCREEN LAYOUT: Notes ON */}
-                {/* Left Column (Current Slide + Presenter Notes below it) */}
+                {/* SPLIT SCREEN LAYOUT */}
+                {/* Left Column (Current Slide + Optional Presenter Notes below it) */}
                 <div 
                   className="flex flex-col gap-2 w-full md:flex-shrink-0 h-full"
                   style={{ width: `calc(${leftWidthPercent}% - 9px)` }}
                 >
                   {/* Top container: Slide Preview */}
                   <div 
-                    className="flex flex-col gap-2 min-h-0 w-full"
-                    style={{ height: `calc(${leftTopHeightPercent}% - 6px)` }}
+                    className="flex flex-col gap-2 min-h-0 w-full flex-1"
+                    style={{ height: presentWithNotes ? `calc(${leftTopHeightPercent}% - 6px)` : '100%' }}
                   >
                     <div 
                       onMouseMove={!isProjectorMode ? handleMouseMove : undefined}
@@ -1758,43 +1758,47 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     </div>
                   </div>
 
-                  {/* Interactive Drag Splitter between Slide Preview (Top) and Presenter Notes (Bottom) */}
-                  <div 
-                    onMouseDown={handleMouseDownLeftSplit}
-                    onTouchStart={handleTouchStartLeftSplit}
-                    onDoubleClick={() => setLeftTopHeightPercent(55)}
-                    className="h-2.5 w-full cursor-row-resize flex items-center justify-center flex-shrink-0 group/left-splitter select-none bg-transparent hover:bg-white/[0.02] active:bg-white/[0.04] transition-all rounded-lg my-0.5"
-                    title="Drag to resize panels (double-click to reset)"
-                  >
-                    <div className="h-[3px] w-24 bg-slate-800/85 group-hover/left-splitter:bg-osu-orange/70 group-active/left-splitter:bg-osu-orange rounded-full transition-all duration-200" />
-                  </div>
-
-                  {/* Bottom container: Confined Presenter Notes UI panel */}
-                  <div 
-                    className="flex flex-col bg-slate-100 border border-slate-300 rounded-2xl p-5 select-none animate-in slide-in-from-bottom duration-300 shadow-md min-h-0 w-full"
-                    style={{ height: `calc(${100 - leftTopHeightPercent}% - 6px)` }}
-                  >
-                    <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-slate-200 select-none">
-                      <div className="flex items-center gap-2">
-                        <FileText className="w-4 h-4 text-osu-orange" />
-                        <span className="text-xs font-black uppercase tracking-wider text-slate-800">Presenter Notes</span>
+                  {/* Interactive Drag Splitter & Presenter Notes Panel (Only visible when Notes ON) */}
+                  {presentWithNotes && (
+                    <>
+                      <div 
+                        onMouseDown={handleMouseDownLeftSplit}
+                        onTouchStart={handleTouchStartLeftSplit}
+                        onDoubleClick={() => setLeftTopHeightPercent(55)}
+                        className="h-2.5 w-full cursor-row-resize flex items-center justify-center flex-shrink-0 group/left-splitter select-none bg-transparent hover:bg-white/[0.02] active:bg-white/[0.04] transition-all rounded-lg my-0.5"
+                        title="Drag to resize panels (double-click to reset)"
+                      >
+                        <div className="h-[3px] w-24 bg-slate-800/85 group-hover/left-splitter:bg-osu-orange/70 group-active/left-splitter:bg-osu-orange rounded-full transition-all duration-200" />
                       </div>
-                      {totalSlides !== null && currentSlide !== null && (
-                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
-                          Slide {currentSlide} of {totalSlides}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex-1 bg-white/70 border border-slate-200 rounded-xl p-4 overflow-y-auto text-base md:text-[16px] text-slate-700 font-semibold leading-relaxed pr-2 custom-scrollbar select-text cursor-not-allowed">
-                      {notes ? (
-                        <div className="whitespace-pre-wrap select-text cursor-text">{notes.replace(/\r/g, '\n')}</div>
-                      ) : (
-                        <div className="text-sm text-slate-400 italic flex items-center justify-center h-full select-none">
-                          No notes available for this slide.
+
+                      {/* Bottom container: Confined Presenter Notes UI panel */}
+                      <div 
+                        className="flex flex-col bg-slate-100 border border-slate-300 rounded-2xl p-5 select-none animate-in slide-in-from-bottom duration-300 shadow-md min-h-0 w-full"
+                        style={{ height: `calc(${100 - leftTopHeightPercent}% - 6px)` }}
+                      >
+                        <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-slate-200 select-none">
+                          <div className="flex items-center gap-2">
+                            <FileText className="w-4 h-4 text-osu-orange" />
+                            <span className="text-xs font-black uppercase tracking-wider text-slate-800">Presenter Notes</span>
+                          </div>
+                          {totalSlides !== null && currentSlide !== null && (
+                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                              Slide {currentSlide} of {totalSlides}
+                            </span>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  </div>
+                        <div className="flex-1 bg-white/70 border border-slate-200 rounded-xl p-4 overflow-y-auto text-base md:text-[16px] text-slate-700 font-semibold leading-relaxed pr-2 custom-scrollbar select-text cursor-not-allowed">
+                          {notes ? (
+                            <div className="whitespace-pre-wrap select-text cursor-text">{notes.replace(/\r/g, '\n')}</div>
+                          ) : (
+                            <div className="text-sm text-slate-400 italic flex items-center justify-center h-full select-none">
+                              No notes available for this slide.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 {/* Interactive Drag Splitter between Current Slide + Notes (Left) and Next Slide Preview (Right) */}
@@ -1977,123 +1981,6 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                   </div>
                 </div>
               </>
-            ) : (
-              /* SINGLE SCREEN FULL LAYOUT: Notes OFF */
-              <div className="w-full flex flex-col gap-2 max-w-none mx-auto justify-center">
-
-                <div 
-                  onMouseMove={!isProjectorMode ? handleMouseMove : undefined}
-                  onMouseLeave={!isProjectorMode ? handleMouseLeave : undefined}
-                  style={{
-                    aspectRatio: `${videoAspectRatio}`,
-                    width: '100%',
-                    height: 'auto',
-                    maxWidth: `calc((100vh - 180px) * ${videoAspectRatio})`,
-                    maxHeight: 'calc(100vh - 180px)',
-                  }}
-                  className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden p-1.5 flex items-center justify-center shadow-2xl cursor-crosshair mx-auto"
-                >
-                  <ScreenCapture 
-                    isCapturing={isCapturing} 
-                    stream={stream} 
-                    error={error} 
-                    onStart={startCapture} 
-                    onStop={stopCapture} 
-                    logoUrl={logoUrl}
-                    isProjectorMode={isProjectorMode}
-                    videoRef={videoRef}
-                    onLoadedMetadata={handleVideoLoadedMetadata}
-                    isBridgeConnected={isBridgeConnected}
-                    currentSlideBase64={currentSlideBase64}
-                    currentSlide={currentSlide}
-                    currentSlidePreviewUrl={currentSlidePreviewUrl}
-                    isPenActive={isPenActive}
-                    onTogglePen={() => setIsPenActive(!isPenActive)}
-                  />
-
-                      {/* Real-time Presenter Live Slide Drawing Layer */}
-                      <svg
-                        viewBox="0 0 1000 1000"
-                        preserveAspectRatio="none"
-                        style={{ touchAction: 'none' }}
-                        className={`absolute inset-0 w-full h-full ${
-                          isPenActive && !isProjectorMode ? 'cursor-crosshair pointer-events-auto z-70' : 'pointer-events-none z-70'
-                        }`}
-                        onPointerDown={isPenActive && !isProjectorMode ? handleDrawingPointerDown : undefined}
-                        onPointerMove={isPenActive && !isProjectorMode ? handleDrawingPointerMove : undefined}
-                        onPointerUp={isPenActive && !isProjectorMode ? handleDrawingPointerUp : undefined}
-                        onPointerLeave={isPenActive && !isProjectorMode ? handleDrawingPointerUp : undefined}
-                      >
-                        {currentSlideStrokes.map((stroke, idx) => {
-                          if (stroke.text) {
-                            const pt = stroke.points[0];
-                            if (!pt) return null;
-                            const fontSize = Math.max(26, stroke.width * 5);
-                            return (
-                              <text
-                                key={`single-text-stroke-${idx}`}
-                                x={pt.x}
-                                y={pt.y}
-                                fill={stroke.color}
-                                fontSize={fontSize}
-                                fontWeight="bold"
-                                fontFamily="sans-serif"
-                              >
-                                {stroke.text}
-                              </text>
-                            );
-                          }
-                          const pathD = renderStrokePath(stroke);
-                          if (!pathD) return null;
-                          return (
-                            <path
-                              key={`single-stroke-${idx}`}
-                              d={pathD}
-                              stroke={stroke.color}
-                              strokeWidth={stroke.width}
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              fill="none"
-                              opacity={stroke.isHighlighter ? 0.45 : 1}
-                            />
-                          );
-                        })}
-                        {activeDrawingStroke && (
-                          <path
-                            d={renderStrokePath(activeDrawingStroke)}
-                            stroke={activeDrawingStroke.color}
-                            strokeWidth={activeDrawingStroke.width}
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            fill="none"
-                            opacity={activeDrawingStroke.isHighlighter ? 0.45 : 1}
-                          />
-                        )}
-                      </svg>
-
-                      {/* Real-time Virtual Laser Pointer Dot rendered inside the aspect-ratio locked frame */}
-                      {presentation?.laserActive && presentation.laserX !== undefined && presentation.laserY !== undefined && (
-                        <div 
-                          style={{
-                            left: `${presentation.laserX}%`,
-                            top: `${presentation.laserY}%`,
-                            transform: 'translate(-50%, -50%)',
-                            width: '15px',
-                            height: '15px',
-                            borderRadius: '50%',
-                            backgroundColor: 'red',
-                            boxShadow: '0 0 8px 3px rgba(255, 0, 0, 0.8), 0 0 15px 5px rgba(255, 0, 0, 0.4)',
-                            position: 'absolute',
-                            pointerEvents: 'none',
-                            zIndex: 80,
-                            transition: 'top 0.05s ease-out, left 0.05s ease-out'
-                          }}
-                        />
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
             ) : (
               <div className="flex flex-col items-center justify-center w-full h-full p-4 relative">
                 <div 
@@ -2619,6 +2506,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           </div>
         )}
       </div>
+    )}
 
 
 
@@ -2906,8 +2794,6 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             </button>
 
           </div>
-
-          {/* Popped-out Full Slide Drawing Frame */}
           <div 
             style={{
               aspectRatio: `${videoAspectRatio}`,
@@ -3010,10 +2896,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               />
             )}
           </div>
-
         </div>
       )}
 
     </div>
-  );
+  </div>
+);
 };
