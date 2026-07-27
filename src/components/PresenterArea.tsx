@@ -21,101 +21,7 @@ export interface DrawingStroke {
   text?: string;
 }
 
-export interface RenderedContentBounds {
-  // All values are px offsets relative to the frame container
-  offsetX: number;  // left bar width
-  offsetY: number;  // top bar height
-  renderedWidth: number;
-  renderedHeight: number;
-}
 
-/**
- * Computes the exact pixel rect of the *rendered content* inside an
- * `object-contain` media element, stripping out any letterbox/pillarbox bars.
- *
- * Because <video> and <img> in ScreenCapture are `absolute inset-0 w-full h-full
- * object-contain`, their getBoundingClientRect() equals the CONTAINER rect.
- * CSS draws the content centred inside, padding with black bars.
- * We compute those bars using the media's intrinsic aspect ratio.
- */
-export const useRenderedContentBounds = (
-  frameRef: React.RefObject<HTMLDivElement | null>,
-  deps: any[] = []
-): RenderedContentBounds => {
-  const [bounds, setBounds] = useState<RenderedContentBounds>({
-    offsetX: 0,
-    offsetY: 0,
-    renderedWidth: 0,
-    renderedHeight: 0,
-  });
-
-  useEffect(() => {
-    const compute = () => {
-      const container = frameRef.current;
-      if (!container) return;
-
-      // Prefer video (screen-share); fall back to img (bridge slide)
-      const video = container.querySelector('video') as HTMLVideoElement | null;
-      const img   = container.querySelector('img:not([class*="opacity-10"])') as HTMLImageElement | null;
-
-      // Pick the element that has real intrinsic dimensions
-      let intrinsicW = 0, intrinsicH = 0, elem: Element | null = null;
-      if (video && video.videoWidth && video.videoHeight) {
-        intrinsicW = video.videoWidth;
-        intrinsicH = video.videoHeight;
-        elem = video;
-      } else if (img && img.naturalWidth && img.naturalHeight) {
-        intrinsicW = img.naturalWidth;
-        intrinsicH = img.naturalHeight;
-        elem = img;
-      }
-
-      if (!elem || !intrinsicW || !intrinsicH) return;
-
-      // The element fills the container 100% (inset-0 w-full h-full)
-      const containerRect = (elem as HTMLElement).getBoundingClientRect();
-      const containerW = containerRect.width;
-      const containerH = containerRect.height;
-      if (containerW === 0 || containerH === 0) return;
-
-      // object-contain: fit inside container preserving aspect ratio
-      const mediaAR = intrinsicW / intrinsicH;
-      const containerAR = containerW / containerH;
-
-      let renderedWidth: number;
-      let renderedHeight: number;
-
-      if (mediaAR > containerAR) {
-        // Wider than container → full width, bars on top/bottom
-        renderedWidth  = containerW;
-        renderedHeight = containerW / mediaAR;
-      } else {
-        // Taller than container → full height, bars on left/right
-        renderedHeight = containerH;
-        renderedWidth  = containerH * mediaAR;
-      }
-
-      const offsetX = (containerW - renderedWidth)  / 2;
-      const offsetY = (containerH - renderedHeight) / 2;
-
-      setBounds({ offsetX, offsetY, renderedWidth, renderedHeight });
-    };
-
-    compute();
-
-    const elem = frameRef.current;
-    const ro = elem ? new ResizeObserver(compute) : null;
-    if (elem) ro?.observe(elem);
-    window.addEventListener('resize', compute);
-
-    return () => {
-      ro?.disconnect();
-      window.removeEventListener('resize', compute);
-    };
-  }, [frameRef, ...deps]);
-
-  return bounds;
-};
 
 interface PresenterAreaProps {
   presentation: Presentation | null;
@@ -664,8 +570,6 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const presenterFrameRef = useRef<HTMLDivElement | null>(null);
   const projectorFrameRef = useRef<HTMLDivElement | null>(null);
 
-  const presenterBounds = useRenderedContentBounds(presenterFrameRef, [isCapturing, isProjectorMode, presentWithNotes, videoAspectRatio]);
-  const projectorBounds = useRenderedContentBounds(projectorFrameRef, [isCapturing, isProjectorMode, videoAspectRatio]);
 
   const [leftWidthPercent, setLeftWidthPercent] = useState<number>(62); // Default starting width percentage for left panel
   const [isResizingNotes, setIsResizingNotes] = useState(false);
@@ -1162,60 +1066,19 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (isProjectorMode || !presentation?.id || !isCapturing || !laserEnabled) return;
-
-    // The frame container holds a <video> or <img> that is `inset-0 w-full h-full
-    // object-contain`, so getBoundingClientRect on it equals the container rect.
-    // We must compute where object-contain actually renders the content using
-    // the media's intrinsic dimensions.
     const container = e.currentTarget;
-    const video = container.querySelector('video') as HTMLVideoElement | null;
-    const img   = container.querySelector('img:not([class*="opacity-10"])') as HTMLImageElement | null;
+    if (!container) return;
 
-    let intrinsicW = 0, intrinsicH = 0;
-    let mediaElem: Element | null = null;
-    if (video && video.videoWidth && video.videoHeight) {
-      intrinsicW = video.videoWidth;
-      intrinsicH = video.videoHeight;
-      mediaElem = video;
-    } else if (img && img.naturalWidth && img.naturalHeight) {
-      intrinsicW = img.naturalWidth;
-      intrinsicH = img.naturalHeight;
-      mediaElem = img;
-    }
+    // The frame container is sized to the exact slide aspect ratio (no black bars),
+    // so we can use the container rect directly for coordinate calculation.
+    const rect = container.getBoundingClientRect();
+    if (!rect || rect.width === 0 || rect.height === 0) return;
 
-    if (!mediaElem || !intrinsicW || !intrinsicH) return;
+    const relativeX = Math.max(0, Math.min(rect.width,  e.clientX - rect.left));
+    const relativeY = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
 
-    // Container rect == media element rect (because media is inset-0 w-full h-full)
-    const rect = (mediaElem as HTMLElement).getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) return;
-
-    // Compute rendered content dimensions (object-contain math)
-    const mediaAR = intrinsicW / intrinsicH;
-    const containerAR = rect.width / rect.height;
-
-    let renderedWidth: number;
-    let renderedHeight: number;
-    if (mediaAR > containerAR) {
-      renderedWidth  = rect.width;
-      renderedHeight = rect.width / mediaAR;
-    } else {
-      renderedHeight = rect.height;
-      renderedWidth  = rect.height * mediaAR;
-    }
-
-    const offsetX = (rect.width  - renderedWidth)  / 2;
-    const offsetY = (rect.height - renderedHeight) / 2;
-
-    // Mouse position relative to rendered content (not container)
-    const contentX = e.clientX - rect.left - offsetX;
-    const contentY = e.clientY - rect.top  - offsetY;
-
-    // Clamp so the dot never lands in a black bar
-    const clampedX = Math.max(0, Math.min(renderedWidth,  contentX));
-    const clampedY = Math.max(0, Math.min(renderedHeight, contentY));
-
-    const x = (clampedX / renderedWidth)  * 100;
-    const y = (clampedY / renderedHeight) * 100;
+    const x = (relativeX / rect.width)  * 100;
+    const y = (relativeY / rect.height) * 100;
 
     updateLaserPosition(x, y, true);
   };
@@ -1861,10 +1724,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         onMouseMove={!isProjectorMode ? handleMouseMove : undefined}
                         onMouseLeave={!isProjectorMode ? handleMouseLeave : undefined}
                         style={{
+                          aspectRatio: `${effectiveAspectRatio}`,
                           width: '100%',
+                          height: 'auto',
                           maxWidth: '100%',
                           maxHeight: '100%',
-                          aspectRatio: '16/9',
                         }}
                         className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden flex items-center justify-center shadow-2xl cursor-crosshair mx-auto"
                       >
@@ -1887,18 +1751,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         onTogglePen={() => setIsPenActive(!isPenActive)}
                       />
 
-                      {/* Real-time Presenter Live Slide Content Layer (Drawings + Laser Dot)
-                           Overlay is positioned/sized to exactly match the rendered content
-                           rect that CSS object-contain produces inside the media element. */}
-                      <div 
-                        className="absolute pointer-events-none z-70"
-                        style={{
-                          top:    presenterBounds.offsetY,
-                          left:   presenterBounds.offsetX,
-                          width:  presenterBounds.renderedWidth  > 0 ? presenterBounds.renderedWidth  : '100%',
-                          height: presenterBounds.renderedHeight > 0 ? presenterBounds.renderedHeight : '100%',
-                        }}
-                      >
+                      {/* Real-time Presenter Live Slide Content Layer (Drawings + Laser Dot) */}
+                      <div className="absolute inset-0 pointer-events-none z-70">
                         <svg
                           viewBox="0 0 1000 1000"
                           preserveAspectRatio="none"
@@ -2196,10 +2050,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                   <div 
                     ref={projectorFrameRef}
                     style={{ 
+                      aspectRatio: `${effectiveAspectRatio}`,
                       width: '100%',
+                      height: 'auto',
                       maxWidth: '100%',
                       maxHeight: '100%',
-                      aspectRatio: '16/9',
                     }}
                     className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden flex items-center justify-center shadow-2xl mx-auto"
                   >
@@ -2221,15 +2076,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                   />
 
                   {/* Real-time Presenter Live Slide Content Layer for Projector Screen (Drawings + Laser Dot) */}
-                  <div 
-                    className="absolute pointer-events-none z-70"
-                    style={{
-                      top:    projectorBounds.offsetY,
-                      left:   projectorBounds.offsetX,
-                      width:  projectorBounds.renderedWidth  > 0 ? projectorBounds.renderedWidth  : '100%',
-                      height: projectorBounds.renderedHeight > 0 ? projectorBounds.renderedHeight : '100%',
-                    }}
-                  >
+                  <div className="absolute inset-0 pointer-events-none z-70">
                     <svg
                       viewBox="0 0 1000 1000"
                       preserveAspectRatio="none"
