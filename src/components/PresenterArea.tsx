@@ -1096,13 +1096,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (isProjectorMode || !presentation?.id || !isCapturing || !laserEnabled) return;
-    const container = e.currentTarget;
-    if (!container) return;
 
-    const mediaElement = container.querySelector('video') || container.querySelector('img');
-    const target = mediaElement || container;
-
-    const rect = target.getBoundingClientRect();
+    // The currentTarget is now the strict 16:9 wrapper
+    const rect = e.currentTarget.getBoundingClientRect();
     if (!rect || rect.width === 0 || rect.height === 0) return;
 
     const relativeX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
@@ -1746,22 +1742,22 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 >
                   {/* Top container: Slide Preview */}
                   <div 
-                    className="flex flex-col gap-2 min-h-0 w-full flex-1 justify-center items-center"
+                    className="flex flex-col gap-2 min-h-0 w-full flex-1 justify-center items-center overflow-hidden"
                     style={{ height: presentWithNotes ? `calc(${leftTopHeightPercent}% - 6px)` : '100%' }}
                   >
-                    <div 
-                      ref={presenterFrameRef}
-                      onMouseMove={!isProjectorMode ? handleMouseMove : undefined}
-                      onMouseLeave={!isProjectorMode ? handleMouseLeave : undefined}
-                      style={{
-                        aspectRatio: `${effectiveAspectRatio}`,
-                        width: '100%',
-                        height: 'auto',
-                        maxWidth: '100%',
-                        maxHeight: '100%'
-                      }}
-                      className="relative flex-1 min-h-0 bg-black border border-slate-800 rounded-2xl overflow-hidden flex items-center justify-center shadow-2xl cursor-crosshair mx-auto"
-                    >
+                    <div className="relative flex justify-center items-center w-full h-full">
+                      <div 
+                        ref={presenterFrameRef}
+                        onMouseMove={!isProjectorMode ? handleMouseMove : undefined}
+                        onMouseLeave={!isProjectorMode ? handleMouseLeave : undefined}
+                        style={{
+                          width: '100%',
+                          maxWidth: '100%',
+                          maxHeight: '100%',
+                          aspectRatio: '16/9',
+                        }}
+                        className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden flex items-center justify-center shadow-2xl cursor-crosshair mx-auto"
+                      >
                       <ScreenCapture 
                         isCapturing={isCapturing} 
                         stream={stream} 
@@ -1863,6 +1859,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                       </div>
                     </div>
                   </div>
+                </div>
 
                   {/* Interactive Drag Splitter & Presenter Notes Panel (Only visible when Notes ON) */}
                   {presentWithNotes && (
@@ -2074,18 +2071,18 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 </div>
               </>
             ) : (
-              <div className="flex flex-col items-center justify-center w-full h-full p-4 relative">
-                <div 
-                  ref={projectorFrameRef}
-                  style={{ 
-                    aspectRatio: `${effectiveAspectRatio}`,
-                    width: '100%',
-                    height: 'auto',
-                    maxWidth: '100%',
-                    maxHeight: 'calc(100% - 40px)',
-                  }}
-                  className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden flex items-center justify-center shadow-2xl mx-auto"
-                >
+              <div className="flex flex-col items-center justify-center w-full h-full p-4 relative overflow-hidden">
+                <div className="relative flex justify-center items-center w-full h-full max-h-[calc(100%-40px)]">
+                  <div 
+                    ref={projectorFrameRef}
+                    style={{ 
+                      width: '100%',
+                      maxWidth: '100%',
+                      maxHeight: '100%',
+                      aspectRatio: '16/9',
+                    }}
+                    className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden flex items-center justify-center shadow-2xl mx-auto"
+                  >
                   <ScreenCapture 
                     isCapturing={isCapturing} 
                     stream={stream} 
@@ -2176,7 +2173,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                       />
                     )}
                   </div>
-            </div>
+                </div>
+              </div>
 
             {/* Unobtrusive Centered Slide Number under slide display in Projector Mode */}
             {isCapturing && (
