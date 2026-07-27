@@ -17,6 +17,7 @@ interface ScreenCaptureProps {
   currentSlidePreviewUrl?: string | null;
   isPenActive?: boolean;
   onTogglePen?: () => void;
+  onSlideImageLoad?: (e: React.SyntheticEvent<HTMLImageElement>) => void;
 }
 
 export const ScreenCapture: React.FC<ScreenCaptureProps> = ({ 
@@ -34,7 +35,8 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
   currentSlide,
   currentSlidePreviewUrl,
   isPenActive = false,
-  onTogglePen
+  onTogglePen,
+  onSlideImageLoad
 }) => {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const activeVideoRef = videoRef || localVideoRef;
@@ -99,6 +101,9 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
             src={bridgeSlideImgSrc} 
             alt={`Slide ${currentSlide || 1}`}
             className="absolute inset-0 w-full h-full object-contain z-5"
+            onLoad={(e) => {
+              if (onSlideImageLoad) onSlideImageLoad(e);
+            }}
             onError={(e) => {
               if (currentSlidePreviewUrl && e.currentTarget.src !== currentSlidePreviewUrl) {
                 e.currentTarget.src = currentSlidePreviewUrl;

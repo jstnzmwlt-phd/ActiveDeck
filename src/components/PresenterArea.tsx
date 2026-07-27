@@ -601,15 +601,19 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   useEffect(() => {
     const updateBounds = () => {
       if (presenterFrameRef.current) {
-        const rect = presenterFrameRef.current.getBoundingClientRect();
-        if (rect.width > 0 && rect.height > 0) {
-          setPresenterBounds(getSlideContentBounds(rect.width, rect.height, videoAspectRatio));
+        const elem = presenterFrameRef.current;
+        const innerW = elem.clientWidth || elem.getBoundingClientRect().width;
+        const innerH = elem.clientHeight || elem.getBoundingClientRect().height;
+        if (innerW > 0 && innerH > 0) {
+          setPresenterBounds(getSlideContentBounds(innerW, innerH, videoAspectRatio));
         }
       }
       if (projectorFrameRef.current) {
-        const rect = projectorFrameRef.current.getBoundingClientRect();
-        if (rect.width > 0 && rect.height > 0) {
-          setProjectorBounds(getSlideContentBounds(rect.width, rect.height, videoAspectRatio));
+        const elem = projectorFrameRef.current;
+        const innerW = elem.clientWidth || elem.getBoundingClientRect().width;
+        const innerH = elem.clientHeight || elem.getBoundingClientRect().height;
+        if (innerW > 0 && innerH > 0) {
+          setProjectorBounds(getSlideContentBounds(innerW, innerH, videoAspectRatio));
         }
       }
     };
@@ -799,6 +803,17 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       const ratio = video.videoWidth / video.videoHeight;
       console.log(`[PresenterArea] Video metadata loaded: ${video.videoWidth}x${video.videoHeight}, aspect ratio: ${ratio}`);
       setVideoAspectRatio(ratio);
+    }
+  };
+
+  const handleSlideImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    if (img && img.naturalWidth && img.naturalHeight) {
+      const ratio = img.naturalWidth / img.naturalHeight;
+      if (Math.abs(ratio - videoAspectRatio) > 0.005) {
+        console.log(`[PresenterArea] Slide image natural aspect ratio loaded: ${img.naturalWidth}x${img.naturalHeight} (${ratio})`);
+        setVideoAspectRatio(ratio);
+      }
     }
   };
 
@@ -1109,10 +1124,15 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     const rect = container.getBoundingClientRect();
     if (!rect || rect.width === 0 || rect.height === 0) return;
 
-    const bounds = getSlideContentBounds(rect.width, rect.height, videoAspectRatio);
+    const clientLeft = container.clientLeft || 0;
+    const clientTop = container.clientTop || 0;
+    const innerWidth = container.clientWidth || rect.width;
+    const innerHeight = container.clientHeight || rect.height;
 
-    const relX = e.clientX - rect.left - bounds.left;
-    const relY = e.clientY - rect.top - bounds.top;
+    const bounds = getSlideContentBounds(innerWidth, innerHeight, videoAspectRatio);
+
+    const relX = e.clientX - rect.left - clientLeft - bounds.left;
+    const relY = e.clientY - rect.top - clientTop - bounds.top;
 
     const clampedX = Math.max(0, Math.min(bounds.width, relX));
     const clampedY = Math.max(0, Math.min(bounds.height, relY));
@@ -1785,6 +1805,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         isProjectorMode={isProjectorMode}
                         videoRef={videoRef}
                         onLoadedMetadata={handleVideoLoadedMetadata}
+                        onSlideImageLoad={handleSlideImageLoad}
                         isBridgeConnected={isBridgeConnected}
                         currentSlideBase64={currentSlideBase64}
                         currentSlide={currentSlide}
@@ -2119,6 +2140,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     isProjectorMode={isProjectorMode}
                     videoRef={videoRef}
                     onLoadedMetadata={handleVideoLoadedMetadata}
+                    onSlideImageLoad={handleSlideImageLoad}
                     isBridgeConnected={isBridgeConnected}
                     currentSlideBase64={currentSlideBase64}
                     currentSlide={currentSlide}
