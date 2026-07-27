@@ -100,7 +100,7 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
           <img 
             src={bridgeSlideImgSrc} 
             alt={`Slide ${currentSlide || 1}`}
-            className="absolute inset-0 w-full h-full object-contain z-5"
+            className="absolute inset-0 w-full h-full object-cover z-5"
             onLoad={(e) => {
               if (onSlideImageLoad) onSlideImageLoad(e);
             }}
@@ -130,7 +130,7 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
             e.currentTarget.play().catch(() => {});
             if (onLoadedMetadata) onLoadedMetadata(e);
           }}
-          className={`absolute inset-0 w-full h-full object-contain z-10 ${isCapturing ? 'opacity-100' : 'opacity-0'}`}
+          className={`absolute inset-0 w-full h-full object-cover z-10 ${isCapturing ? 'opacity-100' : 'opacity-0'}`}
         />
 
         {/* Floating Pen Mode Button (25% transparent / 75% opacity) */}
