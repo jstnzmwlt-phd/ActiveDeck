@@ -21,6 +21,39 @@ export interface DrawingStroke {
   text?: string;
 }
 
+export interface SlideBounds {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+export const getSlideContentBounds = (
+  containerWidth: number,
+  containerHeight: number,
+  slideAspectRatio: number = 16 / 9
+): SlideBounds => {
+  if (containerWidth <= 0 || containerHeight <= 0) {
+    return { left: 0, top: 0, width: containerWidth, height: containerHeight };
+  }
+
+  const containerAspect = containerWidth / containerHeight;
+  let width = containerWidth;
+  let height = containerHeight;
+  let left = 0;
+  let top = 0;
+
+  if (containerAspect > slideAspectRatio) {
+    width = containerHeight * slideAspectRatio;
+    left = (containerWidth - width) / 2;
+  } else {
+    height = containerWidth / slideAspectRatio;
+    top = (containerHeight - height) / 2;
+  }
+
+  return { left, top, width, height };
+};
+
 interface PresenterAreaProps {
   presentation: Presentation | null;
   logoUrl?: string;
@@ -559,6 +592,48 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [videoAspectRatio, setVideoAspectRatio] = useState<number>(16 / 9);
 
+  const presenterFrameRef = useRef<HTMLDivElement | null>(null);
+  const projectorFrameRef = useRef<HTMLDivElement | null>(null);
+
+  const [presenterBounds, setPresenterBounds] = useState<SlideBounds>({ left: 0, top: 0, width: 0, height: 0 });
+  const [projectorBounds, setProjectorBounds] = useState<SlideBounds>({ left: 0, top: 0, width: 0, height: 0 });
+
+  useEffect(() => {
+    const updateBounds = () => {
+      if (presenterFrameRef.current) {
+        const rect = presenterFrameRef.current.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          setPresenterBounds(getSlideContentBounds(rect.width, rect.height, videoAspectRatio));
+        }
+      }
+      if (projectorFrameRef.current) {
+        const rect = projectorFrameRef.current.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          setProjectorBounds(getSlideContentBounds(rect.width, rect.height, videoAspectRatio));
+        }
+      }
+    };
+
+    updateBounds();
+
+    const pElem = presenterFrameRef.current;
+    const projElem = projectorFrameRef.current;
+
+    const ro1 = pElem ? new ResizeObserver(updateBounds) : null;
+    if (pElem) ro1?.observe(pElem);
+
+    const ro2 = projElem ? new ResizeObserver(updateBounds) : null;
+    if (projElem) ro2?.observe(projElem);
+
+    window.addEventListener('resize', updateBounds);
+
+    return () => {
+      ro1?.disconnect();
+      ro2?.disconnect();
+      window.removeEventListener('resize', updateBounds);
+    };
+  }, [videoAspectRatio, isProjectorMode, presentWithNotes]);
+
   const [leftWidthPercent, setLeftWidthPercent] = useState<number>(62); // Default starting width percentage for left panel
   const [isResizingNotes, setIsResizingNotes] = useState(false);
 
@@ -1034,11 +1109,16 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     const rect = container.getBoundingClientRect();
     if (!rect || rect.width === 0 || rect.height === 0) return;
 
-    const relativeX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
-    const relativeY = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
+    const bounds = getSlideContentBounds(rect.width, rect.height, videoAspectRatio);
 
-    const x = (relativeX / rect.width) * 100;
-    const y = (relativeY / rect.height) * 100;
+    const relX = e.clientX - rect.left - bounds.left;
+    const relY = e.clientY - rect.top - bounds.top;
+
+    const clampedX = Math.max(0, Math.min(bounds.width, relX));
+    const clampedY = Math.max(0, Math.min(bounds.height, relY));
+
+    const x = (clampedX / bounds.width) * 100;
+    const y = (clampedY / bounds.height) * 100;
 
     updateLaserPosition(x, y, true);
   };
@@ -1683,6 +1763,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     style={{ height: presentWithNotes ? `calc(${leftTopHeightPercent}% - 6px)` : '100%' }}
                   >
                     <div 
+                      ref={presenterFrameRef}
                       onMouseMove={!isProjectorMode ? handleMouseMove : undefined}
                       onMouseLeave={!isProjectorMode ? handleMouseLeave : undefined}
                       style={{
@@ -1712,85 +1793,97 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         onTogglePen={() => setIsPenActive(!isPenActive)}
                       />
 
-                      {/* Real-time Presenter Live Slide Drawing Layer */}
-                      <svg
-                        viewBox="0 0 1000 1000"
-                        preserveAspectRatio="none"
-                        style={{ touchAction: 'none' }}
-                        className={`absolute inset-0 w-full h-full ${
-                          isPenActive && !isProjectorMode ? 'cursor-crosshair pointer-events-auto z-70' : 'pointer-events-none z-70'
-                        }`}
-                        onPointerDown={isPenActive && !isProjectorMode ? handleDrawingPointerDown : undefined}
-                        onPointerMove={isPenActive && !isProjectorMode ? handleDrawingPointerMove : undefined}
-                        onPointerUp={isPenActive && !isProjectorMode ? handleDrawingPointerUp : undefined}
-                        onPointerLeave={isPenActive && !isProjectorMode ? handleDrawingPointerUp : undefined}
+                      {/* Real-time Presenter Live Slide Content Layer (Drawings + Laser Dot) */}
+                      <div 
+                        style={{
+                          position: 'absolute',
+                          left: presenterBounds.width > 0 ? `${presenterBounds.left}px` : 0,
+                          top: presenterBounds.height > 0 ? `${presenterBounds.top}px` : 0,
+                          width: presenterBounds.width > 0 ? `${presenterBounds.width}px` : '100%',
+                          height: presenterBounds.height > 0 ? `${presenterBounds.height}px` : '100%',
+                          pointerEvents: 'none',
+                          zIndex: 70
+                        }}
                       >
-                        {currentSlideStrokes.map((stroke, idx) => {
-                          if (stroke.text) {
-                            const pt = stroke.points[0];
-                            if (!pt) return null;
-                            const fontSize = Math.max(26, stroke.width * 5);
+                        <svg
+                          viewBox="0 0 1000 1000"
+                          preserveAspectRatio="none"
+                          style={{ touchAction: 'none' }}
+                          className={`w-full h-full ${
+                            isPenActive && !isProjectorMode ? 'cursor-crosshair pointer-events-auto' : 'pointer-events-none'
+                          }`}
+                          onPointerDown={isPenActive && !isProjectorMode ? handleDrawingPointerDown : undefined}
+                          onPointerMove={isPenActive && !isProjectorMode ? handleDrawingPointerMove : undefined}
+                          onPointerUp={isPenActive && !isProjectorMode ? handleDrawingPointerUp : undefined}
+                          onPointerLeave={isPenActive && !isProjectorMode ? handleDrawingPointerUp : undefined}
+                        >
+                          {currentSlideStrokes.map((stroke, idx) => {
+                            if (stroke.text) {
+                              const pt = stroke.points[0];
+                              if (!pt) return null;
+                              const fontSize = Math.max(26, stroke.width * 5);
+                              return (
+                                <text
+                                  key={`split-text-stroke-${idx}`}
+                                  x={pt.x}
+                                  y={pt.y}
+                                  fill={stroke.color}
+                                  fontSize={fontSize}
+                                  fontWeight="bold"
+                                  fontFamily="sans-serif"
+                                >
+                                  {stroke.text}
+                                </text>
+                              );
+                            }
+                            const pathD = renderStrokePath(stroke);
+                            if (!pathD) return null;
                             return (
-                              <text
-                                key={`split-text-stroke-${idx}`}
-                                x={pt.x}
-                                y={pt.y}
-                                fill={stroke.color}
-                                fontSize={fontSize}
-                                fontWeight="bold"
-                                fontFamily="sans-serif"
-                              >
-                                {stroke.text}
-                              </text>
+                              <path
+                                key={`split-stroke-${idx}`}
+                                d={pathD}
+                                stroke={stroke.color}
+                                strokeWidth={stroke.width}
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                fill="none"
+                                opacity={stroke.isHighlighter ? 0.45 : 1}
+                              />
                             );
-                          }
-                          const pathD = renderStrokePath(stroke);
-                          if (!pathD) return null;
-                          return (
+                          })}
+                          {activeDrawingStroke && (
                             <path
-                              key={`split-stroke-${idx}`}
-                              d={pathD}
-                              stroke={stroke.color}
-                              strokeWidth={stroke.width}
+                              d={renderStrokePath(activeDrawingStroke)}
+                              stroke={activeDrawingStroke.color}
+                              strokeWidth={activeDrawingStroke.width}
                               strokeLinecap="round"
                               strokeLinejoin="round"
                               fill="none"
-                              opacity={stroke.isHighlighter ? 0.45 : 1}
+                              opacity={activeDrawingStroke.isHighlighter ? 0.45 : 1}
                             />
-                          );
-                        })}
-                        {activeDrawingStroke && (
-                          <path
-                            d={renderStrokePath(activeDrawingStroke)}
-                            stroke={activeDrawingStroke.color}
-                            strokeWidth={activeDrawingStroke.width}
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            fill="none"
-                            opacity={activeDrawingStroke.isHighlighter ? 0.45 : 1}
+                          )}
+                        </svg>
+
+                        {/* Real-time Virtual Laser Pointer Dot */}
+                        {presentation?.laserActive && presentation.laserX !== undefined && presentation.laserY !== undefined && (
+                          <div 
+                            style={{
+                              left: `${presentation.laserX}%`,
+                              top: `${presentation.laserY}%`,
+                              transform: 'translate(-50%, -50%)',
+                              width: '16px',
+                              height: '16px',
+                              borderRadius: '50%',
+                              backgroundColor: '#ef4444',
+                              boxShadow: '0 0 10px 4px rgba(239, 68, 68, 0.9), 0 0 20px 8px rgba(239, 68, 68, 0.5)',
+                              position: 'absolute',
+                              pointerEvents: 'none',
+                              zIndex: 80,
+                              transition: 'top 0.03s linear, left 0.03s linear'
+                            }}
                           />
                         )}
-                      </svg>
-
-                      {/* Real-time Virtual Laser Pointer Dot rendered inside the aspect-ratio locked frame */}
-                      {presentation?.laserActive && presentation.laserX !== undefined && presentation.laserY !== undefined && (
-                        <div 
-                          style={{
-                            left: `${presentation.laserX}%`,
-                            top: `${presentation.laserY}%`,
-                            transform: 'translate(-50%, -50%)',
-                            width: '15px',
-                            height: '15px',
-                            borderRadius: '50%',
-                            backgroundColor: 'red',
-                            boxShadow: '0 0 8px 3px rgba(255, 0, 0, 0.8), 0 0 15px 5px rgba(255, 0, 0, 0.4)',
-                            position: 'absolute',
-                            pointerEvents: 'none',
-                            zIndex: 80,
-                            transition: 'top 0.05s ease-out, left 0.05s ease-out'
-                          }}
-                        />
-                      )}
+                      </div>
                     </div>
                   </div>
 
@@ -2006,6 +2099,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             ) : (
               <div className="flex flex-col items-center justify-center w-full h-full p-4 relative">
                 <div 
+                  ref={projectorFrameRef}
                   style={{ 
                     aspectRatio: `${videoAspectRatio}`,
                     width: '100%',
@@ -2031,78 +2125,90 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     currentSlidePreviewUrl={currentSlidePreviewUrl}
                   />
 
-                  {/* Real-time Presenter Live Slide Drawing Layer for Projector Screen */}
-                  <svg
-                    viewBox="0 0 1000 1000"
-                    preserveAspectRatio="none"
-                    className="absolute inset-0 w-full h-full pointer-events-none z-70"
+                  {/* Real-time Presenter Live Slide Content Layer for Projector Screen (Drawings + Laser Dot) */}
+                  <div 
+                    style={{
+                      position: 'absolute',
+                      left: projectorBounds.width > 0 ? `${projectorBounds.left}px` : 0,
+                      top: projectorBounds.height > 0 ? `${projectorBounds.top}px` : 0,
+                      width: projectorBounds.width > 0 ? `${projectorBounds.width}px` : '100%',
+                      height: projectorBounds.height > 0 ? `${projectorBounds.height}px` : '100%',
+                      pointerEvents: 'none',
+                      zIndex: 70
+                    }}
                   >
-                    {currentSlideStrokes.map((stroke, idx) => {
-                      if (stroke.text) {
-                        const pt = stroke.points[0];
-                        if (!pt) return null;
-                        const fontSize = Math.max(26, stroke.width * 5);
+                    <svg
+                      viewBox="0 0 1000 1000"
+                      preserveAspectRatio="none"
+                      className="w-full h-full pointer-events-none"
+                    >
+                      {currentSlideStrokes.map((stroke, idx) => {
+                        if (stroke.text) {
+                          const pt = stroke.points[0];
+                          if (!pt) return null;
+                          const fontSize = Math.max(26, stroke.width * 5);
+                          return (
+                            <text
+                              key={`projector-text-stroke-${idx}`}
+                              x={pt.x}
+                              y={pt.y}
+                              fill={stroke.color}
+                              fontSize={fontSize}
+                              fontWeight="bold"
+                              fontFamily="sans-serif"
+                            >
+                              {stroke.text}
+                            </text>
+                          );
+                        }
+                        const pathD = renderStrokePath(stroke);
+                        if (!pathD) return null;
                         return (
-                          <text
-                            key={`projector-text-stroke-${idx}`}
-                            x={pt.x}
-                            y={pt.y}
-                            fill={stroke.color}
-                            fontSize={fontSize}
-                            fontWeight="bold"
-                            fontFamily="sans-serif"
-                          >
-                            {stroke.text}
-                          </text>
+                          <path
+                            key={`projector-stroke-${idx}`}
+                            d={pathD}
+                            stroke={stroke.color}
+                            strokeWidth={stroke.width}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            fill="none"
+                            opacity={stroke.isHighlighter ? 0.45 : 1}
+                          />
                         );
-                      }
-                      const pathD = renderStrokePath(stroke);
-                      if (!pathD) return null;
-                      return (
+                      })}
+                      {activeDrawingStroke && (
                         <path
-                          key={`projector-stroke-${idx}`}
-                          d={pathD}
-                          stroke={stroke.color}
-                          strokeWidth={stroke.width}
+                          d={renderStrokePath(activeDrawingStroke)}
+                          stroke={activeDrawingStroke.color}
+                          strokeWidth={activeDrawingStroke.width}
                           strokeLinecap="round"
                           strokeLinejoin="round"
                           fill="none"
-                          opacity={stroke.isHighlighter ? 0.45 : 1}
+                          opacity={activeDrawingStroke.isHighlighter ? 0.45 : 1}
                         />
-                      );
-                    })}
-                    {activeDrawingStroke && (
-                      <path
-                        d={renderStrokePath(activeDrawingStroke)}
-                        stroke={activeDrawingStroke.color}
-                        strokeWidth={activeDrawingStroke.width}
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        fill="none"
-                        opacity={activeDrawingStroke.isHighlighter ? 0.45 : 1}
+                      )}
+                    </svg>
+
+                    {/* Real-time Virtual Laser Pointer Dot */}
+                    {presentation?.laserActive && presentation.laserX !== undefined && presentation.laserY !== undefined && (
+                      <div 
+                        style={{
+                          left: `${presentation.laserX}%`,
+                          top: `${presentation.laserY}%`,
+                          transform: 'translate(-50%, -50%)',
+                          width: '18px',
+                          height: '18px',
+                          borderRadius: '50%',
+                          backgroundColor: '#ef4444',
+                          boxShadow: '0 0 14px 5px rgba(239, 68, 68, 0.95), 0 0 28px 10px rgba(239, 68, 68, 0.6)',
+                          position: 'absolute',
+                          pointerEvents: 'none',
+                          zIndex: 80,
+                          transition: 'top 0.03s linear, left 0.03s linear'
+                        }}
                       />
                     )}
-                  </svg>
-
-                  {/* Real-time Virtual Laser Pointer Dot rendered inside the aspect-ratio locked frame */}
-                  {presentation?.laserActive && presentation.laserX !== undefined && presentation.laserY !== undefined && (
-                    <div 
-                      style={{
-                        left: `${presentation.laserX}%`,
-                        top: `${presentation.laserY}%`,
-                        transform: 'translate(-50%, -50%)',
-                        width: '15px',
-                        height: '15px',
-                        borderRadius: '50%',
-                        backgroundColor: 'red',
-                        boxShadow: '0 0 8px 3px rgba(255, 0, 0, 0.8), 0 0 15px 5px rgba(255, 0, 0, 0.4)',
-                        position: 'absolute',
-                        pointerEvents: 'none',
-                        zIndex: 80,
-                        transition: 'top 0.05s ease-out, left 0.05s ease-out'
-                      }}
-                    />
-                  )}
+                  </div>
             </div>
 
             {/* Unobtrusive Centered Slide Number under slide display in Projector Mode */}
