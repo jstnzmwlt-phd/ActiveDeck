@@ -1629,7 +1629,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       {/* Main Content Area */}
       <div 
         ref={containerRef}
-        className={`${isCapturing && !isProjectorMode ? 'flex-[2]' : 'flex-1'} relative bg-black overflow-hidden flex items-center justify-center transition-all duration-300`}
+        className="flex-1 relative bg-black overflow-hidden flex items-center justify-center transition-all duration-300"
       >
         {!isProjectorMode && (
           <div className={`w-full h-full p-4 flex flex-col ${isCapturing ? 'md:flex-row gap-0 items-stretch justify-between max-w-[1650px]' : 'items-center justify-center max-w-[1450px]'} mx-auto select-none overflow-y-auto custom-scrollbar`}>
@@ -2507,6 +2507,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         )}
       </div>
     )}
+  </div>
 
 
 
@@ -2900,6 +2901,5 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       )}
 
     </div>
-  </div>
 );
 };
