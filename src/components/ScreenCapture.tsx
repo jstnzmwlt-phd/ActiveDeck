@@ -123,20 +123,6 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
           }}
           className={`absolute inset-0 w-full h-full object-contain z-10 ${isCapturing ? 'opacity-100' : 'opacity-0'}`}
         />
-
-        {/* Floating Quick Action: Re-share Source */}
-        {isCapturing && !isProjectorMode && (
-          <div className="absolute top-3 right-3 z-30 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center gap-2">
-            <button
-              onClick={onStart}
-              title="Re-select PowerPoint window or screen share if display went black"
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800/90 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-lg border border-slate-700 shadow-lg backdrop-blur-sm transition-all active:scale-95"
-            >
-              <Monitor className="w-3.5 h-3.5 text-osu-orange" />
-              <span>Re-share Source</span>
-            </button>
-          </div>
-        )}
         
         {!isCapturing && !error && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 p-8 text-center z-20">
