@@ -48,6 +48,9 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         socket.onopen = () => {
           console.log('ActiveDeck: WebSocket connection established.');
           setIsBridgeConnected(true);
+          try {
+            socket.send('status');
+          } catch (e) {}
         };
 
         socket.onmessage = (event) => {

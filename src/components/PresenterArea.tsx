@@ -497,19 +497,23 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
   const effectiveCurrentSlide = currentSlide !== null ? currentSlide : (presentation?.currentSlide ?? 1);
   const mapSlidesCount = Object.keys(slidePreviewsMap).length;
-  const effectiveTotalSlides = (totalSlides !== null && totalSlides > 0)
+  const knownTotal = (totalSlides !== null && totalSlides > 0)
     ? totalSlides
     : (presentation?.totalSlides || localSlidesCount || mapSlidesCount || 0);
 
+  const effectiveTotalSlides = knownTotal > 0 
+    ? knownTotal 
+    : Math.max(1, effectiveCurrentSlide + 1);
+
   const effectiveNextSlide = nextSlide !== null
     ? nextSlide
-    : (effectiveTotalSlides > 0 && effectiveCurrentSlide < effectiveTotalSlides ? effectiveCurrentSlide + 1 : null);
+    : (effectiveCurrentSlide < effectiveTotalSlides ? effectiveCurrentSlide + 1 : null);
 
   const nextSlideLocalUrl = effectiveNextSlide !== null ? `http://127.0.0.1:5000/slides/${effectiveNextSlide}.jpg` : null;
   const nextSlideFirestoreUrl = effectiveNextSlide !== null ? (slidePreviewsMap[effectiveNextSlide] || null) : null;
   const nextSlideImgUrl = (isBridgeConnected && nextSlideBase64)
     ? nextSlideBase64
-    : (effectiveNextSlide !== null && !nextSlideImageError && (isBridgeConnected || localSlidesCount >= effectiveNextSlide))
+    : (effectiveNextSlide !== null && !nextSlideImageError && (isBridgeConnected || localSlidesCount >= effectiveNextSlide || localSlidesCount === 0))
       ? nextSlideLocalUrl
       : (nextSlideFirestoreUrl || null);
 
@@ -518,23 +522,36 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   }, [effectiveNextSlide]);
 
   useEffect(() => {
-    if (isBridgeConnected) {
-      console.log("ActiveDeck: Bridge connected, triggering slide images pre-export...");
-      fetch('http://127.0.0.1:5000/export')
-        .then(res => res.json())
-        .then(data => {
-          if (data && data.success && typeof data.count === 'number') {
-            console.log(`ActiveDeck: Successfully pre-exported ${data.count} slide previews locally.`);
-            setLocalSlidesCount(data.count);
-          }
-        })
-        .catch(err => {
-          console.warn("ActiveDeck: Failed to pre-export slides via bridge:", err);
-        });
-    } else {
-      setLocalSlidesCount(0);
+    let intervalId: any;
+
+    const checkLocalExport = () => {
+      if (isBridgeConnected) {
+        fetch('http://127.0.0.1:5000/export')
+          .then(res => res.json())
+          .then(data => {
+            if (data && data.success && typeof data.count === 'number' && data.count > 0) {
+              console.log(`ActiveDeck: Successfully pre-exported ${data.count} slide previews locally.`);
+              setLocalSlidesCount(data.count);
+            }
+          })
+          .catch(err => {
+            console.warn("ActiveDeck: Failed to pre-export slides via bridge:", err);
+          });
+      } else {
+        setLocalSlidesCount(0);
+      }
+    };
+
+    checkLocalExport();
+
+    if (isBridgeConnected && localSlidesCount === 0 && totalSlides === null) {
+      intervalId = setInterval(checkLocalExport, 2000);
     }
-  }, [isBridgeConnected]);
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [isBridgeConnected, localSlidesCount, totalSlides]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
