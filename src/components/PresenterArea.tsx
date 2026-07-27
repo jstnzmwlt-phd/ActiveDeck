@@ -1066,12 +1066,14 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (isProjectorMode || !presentation?.id || !isCapturing || !laserEnabled) return;
-    const container = e.currentTarget;
-    if (!container) return;
 
-    // The frame container is sized to the exact slide aspect ratio (no black bars),
-    // so we can use the container rect directly for coordinate calculation.
-    const rect = container.getBoundingClientRect();
+    // Use the video element's bounding rect directly. The video fills the frame
+    // via `absolute inset-0 w-full h-full`, so its rect equals the frame's inner
+    // content area — this is exactly what worked in the July 26 version.
+    const videoElement = videoRef.current || (e.currentTarget.querySelector('video') as HTMLVideoElement | null);
+    if (!videoElement) return;
+
+    const rect = videoElement.getBoundingClientRect();
     if (!rect || rect.width === 0 || rect.height === 0) return;
 
     const relativeX = Math.max(0, Math.min(rect.width,  e.clientX - rect.left));
