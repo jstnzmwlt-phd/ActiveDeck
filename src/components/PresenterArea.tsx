@@ -1856,8 +1856,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                               boxShadow: '0 0 10px 4px rgba(239, 68, 68, 0.9), 0 0 20px 8px rgba(239, 68, 68, 0.5)',
                               position: 'absolute',
                               pointerEvents: 'none',
-                              zIndex: 80,
-                              transition: 'top 0.03s linear, left 0.03s linear'
+                              zIndex: 80
                             }}
                           />
                         )}
@@ -2172,8 +2171,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                           boxShadow: '0 0 14px 5px rgba(239, 68, 68, 0.95), 0 0 28px 10px rgba(239, 68, 68, 0.6)',
                           position: 'absolute',
                           pointerEvents: 'none',
-                          zIndex: 80,
-                          transition: 'top 0.03s linear, left 0.03s linear'
+                          zIndex: 80
                         }}
                       />
                     )}
