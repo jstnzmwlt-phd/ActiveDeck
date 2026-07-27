@@ -1145,11 +1145,21 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     const rect = container.getBoundingClientRect();
     if (!rect || rect.width === 0 || rect.height === 0) return;
 
-    const relativeX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
-    const relativeY = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
+    const clientLeft = container.clientLeft || 0;
+    const clientTop = container.clientTop || 0;
+    const innerWidth = container.clientWidth || rect.width;
+    const innerHeight = container.clientHeight || rect.height;
 
-    const x = (relativeX / rect.width) * 100;
-    const y = (relativeY / rect.height) * 100;
+    const bounds = getSlideContentBounds(innerWidth, innerHeight, effectiveAspectRatio);
+
+    const relX = e.clientX - rect.left - clientLeft - bounds.left;
+    const relY = e.clientY - rect.top - clientTop - bounds.top;
+
+    const clampedX = Math.max(0, Math.min(bounds.width, relX));
+    const clampedY = Math.max(0, Math.min(bounds.height, relY));
+
+    const x = (clampedX / bounds.width) * 100;
+    const y = (clampedY / bounds.height) * 100;
 
     updateLaserPosition(x, y, true);
   };
@@ -1822,7 +1832,17 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                       />
 
                       {/* Real-time Presenter Live Slide Content Layer (Drawings + Laser Dot) */}
-                      <div className="absolute inset-0 pointer-events-none z-70">
+                      <div 
+                        style={{
+                          position: 'absolute',
+                          left: presenterBounds.width > 0 ? `${presenterBounds.left}px` : 0,
+                          top: presenterBounds.height > 0 ? `${presenterBounds.top}px` : 0,
+                          width: presenterBounds.width > 0 ? `${presenterBounds.width}px` : '100%',
+                          height: presenterBounds.height > 0 ? `${presenterBounds.height}px` : '100%',
+                          pointerEvents: 'none',
+                          zIndex: 70
+                        }}
+                      >
                         <svg
                           viewBox="0 0 1000 1000"
                           preserveAspectRatio="none"
@@ -2145,7 +2165,17 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                   />
 
                   {/* Real-time Presenter Live Slide Content Layer for Projector Screen (Drawings + Laser Dot) */}
-                  <div className="absolute inset-0 pointer-events-none z-70">
+                  <div 
+                    style={{
+                      position: 'absolute',
+                      left: projectorBounds.width > 0 ? `${projectorBounds.left}px` : 0,
+                      top: projectorBounds.height > 0 ? `${projectorBounds.top}px` : 0,
+                      width: projectorBounds.width > 0 ? `${projectorBounds.width}px` : '100%',
+                      height: projectorBounds.height > 0 ? `${projectorBounds.height}px` : '100%',
+                      pointerEvents: 'none',
+                      zIndex: 70
+                    }}
+                  >
                     <svg
                       viewBox="0 0 1000 1000"
                       preserveAspectRatio="none"
