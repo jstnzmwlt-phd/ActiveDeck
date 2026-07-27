@@ -21,37 +21,84 @@ export interface DrawingStroke {
   text?: string;
 }
 
-export interface SlideBounds {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
+export interface RenderedMediaBounds {
+  renderedWidth: number;
+  renderedHeight: number;
+  offsetX: number;
+  offsetY: number;
 }
 
-export const getSlideContentBounds = (
-  containerWidth: number,
-  containerHeight: number,
-  slideAspectRatio: number = 16 / 9
-): SlideBounds => {
-  if (containerWidth <= 0 || containerHeight <= 0) {
-    return { left: 0, top: 0, width: containerWidth, height: containerHeight };
-  }
+export const useRenderedMediaBounds = (
+  frameRef: React.RefObject<HTMLDivElement | null>,
+  deps: any[] = []
+): RenderedMediaBounds => {
+  const [bounds, setBounds] = useState<RenderedMediaBounds>({
+    renderedWidth: 0,
+    renderedHeight: 0,
+    offsetX: 0,
+    offsetY: 0,
+  });
 
-  const containerAspect = containerWidth / containerHeight;
-  let width = containerWidth;
-  let height = containerHeight;
-  let left = 0;
-  let top = 0;
+  useEffect(() => {
+    const updateBounds = () => {
+      const container = frameRef.current;
+      if (!container) return;
 
-  if (containerAspect > slideAspectRatio) {
-    width = containerHeight * slideAspectRatio;
-    left = (containerWidth - width) / 2;
-  } else {
-    height = containerWidth / slideAspectRatio;
-    top = (containerHeight - height) / 2;
-  }
+      const mediaElement = container.querySelector('video') || container.querySelector('img');
+      if (!mediaElement) return;
 
-  return { left, top, width, height };
+      const rect = mediaElement.getBoundingClientRect();
+      let intrinsicWidth = 0;
+      let intrinsicHeight = 0;
+
+      if (mediaElement.tagName === 'VIDEO') {
+        intrinsicWidth = (mediaElement as HTMLVideoElement).videoWidth;
+        intrinsicHeight = (mediaElement as HTMLVideoElement).videoHeight;
+      } else {
+        intrinsicWidth = (mediaElement as HTMLImageElement).naturalWidth;
+        intrinsicHeight = (mediaElement as HTMLImageElement).naturalHeight;
+      }
+
+      if (!intrinsicWidth || !intrinsicHeight || rect.width === 0 || rect.height === 0) return;
+
+      const mediaAR = intrinsicWidth / intrinsicHeight;
+      const containerAR = rect.width / rect.height;
+
+      let renderedWidth = rect.width;
+      let renderedHeight = rect.height;
+
+      if (mediaAR >= containerAR) {
+        renderedHeight = rect.width / mediaAR;
+      } else {
+        renderedWidth = rect.height * mediaAR;
+      }
+
+      const offsetX = (rect.width - renderedWidth) / 2;
+      const offsetY = (rect.height - renderedHeight) / 2;
+
+      setBounds({
+        renderedWidth,
+        renderedHeight,
+        offsetX,
+        offsetY,
+      });
+    };
+
+    updateBounds();
+
+    const elem = frameRef.current;
+    const ro = elem ? new ResizeObserver(updateBounds) : null;
+    if (elem) ro?.observe(elem);
+
+    window.addEventListener('resize', updateBounds);
+
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener('resize', updateBounds);
+    };
+  }, [frameRef, ...deps]);
+
+  return bounds;
 };
 
 interface PresenterAreaProps {
@@ -601,6 +648,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const presenterFrameRef = useRef<HTMLDivElement | null>(null);
   const projectorFrameRef = useRef<HTMLDivElement | null>(null);
 
+  const presenterBounds = useRenderedMediaBounds(presenterFrameRef, [isCapturing, isProjectorMode, presentWithNotes, videoAspectRatio]);
+  const projectorBounds = useRenderedMediaBounds(projectorFrameRef, [isCapturing, isProjectorMode, videoAspectRatio]);
+
   const [leftWidthPercent, setLeftWidthPercent] = useState<number>(62); // Default starting width percentage for left panel
   const [isResizingNotes, setIsResizingNotes] = useState(false);
 
@@ -1096,16 +1146,52 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (isProjectorMode || !presentation?.id || !isCapturing || !laserEnabled) return;
+    const container = e.currentTarget;
+    const mediaElement = container.querySelector('video') || container.querySelector('img');
+    if (!mediaElement) return;
 
-    // The currentTarget is now the strict 16:9 wrapper
-    const rect = e.currentTarget.getBoundingClientRect();
-    if (!rect || rect.width === 0 || rect.height === 0) return;
+    const rect = mediaElement.getBoundingClientRect();
+    
+    // 1. Get intrinsic dimensions
+    let intrinsicWidth = 0, intrinsicHeight = 0;
+    if (mediaElement.tagName === 'VIDEO') {
+      intrinsicWidth = (mediaElement as HTMLVideoElement).videoWidth;
+      intrinsicHeight = (mediaElement as HTMLVideoElement).videoHeight;
+    } else {
+      intrinsicWidth = (mediaElement as HTMLImageElement).naturalWidth;
+      intrinsicHeight = (mediaElement as HTMLImageElement).naturalHeight;
+    }
+    
+    if (!intrinsicWidth || !intrinsicHeight || rect.width === 0 || rect.height === 0) return;
 
-    const relativeX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
-    const relativeY = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
+    // 2. Calculate actual rendered media dimensions inside object-contain
+    const mediaAR = intrinsicWidth / intrinsicHeight;
+    const containerAR = rect.width / rect.height;
+    
+    let renderedWidth = rect.width;
+    let renderedHeight = rect.height;
+    
+    if (mediaAR >= containerAR) {
+      renderedHeight = rect.width / mediaAR; // Width is maxed, height is scaled
+    } else {
+      renderedWidth = rect.height * mediaAR; // Height is maxed, width is scaled
+    }
 
-    const x = (relativeX / rect.width) * 100;
-    const y = (relativeY / rect.height) * 100;
+    // 3. Calculate black bars (offsets)
+    const offsetX = (rect.width - renderedWidth) / 2;
+    const offsetY = (rect.height - renderedHeight) / 2;
+
+    // 4. Calculate mouse position strictly against the rendered media
+    const contentX = e.clientX - rect.left - offsetX;
+    const contentY = e.clientY - rect.top - offsetY;
+
+    // 5. Clamp to ensure coordinates don't spill into the black bars
+    const clampedX = Math.max(0, Math.min(renderedWidth, contentX));
+    const clampedY = Math.max(0, Math.min(renderedHeight, contentY));
+
+    // 6. Convert to percentage of the ACTUAL rendered image
+    const x = (clampedX / renderedWidth) * 100;
+    const y = (clampedY / renderedHeight) * 100;
 
     updateLaserPosition(x, y, true);
   };
@@ -1778,7 +1864,15 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                       />
 
                       {/* Real-time Presenter Live Slide Content Layer (Drawings + Laser Dot) */}
-                      <div className="absolute inset-0 pointer-events-none z-70">
+                      <div 
+                        className="absolute pointer-events-none z-70"
+                        style={{
+                          width: presenterBounds.renderedWidth > 0 ? `${presenterBounds.renderedWidth}px` : '100%',
+                          height: presenterBounds.renderedHeight > 0 ? `${presenterBounds.renderedHeight}px` : '100%',
+                          left: `${presenterBounds.offsetX}px`,
+                          top: `${presenterBounds.offsetY}px`
+                        }}
+                      >
                         <svg
                           viewBox="0 0 1000 1000"
                           preserveAspectRatio="none"
@@ -2101,7 +2195,15 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                   />
 
                   {/* Real-time Presenter Live Slide Content Layer for Projector Screen (Drawings + Laser Dot) */}
-                  <div className="absolute inset-0 pointer-events-none z-70">
+                  <div 
+                    className="absolute pointer-events-none z-70"
+                    style={{
+                      width: projectorBounds.renderedWidth > 0 ? `${projectorBounds.renderedWidth}px` : '100%',
+                      height: projectorBounds.renderedHeight > 0 ? `${projectorBounds.renderedHeight}px` : '100%',
+                      left: `${projectorBounds.offsetX}px`,
+                      top: `${projectorBounds.offsetY}px`
+                    }}
+                  >
                     <svg
                       viewBox="0 0 1000 1000"
                       preserveAspectRatio="none"
