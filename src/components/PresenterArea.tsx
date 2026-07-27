@@ -1719,11 +1719,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             {/* Present with Notes Toggle Switch */}
             <button
               onClick={() => {
-                const newEnabled = !presentWithNotes;
-                setPresentWithNotes(newEnabled);
-                if (!newEnabled) {
-                  clearNotesState();
-                }
+                setPresentWithNotes(!presentWithNotes);
               }}
               className={`flex items-center gap-1.5 ml-2 px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all duration-200 shadow-lg cursor-pointer hover:scale-105 active:scale-95 ${
                 presentWithNotes 
@@ -2061,7 +2057,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                                 id={`nav-slide-${sNum}`}
                                 key={`nav-slide-${sNum}`}
                                 onClick={() => sendSlideCommand(sNum)}
-                                className="flex flex-col items-center gap-1 group/tile cursor-pointer transition-opacity duration-150 opacity-100"
+                                className={`flex flex-col items-center gap-1 group/tile cursor-pointer transition-opacity duration-150 ${
+                                  isUnshown ? 'opacity-40 hover:opacity-80' : 'opacity-100'
+                                }`}
                                 title={isFurthest ? "Where you left off (furthest slide)" : isUnshown ? "Slide not yet shown to audience (Click to jump)" : `Jump to Slide ${sNum}`}
                               >
                                 <div className={`relative w-full aspect-video bg-slate-950 rounded-lg overflow-hidden flex items-center justify-center border transition-all ${
