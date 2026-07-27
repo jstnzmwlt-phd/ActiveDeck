@@ -21,63 +21,96 @@ export interface DrawingStroke {
   text?: string;
 }
 
-export interface MediaElementBounds {
-  top: number;
-  left: number;
-  width: number;
-  height: number;
+export interface RenderedContentBounds {
+  // All values are px offsets relative to the frame container
+  offsetX: number;  // left bar width
+  offsetY: number;  // top bar height
+  renderedWidth: number;
+  renderedHeight: number;
 }
 
-export const useMediaElementBounds = (
+/**
+ * Computes the exact pixel rect of the *rendered content* inside an
+ * `object-contain` media element, stripping out any letterbox/pillarbox bars.
+ *
+ * Because <video> and <img> in ScreenCapture are `absolute inset-0 w-full h-full
+ * object-contain`, their getBoundingClientRect() equals the CONTAINER rect.
+ * CSS draws the content centred inside, padding with black bars.
+ * We compute those bars using the media's intrinsic aspect ratio.
+ */
+export const useRenderedContentBounds = (
   frameRef: React.RefObject<HTMLDivElement | null>,
   deps: any[] = []
-): MediaElementBounds => {
-  const [bounds, setBounds] = useState<MediaElementBounds>({
-    top: 0,
-    left: 0,
-    width: 0,
-    height: 0,
+): RenderedContentBounds => {
+  const [bounds, setBounds] = useState<RenderedContentBounds>({
+    offsetX: 0,
+    offsetY: 0,
+    renderedWidth: 0,
+    renderedHeight: 0,
   });
 
   useEffect(() => {
-    const updateBounds = () => {
+    const compute = () => {
       const container = frameRef.current;
       if (!container) return;
 
-      const mediaElem = container.querySelector('video') || container.querySelector('img');
-      if (!mediaElem) return;
+      // Prefer video (screen-share); fall back to img (bridge slide)
+      const video = container.querySelector('video') as HTMLVideoElement | null;
+      const img   = container.querySelector('img:not([class*="opacity-10"])') as HTMLImageElement | null;
 
-      const rect = mediaElem.getBoundingClientRect();
-      const containerRect = container.getBoundingClientRect();
+      // Pick the element that has real intrinsic dimensions
+      let intrinsicW = 0, intrinsicH = 0, elem: Element | null = null;
+      if (video && video.videoWidth && video.videoHeight) {
+        intrinsicW = video.videoWidth;
+        intrinsicH = video.videoHeight;
+        elem = video;
+      } else if (img && img.naturalWidth && img.naturalHeight) {
+        intrinsicW = img.naturalWidth;
+        intrinsicH = img.naturalHeight;
+        elem = img;
+      }
 
-      const top = (mediaElem as HTMLElement).offsetTop ?? (rect.top - containerRect.top);
-      const left = (mediaElem as HTMLElement).offsetLeft ?? (rect.left - containerRect.left);
+      if (!elem || !intrinsicW || !intrinsicH) return;
 
-      setBounds({
-        top,
-        left,
-        width: rect.width,
-        height: rect.height,
-      });
+      // The element fills the container 100% (inset-0 w-full h-full)
+      const containerRect = (elem as HTMLElement).getBoundingClientRect();
+      const containerW = containerRect.width;
+      const containerH = containerRect.height;
+      if (containerW === 0 || containerH === 0) return;
+
+      // object-contain: fit inside container preserving aspect ratio
+      const mediaAR = intrinsicW / intrinsicH;
+      const containerAR = containerW / containerH;
+
+      let renderedWidth: number;
+      let renderedHeight: number;
+
+      if (mediaAR > containerAR) {
+        // Wider than container → full width, bars on top/bottom
+        renderedWidth  = containerW;
+        renderedHeight = containerW / mediaAR;
+      } else {
+        // Taller than container → full height, bars on left/right
+        renderedHeight = containerH;
+        renderedWidth  = containerH * mediaAR;
+      }
+
+      const offsetX = (containerW - renderedWidth)  / 2;
+      const offsetY = (containerH - renderedHeight) / 2;
+
+      setBounds({ offsetX, offsetY, renderedWidth, renderedHeight });
     };
 
-    updateBounds();
+    compute();
 
     const elem = frameRef.current;
-    const mediaElem = elem ? (elem.querySelector('video') || elem.querySelector('img')) : null;
-
-    const ro1 = elem ? new ResizeObserver(updateBounds) : null;
-    if (elem) ro1?.observe(elem);
-
-    const ro2 = mediaElem ? new ResizeObserver(updateBounds) : null;
-    if (mediaElem) ro2?.observe(mediaElem);
-
-    window.addEventListener('resize', updateBounds);
+    const ro = elem ? new ResizeObserver(compute) : null;
+    if (elem) ro?.observe(elem);
+    window.addEventListener('resize', compute);
 
     return () => {
-      ro1?.disconnect();
-      ro2?.disconnect();
-      window.removeEventListener('resize', updateBounds);
+      ro?.disconnect();
+      window.removeEventListener('resize', compute);
     };
   }, [frameRef, ...deps]);
 
@@ -631,8 +664,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const presenterFrameRef = useRef<HTMLDivElement | null>(null);
   const projectorFrameRef = useRef<HTMLDivElement | null>(null);
 
-  const presenterBounds = useMediaElementBounds(presenterFrameRef, [isCapturing, isProjectorMode, presentWithNotes, videoAspectRatio]);
-  const projectorBounds = useMediaElementBounds(projectorFrameRef, [isCapturing, isProjectorMode, videoAspectRatio]);
+  const presenterBounds = useRenderedContentBounds(presenterFrameRef, [isCapturing, isProjectorMode, presentWithNotes, videoAspectRatio]);
+  const projectorBounds = useRenderedContentBounds(projectorFrameRef, [isCapturing, isProjectorMode, videoAspectRatio]);
 
   const [leftWidthPercent, setLeftWidthPercent] = useState<number>(62); // Default starting width percentage for left panel
   const [isResizingNotes, setIsResizingNotes] = useState(false);
@@ -1129,51 +1162,59 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (isProjectorMode || !presentation?.id || !isCapturing || !laserEnabled) return;
+
+    // The frame container holds a <video> or <img> that is `inset-0 w-full h-full
+    // object-contain`, so getBoundingClientRect on it equals the container rect.
+    // We must compute where object-contain actually renders the content using
+    // the media's intrinsic dimensions.
     const container = e.currentTarget;
-    const mediaElement = container.querySelector('video') || container.querySelector('img');
-    if (!mediaElement) return;
+    const video = container.querySelector('video') as HTMLVideoElement | null;
+    const img   = container.querySelector('img:not([class*="opacity-10"])') as HTMLImageElement | null;
 
-    const rect = mediaElement.getBoundingClientRect();
-    
-    // 1. Get intrinsic dimensions
-    let intrinsicWidth = 0, intrinsicHeight = 0;
-    if (mediaElement.tagName === 'VIDEO') {
-      intrinsicWidth = (mediaElement as HTMLVideoElement).videoWidth;
-      intrinsicHeight = (mediaElement as HTMLVideoElement).videoHeight;
-    } else {
-      intrinsicWidth = (mediaElement as HTMLImageElement).naturalWidth;
-      intrinsicHeight = (mediaElement as HTMLImageElement).naturalHeight;
+    let intrinsicW = 0, intrinsicH = 0;
+    let mediaElem: Element | null = null;
+    if (video && video.videoWidth && video.videoHeight) {
+      intrinsicW = video.videoWidth;
+      intrinsicH = video.videoHeight;
+      mediaElem = video;
+    } else if (img && img.naturalWidth && img.naturalHeight) {
+      intrinsicW = img.naturalWidth;
+      intrinsicH = img.naturalHeight;
+      mediaElem = img;
     }
-    
-    if (!intrinsicWidth || !intrinsicHeight || rect.width === 0 || rect.height === 0) return;
 
-    // 2. Calculate actual rendered media dimensions inside object-contain
-    const mediaAR = intrinsicWidth / intrinsicHeight;
+    if (!mediaElem || !intrinsicW || !intrinsicH) return;
+
+    // Container rect == media element rect (because media is inset-0 w-full h-full)
+    const rect = (mediaElem as HTMLElement).getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+
+    // Compute rendered content dimensions (object-contain math)
+    const mediaAR = intrinsicW / intrinsicH;
     const containerAR = rect.width / rect.height;
-    
-    let renderedWidth = rect.width;
-    let renderedHeight = rect.height;
-    
-    if (mediaAR >= containerAR) {
-      renderedHeight = rect.width / mediaAR; // Width is maxed, height is scaled
+
+    let renderedWidth: number;
+    let renderedHeight: number;
+    if (mediaAR > containerAR) {
+      renderedWidth  = rect.width;
+      renderedHeight = rect.width / mediaAR;
     } else {
-      renderedWidth = rect.height * mediaAR; // Height is maxed, width is scaled
+      renderedHeight = rect.height;
+      renderedWidth  = rect.height * mediaAR;
     }
 
-    // 3. Calculate black bars (offsets)
-    const offsetX = (rect.width - renderedWidth) / 2;
+    const offsetX = (rect.width  - renderedWidth)  / 2;
     const offsetY = (rect.height - renderedHeight) / 2;
 
-    // 4. Calculate mouse position strictly against the rendered media
+    // Mouse position relative to rendered content (not container)
     const contentX = e.clientX - rect.left - offsetX;
-    const contentY = e.clientY - rect.top - offsetY;
+    const contentY = e.clientY - rect.top  - offsetY;
 
-    // 5. Clamp to ensure coordinates don't spill into the black bars
-    const clampedX = Math.max(0, Math.min(renderedWidth, contentX));
+    // Clamp so the dot never lands in a black bar
+    const clampedX = Math.max(0, Math.min(renderedWidth,  contentX));
     const clampedY = Math.max(0, Math.min(renderedHeight, contentY));
 
-    // 6. Convert to percentage of the ACTUAL rendered image
-    const x = (clampedX / renderedWidth) * 100;
+    const x = (clampedX / renderedWidth)  * 100;
     const y = (clampedY / renderedHeight) * 100;
 
     updateLaserPosition(x, y, true);
@@ -1846,14 +1887,16 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         onTogglePen={() => setIsPenActive(!isPenActive)}
                       />
 
-                      {/* Real-time Presenter Live Slide Content Layer (Drawings + Laser Dot) */}
+                      {/* Real-time Presenter Live Slide Content Layer (Drawings + Laser Dot)
+                           Overlay is positioned/sized to exactly match the rendered content
+                           rect that CSS object-contain produces inside the media element. */}
                       <div 
                         className="absolute pointer-events-none z-70"
                         style={{
-                          top: presenterBounds.top,
-                          left: presenterBounds.left,
-                          width: presenterBounds.width > 0 ? presenterBounds.width : '100%',
-                          height: presenterBounds.height > 0 ? presenterBounds.height : '100%',
+                          top:    presenterBounds.offsetY,
+                          left:   presenterBounds.offsetX,
+                          width:  presenterBounds.renderedWidth  > 0 ? presenterBounds.renderedWidth  : '100%',
+                          height: presenterBounds.renderedHeight > 0 ? presenterBounds.renderedHeight : '100%',
                         }}
                       >
                         <svg
@@ -2181,10 +2224,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                   <div 
                     className="absolute pointer-events-none z-70"
                     style={{
-                      top: projectorBounds.top,
-                      left: projectorBounds.left,
-                      width: projectorBounds.width > 0 ? projectorBounds.width : '100%',
-                      height: projectorBounds.height > 0 ? projectorBounds.height : '100%',
+                      top:    projectorBounds.offsetY,
+                      left:   projectorBounds.offsetX,
+                      width:  projectorBounds.renderedWidth  > 0 ? projectorBounds.renderedWidth  : '100%',
+                      height: projectorBounds.renderedHeight > 0 ? projectorBounds.renderedHeight : '100%',
                     }}
                   >
                     <svg
