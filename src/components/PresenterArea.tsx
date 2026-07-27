@@ -495,9 +495,27 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const [localSlidesCount, setLocalSlidesCount] = useState<number>(0);
   const [nextSlideImageError, setNextSlideImageError] = useState<boolean>(false);
 
+  const effectiveCurrentSlide = currentSlide !== null ? currentSlide : (presentation?.currentSlide ?? 1);
+  const mapSlidesCount = Object.keys(slidePreviewsMap).length;
+  const effectiveTotalSlides = (totalSlides !== null && totalSlides > 0)
+    ? totalSlides
+    : (presentation?.totalSlides || localSlidesCount || mapSlidesCount || 0);
+
+  const effectiveNextSlide = nextSlide !== null
+    ? nextSlide
+    : (effectiveTotalSlides > 0 && effectiveCurrentSlide < effectiveTotalSlides ? effectiveCurrentSlide + 1 : null);
+
+  const nextSlideLocalUrl = effectiveNextSlide !== null ? `http://127.0.0.1:5000/slides/${effectiveNextSlide}.jpg` : null;
+  const nextSlideFirestoreUrl = effectiveNextSlide !== null ? (slidePreviewsMap[effectiveNextSlide] || null) : null;
+  const nextSlideImgUrl = (isBridgeConnected && nextSlideBase64)
+    ? nextSlideBase64
+    : (effectiveNextSlide !== null && !nextSlideImageError && (isBridgeConnected || localSlidesCount >= effectiveNextSlide))
+      ? nextSlideLocalUrl
+      : (nextSlideFirestoreUrl || null);
+
   useEffect(() => {
     setNextSlideImageError(false);
-  }, [nextSlide]);
+  }, [effectiveNextSlide]);
 
   useEffect(() => {
     if (isBridgeConnected) {
@@ -517,16 +535,6 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       setLocalSlidesCount(0);
     }
   }, [isBridgeConnected]);
-
-  const effectiveCurrentSlide = currentSlide !== null ? currentSlide : (presentation?.currentSlide ?? 1);
-  const mapSlidesCount = Object.keys(slidePreviewsMap).length;
-  const effectiveTotalSlides = (totalSlides !== null && totalSlides > 0)
-    ? totalSlides
-    : (presentation?.totalSlides || localSlidesCount || mapSlidesCount || 0);
-
-  const effectiveNextSlide = nextSlide !== null
-    ? nextSlide
-    : (effectiveTotalSlides > 0 && effectiveCurrentSlide < effectiveTotalSlides ? effectiveCurrentSlide + 1 : null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -1843,27 +1851,13 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     
                     {/* Changed aspect-video to flex-1 min-h-0 to resize dynamically */}
                     <div className="relative w-full flex-1 min-h-0 bg-black border border-slate-850 rounded-2xl overflow-hidden p-1 flex items-center justify-center shadow-lg">
-                      {isBridgeConnected && nextSlideBase64 ? (
+                      {nextSlideImgUrl ? (
                         <img 
-                          src={nextSlideBase64} 
+                          src={nextSlideImgUrl} 
                           alt="Next Slide Preview" 
                           className="w-full h-full object-contain bg-black animate-in fade-in duration-300"
-                          key={`websocket-next-${effectiveNextSlide}`}
-                        />
-                      ) : (isBridgeConnected || localSlidesCount >= (effectiveNextSlide || 0)) && effectiveNextSlide !== null && !nextSlideImageError ? (
-                        <img 
-                          src={`http://127.0.0.1:5000/slides/${effectiveNextSlide}.jpg`} 
-                          alt="Next Slide Preview" 
-                          className="w-full h-full object-contain bg-black animate-in fade-in duration-300"
-                          key={`local-next-${effectiveNextSlide}`}
+                          key={`next-preview-${effectiveNextSlide}-${nextSlideImgUrl}`}
                           onError={() => setNextSlideImageError(true)}
-                        />
-                      ) : effectiveNextSlide !== null && slidePreviewsMap[effectiveNextSlide] ? (
-                        <img 
-                          src={slidePreviewsMap[effectiveNextSlide]} 
-                          alt="Next Slide Preview" 
-                          className="w-full h-full object-contain bg-black animate-in fade-in duration-300"
-                          key={`firestore-next-${effectiveNextSlide}`}
                         />
                       ) : (
                         <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600 text-center p-4">
