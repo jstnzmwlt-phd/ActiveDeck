@@ -1609,19 +1609,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               <span>Laser {laserEnabled ? 'ON' : 'OFF'}</span>
             </button>
 
-            {/* Slide Pen Toggle Switch */}
-            <button
-              onClick={() => setIsPenActive(!isPenActive)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all duration-200 shadow-lg cursor-pointer hover:scale-105 active:scale-95 ${
-                isPenActive 
-                  ? 'bg-emerald-600 border-emerald-500 text-white hover:bg-emerald-700 hover:border-emerald-600 shadow-emerald-500/10 ring-2 ring-emerald-400/40' 
-                  : 'bg-red-600 border-red-500 text-white hover:bg-red-700 hover:border-red-600 shadow-red-500/10'
-              }`}
-              title="Toggle Slide Pen & Drawing Mode"
-            >
-              <Pen className="w-3 h-3 text-white" />
-              <span>Pen {isPenActive ? 'ON' : 'OFF'}</span>
-            </button>
+
           </div>
 
           {/* Slide Number (Slightly to the right to make some distance) */}
@@ -1684,6 +1672,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         currentSlideBase64={currentSlideBase64}
                         currentSlide={currentSlide}
                         currentSlidePreviewUrl={currentSlidePreviewUrl}
+                        isPenActive={isPenActive}
+                        onTogglePen={() => setIsPenActive(!isPenActive)}
                       />
 
                       {/* Real-time Presenter Live Slide Drawing Layer */}
@@ -2017,6 +2007,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     currentSlideBase64={currentSlideBase64}
                     currentSlide={currentSlide}
                     currentSlidePreviewUrl={currentSlidePreviewUrl}
+                    isPenActive={isPenActive}
+                    onTogglePen={() => setIsPenActive(!isPenActive)}
                   />
 
                       {/* Real-time Presenter Live Slide Drawing Layer */}

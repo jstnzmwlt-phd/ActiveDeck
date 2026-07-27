@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { Monitor, Play, Square, AlertCircle } from 'lucide-react';
+import { Monitor, Play, Square, AlertCircle, Pen } from 'lucide-react';
 
 interface ScreenCaptureProps {
   isCapturing: boolean;
@@ -15,6 +15,8 @@ interface ScreenCaptureProps {
   currentSlideBase64?: string | null;
   currentSlide?: number | null;
   currentSlidePreviewUrl?: string | null;
+  isPenActive?: boolean;
+  onTogglePen?: () => void;
 }
 
 export const ScreenCapture: React.FC<ScreenCaptureProps> = ({ 
@@ -30,7 +32,9 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
   isBridgeConnected = false,
   currentSlideBase64,
   currentSlide,
-  currentSlidePreviewUrl
+  currentSlidePreviewUrl,
+  isPenActive = false,
+  onTogglePen
 }) => {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const activeVideoRef = videoRef || localVideoRef;
@@ -123,6 +127,24 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
           }}
           className={`absolute inset-0 w-full h-full object-contain z-10 ${isCapturing ? 'opacity-100' : 'opacity-0'}`}
         />
+
+        {/* Floating Pen Mode Button */}
+        {isCapturing && !isProjectorMode && onTogglePen && (
+          <div className="absolute top-3 right-3 z-[80] transition-all duration-200 pointer-events-auto">
+            <button
+              onClick={onTogglePen}
+              title={isPenActive ? "Turn Off Pen & Drawing Mode" : "Activate Slide Pen & Drawing Mode"}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all shadow-2xl backdrop-blur-md cursor-pointer active:scale-95 ${
+                isPenActive
+                  ? 'bg-emerald-600/95 hover:bg-emerald-600 border-emerald-400 text-white shadow-emerald-500/30 ring-2 ring-emerald-400/50'
+                  : 'bg-slate-900/80 hover:bg-slate-800/90 border-slate-700/80 text-slate-200 shadow-black/50 hover:border-slate-500'
+              }`}
+            >
+              <Pen className="w-3.5 h-3.5 text-white" />
+              <span>Pen {isPenActive ? 'ON' : 'OFF'}</span>
+            </button>
+          </div>
+        )}
         
         {!isCapturing && !error && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 p-8 text-center z-20">
