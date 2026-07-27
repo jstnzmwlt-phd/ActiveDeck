@@ -518,6 +518,16 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     }
   }, [isBridgeConnected]);
 
+  const effectiveCurrentSlide = currentSlide !== null ? currentSlide : (presentation?.currentSlide ?? 1);
+  const mapSlidesCount = Object.keys(slidePreviewsMap).length;
+  const effectiveTotalSlides = (totalSlides !== null && totalSlides > 0)
+    ? totalSlides
+    : (presentation?.totalSlides || localSlidesCount || mapSlidesCount || 0);
+
+  const effectiveNextSlide = nextSlide !== null
+    ? nextSlide
+    : (effectiveTotalSlides > 0 && effectiveCurrentSlide < effectiveTotalSlides ? effectiveCurrentSlide + 1 : null);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [videoAspectRatio, setVideoAspectRatio] = useState<number>(16 / 9);
@@ -1781,9 +1791,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                             <FileText className="w-4 h-4 text-osu-orange" />
                             <span className="text-xs font-black uppercase tracking-wider text-slate-800">Presenter Notes</span>
                           </div>
-                          {totalSlides !== null && currentSlide !== null && (
+                          {effectiveTotalSlides > 0 && (
                             <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
-                              Slide {currentSlide} of {totalSlides}
+                              Slide {effectiveCurrentSlide} of {effectiveTotalSlides}
                             </span>
                           )}
                         </div>
@@ -1824,9 +1834,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                   >
                     <div className="flex items-center justify-between px-1 flex-shrink-0">
                       <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Next Slide</span>
-                      {nextSlide !== null && (
+                      {effectiveNextSlide !== null && (
                         <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
-                          Slide {nextSlide}
+                          Slide {effectiveNextSlide}
                         </span>
                       )}
                     </div>
@@ -1838,31 +1848,31 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                           src={nextSlideBase64} 
                           alt="Next Slide Preview" 
                           className="w-full h-full object-contain bg-black animate-in fade-in duration-300"
-                          key={`websocket-next-${nextSlide}`}
+                          key={`websocket-next-${effectiveNextSlide}`}
                         />
-                      ) : isBridgeConnected && nextSlide !== null && !nextSlideImageError ? (
+                      ) : (isBridgeConnected || localSlidesCount >= (effectiveNextSlide || 0)) && effectiveNextSlide !== null && !nextSlideImageError ? (
                         <img 
-                          src={`http://127.0.0.1:5000/slides/${nextSlide}.jpg`} 
+                          src={`http://127.0.0.1:5000/slides/${effectiveNextSlide}.jpg`} 
                           alt="Next Slide Preview" 
                           className="w-full h-full object-contain bg-black animate-in fade-in duration-300"
-                          key={`local-next-${nextSlide}`}
+                          key={`local-next-${effectiveNextSlide}`}
                           onError={() => setNextSlideImageError(true)}
                         />
-                      ) : nextSlidePreviewUrl ? (
+                      ) : effectiveNextSlide !== null && slidePreviewsMap[effectiveNextSlide] ? (
                         <img 
-                          src={nextSlidePreviewUrl} 
+                          src={slidePreviewsMap[effectiveNextSlide]} 
                           alt="Next Slide Preview" 
                           className="w-full h-full object-contain bg-black animate-in fade-in duration-300"
-                          key={`firestore-next-${nextSlide}`}
+                          key={`firestore-next-${effectiveNextSlide}`}
                         />
                       ) : (
                         <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600 text-center p-4">
                           <Monitor className="w-8 h-8 mb-2 opacity-20" />
                           <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                            {nextSlide !== null ? `Slide ${nextSlide}` : 'No Next Slide'}
+                            {effectiveNextSlide !== null ? `Slide ${effectiveNextSlide}` : 'No Next Slide'}
                           </span>
                           <span className="text-[9px] text-slate-600 mt-1">
-                            {nextSlide !== null ? 'Waiting for slide capture...' : 'End of presentation'}
+                            {effectiveNextSlide !== null ? 'Waiting for slide capture...' : 'End of presentation'}
                           </span>
                         </div>
                       )}
@@ -1894,7 +1904,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     className="flex flex-col min-h-0 w-full"
                     style={{ height: `calc(${100 - rightTopHeightPercent}% - 6px)` }}
                   >
-                    {totalSlides !== null && currentSlide !== null && (
+                    {effectiveTotalSlides > 0 && (
                       <div className="flex flex-col gap-2 w-full h-full bg-slate-950/40 border border-slate-900 rounded-2xl p-3 shadow-lg min-h-0 overflow-hidden">
                         <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 pb-1.5 border-b border-slate-900/60 mb-1 flex items-center justify-between animate-in fade-in">
                           <span>Jump to Slide</span>
@@ -1909,15 +1919,15 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                           id="deck-navigator-scroll-container"
                           className="relative grid grid-cols-3 gap-2 overflow-y-auto pr-0.5 custom-scrollbar flex-1 min-h-0"
                         >
-                          {Array.from({ length: totalSlides }, (_, i) => i + 1).map((sNum) => {
-                            const isCurrent = sNum === currentSlide;
+                          {Array.from({ length: effectiveTotalSlides }, (_, i) => i + 1).map((sNum) => {
+                            const isCurrent = sNum === effectiveCurrentSlide;
                             const isFurthest = sNum === furthestSlide;
                             const isUnshown = !visitedSlides[sNum];
                             
                             const hasLocalError = localImageErrors[sNum];
                             const localUrl = `http://127.0.0.1:5000/slides/${sNum}.jpg`;
                             const firestoreUrl = slidePreviewsMap[sNum];
-                            const imgUrl = (isBridgeConnected && !hasLocalError) ? localUrl : (firestoreUrl || null);
+                            const imgUrl = (isBridgeConnected || localSlidesCount >= sNum) && !hasLocalError ? localUrl : (firestoreUrl || null);
 
                             return (
                               <button
@@ -1967,7 +1977,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                           })}
                         </div>
 
-                        {furthestSlide !== null && furthestSlide !== currentSlide && (
+                        {furthestSlide !== null && furthestSlide !== effectiveCurrentSlide && (
                           <button
                             onClick={() => sendSlideCommand(furthestSlide)}
                             className="w-full mt-1.5 py-1.5 bg-osu-orange hover:bg-[#c03900] text-white text-[10px] font-black uppercase tracking-wider rounded-lg border border-orange-500/30 shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1 shrink-0"
