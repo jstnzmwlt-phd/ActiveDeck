@@ -505,7 +505,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     ? knownTotal 
     : Math.max(1, effectiveCurrentSlide + 1);
 
-  const effectiveNextSlide = nextSlide !== null
+  const effectiveNextSlide = (nextSlide !== null && nextSlide > 0)
     ? nextSlide
     : (effectiveCurrentSlide < effectiveTotalSlides ? effectiveCurrentSlide + 1 : null);
 

@@ -75,7 +75,7 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               console.log('ActiveDeck: Rich payload received (JSON):', data);
               setCurrentSlide(data.current_slide);
               setCurrentSlideBase64(typeof data.current_slide_base64 === 'string' ? data.current_slide_base64 : null);
-              setNextSlide(typeof data.next_slide === 'number' ? data.next_slide : null);
+              setNextSlide(typeof data.next_slide === 'number' && data.next_slide > 0 ? data.next_slide : null);
               setNextSlideBase64(typeof data.next_slide_base64 === 'string' ? data.next_slide_base64 : null);
               setTotalSlides(typeof data.total_slides === 'number' ? data.total_slides : null);
               setNotes(typeof data.notes === 'string' ? data.notes.replace(/\r/g, '\n') : null);

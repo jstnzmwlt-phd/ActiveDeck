@@ -187,6 +187,39 @@ def serve_slide(filename):
     response.headers['Access-Control-Allow-Origin'] = '*'
     return response
 
+@app.route('/export')
+def export_slides_endpoint():
+    count = 0
+    if current_os == "Windows":
+        try:
+            pythoncom.CoInitialize()
+            ppt_app = win32com.client.GetActiveObject("PowerPoint.Application")
+            if ppt_app.SlideShowWindows.Count > 0:
+                pres = ppt_app.SlideShowWindows(1).Presentation
+                temp_dir = os.path.join(tempfile.gettempdir(), "activedeck_slides")
+                os.makedirs(temp_dir, exist_ok=True)
+                count = pres.Slides.Count
+                for i in range(1, count + 1):
+                    slide = pres.Slides(i)
+                    slide.Export(os.path.join(temp_dir, f"{i}.jpg"), "JPG")
+                    slide.Export(os.path.join(temp_dir, f"Slide{i}.JPG"), "JPG")
+        except Exception:
+            pass
+        finally:
+            pythoncom.CoUninitialize()
+    response = make_response(json.dumps({"success": True if count > 0 else False, "count": count}))
+    response.headers['Content-Type'] = 'application/json'
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    return response
+
+@app.route('/status')
+def status_endpoint():
+    state = get_ppt_state_silently() or {}
+    response = make_response(json.dumps(state))
+    response.headers['Content-Type'] = 'application/json'
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    return response
+
 @sock.route('/ws')
 def handle_ws(ws):
     last_state = None
