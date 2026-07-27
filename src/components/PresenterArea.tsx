@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Presentation } from '../types';
 import { ScreenCapture } from './ScreenCapture';
-import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play, X, Loader2, Tv, Minimize, Maximize, FileText, Square, Send, CheckCircle2, Check, Clock, Pen, Eraser, Highlighter, MoveRight, Type, Undo2, Redo2, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play, X, Loader2, Tv, Minimize, Maximize, FileText, Square, Send, CheckCircle2, Check, Clock, Pen, Eraser, Highlighter, MoveRight, Type, Undo2, Redo2, Trash2, Minus, Circle } from 'lucide-react';
 import { useBridge } from '../contexts/BridgeContext';
 import { auth, db, storage } from '../firebase';
 import { doc, getDoc, updateDoc, onSnapshot, collection, query, where } from 'firebase/firestore';
@@ -18,6 +18,9 @@ export interface DrawingStroke {
   width: number;
   isHighlighter?: boolean;
   isArrow?: boolean;
+  isLine?: boolean;
+  isCircle?: boolean;
+  isRectangle?: boolean;
   text?: string;
 }
 
@@ -169,7 +172,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
   // Presenter Live Slide Drawing State
   const [isPenActive, setIsPenActive] = useState<boolean>(false);
-  const [penTool, setPenTool] = useState<'pen' | 'arrow' | 'highlighter' | 'text' | 'eraser'>('pen');
+  const [penTool, setPenTool] = useState<'pen' | 'arrow' | 'line' | 'circle' | 'rectangle' | 'highlighter' | 'text' | 'eraser'>('pen');
   const [penColor, setPenColor] = useState<string>('#EF4444'); // Default Red
   const [highlighterColor, setHighlighterColor] = useState<string>('#EAB308'); // Default Yellow
   const [penWidth, setPenWidth] = useState<number>(6);
@@ -206,6 +209,28 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       const h2y = p2.y - headLength * Math.sin(angle + arrowAngle);
 
       return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y} M ${p2.x} ${p2.y} L ${h1x.toFixed(1)} ${h1y.toFixed(1)} M ${p2.x} ${p2.y} L ${h2x.toFixed(1)} ${h2y.toFixed(1)}`;
+    }
+    if (stroke.isLine && stroke.points.length >= 2) {
+      const p1 = stroke.points[0];
+      const p2 = stroke.points[stroke.points.length - 1];
+      return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`;
+    }
+    if (stroke.isRectangle && stroke.points.length >= 2) {
+      const p1 = stroke.points[0];
+      const p2 = stroke.points[stroke.points.length - 1];
+      return `M ${p1.x} ${p1.y} L ${p2.x} ${p1.y} L ${p2.x} ${p2.y} L ${p1.x} ${p2.y} Z`;
+    }
+    if (stroke.isCircle && stroke.points.length >= 2) {
+      const p1 = stroke.points[0];
+      const p2 = stroke.points[stroke.points.length - 1];
+      const cx = (p1.x + p2.x) / 2;
+      const cy = (p1.y + p2.y) / 2;
+      const rx = Math.abs(p2.x - p1.x) / 2;
+      const ry = Math.abs(p2.y - p1.y) / 2;
+      if (rx < 0.1 || ry < 0.1) {
+        return `M ${p1.x} ${p1.y} L ${p1.x + 0.1} ${p1.y + 0.1}`;
+      }
+      return `M ${(cx - rx).toFixed(1)} ${cy.toFixed(1)} A ${rx.toFixed(1)} ${ry.toFixed(1)} 0 1 0 ${(cx + rx).toFixed(1)} ${cy.toFixed(1)} A ${rx.toFixed(1)} ${ry.toFixed(1)} 0 1 0 ${(cx - rx).toFixed(1)} ${cy.toFixed(1)}`;
     }
     if (stroke.points.length === 1) {
       const pt = stroke.points[0];
@@ -397,12 +422,15 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         }));
         updatePresenterStrokes(activeSlideKey, updatedStrokes);
       }
-    } else if (penTool === 'arrow') {
+    } else if (penTool === 'arrow' || penTool === 'line' || penTool === 'circle' || penTool === 'rectangle') {
       const newStroke: DrawingStroke = {
         points: [coords, coords],
         color: penColor,
         width: penWidth,
-        isArrow: true
+        isArrow: penTool === 'arrow',
+        isLine: penTool === 'line',
+        isCircle: penTool === 'circle',
+        isRectangle: penTool === 'rectangle'
       };
       activeDrawingStrokeRef.current = newStroke;
       setActiveDrawingStroke(newStroke);
@@ -429,7 +457,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
     if (penTool === 'eraser') {
       eraseStrokeAtPoint(coords);
-    } else if (penTool === 'arrow' && activeDrawingStrokeRef.current) {
+    } else if ((penTool === 'arrow' || penTool === 'line' || penTool === 'circle' || penTool === 'rectangle') && activeDrawingStrokeRef.current) {
       const startPoint = activeDrawingStrokeRef.current.points[0];
       const updatedStroke: DrawingStroke = {
         ...activeDrawingStrokeRef.current,
@@ -2937,6 +2965,16 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 <span>Pen</span>
               </button>
               <button
+                onClick={() => setPenTool('line')}
+                className={`px-4.5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                  penTool === 'line' ? 'bg-osu-orange text-white shadow-md' : 'text-slate-400 hover:text-white'
+                }`}
+                title="Line Tool (Drag straight line)"
+              >
+                <Minus className="w-5 h-5" />
+                <span>Line</span>
+              </button>
+              <button
                 onClick={() => setPenTool('arrow')}
                 className={`px-4.5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
                   penTool === 'arrow' ? 'bg-osu-orange text-white shadow-md' : 'text-slate-400 hover:text-white'
@@ -2945,6 +2983,26 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               >
                 <MoveRight className="w-5 h-5" />
                 <span>Arrow</span>
+              </button>
+              <button
+                onClick={() => setPenTool('rectangle')}
+                className={`px-4.5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                  penTool === 'rectangle' ? 'bg-osu-orange text-white shadow-md' : 'text-slate-400 hover:text-white'
+                }`}
+                title="Rectangle / Square Tool"
+              >
+                <Square className="w-5 h-5" />
+                <span>Square</span>
+              </button>
+              <button
+                onClick={() => setPenTool('circle')}
+                className={`px-4.5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                  penTool === 'circle' ? 'bg-osu-orange text-white shadow-md' : 'text-slate-400 hover:text-white'
+                }`}
+                title="Circle / Ellipse Tool"
+              >
+                <Circle className="w-5 h-5" />
+                <span>Circle</span>
               </button>
               <button
                 onClick={() => setPenTool('highlighter')}
@@ -2978,8 +3036,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               </button>
             </div>
 
-            {/* Color Palette (Pen / Arrow / Text vs Highlighter) */}
-            {penTool === 'pen' || penTool === 'arrow' || penTool === 'text' ? (
+            {/* Color Palette (Pen / Line / Arrow / Circle / Rectangle / Text vs Highlighter) */}
+            {penTool === 'pen' || penTool === 'arrow' || penTool === 'line' || penTool === 'circle' || penTool === 'rectangle' || penTool === 'text' ? (
               <div className="flex items-center gap-2 border-l border-slate-800 pl-4">
                 {[
                   { color: '#EF4444', name: 'Red (Default)' },

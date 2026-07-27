@@ -49,6 +49,28 @@ const getStrokePath = (stroke: DrawingStroke): string => {
 
     return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y} M ${p2.x} ${p2.y} L ${h1x.toFixed(1)} ${h1y.toFixed(1)} M ${p2.x} ${p2.y} L ${h2x.toFixed(1)} ${h2y.toFixed(1)}`;
   }
+  if (stroke.isLine && stroke.points.length >= 2) {
+    const p1 = stroke.points[0];
+    const p2 = stroke.points[stroke.points.length - 1];
+    return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`;
+  }
+  if (stroke.isRectangle && stroke.points.length >= 2) {
+    const p1 = stroke.points[0];
+    const p2 = stroke.points[stroke.points.length - 1];
+    return `M ${p1.x} ${p1.y} L ${p2.x} ${p1.y} L ${p2.x} ${p2.y} L ${p1.x} ${p2.y} Z`;
+  }
+  if (stroke.isCircle && stroke.points.length >= 2) {
+    const p1 = stroke.points[0];
+    const p2 = stroke.points[stroke.points.length - 1];
+    const cx = (p1.x + p2.x) / 2;
+    const cy = (p1.y + p2.y) / 2;
+    const rx = Math.abs(p2.x - p1.x) / 2;
+    const ry = Math.abs(p2.y - p1.y) / 2;
+    if (rx < 0.1 || ry < 0.1) {
+      return `M ${p1.x} ${p1.y} L ${p1.x + 0.1} ${p1.y + 0.1}`;
+    }
+    return `M ${(cx - rx).toFixed(1)} ${cy.toFixed(1)} A ${rx.toFixed(1)} ${ry.toFixed(1)} 0 1 0 ${(cx + rx).toFixed(1)} ${cy.toFixed(1)} A ${rx.toFixed(1)} ${ry.toFixed(1)} 0 1 0 ${(cx - rx).toFixed(1)} ${cy.toFixed(1)}`;
+  }
   if (stroke.points.length === 1) {
     const pt = stroke.points[0];
     return `M ${pt.x} ${pt.y} L ${pt.x + 0.1} ${pt.y + 0.1}`;

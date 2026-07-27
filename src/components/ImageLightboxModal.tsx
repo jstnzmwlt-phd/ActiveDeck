@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, ZoomIn, ZoomOut, RotateCcw, Pen, MoveRight, Highlighter, Eraser, Type, Undo2, Redo2, Trash2, Hand } from 'lucide-react';
+import { X, ZoomIn, ZoomOut, RotateCcw, Pen, MoveRight, Highlighter, Eraser, Type, Undo2, Redo2, Trash2, Hand, Minus, Circle, Square } from 'lucide-react';
 import { DrawingStroke, DrawingPoint } from '../types';
 
 interface ImageLightboxModalProps {
@@ -31,7 +31,7 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
 
   // Student Drawing Tool States inside Lightbox
   const [interactionMode, setInteractionMode] = useState<'draw' | 'pan'>(allowStudentDrawing ? 'draw' : 'pan');
-  const [studentPenTool, setStudentPenTool] = useState<'pen' | 'arrow' | 'highlighter' | 'text' | 'eraser'>('pen');
+  const [studentPenTool, setStudentPenTool] = useState<'pen' | 'arrow' | 'line' | 'circle' | 'rectangle' | 'highlighter' | 'text' | 'eraser'>('pen');
   const [studentPenColor, setStudentPenColor] = useState<string>('#EF4444'); // Default Red
   const [studentHighlighterColor, setStudentHighlighterColor] = useState<string>('#EAB308'); // Default Yellow
   const [studentPenWidth, setStudentPenWidth] = useState<number>(6);
@@ -119,6 +119,28 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
       const h2y = p2.y - headLength * Math.sin(angle + arrowAngle);
 
       return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y} M ${p2.x} ${p2.y} L ${h1x.toFixed(1)} ${h1y.toFixed(1)} M ${p2.x} ${p2.y} L ${h2x.toFixed(1)} ${h2y.toFixed(1)}`;
+    }
+    if (stroke.isLine && stroke.points.length >= 2) {
+      const p1 = stroke.points[0];
+      const p2 = stroke.points[stroke.points.length - 1];
+      return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`;
+    }
+    if (stroke.isRectangle && stroke.points.length >= 2) {
+      const p1 = stroke.points[0];
+      const p2 = stroke.points[stroke.points.length - 1];
+      return `M ${p1.x} ${p1.y} L ${p2.x} ${p1.y} L ${p2.x} ${p2.y} L ${p1.x} ${p2.y} Z`;
+    }
+    if (stroke.isCircle && stroke.points.length >= 2) {
+      const p1 = stroke.points[0];
+      const p2 = stroke.points[stroke.points.length - 1];
+      const cx = (p1.x + p2.x) / 2;
+      const cy = (p1.y + p2.y) / 2;
+      const rx = Math.abs(p2.x - p1.x) / 2;
+      const ry = Math.abs(p2.y - p1.y) / 2;
+      if (rx < 0.1 || ry < 0.1) {
+        return `M ${p1.x} ${p1.y} L ${p1.x + 0.1} ${p1.y + 0.1}`;
+      }
+      return `M ${(cx - rx).toFixed(1)} ${cy.toFixed(1)} A ${rx.toFixed(1)} ${ry.toFixed(1)} 0 1 0 ${(cx + rx).toFixed(1)} ${cy.toFixed(1)} A ${rx.toFixed(1)} ${ry.toFixed(1)} 0 1 0 ${(cx - rx).toFixed(1)} ${cy.toFixed(1)}`;
     }
     if (stroke.points.length === 1) {
       const pt = stroke.points[0];
@@ -229,12 +251,15 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
         setRedoStack([]);
         saveStudentStrokes(updated);
       }
-    } else if (studentPenTool === 'arrow') {
+    } else if (studentPenTool === 'arrow' || studentPenTool === 'line' || studentPenTool === 'circle' || studentPenTool === 'rectangle') {
       const newStroke: DrawingStroke = {
         points: [coords, coords],
         color: studentPenColor,
         width: studentPenWidth,
-        isArrow: true
+        isArrow: studentPenTool === 'arrow',
+        isLine: studentPenTool === 'line',
+        isCircle: studentPenTool === 'circle',
+        isRectangle: studentPenTool === 'rectangle'
       };
       activeStudentStrokeRef.current = newStroke;
       setActiveStudentStroke(newStroke);
@@ -259,7 +284,7 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
 
     if (studentPenTool === 'eraser') {
       eraseStudentStrokeAtPoint(coords);
-    } else if (studentPenTool === 'arrow' && activeStudentStrokeRef.current) {
+    } else if ((studentPenTool === 'arrow' || studentPenTool === 'line' || studentPenTool === 'circle' || studentPenTool === 'rectangle') && activeStudentStrokeRef.current) {
       const startPt = activeStudentStrokeRef.current.points[0];
       const updated: DrawingStroke = {
         ...activeStudentStrokeRef.current,
@@ -368,6 +393,15 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
                     <Pen className="w-4.5 h-4.5" />
                   </button>
                   <button
+                    onClick={() => setStudentPenTool('line')}
+                    className={`px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                      studentPenTool === 'line' ? 'bg-osu-orange text-white shadow-md' : 'text-slate-400 hover:text-white'
+                    }`}
+                    title="Line Tool (Drag straight line)"
+                  >
+                    <Minus className="w-4.5 h-4.5" />
+                  </button>
+                  <button
                     onClick={() => setStudentPenTool('arrow')}
                     className={`px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                       studentPenTool === 'arrow' ? 'bg-osu-orange text-white shadow-md' : 'text-slate-400 hover:text-white'
@@ -375,6 +409,24 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
                     title="Arrow Tool (Drag from start to tip)"
                   >
                     <MoveRight className="w-4.5 h-4.5" />
+                  </button>
+                  <button
+                    onClick={() => setStudentPenTool('rectangle')}
+                    className={`px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                      studentPenTool === 'rectangle' ? 'bg-osu-orange text-white shadow-md' : 'text-slate-400 hover:text-white'
+                    }`}
+                    title="Rectangle / Square Tool"
+                  >
+                    <Square className="w-4.5 h-4.5" />
+                  </button>
+                  <button
+                    onClick={() => setStudentPenTool('circle')}
+                    className={`px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                      studentPenTool === 'circle' ? 'bg-osu-orange text-white shadow-md' : 'text-slate-400 hover:text-white'
+                    }`}
+                    title="Circle / Ellipse Tool"
+                  >
+                    <Circle className="w-4.5 h-4.5" />
                   </button>
                   <button
                     onClick={() => setStudentPenTool('highlighter')}
@@ -406,7 +458,7 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
                 </div>
 
                 {/* Color Swatches */}
-                {studentPenTool === 'pen' || studentPenTool === 'arrow' || studentPenTool === 'text' ? (
+                {studentPenTool === 'pen' || studentPenTool === 'arrow' || studentPenTool === 'line' || studentPenTool === 'circle' || studentPenTool === 'rectangle' || studentPenTool === 'text' ? (
                   <div className="flex items-center gap-1.5 border-l border-slate-800 pl-3">
                     {[
                       { color: '#EF4444', name: 'Red' },

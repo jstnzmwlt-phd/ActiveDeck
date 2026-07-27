@@ -17,6 +17,9 @@ export interface DrawingStroke {
   width: number;
   isHighlighter?: boolean;
   isArrow?: boolean;
+  isLine?: boolean;
+  isCircle?: boolean;
+  isRectangle?: boolean;
   text?: string;
 }
 
