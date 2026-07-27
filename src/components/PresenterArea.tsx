@@ -601,49 +601,6 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const presenterFrameRef = useRef<HTMLDivElement | null>(null);
   const projectorFrameRef = useRef<HTMLDivElement | null>(null);
 
-  const [presenterBounds, setPresenterBounds] = useState<SlideBounds>({ left: 0, top: 0, width: 0, height: 0 });
-  const [projectorBounds, setProjectorBounds] = useState<SlideBounds>({ left: 0, top: 0, width: 0, height: 0 });
-
-  useEffect(() => {
-    const updateBounds = () => {
-      if (presenterFrameRef.current) {
-        const elem = presenterFrameRef.current;
-        const innerW = elem.clientWidth || elem.getBoundingClientRect().width;
-        const innerH = elem.clientHeight || elem.getBoundingClientRect().height;
-        if (innerW > 0 && innerH > 0) {
-          setPresenterBounds(getSlideContentBounds(innerW, innerH, effectiveAspectRatio));
-        }
-      }
-      if (projectorFrameRef.current) {
-        const elem = projectorFrameRef.current;
-        const innerW = elem.clientWidth || elem.getBoundingClientRect().width;
-        const innerH = elem.clientHeight || elem.getBoundingClientRect().height;
-        if (innerW > 0 && innerH > 0) {
-          setProjectorBounds(getSlideContentBounds(innerW, innerH, effectiveAspectRatio));
-        }
-      }
-    };
-
-    updateBounds();
-
-    const pElem = presenterFrameRef.current;
-    const projElem = projectorFrameRef.current;
-
-    const ro1 = pElem ? new ResizeObserver(updateBounds) : null;
-    if (pElem) ro1?.observe(pElem);
-
-    const ro2 = projElem ? new ResizeObserver(updateBounds) : null;
-    if (projElem) ro2?.observe(projElem);
-
-    window.addEventListener('resize', updateBounds);
-
-    return () => {
-      ro1?.disconnect();
-      ro2?.disconnect();
-      window.removeEventListener('resize', updateBounds);
-    };
-  }, [effectiveAspectRatio, isProjectorMode, presentWithNotes]);
-
   const [leftWidthPercent, setLeftWidthPercent] = useState<number>(62); // Default starting width percentage for left panel
   const [isResizingNotes, setIsResizingNotes] = useState(false);
 
@@ -1142,24 +1099,17 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     const container = e.currentTarget;
     if (!container) return;
 
-    const rect = container.getBoundingClientRect();
+    const mediaElement = container.querySelector('video') || container.querySelector('img');
+    const target = mediaElement || container;
+
+    const rect = target.getBoundingClientRect();
     if (!rect || rect.width === 0 || rect.height === 0) return;
 
-    const clientLeft = container.clientLeft || 0;
-    const clientTop = container.clientTop || 0;
-    const innerWidth = container.clientWidth || rect.width;
-    const innerHeight = container.clientHeight || rect.height;
+    const relativeX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+    const relativeY = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
 
-    const bounds = getSlideContentBounds(innerWidth, innerHeight, effectiveAspectRatio);
-
-    const relX = e.clientX - rect.left - clientLeft - bounds.left;
-    const relY = e.clientY - rect.top - clientTop - bounds.top;
-
-    const clampedX = Math.max(0, Math.min(bounds.width, relX));
-    const clampedY = Math.max(0, Math.min(bounds.height, relY));
-
-    const x = (clampedX / bounds.width) * 100;
-    const y = (clampedY / bounds.height) * 100;
+    const x = (relativeX / rect.width) * 100;
+    const y = (relativeY / rect.height) * 100;
 
     updateLaserPosition(x, y, true);
   };
@@ -1832,17 +1782,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                       />
 
                       {/* Real-time Presenter Live Slide Content Layer (Drawings + Laser Dot) */}
-                      <div 
-                        style={{
-                          position: 'absolute',
-                          left: presenterBounds.width > 0 ? `${presenterBounds.left}px` : 0,
-                          top: presenterBounds.height > 0 ? `${presenterBounds.top}px` : 0,
-                          width: presenterBounds.width > 0 ? `${presenterBounds.width}px` : '100%',
-                          height: presenterBounds.height > 0 ? `${presenterBounds.height}px` : '100%',
-                          pointerEvents: 'none',
-                          zIndex: 70
-                        }}
-                      >
+                      <div className="absolute inset-0 pointer-events-none z-70">
                         <svg
                           viewBox="0 0 1000 1000"
                           preserveAspectRatio="none"
@@ -2165,17 +2105,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                   />
 
                   {/* Real-time Presenter Live Slide Content Layer for Projector Screen (Drawings + Laser Dot) */}
-                  <div 
-                    style={{
-                      position: 'absolute',
-                      left: projectorBounds.width > 0 ? `${projectorBounds.left}px` : 0,
-                      top: projectorBounds.height > 0 ? `${projectorBounds.top}px` : 0,
-                      width: projectorBounds.width > 0 ? `${projectorBounds.width}px` : '100%',
-                      height: projectorBounds.height > 0 ? `${projectorBounds.height}px` : '100%',
-                      pointerEvents: 'none',
-                      zIndex: 70
-                    }}
-                  >
+                  <div className="absolute inset-0 pointer-events-none z-70">
                     <svg
                       viewBox="0 0 1000 1000"
                       preserveAspectRatio="none"
