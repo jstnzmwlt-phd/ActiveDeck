@@ -1680,6 +1680,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         isProjectorMode={isProjectorMode}
                         videoRef={videoRef}
                         onLoadedMetadata={handleVideoLoadedMetadata}
+                        isBridgeConnected={isBridgeConnected}
+                        currentSlideBase64={currentSlideBase64}
+                        currentSlide={currentSlide}
+                        currentSlidePreviewUrl={currentSlidePreviewUrl}
                       />
 
                       {/* Real-time Presenter Live Slide Drawing Layer */}
@@ -2009,6 +2013,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     isProjectorMode={isProjectorMode}
                     videoRef={videoRef}
                     onLoadedMetadata={handleVideoLoadedMetadata}
+                    isBridgeConnected={isBridgeConnected}
+                    currentSlideBase64={currentSlideBase64}
+                    currentSlide={currentSlide}
+                    currentSlidePreviewUrl={currentSlidePreviewUrl}
                   />
 
                       {/* Real-time Presenter Live Slide Drawing Layer */}
@@ -2116,6 +2124,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     isProjectorMode={isProjectorMode}
                     videoRef={videoRef}
                     onLoadedMetadata={handleVideoLoadedMetadata}
+                    isBridgeConnected={isBridgeConnected}
+                    currentSlideBase64={currentSlideBase64}
+                    currentSlide={currentSlide}
+                    currentSlidePreviewUrl={currentSlidePreviewUrl}
                   />
 
                   {/* Real-time Presenter Live Slide Drawing Layer for Projector Screen */}
@@ -2924,6 +2936,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               isProjectorMode={isProjectorMode}
               videoRef={videoRef}
               onLoadedMetadata={handleVideoLoadedMetadata}
+              isBridgeConnected={isBridgeConnected}
+              currentSlideBase64={currentSlideBase64}
+              currentSlide={currentSlide}
+              currentSlidePreviewUrl={currentSlidePreviewUrl}
             />
 
             {/* Interactive SVG Drawing Layer */}
