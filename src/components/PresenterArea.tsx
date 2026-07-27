@@ -1029,10 +1029,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     const container = e.currentTarget;
     if (!container) return;
 
-    const videoElement = container.querySelector('video');
-    if (!videoElement) return;
+    // Find the displayed video, image fallback, or container bounding rect for accurate laser positioning
+    const targetElem = container.querySelector('video') || container.querySelector('img') || container;
+    const rect = targetElem.getBoundingClientRect();
+    if (!rect || rect.width === 0 || rect.height === 0) return;
 
-    const rect = videoElement.getBoundingClientRect();
     const relativeX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
     const relativeY = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
 
