@@ -151,7 +151,7 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
           </div>
         )}
         
-        {!isCapturing && !error && (
+        {!isCapturing && !error && !isProjectorMode && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 p-8 text-center z-20">
             <Monitor className="w-16 h-16 mb-4 opacity-20" />
             <h3 className="text-xl font-bold text-slate-300 mb-2">Presentation Mode</h3>

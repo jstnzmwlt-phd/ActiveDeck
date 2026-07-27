@@ -596,6 +596,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [videoAspectRatio, setVideoAspectRatio] = useState<number>(16 / 9);
 
+  const effectiveAspectRatio = presentation?.slideAspectRatio || videoAspectRatio || (16 / 9);
+
   const presenterFrameRef = useRef<HTMLDivElement | null>(null);
   const projectorFrameRef = useRef<HTMLDivElement | null>(null);
 
@@ -609,7 +611,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         const innerW = elem.clientWidth || elem.getBoundingClientRect().width;
         const innerH = elem.clientHeight || elem.getBoundingClientRect().height;
         if (innerW > 0 && innerH > 0) {
-          setPresenterBounds(getSlideContentBounds(innerW, innerH, videoAspectRatio));
+          setPresenterBounds(getSlideContentBounds(innerW, innerH, effectiveAspectRatio));
         }
       }
       if (projectorFrameRef.current) {
@@ -617,7 +619,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         const innerW = elem.clientWidth || elem.getBoundingClientRect().width;
         const innerH = elem.clientHeight || elem.getBoundingClientRect().height;
         if (innerW > 0 && innerH > 0) {
-          setProjectorBounds(getSlideContentBounds(innerW, innerH, videoAspectRatio));
+          setProjectorBounds(getSlideContentBounds(innerW, innerH, effectiveAspectRatio));
         }
       }
     };
@@ -640,7 +642,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       ro2?.disconnect();
       window.removeEventListener('resize', updateBounds);
     };
-  }, [videoAspectRatio, isProjectorMode, presentWithNotes]);
+  }, [effectiveAspectRatio, isProjectorMode, presentWithNotes]);
 
   const [leftWidthPercent, setLeftWidthPercent] = useState<number>(62); // Default starting width percentage for left panel
   const [isResizingNotes, setIsResizingNotes] = useState(false);
@@ -801,12 +803,26 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     };
   }, [isResizingRightSplit]);
 
+  const updateSlideAspectRatioInFirebase = async (ratio: number) => {
+    if (!presentation?.id) return;
+    try {
+      if (!presentation.slideAspectRatio || Math.abs(presentation.slideAspectRatio - ratio) > 0.005) {
+        await updateDoc(doc(db, 'presentations', presentation.id), {
+          slideAspectRatio: Number(ratio.toFixed(4))
+        });
+      }
+    } catch (err) {
+      console.warn("ActiveDeck: Error updating slide aspect ratio in Firebase:", err);
+    }
+  };
+
   const handleVideoLoadedMetadata = (e: React.SyntheticEvent<HTMLVideoElement>) => {
     const video = e.currentTarget;
     if (video && video.videoWidth && video.videoHeight) {
       const ratio = video.videoWidth / video.videoHeight;
       console.log(`[PresenterArea] Video metadata loaded: ${video.videoWidth}x${video.videoHeight}, aspect ratio: ${ratio}`);
       setVideoAspectRatio(ratio);
+      updateSlideAspectRatioInFirebase(ratio);
     }
   };
 
@@ -814,9 +830,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     const img = e.currentTarget;
     if (img && img.naturalWidth && img.naturalHeight) {
       const ratio = img.naturalWidth / img.naturalHeight;
-      if (Math.abs(ratio - videoAspectRatio) > 0.005) {
+      if (Math.abs(ratio - effectiveAspectRatio) > 0.005) {
         console.log(`[PresenterArea] Slide image natural aspect ratio loaded: ${img.naturalWidth}x${img.naturalHeight} (${ratio})`);
         setVideoAspectRatio(ratio);
+        updateSlideAspectRatioInFirebase(ratio);
       }
     }
   };
@@ -1133,7 +1150,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     const innerWidth = container.clientWidth || rect.width;
     const innerHeight = container.clientHeight || rect.height;
 
-    const bounds = getSlideContentBounds(innerWidth, innerHeight, videoAspectRatio);
+    const bounds = getSlideContentBounds(innerWidth, innerHeight, effectiveAspectRatio);
 
     const relX = e.clientX - rect.left - clientLeft - bounds.left;
     const relY = e.clientY - rect.top - clientTop - bounds.top;
@@ -1791,7 +1808,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                       onMouseMove={!isProjectorMode ? handleMouseMove : undefined}
                       onMouseLeave={!isProjectorMode ? handleMouseLeave : undefined}
                       style={{
-                        aspectRatio: `${videoAspectRatio}`,
+                        aspectRatio: `${effectiveAspectRatio}`,
                         width: '100%',
                         height: 'auto',
                         maxWidth: '100%',
@@ -2126,7 +2143,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 <div 
                   ref={projectorFrameRef}
                   style={{ 
-                    aspectRatio: `${videoAspectRatio}`,
+                    aspectRatio: `${effectiveAspectRatio}`,
                     width: '100%',
                     height: 'auto',
                     maxWidth: '100%',

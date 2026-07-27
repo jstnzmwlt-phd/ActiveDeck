@@ -57,6 +57,7 @@ export interface Presentation {
   laserX?: number;
   laserY?: number;
   laserActive?: boolean;
+  slideAspectRatio?: number;
   chatScrollRatio?: number;
   chatAllCollapsed?: boolean;
   chatCollapsedMessageIds?: Record<string, boolean>;
