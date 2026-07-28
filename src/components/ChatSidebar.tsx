@@ -19,38 +19,90 @@ function cn(...inputs: ClassValue[]) {
 
 const renderTextWithLinks = (text: string) => {
   if (!text) return null;
-  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
-  const parts = text.split(urlRegex);
+  const combinedRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/gi;
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/i;
+  const urlRegex = /^(https?:\/\/|www\.)/i;
+
+  const parts = text.split(combinedRegex);
   return parts.map((part, index) => {
-    if (part.match(urlRegex)) {
-      const href = part.startsWith('http://') || part.startsWith('https://') 
-        ? part 
-        : `https://${part}`;
+    if (!part) return null;
+
+    let cleanPart = part;
+    let trailingPunctuation = '';
+    const matchTrailing = cleanPart.match(/^(.*?)([.,;:!)]+)$/);
+    if (matchTrailing) {
+      const candidate = matchTrailing[1];
+      if (emailRegex.test(candidate) || urlRegex.test(candidate)) {
+        cleanPart = candidate;
+        trailingPunctuation = matchTrailing[2];
+      }
+    }
+
+    if (emailRegex.test(cleanPart)) {
       return (
-        <a 
-          key={index} 
-          href={href} 
-          target="_blank" 
-          rel="noopener noreferrer" 
-          className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline break-all font-bold"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {part}
-        </a>
+        <React.Fragment key={index}>
+          <a
+            href={`mailto:${cleanPart}`}
+            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline break-all font-bold"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {cleanPart}
+          </a>
+          {trailingPunctuation}
+        </React.Fragment>
       );
     }
+
+    if (urlRegex.test(cleanPart) || cleanPart.match(/^(https?:\/\/[^\s]+|www\.[^\s]+)$/i)) {
+      const href = cleanPart.startsWith('http://') || cleanPart.startsWith('https://')
+        ? cleanPart
+        : `https://${cleanPart}`;
+      return (
+        <React.Fragment key={index}>
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline break-all font-bold"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {cleanPart}
+          </a>
+          {trailingPunctuation}
+        </React.Fragment>
+      );
+    }
+
     return part;
   });
 };
 
 const formatHtmlTextWithLinks = (text: string): string => {
   if (!text) return '';
-  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
-  return text.replace(urlRegex, (url) => {
-    const href = url.startsWith('http://') || url.startsWith('https://') 
-      ? url 
-      : `https://${url}`;
-    return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="color: #2563eb; text-decoration: underline; word-break: break-all;">${url}</a>`;
+  const combinedRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/gi;
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/i;
+  const urlRegex = /^(https?:\/\/|www\.)/i;
+
+  return text.replace(combinedRegex, (match) => {
+    let cleanMatch = match;
+    let trailingPunctuation = '';
+    const matchTrailing = cleanMatch.match(/^(.*?)([.,;:!)]+)$/);
+    if (matchTrailing) {
+      const candidate = matchTrailing[1];
+      if (emailRegex.test(candidate) || urlRegex.test(candidate)) {
+        cleanMatch = candidate;
+        trailingPunctuation = matchTrailing[2];
+      }
+    }
+
+    if (emailRegex.test(cleanMatch)) {
+      return `<a href="mailto:${cleanMatch}" style="color: #2563eb; text-decoration: underline; word-break: break-all;">${cleanMatch}</a>${trailingPunctuation}`;
+    }
+
+    const href = cleanMatch.startsWith('http://') || cleanMatch.startsWith('https://') 
+      ? cleanMatch 
+      : `https://${cleanMatch}`;
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="color: #2563eb; text-decoration: underline; word-break: break-all;">${cleanMatch}</a>${trailingPunctuation}`;
   });
 };
 

@@ -1,0 +1,2374 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { Presentation } from '../types';
+import { ScreenCapture } from './ScreenCapture';
+import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play, X, Loader2, Tv, Minimize, Maximize, FileText, Square, Send, CheckCircle2, Check, Clock, Pen, Eraser, Highlighter, MoveRight, Type, Undo2, Redo2, Trash2 } from 'lucide-react';
+import { useBridge } from '../contexts/BridgeContext';
+import { auth, db, storage } from '../firebase';
+import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { QRCodeSVG } from 'qrcode.react';
+
+export interface DrawingPoint {
+  x: number;
+  y: number;
+}
+
+export interface DrawingStroke {
+  points: DrawingPoint[];
+  color: string;
+  width: number;
+  isHighlighter?: boolean;
+  isArrow?: boolean;
+  text?: string;
+}
+
+interface PresenterAreaProps {
+  presentation: Presentation | null;
+  logoUrl?: string;
+  onCreatePresentation?: () => Promise<string>;
+  isProjectorMode?: boolean;
+}
+
+export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logoUrl, onCreatePresentation, isProjectorMode = false }) => {
+  const { 
+    currentSlide, 
+    sendSlideCommand, 
+    isBridgeConnected, 
+    useWithoutBridge, 
+    setUseWithoutBridge,
+    nextSlide,
+    nextSlideBase64,
+    totalSlides,
+    notes,
+    clearNotesState
+  } = useBridge();
+  const [activeTab, setActiveTab] = useState<'single' | 'dual' | 'manual'>('single');
+  const [secondaryColor, setSecondaryColor] = useState<string>('#ff3e00');
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [showInstructions, setShowInstructions] = useState(false);
+  const [laserEnabled, setLaserEnabled] = useState(true);
+  const [presentWithNotes, setPresentWithNotes] = useState(true);
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Update live clock every second
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Presenter Live Slide Drawing State
+  const [isPenActive, setIsPenActive] = useState<boolean>(false);
+  const [penTool, setPenTool] = useState<'pen' | 'arrow' | 'highlighter' | 'text' | 'eraser'>('pen');
+  const [penColor, setPenColor] = useState<string>('#EF4444'); // Default Red
+  const [highlighterColor, setHighlighterColor] = useState<string>('#EAB308'); // Default Yellow
+  const [penWidth, setPenWidth] = useState<number>(6);
+  const [presenterStrokesMap, setPresenterStrokesMap] = useState<Record<string, DrawingStroke[]>>({});
+  const [activeDrawingStroke, setActiveDrawingStroke] = useState<DrawingStroke | null>(null);
+  const [isDrawingPointerDown, setIsDrawingPointerDown] = useState<boolean>(false);
+
+  // Refs for tracking active stroke during pointermove events to prevent React state closure lag
+  const activeDrawingStrokeRef = useRef<DrawingStroke | null>(null);
+  const isDrawingPointerDownRef = useRef<boolean>(false);
+
+  const [drawingUndoStack, setDrawingUndoStack] = useState<Record<string, DrawingStroke[][]>>({});
+  const [drawingRedoStack, setDrawingRedoStack] = useState<Record<string, DrawingStroke[][]>>({});
+
+  const activeSlideKey = String(currentSlide !== null ? currentSlide : (presentation?.currentSlide || 1));
+  const currentSlideStrokes = isCapturing ? (presenterStrokesMap[activeSlideKey] || []) : [];
+
+  const lastActiveStrokeBroadcastRef = useRef<number>(0);
+
+  const renderStrokePath = (stroke: DrawingStroke): string => {
+    if (!stroke.points || stroke.points.length === 0) return '';
+    if (stroke.isArrow && stroke.points.length >= 2) {
+      const p1 = stroke.points[0];
+      const p2 = stroke.points[stroke.points.length - 1]; // tip point
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const angle = Math.atan2(dy, dx);
+      const headLength = Math.max(25, stroke.width * 4);
+      const arrowAngle = Math.PI / 6;
+
+      const h1x = p2.x - headLength * Math.cos(angle - arrowAngle);
+      const h1y = p2.y - headLength * Math.sin(angle - arrowAngle);
+      const h2x = p2.x - headLength * Math.cos(angle + arrowAngle);
+      const h2y = p2.y - headLength * Math.sin(angle + arrowAngle);
+
+      return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y} M ${p2.x} ${p2.y} L ${h1x.toFixed(1)} ${h1y.toFixed(1)} M ${p2.x} ${p2.y} L ${h2x.toFixed(1)} ${h2y.toFixed(1)}`;
+    }
+    if (stroke.points.length === 1) {
+      const pt = stroke.points[0];
+      return `M ${pt.x} ${pt.y} L ${pt.x + 0.1} ${pt.y + 0.1}`;
+    }
+    return stroke.points.reduce((acc, pt, i) => {
+      return i === 0 ? `M ${pt.x} ${pt.y}` : `${acc} L ${pt.x} ${pt.y}`;
+    }, '');
+  };
+
+  const broadcastActiveStrokeLive = (stroke: DrawingStroke | null) => {
+    // Local BroadcastChannel for instant <16ms projector popout sync
+    try {
+      const channel = new BroadcastChannel('activedeck-presenter-drawing');
+      channel.postMessage({
+        type: 'active-stroke-update',
+        presentationId: presentation?.id,
+        slide: activeSlideKey,
+        activeStroke: stroke
+      });
+      channel.close();
+    } catch (e) {}
+
+    // Throttled Firebase update for remote projector windows (every 50ms)
+    const now = Date.now();
+    if (presentation?.id && (now - lastActiveStrokeBroadcastRef.current > 50 || stroke === null)) {
+      lastActiveStrokeBroadcastRef.current = now;
+      updateDoc(doc(db, 'presentations', presentation.id), {
+        activeDrawingStrokeJSON: stroke ? JSON.stringify(stroke) : null
+      }).catch(err => {
+        console.warn("Failed to update active drawing stroke in Firebase:", err);
+      });
+    }
+  };
+
+  // Sync presenter drawings from Firestore
+  useEffect(() => {
+    if (!isCapturing) {
+      setPresenterStrokesMap({});
+      return;
+    }
+    if (presentation?.presenterDrawings) {
+      const parsedMap: Record<string, DrawingStroke[]> = {};
+      Object.entries(presentation.presenterDrawings).forEach(([slideKey, jsonStr]) => {
+        try {
+          const parsed = JSON.parse(jsonStr);
+          if (Array.isArray(parsed)) {
+            parsedMap[slideKey] = parsed;
+          }
+        } catch {}
+      });
+      setPresenterStrokesMap(parsedMap);
+    } else {
+      setPresenterStrokesMap({});
+    }
+  }, [presentation?.presenterDrawings, isCapturing]);
+
+  // Sync live active drawing stroke on Projector Mode from Firebase
+  useEffect(() => {
+    if (!isProjectorMode) return;
+    if (!presentation?.activeDrawingStrokeJSON) {
+      setActiveDrawingStroke(null);
+      return;
+    }
+    try {
+      const parsed = JSON.parse(presentation.activeDrawingStrokeJSON);
+      setActiveDrawingStroke(parsed);
+    } catch {
+      setActiveDrawingStroke(null);
+    }
+  }, [isProjectorMode, presentation?.activeDrawingStrokeJSON]);
+
+  // Fast local multi-window sync via BroadcastChannel (e.g. Presenter -> Projector mode popup)
+  useEffect(() => {
+    const channel = new BroadcastChannel('activedeck-presenter-drawing');
+    const handleMessage = (e: MessageEvent) => {
+      if (e.data && e.data.type === 'slide-drawing-update' && e.data.presentationId === presentation?.id) {
+        setPresenterStrokesMap(prev => ({
+          ...prev,
+          [e.data.slide]: e.data.strokes
+        }));
+      } else if (e.data && e.data.type === 'active-stroke-update' && e.data.presentationId === presentation?.id) {
+        if (isProjectorMode && e.data.slide === activeSlideKey) {
+          setActiveDrawingStroke(e.data.activeStroke);
+        }
+      } else if (e.data && e.data.type === 'clear-all-drawings' && e.data.presentationId === presentation?.id) {
+        setPresenterStrokesMap({});
+        setActiveDrawingStroke(null);
+        activeDrawingStrokeRef.current = null;
+      }
+    };
+    channel.addEventListener('message', handleMessage);
+    return () => {
+      channel.removeEventListener('message', handleMessage);
+      channel.close();
+    };
+  }, [presentation?.id, isProjectorMode, activeSlideKey]);
+
+  const updatePresenterStrokes = async (slideKey: string, newStrokes: DrawingStroke[]) => {
+    setPresenterStrokesMap(prev => ({
+      ...prev,
+      [slideKey]: newStrokes
+    }));
+
+    try {
+      const channel = new BroadcastChannel('activedeck-presenter-drawing');
+      channel.postMessage({
+        type: 'slide-drawing-update',
+        presentationId: presentation?.id,
+        slide: slideKey,
+        strokes: newStrokes
+      });
+      channel.close();
+    } catch (e) {
+      console.warn("Failed to broadcast presenter drawing update:", e);
+    }
+
+    if (presentation?.id) {
+      try {
+        await updateDoc(doc(db, 'presentations', presentation.id), {
+          [`presenterDrawings.${slideKey}`]: JSON.stringify(newStrokes)
+        });
+      } catch (err) {
+        console.error("Error updating presenter drawings in Firebase:", err);
+      }
+    }
+  };
+
+  const getDrawingCoordinates = (e: React.PointerEvent<SVGSVGElement>): DrawingPoint | null => {
+    const svgElem = e.currentTarget;
+    if (!svgElem) return null;
+    const rect = svgElem.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return null;
+    
+    const x = ((e.clientX - rect.left) / rect.width) * 1000;
+    const y = ((e.clientY - rect.top) / rect.height) * 1000;
+    return { x: Number(x.toFixed(1)), y: Number(y.toFixed(1)) };
+  };
+
+  const eraseStrokeAtPoint = (point: DrawingPoint) => {
+    const eraserRadius = 35;
+    const remainingStrokes = currentSlideStrokes.filter(stroke => {
+      return !stroke.points.some(p => {
+        const dx = p.x - point.x;
+        const dy = p.y - point.y;
+        return Math.sqrt(dx * dx + dy * dy) < eraserRadius;
+      });
+    });
+
+    if (remainingStrokes.length !== currentSlideStrokes.length) {
+      setDrawingUndoStack(prev => ({
+        ...prev,
+        [activeSlideKey]: [...(prev[activeSlideKey] || []), currentSlideStrokes]
+      }));
+      updatePresenterStrokes(activeSlideKey, remainingStrokes);
+    }
+  };
+
+  const handleDrawingPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (!isPenActive || e.button !== 0) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    
+    const coords = getDrawingCoordinates(e);
+    if (!coords) return;
+
+    isDrawingPointerDownRef.current = true;
+    setIsDrawingPointerDown(true);
+
+    if (penTool === 'eraser') {
+      eraseStrokeAtPoint(coords);
+    } else if (penTool === 'text') {
+      const enteredText = window.prompt("Enter text to display on slide:");
+      if (enteredText && enteredText.trim()) {
+        const textStroke: DrawingStroke = {
+          points: [coords],
+          color: penColor,
+          width: penWidth,
+          text: enteredText.trim()
+        };
+        const updatedStrokes = [...currentSlideStrokes, textStroke];
+        setDrawingUndoStack(prev => ({
+          ...prev,
+          [activeSlideKey]: [...(prev[activeSlideKey] || []), currentSlideStrokes]
+        }));
+        setDrawingRedoStack(prev => ({
+          ...prev,
+          [activeSlideKey]: []
+        }));
+        updatePresenterStrokes(activeSlideKey, updatedStrokes);
+      }
+    } else if (penTool === 'arrow') {
+      const newStroke: DrawingStroke = {
+        points: [coords, coords],
+        color: penColor,
+        width: penWidth,
+        isArrow: true
+      };
+      activeDrawingStrokeRef.current = newStroke;
+      setActiveDrawingStroke(newStroke);
+      broadcastActiveStrokeLive(newStroke);
+    } else {
+      const newStroke: DrawingStroke = {
+        points: [coords],
+        color: penTool === 'highlighter' ? highlighterColor : penColor,
+        width: penTool === 'highlighter' ? 24 : penWidth,
+        isHighlighter: penTool === 'highlighter'
+      };
+      activeDrawingStrokeRef.current = newStroke;
+      setActiveDrawingStroke(newStroke);
+      broadcastActiveStrokeLive(newStroke);
+    }
+  };
+
+  const handleDrawingPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (!isPenActive || !isDrawingPointerDownRef.current) return;
+    e.preventDefault();
+
+    const coords = getDrawingCoordinates(e);
+    if (!coords) return;
+
+    if (penTool === 'eraser') {
+      eraseStrokeAtPoint(coords);
+    } else if (penTool === 'arrow' && activeDrawingStrokeRef.current) {
+      const startPoint = activeDrawingStrokeRef.current.points[0];
+      const updatedStroke: DrawingStroke = {
+        ...activeDrawingStrokeRef.current,
+        points: [startPoint, coords]
+      };
+      activeDrawingStrokeRef.current = updatedStroke;
+      setActiveDrawingStroke(updatedStroke);
+      broadcastActiveStrokeLive(updatedStroke);
+    } else if (activeDrawingStrokeRef.current) {
+      const updatedStroke: DrawingStroke = {
+        ...activeDrawingStrokeRef.current,
+        points: [...activeDrawingStrokeRef.current.points, coords]
+      };
+      activeDrawingStrokeRef.current = updatedStroke;
+      setActiveDrawingStroke(updatedStroke);
+      broadcastActiveStrokeLive(updatedStroke);
+    }
+  };
+
+  const handleDrawingPointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (!isPenActive || !isDrawingPointerDownRef.current) return;
+    e.preventDefault();
+    isDrawingPointerDownRef.current = false;
+    setIsDrawingPointerDown(false);
+
+    const currentStroke = activeDrawingStrokeRef.current;
+    if (currentStroke && currentStroke.points.length > 0) {
+      const updatedStrokes = [...currentSlideStrokes, currentStroke];
+      setDrawingUndoStack(prev => ({
+        ...prev,
+        [activeSlideKey]: [...(prev[activeSlideKey] || []), currentSlideStrokes]
+      }));
+      setDrawingRedoStack(prev => ({ ...prev, [activeSlideKey]: [] }));
+
+      updatePresenterStrokes(activeSlideKey, updatedStrokes);
+    }
+    activeDrawingStrokeRef.current = null;
+    setActiveDrawingStroke(null);
+    broadcastActiveStrokeLive(null);
+  };
+
+  const handleUndoDrawing = () => {
+    const stack = drawingUndoStack[activeSlideKey] || [];
+    if (stack.length === 0) return;
+    const previousState = stack[stack.length - 1];
+    const newStack = stack.slice(0, stack.length - 1);
+
+    setDrawingRedoStack(prev => ({
+      ...prev,
+      [activeSlideKey]: [...(prev[activeSlideKey] || []), currentSlideStrokes]
+    }));
+    setDrawingUndoStack(prev => ({
+      ...prev,
+      [activeSlideKey]: newStack
+    }));
+
+    updatePresenterStrokes(activeSlideKey, previousState);
+  };
+
+  const handleRedoDrawing = () => {
+    const stack = drawingRedoStack[activeSlideKey] || [];
+    if (stack.length === 0) return;
+    const nextState = stack[stack.length - 1];
+    const newStack = stack.slice(0, stack.length - 1);
+
+    setDrawingUndoStack(prev => ({
+      ...prev,
+      [activeSlideKey]: [...(prev[activeSlideKey] || []), currentSlideStrokes]
+    }));
+    setDrawingRedoStack(prev => ({
+      ...prev,
+      [activeSlideKey]: newStack
+    }));
+
+    updatePresenterStrokes(activeSlideKey, nextState);
+  };
+
+  const handleClearSlideDrawing = () => {
+    if (currentSlideStrokes.length === 0) return;
+    setDrawingUndoStack(prev => ({
+      ...prev,
+      [activeSlideKey]: [...(prev[activeSlideKey] || []), currentSlideStrokes]
+    }));
+    setDrawingRedoStack(prev => ({ ...prev, [activeSlideKey]: [] }));
+    updatePresenterStrokes(activeSlideKey, []);
+  };
+
+  const [currentSlidePreviewUrl, setCurrentSlidePreviewUrl] = useState<string | null>(null);
+  const [nextSlidePreviewUrl, setNextSlidePreviewUrl] = useState<string | null>(null);
+  const [isUploadingPreview, setIsUploadingPreview] = useState(false);
+
+  useEffect(() => {
+    if (!presentation?.id || currentSlide === null) {
+      setCurrentSlidePreviewUrl(null);
+      return;
+    }
+    const docId = `${presentation.id}_preview_slide_${currentSlide}`;
+    const unsub = onSnapshot(doc(db, 'messages', docId), (docSnap) => {
+      if (docSnap.exists()) {
+        setCurrentSlidePreviewUrl(docSnap.data().fileUrl || null);
+      } else {
+        setCurrentSlidePreviewUrl(null);
+      }
+    }, (err) => {
+      console.warn("ActiveDeck: Error loading current slide preview:", err);
+    });
+    return () => unsub();
+  }, [presentation?.id, currentSlide]);
+
+  useEffect(() => {
+    if (!presentation?.id || nextSlide === null) {
+      setNextSlidePreviewUrl(null);
+      return;
+    }
+    const docId = `${presentation.id}_preview_slide_${nextSlide}`;
+    const unsub = onSnapshot(doc(db, 'messages', docId), (docSnap) => {
+      if (docSnap.exists()) {
+        setNextSlidePreviewUrl(docSnap.data().fileUrl || null);
+      } else {
+        setNextSlidePreviewUrl(null);
+      }
+    }, (err) => {
+      console.warn("ActiveDeck: Error loading next slide preview:", err);
+    });
+    return () => unsub();
+  }, [presentation?.id, nextSlide]);
+
+  const [localSlidesCount, setLocalSlidesCount] = useState<number>(0);
+  const [nextSlideImageError, setNextSlideImageError] = useState<boolean>(false);
+
+  useEffect(() => {
+    setNextSlideImageError(false);
+  }, [nextSlide]);
+
+  useEffect(() => {
+    if (isBridgeConnected) {
+      console.log("ActiveDeck: Bridge connected, triggering slide images pre-export...");
+      fetch('http://127.0.0.1:5000/export')
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.success && typeof data.count === 'number') {
+            console.log(`ActiveDeck: Successfully pre-exported ${data.count} slide previews locally.`);
+            setLocalSlidesCount(data.count);
+          }
+        })
+        .catch(err => {
+          console.warn("ActiveDeck: Failed to pre-export slides via bridge:", err);
+        });
+    } else {
+      setLocalSlidesCount(0);
+    }
+  }, [isBridgeConnected]);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [videoAspectRatio, setVideoAspectRatio] = useState<number>(16 / 9);
+
+  const [leftWidthPercent, setLeftWidthPercent] = useState<number>(62); // Default starting width percentage for left panel
+  const [isResizingNotes, setIsResizingNotes] = useState(false);
+
+  const handleMouseDownPresenterNotesSplit = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizingNotes(true);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+
+  const handleTouchStartPresenterNotesSplit = (e: React.TouchEvent) => {
+    setIsResizingNotes(true);
+  };
+
+  useEffect(() => {
+    if (!isResizingNotes) return;
+
+    const handleMouseMove = (moveEvent: MouseEvent | TouchEvent) => {
+      if (!containerRef.current) return;
+      
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const clientX = 'touches' in moveEvent ? (moveEvent as TouchEvent).touches[0].clientX : (moveEvent as MouseEvent).clientX;
+      
+      // Calculate position relative to container
+      const relativeX = clientX - containerRect.left;
+      let percent = (relativeX / containerRect.width) * 100;
+      
+      // Apply boundaries (minimum 45%, maximum 85% to prevent complete squishing)
+      if (percent < 45) percent = 45;
+      if (percent > 85) percent = 85;
+      
+      setLeftWidthPercent(percent);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingNotes(false);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('touchmove', handleMouseMove);
+    window.addEventListener('touchend', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('touchmove', handleMouseMove);
+      window.removeEventListener('touchend', handleMouseUp);
+    };
+  }, [isResizingNotes]);
+
+  const handleVideoLoadedMetadata = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    const video = e.currentTarget;
+    if (video && video.videoWidth && video.videoHeight) {
+      const ratio = video.videoWidth / video.videoHeight;
+      console.log(`[PresenterArea] Video metadata loaded: ${video.videoWidth}x${video.videoHeight}, aspect ratio: ${ratio}`);
+      setVideoAspectRatio(ratio);
+    }
+  };
+
+  const lastUpdateRef = useRef<number>(0);
+  const throttleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingCoordsRef = useRef<{ x: number; y: number } | null>(null);
+
+  // Track manual advances or animation builds to trigger slide recaptures
+  const [captureTrigger, setCaptureTrigger] = useState(0);
+
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
+  const toggleFullscreen = async () => {
+    if (!document.fullscreenElement) {
+      try {
+        await document.documentElement.requestFullscreen();
+      } catch (err) {
+        console.error("Error attempting to enable fullscreen:", err);
+      }
+    } else {
+      if (document.exitFullscreen) {
+        await document.exitFullscreen();
+      }
+    }
+  };
+
+  // Background 2-Stage Automatic Slide Preview Capture & Upload Effect (Immediate + Delayed Animation Capture)
+  useEffect(() => {
+    if (!presentation?.id || !isCapturing) return;
+
+    const activeSlideNum = currentSlide !== null ? currentSlide : (presentation?.currentSlide || 1);
+    setIsUploadingPreview(true);
+
+    const captureAndUpload = async (stageName: string) => {
+      try {
+        const video = containerRef.current?.querySelector('video');
+        if (!video || !video.videoWidth || !video.videoHeight) {
+          setIsUploadingPreview(false);
+          return;
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth || 1280;
+        canvas.height = video.videoHeight || 720;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          setIsUploadingPreview(false);
+          return;
+        }
+
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        canvas.toBlob(async (blob) => {
+          if (!blob) {
+            setIsUploadingPreview(false);
+            return;
+          }
+
+          try {
+            const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+            const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
+
+            const fileId = Math.random().toString(36).substring(2, 11);
+            const fileName = `Slide_Preview_Slide_${activeSlideNum}_${Date.now()}.jpg`;
+            const storagePath = `presentations/${presentation.id}/documents/${fileId}_${fileName}`;
+            const storageRef = ref(storage, storagePath);
+
+            await uploadBytes(storageRef, blob);
+            const downloadUrl = await getDownloadURL(storageRef);
+
+            const docId = `${presentation.id}_preview_slide_${activeSlideNum}`;
+            await setDoc(doc(db, 'messages', docId), {
+              presentationId: presentation.id,
+              slide: activeSlideNum,
+              fileUrl: downloadUrl,
+              isBackgroundPreview: true,
+              isPushedSlide: false,
+              timestamp: serverTimestamp()
+            });
+
+            console.log(`[SlidePreview 2-Stage] ${stageName} upload complete for slide ${activeSlideNum}!`);
+          } catch (uploadErr) {
+            console.error(`[SlidePreview 2-Stage] ${stageName} upload failed:`, uploadErr);
+          } finally {
+            setIsUploadingPreview(false);
+          }
+        }, 'image/jpeg', 0.65);
+
+      } catch (err) {
+        console.error(`[SlidePreview 2-Stage] Error in ${stageName}:`, err);
+        setIsUploadingPreview(false);
+      }
+    };
+
+    // Stage 1: Immediate push (250ms) so students see the slide instantly
+    const immediateTimeoutId = setTimeout(() => {
+      captureAndUpload('Stage 1 (Immediate)');
+    }, 250);
+
+    // Stage 2: Updated push after animations/build-ins complete (3500ms)
+    const delayedTimeoutId = setTimeout(() => {
+      captureAndUpload('Stage 2 (Animation Complete)');
+    }, 3500);
+
+    return () => {
+      clearTimeout(immediateTimeoutId);
+      clearTimeout(delayedTimeoutId);
+    };
+  }, [currentSlide, presentation?.currentSlide, isCapturing, presentation?.id, captureTrigger]);
+
+  useEffect(() => {
+    return () => {
+      if (throttleTimeoutRef.current) {
+        clearTimeout(throttleTimeoutRef.current);
+      }
+    };
+  }, []);
+
+
+
+  const [isPushingToNotes, setIsPushingToNotes] = useState(false);
+
+  const handlePushImageToNotes = async () => {
+    if (!presentation?.id || isPushingToNotes) return;
+
+    try {
+      setIsPushingToNotes(true);
+      const video = containerRef.current?.querySelector('video') || videoRef.current;
+      if (!video) {
+        alert("No active display stream found to capture. Please start presenting first.");
+        setIsPushingToNotes(false);
+        return;
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 1920;
+      canvas.height = video.videoHeight || 1080;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        setIsPushingToNotes(false);
+        return;
+      }
+
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      canvas.toBlob(async (blob) => {
+        if (!blob) {
+          setIsPushingToNotes(false);
+          return;
+        }
+
+        try {
+          const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+          const { collection, addDoc, doc, setDoc, serverTimestamp } = await import('firebase/firestore');
+
+          const timestamp = Date.now();
+          const customTabId = `note_pushed_${timestamp}`;
+          const fileId = Math.random().toString(36).substring(2, 11);
+          const fileName = `Pushed_Notes_Image_${timestamp}.jpg`;
+          const storagePath = `presentations/${presentation.id}/documents/${fileId}_${fileName}`;
+          const storageRef = ref(storage, storagePath);
+
+          await uploadBytes(storageRef, blob);
+          const downloadUrl = await getDownloadURL(storageRef);
+
+          const currentSlideNum = currentSlide !== null ? currentSlide : (presentation?.currentSlide || 1);
+
+          await addDoc(collection(db, 'messages'), {
+            presentationId: presentation.id,
+            slide: customTabId,
+            fileUrl: downloadUrl,
+            isBackgroundPreview: true,
+            isCustomNoteTab: true,
+            position: currentSlideNum + 0.1,
+            timestamp: serverTimestamp()
+          });
+
+          // Also set standard slide preview doc for active slide so indicator turns green immediately
+          const previewDocId = `${presentation.id}_preview_slide_${currentSlideNum}`;
+          await setDoc(doc(db, 'messages', previewDocId), {
+            presentationId: presentation.id,
+            slide: currentSlideNum,
+            fileUrl: downloadUrl,
+            isBackgroundPreview: true,
+            isPushedSlide: true,
+            timestamp: serverTimestamp()
+          });
+
+          console.log(`[Push Image to Notes] Successfully pushed display image for tab ${customTabId}!`);
+        } catch (err) {
+          console.error("[Push Image to Notes] Upload error:", err);
+          alert("Failed to push image to notes. Please try again.");
+        } finally {
+          setIsPushingToNotes(false);
+        }
+      }, 'image/jpeg', 0.85);
+
+    } catch (err) {
+      console.error("[Push Image to Notes] Capture error:", err);
+      setIsPushingToNotes(false);
+    }
+  };
+
+  const updateLaserPositionInFirebase = async (x: number, y: number, active: boolean) => {
+    if (!presentation?.id) return;
+    try {
+      await updateDoc(doc(db, 'presentations', presentation.id), {
+        laserX: Number(x.toFixed(2)),
+        laserY: Number(y.toFixed(2)),
+        laserActive: active
+      });
+    } catch (err) {
+      console.warn("Error updating laser position in Firebase:", err);
+    }
+  };
+
+  const updateLaserPosition = (x: number, y: number, active: boolean) => {
+    const now = Date.now();
+    const timeSinceLastUpdate = now - lastUpdateRef.current;
+
+    if (!active) {
+      if (throttleTimeoutRef.current) {
+        clearTimeout(throttleTimeoutRef.current);
+        throttleTimeoutRef.current = null;
+      }
+      pendingCoordsRef.current = null;
+      lastUpdateRef.current = now;
+      updateLaserPositionInFirebase(x, y, false);
+      return;
+    }
+
+    if (timeSinceLastUpdate >= 40) {
+      if (throttleTimeoutRef.current) {
+        clearTimeout(throttleTimeoutRef.current);
+        throttleTimeoutRef.current = null;
+      }
+      pendingCoordsRef.current = null;
+      lastUpdateRef.current = now;
+      updateLaserPositionInFirebase(x, y, true);
+    } else {
+      pendingCoordsRef.current = { x, y };
+
+      if (!throttleTimeoutRef.current) {
+        const remaining = 40 - timeSinceLastUpdate;
+        throttleTimeoutRef.current = setTimeout(() => {
+          throttleTimeoutRef.current = null;
+          if (pendingCoordsRef.current) {
+            const { x: px, y: py } = pendingCoordsRef.current;
+            pendingCoordsRef.current = null;
+            lastUpdateRef.current = Date.now();
+            updateLaserPositionInFirebase(px, py, true);
+          }
+        }, remaining);
+      }
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (isProjectorMode || !presentation?.id || !isCapturing || !laserEnabled) return;
+    const container = e.currentTarget;
+    if (!container) return;
+
+    const videoElement = container.querySelector('video');
+    if (!videoElement) return;
+
+    const rect = videoElement.getBoundingClientRect();
+    const relativeX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+    const relativeY = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
+
+    const x = (relativeX / rect.width) * 100;
+    const y = (relativeY / rect.height) * 100;
+
+    updateLaserPosition(x, y, true);
+  };
+
+  const handleMouseLeave = () => {
+    if (isProjectorMode || !presentation?.id) return;
+    updateLaserPosition(0, 0, false);
+  };
+
+  useEffect(() => {
+    const fetchTheme = async () => {
+      const docSnap = await getDoc(doc(db, 'settings', 'global'));
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.theme?.secondaryColor) {
+          setSecondaryColor(data.theme.secondaryColor);
+        }
+      }
+    };
+    fetchTheme();
+  }, []);
+
+  const handleSlideMove = (direction: 'next' | 'prev') => {
+    sendSlideCommand(direction);
+    setCaptureTrigger(prev => prev + 1);
+  };
+
+  // Keyboard navigation listener to capture animations/slides via remote clicker or keyboard
+  useEffect(() => {
+    if (!isCapturing) return;
+
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // Don't intercept when focusing inputs or textareas
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+
+      if (e.key === 'ArrowRight' || e.key === 'Space') {
+        e.preventDefault();
+        handleSlideMove('next');
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        handleSlideMove('prev');
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown);
+    };
+  }, [isCapturing, currentSlide, presentation?.currentSlide]);
+
+  const startCapture = () => {
+    setError(null);
+    navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
+      .then(async (mediaStream) => {
+        setError(null);
+        setStream(mediaStream);
+        setIsCapturing(true);
+
+        // Expose mediaStream globally so the projector window can access it
+        (window as any).activeDeckStream = mediaStream;
+
+        // Broadcast that stream has started
+        try {
+          const channel = new BroadcastChannel('activedeck-stream');
+          channel.postMessage({ type: 'stream-started' });
+          channel.close();
+        } catch (bcErr) {
+          console.error("ActiveDeck: Error broadcasting stream-started:", bcErr);
+        }
+        // Only create a new presentation session if one doesn't exist yet
+        let activePresentationId = presentation?.id;
+        if (!presentation && onCreatePresentation) {
+          try {
+            activePresentationId = await onCreatePresentation();
+          } catch (createErr) {
+            console.error("ActiveDeck: Error creating presentation session:", createErr);
+            mediaStream.getTracks().forEach(track => track.stop());
+            setStream(null);
+            setIsCapturing(false);
+            setError("Failed to initialize presentation session in database.");
+            return;
+          }
+        }
+
+        // Set the current slide in database to 1 as soon as the presentation starts
+        if (activePresentationId) {
+          try {
+            await updateDoc(doc(db, 'presentations', activePresentationId), {
+              currentSlide: 1
+            });
+            console.log("ActiveDeck: Automatically set currentSlide to 1 in Firebase upon starting presentation.");
+          } catch (updateErr) {
+            console.error("ActiveDeck: Failed to set initial slide to 1 in Firebase:", updateErr);
+          }
+        }
+
+        mediaStream.getVideoTracks()[0].onended = () => {
+          stopCapture();
+        };
+      })
+      .catch((err: any) => {
+        console.error("ActiveDeck: Error starting screen capture:", err);
+        if (err.name === 'NotAllowedError' && err.message.includes('permissions policy')) {
+          setError("Browser Security: Screen capture is blocked inside the editor's preview window. Please use the 'Shared App URL' or the 'Open in New Tab' icon in the top right to present.");
+        } else if (err.name === 'NotAllowedError' || err.name === 'AbortError') {
+          // Gracefully return to the main instructions screen if the user cancels or denies the request
+          setError(null);
+        } else {
+          setError("Failed to start screen capture. Please ensure your browser supports screen sharing.");
+        }
+        setIsCapturing(false);
+      });
+  };
+
+  const stopCapture = () => {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      setStream(null);
+    }
+    setIsCapturing(false);
+    (window as any).activeDeckStream = null;
+
+    // Reset drawings locally and exit pen mode
+    setIsPenActive(false);
+    setPresenterStrokesMap({});
+    setActiveDrawingStroke(null);
+    activeDrawingStrokeRef.current = null;
+    setDrawingUndoStack({});
+    setDrawingRedoStack({});
+
+    // Erase drawings in Firebase and broadcast clear-all-drawings to student & projector screens
+    if (presentation?.id) {
+      updateDoc(doc(db, 'presentations', presentation.id), {
+        presenterDrawings: {},
+        activeDrawingStrokeJSON: null
+      }).catch(err => {
+        console.error("ActiveDeck: Error clearing drawings in Firebase on stop capture:", err);
+      });
+    }
+
+    try {
+      const channel = new BroadcastChannel('activedeck-presenter-drawing');
+      channel.postMessage({
+        type: 'clear-all-drawings',
+        presentationId: presentation?.id
+      });
+      channel.close();
+    } catch (e) {}
+
+    // Broadcast that stream has stopped
+    try {
+      const channel = new BroadcastChannel('activedeck-stream');
+      channel.postMessage({ type: 'stream-stopped' });
+      channel.close();
+    } catch (bcErr) {
+      console.error("ActiveDeck: Error broadcasting stream-stopped:", bcErr);
+    }
+  };
+
+  useEffect(() => {
+    if (stream) {
+      (window as any).activeDeckStream = stream;
+    }
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        (window as any).activeDeckStream = null;
+        try {
+          const channel = new BroadcastChannel('activedeck-stream');
+          channel.postMessage({ type: 'stream-stopped' });
+          channel.close();
+        } catch (e) {}
+      }
+    };
+  }, [stream]);
+
+  // Synchronize stream for projector mode
+  useEffect(() => {
+    if (!isProjectorMode) return;
+
+    console.log("ActiveDeck Projector: Sync stream effect mounted");
+    const channel = new BroadcastChannel('activedeck-stream');
+
+    const checkParentStream = () => {
+      console.log("ActiveDeck Projector: checkParentStream invoked");
+      try {
+        console.log("ActiveDeck Projector: window.opener =", window.opener);
+        if (window.opener) {
+          console.log("ActiveDeck Projector: window.opener.closed =", window.opener.closed);
+          if (!window.opener.closed) {
+            const parentStream = window.opener.activeDeckStream;
+            console.log("ActiveDeck Projector: window.opener.activeDeckStream =", parentStream);
+            if (parentStream) {
+              console.log("ActiveDeck Projector: Stream found. Active tracks:", parentStream.getTracks().map((t: any) => ({ label: t.label, enabled: t.enabled, readyState: t.readyState })));
+              
+              setStream(parentStream);
+
+              setIsCapturing(true);
+              setError(null);
+            } else {
+              console.log("ActiveDeck Projector: Opener exists but activeDeckStream is null or undefined");
+              setStream(null);
+              setIsCapturing(false);
+            }
+          } else {
+            console.log("ActiveDeck Projector: window.opener is closed");
+            setStream(null);
+            setIsCapturing(false);
+          }
+        } else {
+          console.log("ActiveDeck Projector: window.opener is NULL/undefined");
+          setStream(null);
+          setIsCapturing(false);
+        }
+      } catch (err) {
+        console.error("ActiveDeck Projector: Error accessing presenter window memory:", err);
+      }
+    };
+
+    // 1. Check parent stream immediately on mount (or reload)
+    checkParentStream();
+
+    // 2. Set up BroadcastChannel listener for real-time start/stop
+    channel.onmessage = (event) => {
+      console.log("ActiveDeck Projector: BroadcastChannel message received:", event.data);
+      if (event.data?.type === 'stream-started') {
+        checkParentStream();
+      } else if (event.data?.type === 'stream-stopped') {
+        console.log("ActiveDeck Projector: Stream stopped message received");
+        setStream(null);
+        setIsCapturing(false);
+      } else if (event.data?.type === 'close-projector') {
+        console.log("ActiveDeck Projector: Close projector message received. Closing window.");
+        window.close();
+      }
+    };
+
+    // 3. Fallback interval check (polling every 1 second) in case of missed events or parent closing
+    const intervalId = setInterval(checkParentStream, 1000);
+
+    return () => {
+      console.log("ActiveDeck Projector: Sync stream effect unmounting");
+      channel.close();
+      clearInterval(intervalId);
+    };
+  }, [isProjectorMode]);
+
+  return (
+    <div className="flex flex-col h-full bg-black relative group">
+      {/* Presenter Control Bar - Displays off the slide area */}
+      {isCapturing && !isProjectorMode && (
+        <div className="bg-slate-900 border-b border-slate-800 px-4 py-2 flex items-center justify-between z-[70] shrink-0 select-none relative">
+          {/* Left Side: Status */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-red-600/90 text-white text-[9px] font-black uppercase tracking-widest rounded-lg border border-red-500/20 shadow-lg shadow-red-500/5 animate-in fade-in duration-300">
+              <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+              Live
+            </div>
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">
+              Active Display
+            </span>
+            <button
+              onClick={stopCapture}
+              className="flex items-center gap-1.5 ml-4 px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white text-[9px] font-black uppercase tracking-widest rounded-lg border border-red-500/25 shadow-lg shadow-red-500/10 transition-all hover:scale-105 active:scale-95 cursor-pointer border-0"
+              title="Stop Presentation"
+            >
+              <Square className="w-2.5 h-2.5 fill-current" />
+              Stop Presentation
+            </button>
+          </div>
+
+          {/* Center: Slide Number */}
+          <div className="absolute left-1/2 -translate-x-1/2 z-50">
+            {(currentSlide !== null || presentation?.currentSlide !== undefined) && (
+              <div className="bg-[#ff3e00]/90 text-white px-2.5 py-1 rounded-lg border border-white/20 shadow-lg flex items-center gap-1.5 animate-in fade-in duration-300">
+                <span className="text-[9px] font-black uppercase tracking-wider opacity-85">Slide</span>
+                <span className="text-sm font-black font-mono">
+                  {currentSlide !== null ? currentSlide : presentation?.currentSlide}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Right Side: Presenter Controls */}
+          <div className="flex items-center gap-2">
+            {/* Present with Notes Toggle Switch */}
+            <button
+              onClick={() => {
+                const newEnabled = !presentWithNotes;
+                setPresentWithNotes(newEnabled);
+                if (!newEnabled) {
+                  clearNotesState();
+                }
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all duration-200 shadow-lg cursor-pointer hover:scale-105 active:scale-95 ${
+                presentWithNotes 
+                  ? 'bg-osu-orange border-osu-orange text-white hover:bg-[#c03900] hover:border-[#c03900] shadow-orange-500/10' 
+                  : 'bg-slate-900/90 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800 hover:border-slate-600 shadow-slate-955/25'
+              }`}
+              title="Toggle Present with Notes"
+            >
+              <FileText className="w-3 h-3" />
+              <span>Notes {presentWithNotes ? 'ON' : 'OFF'}</span>
+            </button>
+
+            {/* Laser Pointer Toggle Switch */}
+            <button
+              onClick={() => {
+                const newEnabled = !laserEnabled;
+                setLaserEnabled(newEnabled);
+                if (!newEnabled) {
+                  updateLaserPosition(0, 0, false);
+                }
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all duration-200 shadow-lg cursor-pointer hover:scale-105 active:scale-95 ${
+                laserEnabled 
+                  ? 'bg-red-600 border-red-500 text-white hover:bg-red-700 hover:border-red-600 shadow-red-500/10' 
+                  : 'bg-slate-900/90 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800 hover:border-slate-600 shadow-slate-955/25'
+              }`}
+              title="Toggle Laser Pointer"
+            >
+              <div className={`w-1.5 h-1.5 rounded-full ${laserEnabled ? 'bg-white animate-pulse' : 'bg-slate-500'}`} />
+              <span>Laser {laserEnabled ? 'ON' : 'OFF'}</span>
+            </button>
+
+            {/* Slide Pen Toggle Switch */}
+            <button
+              onClick={() => setIsPenActive(!isPenActive)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all duration-200 shadow-lg cursor-pointer hover:scale-105 active:scale-95 ${
+                isPenActive 
+                  ? 'bg-amber-500 border-amber-400 text-white hover:bg-amber-600 hover:border-amber-500 shadow-amber-500/20 ring-2 ring-amber-400/40' 
+                  : 'bg-slate-900/90 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800 hover:border-slate-600 shadow-slate-955/25'
+              }`}
+              title="Toggle Slide Pen & Drawing Mode"
+            >
+              <Pen className="w-3 h-3 text-white" />
+              <span>Pen {isPenActive ? 'ON' : 'OFF'}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Main Content Area */}
+      <div 
+        ref={containerRef}
+        className={`${presentWithNotes && isCapturing && !isProjectorMode ? 'flex-[2]' : 'flex-1'} relative bg-black overflow-hidden flex items-center justify-center transition-all duration-300`}
+      >
+        {!isProjectorMode ? (
+          <div className={`w-full h-full p-4 flex flex-col ${presentWithNotes && isCapturing ? 'md:flex-row gap-4 items-start justify-between max-w-[1650px]' : 'items-center justify-center max-w-[1450px]'} mx-auto select-none overflow-y-auto custom-scrollbar`}>
+            {presentWithNotes && isCapturing ? (
+              <>
+                {/* SPLIT SCREEN LAYOUT: Notes ON */}
+                {/* Left Column (Current Slide + Presenter Notes below it) */}
+                <div 
+                  className="flex flex-col gap-4 w-full md:flex-shrink-0"
+                  style={{ width: `calc(${leftWidthPercent}% - 8px)` }}
+                >
+                  <div className="flex flex-col gap-2 w-full">
+
+                    <div 
+                      onMouseMove={!isProjectorMode ? handleMouseMove : undefined}
+                      onMouseLeave={!isProjectorMode ? handleMouseLeave : undefined}
+                      style={{
+                        aspectRatio: `${videoAspectRatio}`,
+                        width: '100%',
+                        height: 'auto',
+                        maxWidth: `calc((100vh - 220px) * ${videoAspectRatio})`,
+                        maxHeight: 'calc(100vh - 220px)'
+                      }}
+                      className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden p-1.5 flex items-center justify-center shadow-2xl cursor-crosshair mx-auto"
+                    >
+                      <ScreenCapture 
+                        isCapturing={isCapturing} 
+                        stream={stream} 
+                        error={error} 
+                        onStart={startCapture} 
+                        onStop={stopCapture} 
+                        logoUrl={logoUrl}
+                        isProjectorMode={isProjectorMode}
+                        videoRef={videoRef}
+                        onLoadedMetadata={handleVideoLoadedMetadata}
+                      />
+
+                      {/* Real-time Presenter Live Slide Drawing Layer */}
+                      <svg
+                        viewBox="0 0 1000 1000"
+                        preserveAspectRatio="none"
+                        className={`absolute inset-0 w-full h-full ${
+                          isPenActive && !isProjectorMode ? 'cursor-crosshair pointer-events-auto z-70' : 'pointer-events-none z-70'
+                        }`}
+                        onPointerDown={isPenActive && !isProjectorMode ? handleDrawingPointerDown : undefined}
+                        onPointerMove={isPenActive && !isProjectorMode ? handleDrawingPointerMove : undefined}
+                        onPointerUp={isPenActive && !isProjectorMode ? handleDrawingPointerUp : undefined}
+                        onPointerLeave={isPenActive && !isProjectorMode ? handleDrawingPointerUp : undefined}
+                      >
+                        {currentSlideStrokes.map((stroke, idx) => {
+                          if (stroke.text) {
+                            const pt = stroke.points[0];
+                            if (!pt) return null;
+                            const fontSize = Math.max(26, stroke.width * 5);
+                            return (
+                              <text
+                                key={`split-text-stroke-${idx}`}
+                                x={pt.x}
+                                y={pt.y}
+                                fill={stroke.color}
+                                fontSize={fontSize}
+                                fontWeight="bold"
+                                fontFamily="sans-serif"
+                              >
+                                {stroke.text}
+                              </text>
+                            );
+                          }
+                          const pathD = renderStrokePath(stroke);
+                          if (!pathD) return null;
+                          return (
+                            <path
+                              key={`split-stroke-${idx}`}
+                              d={pathD}
+                              stroke={stroke.color}
+                              strokeWidth={stroke.width}
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              fill="none"
+                              opacity={stroke.isHighlighter ? 0.45 : 1}
+                            />
+                          );
+                        })}
+                        {activeDrawingStroke && (
+                          <path
+                            d={renderStrokePath(activeDrawingStroke)}
+                            stroke={activeDrawingStroke.color}
+                            strokeWidth={activeDrawingStroke.width}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            fill="none"
+                            opacity={activeDrawingStroke.isHighlighter ? 0.45 : 1}
+                          />
+                        )}
+                      </svg>
+
+                      {/* Real-time Virtual Laser Pointer Dot rendered inside the aspect-ratio locked frame */}
+                      {presentation?.laserActive && presentation.laserX !== undefined && presentation.laserY !== undefined && (
+                        <div 
+                          style={{
+                            left: `${presentation.laserX}%`,
+                            top: `${presentation.laserY}%`,
+                            transform: 'translate(-50%, -50%)',
+                            width: '15px',
+                            height: '15px',
+                            borderRadius: '50%',
+                            backgroundColor: 'red',
+                            boxShadow: '0 0 8px 3px rgba(255, 0, 0, 0.8), 0 0 15px 5px rgba(255, 0, 0, 0.4)',
+                            position: 'absolute',
+                            pointerEvents: 'none',
+                            zIndex: 80,
+                            transition: 'top 0.05s ease-out, left 0.05s ease-out'
+                          }}
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Confined Presenter Notes UI panel positioned immediately below the Current Slide preview */}
+                  <div className="flex flex-col bg-slate-950 border border-slate-850 rounded-2xl p-5 min-h-[350px] max-h-[480px] select-none animate-in slide-in-from-bottom duration-300 shadow-xl">
+                    <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-slate-900/60 select-none">
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-osu-orange" />
+                        <span className="text-xs font-black uppercase tracking-wider text-slate-300">Presenter Notes</span>
+                      </div>
+                      {totalSlides !== null && currentSlide !== null && (
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                          Slide {currentSlide} of {totalSlides}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex-1 overflow-y-auto text-base md:text-[17px] text-slate-100 font-bold leading-relaxed pr-2 custom-scrollbar space-y-2">
+                      {notes ? (
+                        <div className="whitespace-pre-wrap">{notes.replace(/\r/g, '\n')}</div>
+                      ) : (
+                        <div className="text-sm text-slate-500 italic flex items-center justify-center h-full">
+                          No notes available for this slide.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Interactive Drag Splitter between Current Slide + Notes (Left) and Next Slide Preview (Right) */}
+                <div 
+                  onMouseDown={handleMouseDownPresenterNotesSplit}
+                  onTouchStart={handleTouchStartPresenterNotesSplit}
+                  onDoubleClick={() => setLeftWidthPercent(62)}
+                  className="hidden md:flex w-2.5 self-stretch cursor-col-resize items-center justify-center flex-shrink-0 group/notes-splitter select-none bg-transparent hover:bg-white/[0.02] active:bg-white/[0.04] transition-all rounded-lg mx-1"
+                  title="Drag to resize panels (double-click to reset)"
+                >
+                  <div className="w-[3px] h-24 bg-slate-800/85 group-hover/notes-splitter:bg-osu-orange/70 group-active/notes-splitter:bg-osu-orange rounded-full transition-all duration-200" />
+                </div>
+
+                {/* Right Column (Next Slide): smaller preview */}
+                <div 
+                  className="flex flex-col gap-2 w-full md:flex-shrink-0 ml-auto"
+                  style={{ width: `calc(${100 - leftWidthPercent}% - 8px)` }}
+                >
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Next Slide</span>
+                    {nextSlide !== null && (
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                        Slide {nextSlide}
+                      </span>
+                    )}
+                  </div>
+                  <div className="relative w-full aspect-video bg-black border border-slate-850 rounded-2xl overflow-hidden p-1 flex items-center justify-center shadow-lg">
+                    {isBridgeConnected && nextSlideBase64 ? (
+                      <img 
+                        src={nextSlideBase64} 
+                        alt="Next Slide Preview" 
+                        className="w-full h-full object-contain bg-black animate-in fade-in duration-300"
+                        key={`websocket-next-${nextSlide}`}
+                      />
+                    ) : isBridgeConnected && nextSlide !== null && !nextSlideImageError ? (
+                      <img 
+                        src={`http://127.0.0.1:5000/slides/${nextSlide}.jpg`} 
+                        alt="Next Slide Preview" 
+                        className="w-full h-full object-contain bg-black animate-in fade-in duration-300"
+                        key={`local-next-${nextSlide}`}
+                        onError={() => setNextSlideImageError(true)}
+                      />
+                    ) : nextSlidePreviewUrl ? (
+                      <img 
+                        src={nextSlidePreviewUrl} 
+                        alt="Next Slide Preview" 
+                        className="w-full h-full object-contain bg-black animate-in fade-in duration-300"
+                        key={`firestore-next-${nextSlide}`}
+                      />
+                    ) : (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600 text-center p-4">
+                        <Monitor className="w-8 h-8 mb-2 opacity-20" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                          {nextSlide !== null ? `Slide ${nextSlide}` : 'No Next Slide'}
+                        </span>
+                        <span className="text-[9px] text-slate-600 mt-1">
+                          {nextSlide !== null ? 'Waiting for slide capture...' : 'End of presentation'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  {/* Clock Display under Next Slide Preview */}
+                  <div className="mt-2 flex items-center justify-center gap-2.5 px-5 py-2 bg-slate-950/95 border border-slate-800 rounded-xl shadow-xl text-slate-100 select-none w-fit mx-auto shrink-0">
+                    <Clock className="w-6 h-6 md:w-7 md:h-7 text-osu-orange shrink-0 animate-pulse" />
+                    <div className="flex items-baseline font-mono font-black text-2xl md:text-3xl lg:text-4xl tracking-tight leading-none">
+                      <span>{(currentTime.getHours() % 12 || 12).toString().padStart(2, '0')}:{currentTime.getMinutes().toString().padStart(2, '0')}</span>
+                      <span className="text-[0.6em] text-slate-400 font-semibold ml-0.5">:{currentTime.getSeconds().toString().padStart(2, '0')}</span>
+                      <span className="text-[0.65em] ml-1.5 font-sans font-black text-osu-orange uppercase">{currentTime.getHours() >= 12 ? 'PM' : 'AM'}</span>
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              /* SINGLE SCREEN FULL LAYOUT: Notes OFF */
+              <div className="w-full flex flex-col gap-2 max-w-none mx-auto justify-center">
+
+                <div 
+                  onMouseMove={!isProjectorMode ? handleMouseMove : undefined}
+                  onMouseLeave={!isProjectorMode ? handleMouseLeave : undefined}
+                  style={{
+                    aspectRatio: `${videoAspectRatio}`,
+                    width: '100%',
+                    height: 'auto',
+                    maxWidth: `calc((100vh - 180px) * ${videoAspectRatio})`,
+                    maxHeight: 'calc(100vh - 180px)',
+                  }}
+                  className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden p-1.5 flex items-center justify-center shadow-2xl cursor-crosshair mx-auto"
+                >
+                  <ScreenCapture 
+                    isCapturing={isCapturing} 
+                    stream={stream} 
+                    error={error} 
+                    onStart={startCapture} 
+                    onStop={stopCapture} 
+                    logoUrl={logoUrl}
+                    isProjectorMode={isProjectorMode}
+                    videoRef={videoRef}
+                    onLoadedMetadata={handleVideoLoadedMetadata}
+                  />
+
+                      {/* Real-time Presenter Live Slide Drawing Layer */}
+                      <svg
+                        viewBox="0 0 1000 1000"
+                        preserveAspectRatio="none"
+                        className={`absolute inset-0 w-full h-full ${
+                          isPenActive && !isProjectorMode ? 'cursor-crosshair pointer-events-auto z-70' : 'pointer-events-none z-70'
+                        }`}
+                        onPointerDown={isPenActive && !isProjectorMode ? handleDrawingPointerDown : undefined}
+                        onPointerMove={isPenActive && !isProjectorMode ? handleDrawingPointerMove : undefined}
+                        onPointerUp={isPenActive && !isProjectorMode ? handleDrawingPointerUp : undefined}
+                        onPointerLeave={isPenActive && !isProjectorMode ? handleDrawingPointerUp : undefined}
+                      >
+                        {currentSlideStrokes.map((stroke, idx) => {
+                          if (stroke.text) {
+                            const pt = stroke.points[0];
+                            if (!pt) return null;
+                            const fontSize = Math.max(26, stroke.width * 5);
+                            return (
+                              <text
+                                key={`single-text-stroke-${idx}`}
+                                x={pt.x}
+                                y={pt.y}
+                                fill={stroke.color}
+                                fontSize={fontSize}
+                                fontWeight="bold"
+                                fontFamily="sans-serif"
+                              >
+                                {stroke.text}
+                              </text>
+                            );
+                          }
+                          const pathD = renderStrokePath(stroke);
+                          if (!pathD) return null;
+                          return (
+                            <path
+                              key={`single-stroke-${idx}`}
+                              d={pathD}
+                              stroke={stroke.color}
+                              strokeWidth={stroke.width}
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              fill="none"
+                              opacity={stroke.isHighlighter ? 0.45 : 1}
+                            />
+                          );
+                        })}
+                        {activeDrawingStroke && (
+                          <path
+                            d={renderStrokePath(activeDrawingStroke)}
+                            stroke={activeDrawingStroke.color}
+                            strokeWidth={activeDrawingStroke.width}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            fill="none"
+                            opacity={activeDrawingStroke.isHighlighter ? 0.45 : 1}
+                          />
+                        )}
+                      </svg>
+
+                      {/* Real-time Virtual Laser Pointer Dot rendered inside the aspect-ratio locked frame */}
+                      {presentation?.laserActive && presentation.laserX !== undefined && presentation.laserY !== undefined && (
+                        <div 
+                          style={{
+                            left: `${presentation.laserX}%`,
+                            top: `${presentation.laserY}%`,
+                            transform: 'translate(-50%, -50%)',
+                            width: '15px',
+                            height: '15px',
+                            borderRadius: '50%',
+                            backgroundColor: 'red',
+                            boxShadow: '0 0 8px 3px rgba(255, 0, 0, 0.8), 0 0 15px 5px rgba(255, 0, 0, 0.4)',
+                            position: 'absolute',
+                            pointerEvents: 'none',
+                            zIndex: 80,
+                            transition: 'top 0.05s ease-out, left 0.05s ease-out'
+                          }}
+                        />
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center w-full h-full p-4 relative">
+                <div 
+                  style={{ 
+                    aspectRatio: `${videoAspectRatio}`,
+                    width: '100%',
+                    height: 'auto',
+                    maxWidth: '100%',
+                    maxHeight: 'calc(100% - 40px)',
+                  }}
+                  className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden p-1.5 flex items-center justify-center shadow-2xl mx-auto"
+                >
+                  <ScreenCapture 
+                    isCapturing={isCapturing} 
+                    stream={stream} 
+                    error={error} 
+                    onStart={startCapture} 
+                    onStop={stopCapture} 
+                    logoUrl={logoUrl}
+                    isProjectorMode={isProjectorMode}
+                    videoRef={videoRef}
+                    onLoadedMetadata={handleVideoLoadedMetadata}
+                  />
+
+                  {/* Real-time Presenter Live Slide Drawing Layer for Projector Screen */}
+                  <svg
+                    viewBox="0 0 1000 1000"
+                    preserveAspectRatio="none"
+                    className="absolute inset-0 w-full h-full pointer-events-none z-70"
+                  >
+                    {currentSlideStrokes.map((stroke, idx) => {
+                      if (stroke.text) {
+                        const pt = stroke.points[0];
+                        if (!pt) return null;
+                        const fontSize = Math.max(26, stroke.width * 5);
+                        return (
+                          <text
+                            key={`projector-text-stroke-${idx}`}
+                            x={pt.x}
+                            y={pt.y}
+                            fill={stroke.color}
+                            fontSize={fontSize}
+                            fontWeight="bold"
+                            fontFamily="sans-serif"
+                          >
+                            {stroke.text}
+                          </text>
+                        );
+                      }
+                      const pathD = renderStrokePath(stroke);
+                      if (!pathD) return null;
+                      return (
+                        <path
+                          key={`projector-stroke-${idx}`}
+                          d={pathD}
+                          stroke={stroke.color}
+                          strokeWidth={stroke.width}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          fill="none"
+                          opacity={stroke.isHighlighter ? 0.45 : 1}
+                        />
+                      );
+                    })}
+                    {activeDrawingStroke && (
+                      <path
+                        d={renderStrokePath(activeDrawingStroke)}
+                        stroke={activeDrawingStroke.color}
+                        strokeWidth={activeDrawingStroke.width}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        fill="none"
+                        opacity={activeDrawingStroke.isHighlighter ? 0.45 : 1}
+                      />
+                    )}
+                  </svg>
+
+                  {/* Real-time Virtual Laser Pointer Dot rendered inside the aspect-ratio locked frame */}
+                  {presentation?.laserActive && presentation.laserX !== undefined && presentation.laserY !== undefined && (
+                    <div 
+                      style={{
+                        left: `${presentation.laserX}%`,
+                        top: `${presentation.laserY}%`,
+                        transform: 'translate(-50%, -50%)',
+                        width: '15px',
+                        height: '15px',
+                        borderRadius: '50%',
+                        backgroundColor: 'red',
+                        boxShadow: '0 0 8px 3px rgba(255, 0, 0, 0.8), 0 0 15px 5px rgba(255, 0, 0, 0.4)',
+                        position: 'absolute',
+                        pointerEvents: 'none',
+                        zIndex: 80,
+                        transition: 'top 0.05s ease-out, left 0.05s ease-out'
+                      }}
+                    />
+                  )}
+            </div>
+
+            {/* Unobtrusive Centered Slide Number under slide display in Projector Mode */}
+            {isCapturing && (
+              <div className="mt-2.5 flex items-center justify-center shrink-0 z-20">
+                <div className="px-3.5 py-1 rounded-full bg-slate-900/80 backdrop-blur-md border border-slate-800/80 text-slate-300 shadow-xl flex items-center gap-1.5 text-xs font-semibold tracking-wide select-none">
+                  <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400">Slide</span>
+                  <span className="font-mono font-bold text-osu-orange text-sm">
+                    {currentSlide !== null ? currentSlide : (presentation?.currentSlide ?? 1)}
+                  </span>
+                  {totalSlides ? (
+                    <span className="text-slate-500 text-xs font-mono">/ {totalSlides}</span>
+                  ) : null}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Floating Setup Instructions Bubble - Shown in the top-left when not capturing */}
+        {!isCapturing && !error && !isProjectorMode && (
+          <button 
+            onClick={() => setShowInstructions(true)}
+            className="absolute top-4 left-4 z-[70] flex items-center gap-2 px-3 py-1.5 bg-slate-900/90 hover:bg-slate-800 border border-slate-700/50 text-white text-xs font-bold rounded-full shadow-lg transition-all hover:scale-105 active:scale-95 cursor-pointer backdrop-blur-sm"
+            title="Show Presentation Setup Instructions"
+          >
+            <Info className="w-4 h-4 text-osu-orange" />
+            <span>Setup Instructions</span>
+          </button>
+        )}
+
+        {/* Setup Bridge Card - Shown when not capturing and no error */}
+        {!isCapturing && !error && !isProjectorMode && (
+          <div className="absolute inset-0 z-[60] flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4">
+            <div className="bg-slate-900/90 border border-slate-800 rounded-3xl shadow-2xl p-8 max-w-sm w-full text-center flex flex-col items-center justify-center relative">
+              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 transition-all duration-500 shadow-lg ${
+                isBridgeConnected 
+                  ? 'bg-green-500/10 border border-green-500/35 text-green-400 shadow-green-500/5 animate-pulse' 
+                  : 'bg-osu-orange/10 border border-osu-orange/30 text-osu-orange shadow-orange-500/5'
+              }`}>
+                <PresentationIcon className="w-7 h-7" />
+              </div>
+              
+              <h2 className="text-xl font-black text-white mb-1 tracking-tight">Ready to Present?</h2>
+              
+              <div className="flex items-center gap-1.5 justify-center mb-6">
+                <span className={`w-2 h-2 rounded-full ${isBridgeConnected ? 'bg-green-500 animate-pulse' : 'bg-osu-orange'}`} />
+                <span className={`text-[11px] font-black uppercase tracking-wider ${isBridgeConnected ? 'text-green-500' : 'text-osu-orange'}`}>
+                  {isBridgeConnected ? 'ActiveDeck Bridge Connected' : 'ActiveDeck Bridge Offline'}
+                </span>
+              </div>
+              
+              <div className="w-full space-y-3.5">
+                {isBridgeConnected ? (
+                  <>
+                    <button
+                      onClick={startCapture}
+                      className="flex items-center justify-center gap-2.5 w-full py-3.5 bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-xl shadow-green-650/20 text-sm cursor-pointer"
+                    >
+                      <Play className="w-4 h-4 fill-current" />
+                      Start Presentation
+                    </button>
+                    <p className="text-[10px] text-slate-500 leading-normal font-medium">
+                      Ensure your PowerPoint is in Slide Show mode (F5) before sharing.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <a 
+                      href="https://github.com/jstnzmwlt-phd/ActiveDeck/releases/download/v1.0.0/activedeck_bridge.2.0.zip"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-2.5 w-full py-3.5 bg-osu-orange hover:bg-[#c03900] text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg shadow-orange-500/20 text-sm"
+                    >
+                      <Download className="w-4 h-4" />
+                      Download ActiveDeck Bridge
+                    </a>
+                    
+                    <div className="pt-2">
+                      <button
+                        onClick={() => {
+                          setUseWithoutBridge(true);
+                          startCapture();
+                        }}
+                        className="text-xs text-slate-400 hover:text-white transition-colors underline font-bold cursor-pointer bg-transparent border-0 p-0"
+                      >
+                        Start Presentation in Manual Mode (No Bridge)
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Stunning Classroom Welcome & Join Hub - Shown in projector mode when offline */}
+        {!isCapturing && isProjectorMode && (
+          <div className="absolute inset-0 z-[65] flex flex-col items-center justify-center bg-slate-950 p-6 text-center text-white overflow-hidden">
+            <div className="max-w-xl w-full flex flex-col items-center gap-5 md:gap-6 animate-in fade-in zoom-in-95 duration-500">
+              {/* Logo / Brand Header */}
+              <div className="flex flex-col items-center gap-2">
+                {logoUrl ? (
+                  <img src={logoUrl} alt="ActiveDeck" className="h-12 md:h-14 object-contain max-h-[56px]" />
+                ) : (
+                  <div className="flex items-center gap-2.5 text-2xl md:text-3xl font-black uppercase tracking-wider text-osu-orange">
+                    <MonitorPlay className="w-8 h-8 md:w-9 md:h-9" />
+                    <span>ActiveDeck</span>
+                  </div>
+                )}
+                <p className="text-slate-400 text-sm md:text-base font-semibold tracking-wide mt-1">
+                  Welcome! The presentation is about to begin.
+                </p>
+              </div>
+
+               {/* QR Code Card */}
+              <div className="bg-white p-4 rounded-2xl shadow-xl flex flex-col items-center justify-center border-2 border-osu-orange/20 hover:scale-102 transition-transform duration-300">
+                <QRCodeSVG
+                  value={`https://active-deck.app/chat?pin=${presentation?.pinCode || ''}`}
+                  size={190}
+                  level="H"
+                  includeMargin={false}
+                />
+              </div>
+
+              {/* PIN & Connection Info */}
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <div className="text-slate-500 text-xs md:text-sm font-black uppercase tracking-widest">
+                    Scan to Join, or Go to:
+                  </div>
+                  <div className="text-2xl md:text-3xl font-black text-white bg-slate-900 border border-slate-800 px-7 py-3 rounded-2xl inline-block tracking-wider shadow-inner">
+                    active-deck.app/chat
+                  </div>
+                </div>
+                
+                <div className="flex flex-col items-center gap-0.5 pt-1">
+                  <div className="text-slate-500 text-[10px] md:text-xs font-black uppercase tracking-widest">
+                    Enter Join Code (PIN):
+                  </div>
+                  <div className="text-5xl md:text-6xl font-black tracking-wider text-osu-orange select-all font-mono">
+                    {presentation?.pinCode ? presentation.pinCode.replace(/(\d{3})(?=\d)/g, '$1 ') : '--- ---'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Detailed Instructions Modal Overlay */}
+        {showInstructions && (
+          <div 
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 backdrop-blur-md p-4 animate-in fade-in duration-205"
+            onClick={() => setShowInstructions(false)}
+          >
+            <div 
+              className="bg-white rounded-3xl shadow-2xl border border-slate-200 p-6 max-w-lg w-full text-center relative animate-in zoom-in-95 duration-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Close Button */}
+              <button 
+                onClick={() => setShowInstructions(false)}
+                className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer border-0 bg-transparent"
+                title="Close Instructions"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="w-10 h-10 bg-osu-orange/10 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <PresentationIcon className="w-5 h-5 text-osu-orange" />
+              </div>
+              
+              <h2 className="text-lg font-black text-slate-900 mb-0.5">Ready to Present?</h2>
+              <div className="text-slate-500 text-xs mb-4">
+                {isBridgeConnected ? (
+                  <span className="text-green-600 font-bold flex items-center justify-center gap-1">
+                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                    Bridge Connected & Ready
+                  </span>
+                ) : (
+                  <span>Choose your presentation type to get started.</span>
+                )}
+              </div>
+              
+              {/* Tabbed Interface */}
+              <div className="flex p-1 bg-slate-100 rounded-xl mb-4">
+                <button
+                  onClick={() => setActiveTab('single')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer border-0 ${
+                    activeTab === 'single' ? 'bg-white text-osu-orange shadow-sm' : 'bg-transparent text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <Monitor className="w-3.5 h-3.5" />
+                  Single Screen
+                </button>
+                <button
+                  onClick={() => setActiveTab('dual')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer border-0 ${
+                    activeTab === 'dual' ? 'bg-white text-osu-orange shadow-sm' : 'bg-transparent text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <MonitorPlay className="w-3.5 h-3.5" />
+                  Dual Screen
+                </button>
+                <button
+                  onClick={() => setActiveTab('manual')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer border-0 ${
+                    activeTab === 'manual' ? 'bg-white text-osu-orange shadow-sm' : 'bg-transparent text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <MousePointer2 className="w-3.5 h-3.5" />
+                  Manual Mode
+                </button>
+              </div>
+
+              <div className="text-left mb-4 min-h-[380px] flex flex-col">
+                {activeTab === 'single' && (
+                  <div className="flex-1 flex flex-col space-y-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <div>
+                      <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider mb-2">Scenario 1: Control & Sync</h3>
+                      <div className="space-y-1.5">
+                        <div className="flex gap-2.5">
+                          <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">1</div>
+                          <p className="text-xs text-slate-600 leading-relaxed">Download <span className="font-bold">ActiveDeck Bridge (.zip)</span> below to computer.</p>
+                        </div>
+                        <div className="flex gap-2.5">
+                          <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">2</div>
+                          <p className="text-xs text-slate-600 leading-relaxed">Unzip file (right click and <span className="font-bold">"Extract All"</span>).</p>
+                        </div>
+                        <div className="flex gap-2.5">
+                          <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">3</div>
+                          <p className="text-xs text-slate-600 leading-relaxed">Install file (<span className="font-bold">activedeck_bridge.exe</span>).</p>
+                        </div>
+                        <div className="flex gap-2.5">
+                          <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">4</div>
+                          <p className="text-xs text-slate-600 leading-relaxed">Open PowerPoint and <span className="font-bold">start show (F5)</span>.</p>
+                        </div>
+                        <div className="flex gap-2.5">
+                          <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">5</div>
+                          <p className="text-xs text-slate-600 leading-relaxed">Press <span className="font-bold">Windows key</span> on keyboard and select browser.</p>
+                        </div>
+                        <div 
+                          className="mt-1.5 p-2 bg-slate-50 rounded-lg border-2" 
+                          style={{ borderColor: secondaryColor }}
+                        >
+                          <p className="text-[10px] text-slate-500 italic text-center leading-normal">
+                            Advance slides using the <span className="font-bold">Prev/Next</span> button in ActiveDeck, not the PowerPoint.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-auto space-y-2">
+                      {!isBridgeConnected ? (
+                        <>
+                          <a 
+                            href="https://github.com/jstnzmwlt-phd/ActiveDeck/releases/download/v1.0.0/activedeck_bridge.2.0.zip"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center justify-center gap-2.5 w-full py-2.5 bg-osu-orange hover:bg-[#c03900] text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg shadow-orange-500/20 text-sm"
+                          >
+                            <Download className="w-4 h-4" />
+                            Download ActiveDeck Bridge
+                          </a>
+                          <div className="flex gap-2.5 p-2 bg-amber-50 rounded-xl border border-amber-100">
+                            <ShieldAlert className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                            <p className="text-[10px] text-amber-700 leading-relaxed">
+                              If Windows shows a protection warning, click <span className="font-bold">"More Info"</span> and then <span className="font-bold">"Run Anyway"</span>.
+                            </p>
+                          </div>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setShowInstructions(false);
+                            startCapture();
+                          }}
+                          className="flex items-center justify-center gap-2.5 w-full py-3 bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-xl shadow-green-500/30 text-base cursor-pointer border-0"
+                        >
+                          <Play className="w-5 h-5 fill-current" />
+                          Start Your Presentation
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'dual' && (
+                  <div className="flex-1 flex flex-col space-y-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <div>
+                      <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider mb-2">Scenario 2: Dual Screen Pro</h3>
+                      <div className="space-y-1.5">
+                        <div className="flex gap-2.5">
+                          <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">1</div>
+                          <p className="text-xs text-slate-600 leading-relaxed">Download <span className="font-bold">ActiveDeck Bridge (.zip)</span> below to computer.</p>
+                        </div>
+                        <div className="flex gap-2.5">
+                          <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">2</div>
+                          <p className="text-xs text-slate-600 leading-relaxed">Unzip file (right click and <span className="font-bold">"Extract All"</span>).</p>
+                        </div>
+                        <div className="flex gap-2.5">
+                          <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">3</div>
+                          <p className="text-xs text-slate-600 leading-relaxed">Install file (<span className="font-bold">activedeck_bridge.exe</span>).</p>
+                        </div>
+                        <div className="flex gap-2.5">
+                          <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">4</div>
+                          <p className="text-xs text-slate-600 leading-relaxed">Open PPT and start <span className="font-bold">Slide Show (F5)</span> on projector.</p>
+                        </div>
+                        <div className="flex gap-2.5">
+                          <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">5</div>
+                          <p className="text-xs text-slate-600 leading-relaxed">Drag this browser to your <span className="font-bold">secondary monitor</span>.</p>
+                        </div>
+                        <div 
+                          className="mt-1.5 p-2 bg-slate-50 rounded-lg border-2" 
+                          style={{ borderColor: secondaryColor }}
+                        >
+                          <p className="text-[10px] text-slate-500 italic text-center leading-normal">
+                            Advance slides using the <span className="font-bold">Prev/Next</span> button in ActiveDeck, not the PowerPoint.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-auto space-y-2">
+                      {!isBridgeConnected ? (
+                        <>
+                          <a 
+                            href="https://github.com/jstnzmwlt-phd/ActiveDeck/releases/download/v1.0.0/activedeck_bridge.2.0.zip"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center justify-center gap-2.5 w-full py-2.5 bg-osu-orange hover:bg-[#c03900] text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg shadow-orange-500/20 text-sm"
+                          >
+                            <Download className="w-4 h-4" />
+                            Download ActiveDeck Bridge
+                          </a>
+                          <div className="flex gap-2.5 p-2 bg-amber-50 rounded-xl border border-amber-100">
+                            <ShieldAlert className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                            <p className="text-[10px] text-amber-700 leading-relaxed">
+                              If Windows shows a protection warning, click <span className="font-bold">"More Info"</span> and then <span className="font-bold">"Run Anyway"</span>.
+                            </p>
+                          </div>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setShowInstructions(false);
+                            startCapture();
+                          }}
+                          className="flex items-center justify-center gap-2.5 w-full py-3 bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-xl shadow-green-500/30 text-base cursor-pointer border-0"
+                        >
+                          <Play className="w-5 h-5 fill-current" />
+                          Start Your Presentation
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'manual' && (
+                  <div className="flex-1 flex flex-col space-y-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <div>
+                      <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider mb-2">Scenario 3: Manual Mode</h3>
+                      <div className="space-y-1.5">
+                        <div className="flex gap-2.5">
+                          <div className="flex-shrink-0 w-5 h-5 bg-slate-200 text-slate-600 rounded-full flex items-center justify-center text-[10px] font-bold">1</div>
+                          <p className="text-xs text-slate-600 leading-relaxed">Click <span className="font-bold">'Start Presentation'</span> below.</p>
+                        </div>
+                        <div className="flex gap-2.5">
+                          <div className="flex-shrink-0 w-5 h-5 bg-slate-200 text-slate-600 rounded-full flex items-center justify-center text-[10px] font-bold">2</div>
+                          <p className="text-xs text-slate-600 leading-relaxed">Use your <span className="font-bold">clicker/keyboard</span> to move slides manually.</p>
+                        </div>
+                        <div className="flex gap-2.5">
+                          <div className="flex-shrink-0 w-5 h-5 bg-slate-200 text-slate-600 rounded-full flex items-center justify-center text-[10px] font-bold">3</div>
+                          <p className="text-xs text-slate-600 leading-relaxed">Use <span className="font-bold">ActiveDeck</span> on a secondary screen with your PPT on the main screen. Advance the main screen PPT.</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-auto space-y-2">
+                      <button
+                        onClick={() => {
+                          setShowInstructions(false);
+                          setUseWithoutBridge(true);
+                          startCapture();
+                        }}
+                        className="flex items-center justify-center gap-2.5 w-full py-3 bg-slate-800 hover:bg-slate-900 text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-xl shadow-slate-900/30 text-base cursor-pointer border-0"
+                      >
+                        <Play className="w-5 h-5 fill-current" />
+                        Start Presentation
+                      </button>
+                      <div className="flex gap-2.5 p-2 bg-blue-50 rounded-xl border border-blue-100">
+                        <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                        <p className="text-[10px] text-blue-700 leading-relaxed">
+                          <span className="font-bold">Note:</span> There will be no slide stamp on chat messages when not using the ActiveDeck Bridge.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+
+              
+              <div className="pt-4 border-t border-slate-100 flex items-center justify-center gap-2 text-slate-400">
+                <div className={`w-2 h-2 rounded-full animate-pulse ${isBridgeConnected || activeTab === 'manual' ? 'bg-green-500' : 'bg-red-500'}`} />
+                <span className="text-[10px] font-bold uppercase tracking-widest">
+                  {activeTab === 'manual' 
+                    ? 'Ready for manual presentation' 
+                    : isBridgeConnected 
+                      ? 'Bridge Online & Ready' 
+                      : 'Waiting for ActiveDeck connection...'}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+
+
+
+      {/* Footer Navigation Bar - Always visible when presenting */}
+      {isCapturing && !isProjectorMode && (
+        <div className="bg-slate-900 border-t border-slate-800 px-4 py-3 flex items-center justify-center z-[70] shrink-0 select-none relative">
+          
+          {/* Left Side: Decoupled Fullscreen Toggle */}
+          <div className="absolute left-4">
+            <button
+              onClick={toggleFullscreen}
+              className="flex items-center justify-center w-10 h-10 bg-slate-950/40 hover:bg-slate-850 text-slate-400 hover:text-white rounded-xl transition-all active:scale-95 border border-slate-800 cursor-pointer shadow-lg hover:scale-105"
+              title={isFullscreen ? "Exit Full Screen" : "Enter Full Screen"}
+            >
+              {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+            </button>
+          </div>
+
+          {/* Center: Slide Navigation Cluster */}
+          <div className="flex items-center gap-3 p-1 bg-slate-950/60 rounded-xl border border-slate-800 shadow-inner">
+            <button
+              onClick={() => handleSlideMove('prev')}
+              className="flex items-center justify-center w-10 h-10 bg-slate-900/80 hover:bg-slate-800 text-white rounded-lg transition-all active:scale-95 border border-slate-800 group/btn cursor-pointer"
+              title="Previous Slide"
+            >
+              <ChevronLeft className="w-5 h-5 group-hover/btn:-translate-x-0.5 transition-transform" />
+            </button>
+            
+            {totalSlides !== null && currentSlide !== null ? (
+              <>
+                <div className="w-px h-6 bg-slate-800/80" />
+                <div className="px-4 py-1 text-[11px] font-black uppercase tracking-widest text-slate-200 bg-slate-950/80 rounded-lg border border-slate-850/50 min-w-[120px] text-center font-mono">
+                  Slide {currentSlide} of {totalSlides}
+                </div>
+                <div className="w-px h-6 bg-slate-800/80" />
+              </>
+            ) : null}
+
+            <button
+              onClick={() => handleSlideMove('next')}
+              className="flex items-center justify-center w-10 h-10 bg-osu-orange hover:bg-[#c03900] text-white rounded-lg transition-all active:scale-95 border border-orange-600/30 group/btn shadow-lg shadow-orange-500/10 cursor-pointer"
+              title="Next Slide"
+            >
+              <ChevronRight className="w-5 h-5 group-hover/btn:translate-x-0.5 transition-transform" />
+            </button>
+          </div>
+
+          {/* Right Side: Audience Slide Preview Pushed Status Indicator & Push Action */}
+          <div className="absolute right-4 flex items-center gap-2">
+            {/* Push Image to Notes Button */}
+            <button
+              onClick={handlePushImageToNotes}
+              disabled={isPushingToNotes}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-500 text-white text-[11px] font-bold uppercase tracking-wider rounded-xl border border-orange-500/30 shadow-lg shadow-orange-500/15 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+              title="Push current display window image to audience notes as a new note tab"
+            >
+              {isPushingToNotes ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+              ) : (
+                <Send className="w-3.5 h-3.5 text-white" />
+              )}
+              <span>{isPushingToNotes ? 'Pushing...' : 'Push Image to Notes'}</span>
+            </button>
+            {currentSlidePreviewUrl ? (
+              <div 
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 text-[11px] font-bold rounded-xl shadow-lg animate-in fade-in duration-200"
+                title="Current slide image preview is live and displayed on audience chat/notes page"
+              >
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className="tracking-wide">Audience Preview Pushed</span>
+              </div>
+            ) : isUploadingPreview || isPushingToNotes ? (
+              <div 
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-950/80 border border-amber-500/40 text-amber-400 text-[11px] font-bold rounded-xl shadow-lg animate-pulse"
+                title="Capturing and pushing slide image preview to audience page..."
+              >
+                <Loader2 className="w-4 h-4 text-amber-400 animate-spin shrink-0" />
+                <span className="tracking-wide">Pushing Preview...</span>
+              </div>
+            ) : (
+              <div 
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-950/80 border border-slate-800 text-slate-400 text-[11px] font-medium rounded-xl shadow-sm"
+                title="Waiting for slide image preview to push to audience page"
+              >
+                <Clock className="w-4 h-4 text-slate-400 shrink-0" />
+                <span className="tracking-wide">Preview Pending</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Popped-out Full Preview Display with Pen Function Menu */}
+      {isPenActive && !isProjectorMode && (
+        <div className="fixed inset-0 z-[150] bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center p-3 animate-in fade-in duration-200 select-none">
+          
+          {/* Floating Top Pen Function Menu */}
+          <div className="mb-3 px-4 py-2 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-wrap items-center justify-center gap-3 z-50 text-slate-100 max-w-full">
+            
+            {/* Tool Selector */}
+            <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-850">
+              <button
+                onClick={() => setPenTool('pen')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  penTool === 'pen' ? 'bg-osu-orange text-white shadow-md' : 'text-slate-400 hover:text-white'
+                }`}
+                title="Freehand Pen Tool"
+              >
+                <Pen className="w-3.5 h-3.5" />
+                <span>Pen</span>
+              </button>
+              <button
+                onClick={() => setPenTool('arrow')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  penTool === 'arrow' ? 'bg-osu-orange text-white shadow-md' : 'text-slate-400 hover:text-white'
+                }`}
+                title="Arrow Tool (Drag from start to tip)"
+              >
+                <MoveRight className="w-3.5 h-3.5" />
+                <span>Arrow</span>
+              </button>
+              <button
+                onClick={() => setPenTool('highlighter')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  penTool === 'highlighter' ? 'bg-amber-500 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                }`}
+                title="Highlighter Tool"
+              >
+                <Highlighter className="w-3.5 h-3.5" />
+                <span>Highlighter</span>
+              </button>
+              <button
+                onClick={() => setPenTool('text')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  penTool === 'text' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                }`}
+                title="Text Tool (Click on slide to add text)"
+              >
+                <Type className="w-3.5 h-3.5" />
+                <span>Text</span>
+              </button>
+              <button
+                onClick={() => setPenTool('eraser')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  penTool === 'eraser' ? 'bg-red-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                }`}
+                title="Eraser Tool"
+              >
+                <Eraser className="w-3.5 h-3.5" />
+                <span>Eraser</span>
+              </button>
+            </div>
+
+            {/* Color Palette (Pen / Arrow / Text vs Highlighter) */}
+            {penTool === 'pen' || penTool === 'arrow' || penTool === 'text' ? (
+              <div className="flex items-center gap-1.5 border-l border-slate-800 pl-3">
+                {[
+                  { color: '#EF4444', name: 'Red (Default)' },
+                  { color: '#eb5d00', name: 'OSU Orange' },
+                  { color: '#EAB308', name: 'Yellow' },
+                  { color: '#22C55E', name: 'Green' },
+                  { color: '#3B82F6', name: 'Blue' },
+                  { color: '#FFFFFF', name: 'White' },
+                  { color: '#000000', name: 'Black' }
+                ].map(c => (
+                  <button
+                    key={c.color}
+                    onClick={() => setPenColor(c.color)}
+                    className={`w-6 h-6 rounded-full border-2 transition-transform cursor-pointer ${
+                      penColor === c.color
+                        ? 'scale-125 border-white ring-2 ring-red-500'
+                        : 'border-slate-700 hover:scale-110'
+                    }`}
+                    style={{ backgroundColor: c.color }}
+                    title={c.name}
+                  />
+                ))}
+              </div>
+            ) : penTool === 'highlighter' ? (
+              <div className="flex items-center gap-1.5 border-l border-slate-800 pl-3">
+                {[
+                  { color: '#EAB308', name: 'Yellow Highlighter' },
+                  { color: '#EF4444', name: 'Red Highlighter' },
+                  { color: '#22C55E', name: 'Green Highlighter' },
+                  { color: '#3B82F6', name: 'Blue Highlighter' }
+                ].map(c => (
+                  <button
+                    key={c.color}
+                    onClick={() => setHighlighterColor(c.color)}
+                    className={`w-6 h-6 rounded-full border-2 transition-transform cursor-pointer ${
+                      highlighterColor === c.color
+                        ? 'scale-125 border-white ring-2 ring-amber-400'
+                        : 'border-slate-700 hover:scale-110'
+                    }`}
+                    style={{ backgroundColor: c.color }}
+                    title={c.name}
+                  />
+                ))}
+              </div>
+            ) : null}
+
+            {/* Stroke Thickness */}
+            {penTool !== 'eraser' && (
+              <div className="flex items-center gap-1 border-l border-slate-800 pl-3 bg-slate-950 p-1 rounded-xl">
+                {[
+                  { label: 'Fine', value: 3 },
+                  { label: 'Med', value: 6 },
+                  { label: 'Bold', value: 12 }
+                ].map(w => (
+                  <button
+                    key={w.value}
+                    onClick={() => setPenWidth(w.value)}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                      penWidth === w.value ? 'bg-slate-800 text-osu-orange border border-osu-orange/40' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {w.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Actions: Undo / Redo / Clear */}
+            <div className="flex items-center gap-1.5 border-l border-slate-800 pl-3">
+              <button
+                onClick={handleUndoDrawing}
+                disabled={!(drawingUndoStack[activeSlideKey]?.length > 0)}
+                className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                title="Undo Stroke"
+              >
+                <Undo2 className="w-4 h-4" />
+              </button>
+              <button
+                onClick={handleRedoDrawing}
+                disabled={!(drawingRedoStack[activeSlideKey]?.length > 0)}
+                className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                title="Redo Stroke"
+              >
+                <Redo2 className="w-4 h-4" />
+              </button>
+              <button
+                onClick={handleClearSlideDrawing}
+                disabled={currentSlideStrokes.length === 0}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-950/60 border border-red-800/60 text-red-300 hover:bg-red-900 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed text-xs font-bold transition-all cursor-pointer"
+                title="Clear all drawings on this slide"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Clear Slide</span>
+              </button>
+            </div>
+
+            {/* Close Pen Mode */}
+            <button
+              onClick={() => setIsPenActive(false)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-osu-orange hover:bg-[#c03900] text-white rounded-xl text-xs font-bold transition-all ml-auto cursor-pointer shadow-lg"
+              title="Exit Pen Drawing Mode"
+            >
+              <X className="w-4 h-4" />
+              <span>Exit Pen</span>
+            </button>
+
+          </div>
+
+          {/* Popped-out Full Slide Drawing Frame */}
+          <div 
+            style={{
+              aspectRatio: `${videoAspectRatio}`,
+              width: '100%',
+              height: 'auto',
+              maxWidth: `calc((100vh - 160px) * ${videoAspectRatio})`,
+              maxHeight: 'calc(100vh - 160px)'
+            }}
+            className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden p-1.5 flex items-center justify-center shadow-2xl mx-auto"
+          >
+            <ScreenCapture 
+              isCapturing={isCapturing} 
+              stream={stream} 
+              error={error} 
+              onStart={startCapture} 
+              onStop={stopCapture} 
+              logoUrl={logoUrl}
+              isProjectorMode={isProjectorMode}
+              videoRef={videoRef}
+              onLoadedMetadata={handleVideoLoadedMetadata}
+            />
+
+            {/* Interactive SVG Drawing Layer */}
+            <svg
+              viewBox="0 0 1000 1000"
+              preserveAspectRatio="none"
+              className="absolute inset-0 w-full h-full cursor-crosshair pointer-events-auto z-70"
+              onPointerDown={handleDrawingPointerDown}
+              onPointerMove={handleDrawingPointerMove}
+              onPointerUp={handleDrawingPointerUp}
+              onPointerLeave={handleDrawingPointerUp}
+            >
+              {currentSlideStrokes.map((stroke, idx) => {
+                if (stroke.text) {
+                  const pt = stroke.points[0];
+                  if (!pt) return null;
+                  const fontSize = Math.max(26, stroke.width * 5);
+                  return (
+                    <text
+                      key={`popped-text-stroke-${idx}`}
+                      x={pt.x}
+                      y={pt.y}
+                      fill={stroke.color}
+                      fontSize={fontSize}
+                      fontWeight="bold"
+                      fontFamily="sans-serif"
+                    >
+                      {stroke.text}
+                    </text>
+                  );
+                }
+                const pathD = renderStrokePath(stroke);
+                if (!pathD) return null;
+                return (
+                  <path
+                    key={`popped-stroke-${idx}`}
+                    d={pathD}
+                    stroke={stroke.color}
+                    strokeWidth={stroke.width}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    fill="none"
+                    opacity={stroke.isHighlighter ? 0.45 : 1}
+                  />
+                );
+              })}
+              {activeDrawingStroke && (
+                <path
+                  d={renderStrokePath(activeDrawingStroke)}
+                  stroke={activeDrawingStroke.color}
+                  strokeWidth={activeDrawingStroke.width}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  fill="none"
+                  opacity={activeDrawingStroke.isHighlighter ? 0.45 : 1}
+                />
+              )}
+            </svg>
+
+            {/* Virtual Laser Dot inside popped-out display */}
+            {presentation?.laserActive && presentation.laserX !== undefined && presentation.laserY !== undefined && (
+              <div 
+                style={{
+                  left: `${presentation.laserX}%`,
+                  top: `${presentation.laserY}%`,
+                  transform: 'translate(-50%, -50%)',
+                  width: '15px',
+                  height: '15px',
+                  borderRadius: '50%',
+                  backgroundColor: 'red',
+                  boxShadow: '0 0 8px 3px rgba(255, 0, 0, 0.8), 0 0 15px 5px rgba(255, 0, 0, 0.4)',
+                  position: 'absolute',
+                  pointerEvents: 'none',
+                  zIndex: 80,
+                }}
+              />
+            )}
+          </div>
+
+        </div>
+      )}
+
+    </div>
+  );
+};
