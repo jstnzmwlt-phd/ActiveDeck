@@ -1139,11 +1139,13 @@ const MessageCard: React.FC<MessageCardProps> = ({
   onOpenImageLightbox,
   isUnread = false
 }) => {
-  const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : (forceCollapsed ?? initialCollapsed));
+  const [isCollapsed, setIsCollapsed] = useState(
+    isInitiallyNew ? false : (isUnread ? false : (forceCollapsed ?? initialCollapsed))
+  );
 
   useEffect(() => {
-    setIsCollapsed(forceCollapsed ?? initialCollapsed);
-  }, [forceCollapsed, initialCollapsed]);
+    setIsCollapsed(isUnread ? false : (forceCollapsed ?? initialCollapsed));
+  }, [forceCollapsed, initialCollapsed, isUnread]);
 
   // Determine if this is a "new" message (within last 10 seconds) to trigger pulsation
   const isPulsingNew = !msg.timestamp || (Date.now() - msg.timestamp.toMillis() < 10000);
@@ -4088,6 +4090,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 forceCollapsed={collapsedMessageIds[msg.id]}
                 onToggleCollapse={(msgId, collapsed) => {
                   setCollapsedMessageIds(prev => ({ ...prev, [msgId]: collapsed }));
+                  if (collapsed && !readMessageIds[msgId]) {
+                    setReadMessageIds(prev => ({ ...prev, [msgId]: true }));
+                  }
                 }}
                 onOpenImageLightbox={(url, title) => {
                   setLightboxImageUrl(url);
@@ -4271,6 +4276,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                   forceCollapsed={collapsedMessageIds[msg.id]}
                   onToggleCollapse={(msgId, collapsed) => {
                     setCollapsedMessageIds(prev => ({ ...prev, [msgId]: collapsed }));
+                    if (collapsed && !readMessageIds[msgId]) {
+                      setReadMessageIds(prev => ({ ...prev, [msgId]: true }));
+                    }
                   }}
                   onOpenImageLightbox={(url, title) => {
                     setLightboxImageUrl(url);
