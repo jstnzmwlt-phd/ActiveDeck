@@ -972,7 +972,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
             })
           );
         } else {
-          let runningMessageRows: TableRow[] = [];
+          let runningMessageRows: any[] = [];
 
           const flushMessages = () => {
             if (runningMessageRows.length > 0) {
@@ -989,9 +989,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
               activityElements.push(
                 new Table({
                   width: { size: 100, type: WidthType.PERCENTAGE },
-                  rows: [tableHeader, ...runningMessageRows],
-                  spacing: { after: 240 }
-                })
+                  rows: [tableHeader, ...runningMessageRows]
+                }),
+                new Paragraph({ spacing: { after: 240 } })
               );
               runningMessageRows = [];
             }
@@ -1057,7 +1057,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                   }),
                   new Paragraph({
                     children: [
-                      new TextRun({ text: `Triggered on ${dateStr} at ${timeStr}${slideStr}`, size: 16, color: "64748B", italic: true })
+                      new TextRun({ text: `Triggered on ${dateStr} at ${timeStr}${slideStr}`, size: 16, color: "64748B", italics: true })
                     ],
                     spacing: { after: 120 }
                   })
@@ -1093,9 +1093,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                 activityElements.push(
                   new Table({
                     width: { size: 100, type: WidthType.PERCENTAGE },
-                    rows: pollRows,
-                    spacing: { after: 120 }
+                    rows: pollRows
                   }),
+                  new Paragraph({ spacing: { after: 120 } }),
                   new Paragraph({
                     children: [new TextRun({ text: `Total Votes: ${totalVotes}`, bold: true, font: "Arial", size: 18 })],
                     spacing: { after: 240 }
@@ -1118,7 +1118,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                   }),
                   new Paragraph({
                     children: [
-                      new TextRun({ text: `Triggered on ${dateStr} at ${timeStr}${slideStr}`, size: 16, color: "64748B", italic: true }),
+                      new TextRun({ text: `Triggered on ${dateStr} at ${timeStr}${slideStr}`, size: 16, color: "64748B", italics: true }),
                       new TextRun({ text: `\nPrompt: "${w.prompt}"`, bold: true, font: "Arial", size: 18 })
                     ],
                     spacing: { after: 120 }
@@ -1147,9 +1147,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                 activityElements.push(
                   new Table({
                     width: { size: 100, type: WidthType.PERCENTAGE },
-                    rows: wordRows,
-                    spacing: { after: 120 }
+                    rows: wordRows
                   }),
+                  new Paragraph({ spacing: { after: 120 } }),
                   new Paragraph({
                     children: [new TextRun({ text: `Total Submissions: ${totalWords}`, bold: true, font: "Arial", size: 18 })],
                     spacing: { after: 240 }
@@ -1172,7 +1172,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                   }),
                   new Paragraph({
                     children: [
-                      new TextRun({ text: `Triggered on ${dateStr} at ${timeStr}${slideStr}`, size: 16, color: "64748B", italic: true }),
+                      new TextRun({ text: `Triggered on ${dateStr} at ${timeStr}${slideStr}`, size: 16, color: "64748B", italics: true }),
                       new TextRun({ text: `\nQuestion: "${q.prompt}"`, bold: true, font: "Arial", size: 18 })
                     ],
                     spacing: { after: 120 }
@@ -1183,7 +1183,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                   return new Paragraph({
                     children: [
                       new TextRun({ text: `• `, bold: true, font: "Arial", size: 18 }),
-                      new TextRun({ text: `"${resp}"`, italic: true, font: "Arial", size: 18, color: "334155" })
+                      new TextRun({ text: `"${resp}"`, italics: true, font: "Arial", size: 18, color: "334155" })
                     ],
                     spacing: { before: 60, after: 60 }
                   });
