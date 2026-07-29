@@ -1977,10 +1977,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
                       {/* Bottom container: Confined Presenter Notes UI panel */}
                       <div 
-                        className="flex flex-col bg-slate-100 border border-slate-300 rounded-2xl p-5 select-none animate-in slide-in-from-bottom duration-300 shadow-md min-h-0 w-full"
+                        className="flex flex-col bg-slate-100 border border-slate-300 rounded-2xl px-5 py-3 select-none animate-in slide-in-from-bottom duration-300 shadow-md min-h-0 w-full"
                         style={{ height: `calc(${100 - leftTopHeightPercent}% - 6px)` }}
                       >
-                        <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-slate-200 select-none">
+                        <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-200 select-none">
                           <div className="flex items-center gap-2">
                             <FileText className="w-4 h-4 text-osu-orange" />
                             <span className="text-xs font-black uppercase tracking-wider text-slate-800">Presenter Notes</span>
