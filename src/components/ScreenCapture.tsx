@@ -96,7 +96,7 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
         )}
         
         {/* Bridge Clean Slide Fallback Image Layer (Provides crisp slide visual if video stream is black/paused) */}
-        {bridgeSlideImgSrc && (
+        {bridgeSlideImgSrc && (!isCapturing || !stream) && (
           <img 
             src={bridgeSlideImgSrc} 
             alt={`Slide ${currentSlide || 1}`}
