@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc, addDoc, collection, onSnapshot, deleteDoc, query, orderBy, limit, Timestamp, getDocs, where, serverTimestamp, writeBatch, updateDoc } from 'firebase/firestore';
 import { db, storage } from '../firebase';
 import { ref, listAll, deleteObject } from 'firebase/storage';
-import { Theme, SavedTheme, Message, Poll, WordCloud, OpenEndedQuestion } from '../types';
-import { Palette, UserCheck, Download, ArrowLeft, Loader2, Calendar, Database, AlertCircle, Trash2, Monitor, Plus, Mail, History, Copy, Check } from 'lucide-react';
+import { Theme, SavedTheme, Message, Poll, WordCloud, OpenEndedQuestion, Presentation } from '../types';
+import { Palette, UserCheck, Download, ArrowLeft, Loader2, Calendar, Database, AlertCircle, Trash2, Monitor, Plus, Mail, History, Copy, Check, FileText, Send, X, Presentation as PresentationIcon } from 'lucide-react';
 
 const formatHtmlTextWithLinks = (text: string): string => {
   if (!text) return '';
@@ -83,6 +83,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
   const [isDownloadingChatLog, setIsDownloadingChatLog] = useState(false);
   const [sessionSearch, setSessionSearch] = useState('');
   const [downloadingSessionId, setDownloadingSessionId] = useState<string | null>(null);
+  const [downloadModalSessionId, setDownloadModalSessionId] = useState<string | null>(null);
 
   // Presenter Management States
   const [selectedPresenterKeysForBulk, setSelectedPresenterKeysForBulk] = useState<string[]>([]);
@@ -715,6 +716,566 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
     link.setAttribute("href", encodedUri);
     link.setAttribute("download", `activedeck_attendance_session_${selectedSessionId.substring(0, 8)}.csv`);
     link.click();
+  };
+
+  const compositeSlideWithAnnotations = (
+    slideImgUrl: string,
+    presenterDrawingsJson?: string
+  ): Promise<Uint8Array | null> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth || 1920;
+        canvas.height = img.naturalHeight || 1080;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(null);
+          return;
+        }
+
+        // Draw base slide image
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        const drawStrokeList = (strokes: any[]) => {
+          strokes.forEach(stroke => {
+            if (!stroke.points || stroke.points.length === 0) return;
+            ctx.save();
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            const scaleX = canvas.width / 1000;
+            const scaleY = canvas.height / 1000;
+            const avgScale = (scaleX + scaleY) / 2;
+
+            ctx.lineWidth = stroke.width * avgScale;
+
+            if (stroke.isHighlighter) {
+              ctx.strokeStyle = 'rgba(234, 179, 8, 0.45)';
+            } else {
+              ctx.strokeStyle = stroke.color === '#FFFFFF' ? '#cbd5e1' : stroke.color;
+              ctx.fillStyle = stroke.color === '#FFFFFF' ? '#cbd5e1' : stroke.color;
+            }
+
+            const pts = stroke.points.map((p: any) => ({
+              x: p.x * scaleX,
+              y: p.y * scaleY
+            }));
+
+            if (stroke.text && pts[0]) {
+              const fontSize = Math.max(26, stroke.width * 5) * avgScale;
+              ctx.font = `bold ${fontSize}px sans-serif`;
+              ctx.fillText(stroke.text, pts[0].x, pts[0].y);
+            } else if (stroke.isArrow && pts.length >= 2) {
+              const p1 = pts[0];
+              const p2 = pts[pts.length - 1];
+              const dx = p2.x - p1.x;
+              const dy = p2.y - p1.y;
+              const angle = Math.atan2(dy, dx);
+              const headLength = Math.max(25, stroke.width * 4) * avgScale;
+              const arrowAngle = Math.PI / 6;
+
+              const h1x = p2.x - headLength * Math.cos(angle - arrowAngle);
+              const h1y = p2.y - headLength * Math.sin(angle - arrowAngle);
+              const h2x = p2.x - headLength * Math.cos(angle + arrowAngle);
+              const h2y = p2.y - headLength * Math.sin(angle + arrowAngle);
+
+              ctx.beginPath();
+              ctx.moveTo(p1.x, p1.y);
+              ctx.lineTo(p2.x, p2.y);
+              ctx.moveTo(p2.x, p2.y);
+              ctx.lineTo(h1x, h1y);
+              ctx.moveTo(p2.x, p2.y);
+              ctx.lineTo(h2x, h2y);
+              ctx.stroke();
+            } else {
+              ctx.beginPath();
+              pts.forEach((p: any, i: number) => {
+                if (i === 0) ctx.moveTo(p.x, p.y);
+                else ctx.lineTo(p.x, p.y);
+              });
+              if (pts.length === 1) {
+                ctx.lineTo(pts[0].x + 0.1, pts[0].y + 0.1);
+              }
+              ctx.stroke();
+            }
+            ctx.restore();
+          });
+        };
+
+        // Draw Presenter Drawings
+        if (presenterDrawingsJson) {
+          try {
+            const pStrokes = JSON.parse(presenterDrawingsJson);
+            if (Array.isArray(pStrokes)) drawStrokeList(pStrokes);
+          } catch {}
+        }
+
+        // Convert base64 dataUri to Uint8Array directly
+        try {
+          const dataUrl = canvas.toDataURL('image/png');
+          const parts = dataUrl.split(',');
+          if (parts.length >= 2) {
+            const binaryStr = window.atob(parts[1]);
+            const len = binaryStr.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+              bytes[i] = binaryStr.charCodeAt(i);
+            }
+            resolve(bytes);
+          } else {
+            resolve(null);
+          }
+        } catch (e) {
+          resolve(null);
+        }
+      };
+
+      img.onerror = () => {
+        // Fallback fetch
+        fetch(slideImgUrl)
+          .then(res => res.arrayBuffer())
+          .then(buf => resolve(new Uint8Array(buf)))
+          .catch(() => resolve(null));
+      };
+
+      img.src = slideImgUrl;
+    });
+  };
+
+  const handleDownloadPresentation = async (sessionId: string, includeChat = false) => {
+    setIsDownloadingChatLog(true);
+    setDownloadingSessionId(sessionId);
+    try {
+      const { collection, query, where, getDocs, doc, getDoc } = await import('firebase/firestore');
+      const { Document, Packer, Paragraph, TextRun, HeadingLevel, ImageRun, Table, TableRow, TableCell, WidthType, BorderStyle } = await import('docx');
+
+      // Fetch the full presentation session document
+      const sessionDocRef = doc(db, 'presentations', sessionId);
+      const sessionDocSnap = await getDoc(sessionDocRef);
+      if (!sessionDocSnap.exists()) {
+        alert("Presentation session not found!");
+        setIsDownloadingChatLog(false);
+        setDownloadingSessionId(null);
+        return;
+      }
+      const presentationData = sessionDocSnap.data() as Presentation;
+
+      // Query slide preview messages
+      const previewQuery = query(
+        collection(db, 'messages'),
+        where('presentationId', '==', sessionId),
+        where('isBackgroundPreview', '==', true)
+      );
+
+      const querySnapshot = await getDocs(previewQuery);
+      const previewsMap: Record<string, string> = {};
+      querySnapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        if (data.slide !== undefined && data.slide !== null && data.fileUrl) {
+          previewsMap[String(data.slide)] = data.fileUrl;
+        }
+      });
+
+      const sortedSlides = Object.keys(previewsMap).sort((a, b) => {
+        const numA = Number(a);
+        const numB = Number(b);
+        if (isNaN(numA) || isNaN(numB)) return a.localeCompare(b);
+        return numA - numB;
+      });
+
+      const slideElements: any[] = [];
+
+      for (const slide of sortedSlides) {
+        const slideNum = Number(slide);
+        const titleStr = isNaN(slideNum) ? slide : `Slide ${slide}`;
+        slideElements.push(
+          new Paragraph({
+            text: titleStr,
+            heading: HeadingLevel.HEADING_2,
+            spacing: { before: 240, after: 120 }
+          })
+        );
+
+        const slideImgUrl = previewsMap[slide];
+        if (slideImgUrl) {
+          const presenterJson = presentationData.presenterDrawings?.[slide];
+          const imgBytes = await compositeSlideWithAnnotations(slideImgUrl, presenterJson);
+          if (imgBytes) {
+            slideElements.push(
+              new Paragraph({
+                children: [
+                  new ImageRun({
+                    data: imgBytes,
+                    transformation: { width: 500, height: 280 },
+                    type: 'png'
+                  })
+                ],
+                spacing: { after: 180 }
+              })
+            );
+          }
+        }
+      }
+
+      const activityElements: any[] = [];
+      if (includeChat) {
+        // Query database for chat history and activities
+        const msgsQuery = query(collection(db, 'messages'), where('presentationId', '==', sessionId));
+        const msgsSnap = await getDocs(msgsQuery);
+        const msgs = msgsSnap.docs
+          .map(doc => ({ id: doc.id, ...doc.data() }))
+          .filter((m: any) => !m.isBackgroundPreview) as Message[];
+        msgs.sort((a, b) => (a.timestamp?.toMillis() || 0) - (b.timestamp?.toMillis() || 0));
+
+        const pollsQuery = query(collection(db, 'polls'), where('presentationId', '==', sessionId));
+        const pollsSnap = await getDocs(pollsQuery);
+        const ps = pollsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Poll[];
+        ps.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
+
+        const wcQuery = query(collection(db, 'wordClouds'), where('presentationId', '==', sessionId));
+        const wcSnap = await getDocs(wcQuery);
+        const wcs = wcSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as WordCloud[];
+        wcs.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
+
+        const oeqQuery = query(collection(db, 'openEndedQuestions'), where('presentationId', '==', sessionId));
+        const oeqSnap = await getDocs(oeqQuery);
+        const oeqs = oeqSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as OpenEndedQuestion[];
+        oeqs.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
+
+        const combinedItems = [
+          ...msgs.map(m => ({ ...m, type: 'message' as const })),
+          ...ps.map(p => ({ ...p, type: 'poll' as const })),
+          ...wcs.map(w => ({ ...w, type: 'wordCloud' as const })),
+          ...oeqs.map(q => ({ ...q, type: 'openEnded' as const }))
+        ].sort((a, b) => {
+          const timeA = ((a as any).timestamp || (a as any).createdAt)?.toMillis() || 0;
+          const timeB = ((b as any).timestamp || (b as any).createdAt)?.toMillis() || 0;
+          return timeA - timeB;
+        });
+
+        activityElements.push(
+          new Paragraph({
+            text: "Session Activity & Chat Log",
+            heading: HeadingLevel.HEADING_1,
+            pageBreakBefore: true,
+            spacing: { before: 240, after: 200 }
+          })
+        );
+
+        if (combinedItems.length === 0) {
+          activityElements.push(
+            new Paragraph({
+              text: "No chat messages or session activities recorded.",
+              spacing: { before: 120, after: 120 }
+            })
+          );
+        } else {
+          let runningMessageRows: TableRow[] = [];
+
+          const flushMessages = () => {
+            if (runningMessageRows.length > 0) {
+              const tableHeader = new TableRow({
+                children: [
+                  new TableCell({ width: { size: 10, type: WidthType.PERCENTAGE }, shading: { fill: "F1F5F9" }, children: [new Paragraph({ children: [new TextRun({ text: "Date", bold: true, font: "Arial", size: 18 })] })] }),
+                  new TableCell({ width: { size: 12, type: WidthType.PERCENTAGE }, shading: { fill: "F1F5F9" }, children: [new Paragraph({ children: [new TextRun({ text: "Time", bold: true, font: "Arial", size: 18 })] })] }),
+                  new TableCell({ width: { size: 8, type: WidthType.PERCENTAGE }, shading: { fill: "F1F5F9" }, children: [new Paragraph({ children: [new TextRun({ text: "Slide", bold: true, font: "Arial", size: 18 })] })] }),
+                  new TableCell({ width: { size: 15, type: WidthType.PERCENTAGE }, shading: { fill: "F1F5F9" }, children: [new Paragraph({ children: [new TextRun({ text: "Name", bold: true, font: "Arial", size: 18 })] })] }),
+                  new TableCell({ width: { size: 20, type: WidthType.PERCENTAGE }, shading: { fill: "F1F5F9" }, children: [new Paragraph({ children: [new TextRun({ text: "Email", bold: true, font: "Arial", size: 18 })] })] }),
+                  new TableCell({ width: { size: 35, type: WidthType.PERCENTAGE }, shading: { fill: "F1F5F9" }, children: [new Paragraph({ children: [new TextRun({ text: "Question / Message", bold: true, font: "Arial", size: 18 })] })] }),
+                ]
+              });
+              activityElements.push(
+                new Table({
+                  width: { size: 100, type: WidthType.PERCENTAGE },
+                  rows: [tableHeader, ...runningMessageRows],
+                  spacing: { after: 240 }
+                })
+              );
+              runningMessageRows = [];
+            }
+          };
+
+          for (const item of combinedItems) {
+            if (item.type === 'message') {
+              const m = item as Message;
+              const dateObj = m.timestamp?.toDate() || new Date();
+              const dateStr = dateObj.toLocaleDateString();
+              const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+              const slideStr = m.slide !== undefined && m.slide !== null ? `Slide ${m.slide}` : '-';
+              const nameStr = m.userName || '-';
+              const emailStr = m.userEmail || '-';
+              const textStr = m.text || '';
+              const likesStr = m.likes ? ` (👍 ${m.likes})` : '';
+
+              const cellBorders = {
+                top: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                bottom: { style: BorderStyle.SINGLE, size: 4, color: "E2E8F0" },
+                left: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                right: { style: BorderStyle.NONE, size: 0, color: "auto" }
+              };
+
+              runningMessageRows.push(
+                new TableRow({
+                  children: [
+                    new TableCell({ borders: cellBorders, children: [new Paragraph({ children: [new TextRun({ text: dateStr, font: "Arial", size: 18 })] })] }),
+                    new TableCell({ borders: cellBorders, children: [new Paragraph({ children: [new TextRun({ text: timeStr, font: "Arial", size: 18 })] })] }),
+                    new TableCell({ borders: cellBorders, children: [new Paragraph({ children: [new TextRun({ text: slideStr, font: "Arial", size: 18 })] })] }),
+                    new TableCell({ borders: cellBorders, children: [new Paragraph({ children: [new TextRun({ text: nameStr, font: "Arial", size: 18, bold: true })] })] }),
+                    new TableCell({ borders: cellBorders, children: [new Paragraph({ children: [new TextRun({ text: emailStr, font: "Arial", size: 18 })] })] }),
+                    new TableCell({ borders: cellBorders, children: [new Paragraph({ children: [
+                      new TextRun({ text: textStr, font: "Arial", size: 18 }),
+                      ...(likesStr ? [new TextRun({ text: likesStr, font: "Arial", size: 18, bold: true, color: "854D0E" })] : [])
+                    ] })] }),
+                  ]
+                })
+              );
+            } else {
+              flushMessages();
+
+              const cellBorders = {
+                top: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                bottom: { style: BorderStyle.SINGLE, size: 4, color: "E2E8F0" },
+                left: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                right: { style: BorderStyle.NONE, size: 0, color: "auto" }
+              };
+
+              if (item.type === 'poll') {
+                const p = item as Poll;
+                const dateObj = p.createdAt?.toDate() || new Date();
+                const dateStr = dateObj.toLocaleDateString();
+                const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const slideStr = p.slide !== undefined ? ` [Slide ${p.slide}]` : '';
+                const totalVotes = Object.values(p.votes || {}).reduce((sum, val) => sum + val, 0);
+
+                activityElements.push(
+                  new Paragraph({
+                    text: "📊 MCQ POLL RESULTS",
+                    heading: HeadingLevel.HEADING_3,
+                    spacing: { before: 240, after: 60 }
+                  }),
+                  new Paragraph({
+                    children: [
+                      new TextRun({ text: `Triggered on ${dateStr} at ${timeStr}${slideStr}`, size: 16, color: "64748B", italic: true })
+                    ],
+                    spacing: { after: 120 }
+                  })
+                );
+
+                const pollRows = p.options.map(opt => {
+                  const count = p.votes[opt] || 0;
+                  const percentage = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
+                  const isCorrect = p.correctAnswer === opt;
+                  return new TableRow({
+                    children: [
+                      new TableCell({
+                        borders: cellBorders,
+                        width: { size: 30, type: WidthType.PERCENTAGE },
+                        children: [new Paragraph({ children: [new TextRun({ text: `Option ${opt}`, bold: true, font: "Arial", size: 18 })] })]
+                      }),
+                      new TableCell({
+                        borders: cellBorders,
+                        width: { size: 40, type: WidthType.PERCENTAGE },
+                        children: [new Paragraph({ children: [new TextRun({ text: `${count} votes (${percentage}%)`, font: "Arial", size: 18 })] })]
+                      }),
+                      new TableCell({
+                        borders: cellBorders,
+                        width: { size: 30, type: WidthType.PERCENTAGE },
+                        children: [new Paragraph({ children: [
+                          ...(isCorrect ? [new TextRun({ text: "✓ CORRECT ANSWER", bold: true, color: "10B981", font: "Arial", size: 18 })] : [])
+                        ] })]
+                      })
+                    ]
+                  });
+                });
+
+                activityElements.push(
+                  new Table({
+                    width: { size: 100, type: WidthType.PERCENTAGE },
+                    rows: pollRows,
+                    spacing: { after: 120 }
+                  }),
+                  new Paragraph({
+                    children: [new TextRun({ text: `Total Votes: ${totalVotes}`, bold: true, font: "Arial", size: 18 })],
+                    spacing: { after: 240 }
+                  })
+                );
+
+              } else if (item.type === 'wordCloud') {
+                const w = item as WordCloud;
+                const dateObj = w.createdAt?.toDate() || new Date();
+                const dateStr = dateObj.toLocaleDateString();
+                const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const slideStr = w.slide !== undefined ? ` [Slide ${w.slide}]` : '';
+                const totalWords = Object.values(w.words || {}).reduce((sum, val) => sum + val, 0);
+
+                activityElements.push(
+                  new Paragraph({
+                    text: "☁️ WORD CLOUD RESULTS",
+                    heading: HeadingLevel.HEADING_3,
+                    spacing: { before: 240, after: 60 }
+                  }),
+                  new Paragraph({
+                    children: [
+                      new TextRun({ text: `Triggered on ${dateStr} at ${timeStr}${slideStr}`, size: 16, color: "64748B", italic: true }),
+                      new TextRun({ text: `\nPrompt: "${w.prompt}"`, bold: true, font: "Arial", size: 18 })
+                    ],
+                    spacing: { after: 120 }
+                  })
+                );
+
+                const wordRows = Object.entries(w.words || {})
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([word, count]) => {
+                    return new TableRow({
+                      children: [
+                        new TableCell({
+                          borders: cellBorders,
+                          width: { size: 70, type: WidthType.PERCENTAGE },
+                          children: [new Paragraph({ children: [new TextRun({ text: word, bold: true, font: "Arial", size: 18 })] })]
+                        }),
+                        new TableCell({
+                          borders: cellBorders,
+                          width: { size: 30, type: WidthType.PERCENTAGE },
+                          children: [new Paragraph({ children: [new TextRun({ text: `${count} submissions`, font: "Arial", size: 18 })] })]
+                        })
+                      ]
+                    });
+                  });
+
+                activityElements.push(
+                  new Table({
+                    width: { size: 100, type: WidthType.PERCENTAGE },
+                    rows: wordRows,
+                    spacing: { after: 120 }
+                  }),
+                  new Paragraph({
+                    children: [new TextRun({ text: `Total Submissions: ${totalWords}`, bold: true, font: "Arial", size: 18 })],
+                    spacing: { after: 240 }
+                  })
+                );
+
+              } else if (item.type === 'openEnded') {
+                const q = item as OpenEndedQuestion;
+                const dateObj = q.createdAt?.toDate() || new Date();
+                const dateStr = dateObj.toLocaleDateString();
+                const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const slideStr = q.slide !== undefined ? ` [Slide ${q.slide}]` : '';
+                const totalResponses = Object.values(q.responses || {}).length;
+
+                activityElements.push(
+                  new Paragraph({
+                    text: "💬 OPEN ENDED RESULTS",
+                    heading: HeadingLevel.HEADING_3,
+                    spacing: { before: 240, after: 60 }
+                  }),
+                  new Paragraph({
+                    children: [
+                      new TextRun({ text: `Triggered on ${dateStr} at ${timeStr}${slideStr}`, size: 16, color: "64748B", italic: true }),
+                      new TextRun({ text: `\nQuestion: "${q.prompt}"`, bold: true, font: "Arial", size: 18 })
+                    ],
+                    spacing: { after: 120 }
+                  })
+                );
+
+                const responseParagraphs = Object.values(q.responses || {}).map(resp => {
+                  return new Paragraph({
+                    children: [
+                      new TextRun({ text: `• `, bold: true, font: "Arial", size: 18 }),
+                      new TextRun({ text: `"${resp}"`, italic: true, font: "Arial", size: 18, color: "334155" })
+                    ],
+                    spacing: { before: 60, after: 60 }
+                  });
+                });
+
+                activityElements.push(
+                  ...responseParagraphs,
+                  new Paragraph({
+                    children: [new TextRun({ text: `Total Responses: ${totalResponses}`, bold: true, font: "Arial", size: 18 })],
+                    spacing: { before: 120, after: 240 }
+                  })
+                );
+              }
+            }
+          }
+
+          flushMessages();
+        }
+      }
+
+      const docFilename = `ActiveDeck_Presentation_${presentationData.pinCode || 'Export'}.docx`;
+
+      const docxFile = new Document({
+        sections: [{
+          properties: {},
+          children: [
+            new Paragraph({
+              text: "ActiveDeck Presentation Export",
+              heading: HeadingLevel.HEADING_1,
+              spacing: { after: 200 }
+            }),
+            new Table({
+              width: { size: 100, type: WidthType.PERCENTAGE },
+              borders: {
+                top: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                bottom: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                left: { style: BorderStyle.SINGLE, size: 24, color: "EB5D00" },
+                right: { style: BorderStyle.NONE, size: 0, color: "auto" },
+              },
+              rows: [
+                new TableRow({
+                  children: [
+                    new TableCell({
+                      shading: { fill: "F8F9FA" },
+                      children: [
+                        new Paragraph({
+                          children: [
+                            new TextRun({ text: "Presenter Email: ", bold: true, color: "111111", font: "Arial" }),
+                            new TextRun({ text: presentationData.presenterEmail || 'N/A', font: "Arial" }),
+                          ],
+                        }),
+                        new Paragraph({
+                          children: [
+                            new TextRun({ text: "Session PIN: ", bold: true, color: "111111", font: "Arial" }),
+                            new TextRun({ text: presentationData.pinCode || 'N/A', font: "Arial" }),
+                          ],
+                        }),
+                        new Paragraph({
+                          children: [
+                            new TextRun({ text: "Date: ", bold: true, color: "111111", font: "Arial" }),
+                            new TextRun({ text: new Date().toLocaleDateString(), font: "Arial" }),
+                          ],
+                        }),
+                      ],
+                    }),
+                  ],
+                }),
+              ],
+            }),
+            new Paragraph({ spacing: { after: 240 } }),
+            ...slideElements,
+            ...activityElements
+          ]
+        }]
+      });
+
+      const docBlob = await Packer.toBlob(docxFile);
+      const docUrl = URL.createObjectURL(docBlob);
+      const link = document.createElement('a');
+      link.href = docUrl;
+      link.download = docFilename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(docUrl);
+    } catch (err) {
+      console.error("Failed to compile presentation export:", err);
+      alert("Failed to export presentation document.");
+    } finally {
+      setIsDownloadingChatLog(false);
+      setDownloadingSessionId(null);
+    }
   };
 
   const handleDownloadChatLog = async (sessionId?: string) => {
@@ -2147,17 +2708,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                                 <td className="py-4 px-5 text-right flex items-center justify-end gap-2.5">
                                   <button
                                     type="button"
-                                    onClick={() => handleDownloadChatLog(session.id)}
+                                    onClick={() => setDownloadModalSessionId(session.id)}
                                     disabled={isDownloadingChatLog}
                                     className="flex items-center gap-1.5 h-9 px-3.5 bg-slate-800 hover:bg-slate-750 disabled:bg-slate-900 disabled:text-slate-650 text-slate-200 text-xs font-black uppercase tracking-wider rounded-xl transition-all border border-slate-700/50 cursor-pointer"
-                                    title="Download Chat Log"
+                                    title="Download Session Options"
                                   >
                                     {isDownloadingThis ? (
                                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
                                     ) : (
                                       <Download className="w-3.5 h-3.5 text-osu-orange" />
                                     )}
-                                    Download Chat Log
+                                    Download Options
                                   </button>
 
                                   <button
@@ -2184,6 +2745,74 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
           )}
         </div>
       </main>
+      {/* Download Options Modal Overlay for Admins */}
+      {downloadModalSessionId && (
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 backdrop-blur-md p-4 animate-in fade-in duration-205"
+          onClick={() => setDownloadModalSessionId(null)}
+        >
+          <div 
+            className="bg-white rounded-3xl shadow-2xl border border-slate-200 p-6 max-w-lg w-full text-center relative animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button 
+              onClick={() => setDownloadModalSessionId(null)}
+              className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer border-0 bg-transparent"
+              title="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="w-10 h-10 bg-indigo-600/10 rounded-2xl flex items-center justify-center mx-auto mb-3">
+              <Download className="w-5 h-5 text-indigo-600" />
+            </div>
+            
+            <h2 className="text-lg font-black text-slate-900 mb-2">Download Session Data</h2>
+            <p className="text-slate-500 text-xs mb-6 leading-relaxed text-center text-slate-600">
+              Choose how you would like to download the data for presentation session <span className="font-mono font-bold text-slate-800">{downloadModalSessionId.substring(0, 8)}</span>.
+            </p>
+            
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={async () => {
+                  const sid = downloadModalSessionId;
+                  setDownloadModalSessionId(null);
+                  await handleDownloadPresentation(sid, true);
+                }}
+                className="w-full flex items-center justify-center gap-2 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition-all active:scale-[0.98] cursor-pointer shadow-md border-0"
+              >
+                <FileText className="w-4.5 h-4.5 text-white" />
+                <span>Presentation + Chat Log (.docx)</span>
+              </button>
+
+              <button
+                onClick={async () => {
+                  const sid = downloadModalSessionId;
+                  setDownloadModalSessionId(null);
+                  await handleDownloadPresentation(sid, false);
+                }}
+                className="w-full flex items-center justify-center gap-2 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-bold transition-all active:scale-[0.98] cursor-pointer shadow-md border-0"
+              >
+                <PresentationIcon className="w-4.5 h-4.5 text-white" />
+                <span>Presentation Only (.docx)</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  const sid = downloadModalSessionId;
+                  setDownloadModalSessionId(null);
+                  handleDownloadChatLog(sid);
+                }}
+                className="w-full flex items-center justify-center gap-2 py-3 bg-white hover:bg-slate-50 text-slate-800 rounded-xl text-sm font-bold transition-all active:scale-[0.98] cursor-pointer border border-slate-200 shadow-sm"
+              >
+                <Send className="w-4.5 h-4.5 text-slate-500" />
+                <span>Chat Log Only (.doc)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

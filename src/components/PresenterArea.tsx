@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Presentation } from '../types';
+import { Presentation, Message, Poll, WordCloud, OpenEndedQuestion } from '../types';
 import { ScreenCapture } from './ScreenCapture';
 import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play, X, Loader2, Tv, Minimize, Maximize, FileText, Square, Send, CheckCircle2, Check, Clock, Pen, Eraser, Highlighter, MoveRight, Type, Undo2, Redo2, Trash2, Minus, Circle } from 'lucide-react';
 import { useBridge } from '../contexts/BridgeContext';
@@ -148,6 +148,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const [presentWithNotes, setPresentWithNotes] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isDownloadingPresentation, setIsDownloadingPresentation] = useState(false);
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [furthestSlide, setFurthestSlide] = useState<number>(1);
   const [visitedSlides, setVisitedSlides] = useState<Record<number, boolean>>({});
 
@@ -1409,7 +1410,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     });
   };
 
-  const handleDownloadPresentation = async () => {
+  const handleDownloadPresentation = async (includeChat = false) => {
     if (!presentation?.id) return;
     setIsDownloadingPresentation(true);
     try {
@@ -1478,6 +1479,291 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         }
       }
 
+      const activityElements: any[] = [];
+      if (includeChat) {
+        // Query database for chat history and activities
+        const msgsQuery = query(collection(db, 'messages'), where('presentationId', '==', presentation.id));
+        const msgsSnap = await getDocs(msgsQuery);
+        const msgs = msgsSnap.docs
+          .map(doc => ({ id: doc.id, ...doc.data() }))
+          .filter((m: any) => !m.isBackgroundPreview) as Message[];
+        msgs.sort((a, b) => (a.timestamp?.toMillis() || 0) - (b.timestamp?.toMillis() || 0));
+
+        const pollsQuery = query(collection(db, 'polls'), where('presentationId', '==', presentation.id));
+        const pollsSnap = await getDocs(pollsQuery);
+        const ps = pollsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Poll[];
+        ps.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
+
+        const wcQuery = query(collection(db, 'wordClouds'), where('presentationId', '==', presentation.id));
+        const wcSnap = await getDocs(wcQuery);
+        const wcs = wcSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as WordCloud[];
+        wcs.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
+
+        const oeqQuery = query(collection(db, 'openEndedQuestions'), where('presentationId', '==', presentation.id));
+        const oeqSnap = await getDocs(oeqQuery);
+        const oeqs = oeqSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as OpenEndedQuestion[];
+        oeqs.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
+
+        const combinedItems = [
+          ...msgs.map(m => ({ ...m, type: 'message' as const })),
+          ...ps.map(p => ({ ...p, type: 'poll' as const })),
+          ...wcs.map(w => ({ ...w, type: 'wordCloud' as const })),
+          ...oeqs.map(q => ({ ...q, type: 'openEnded' as const }))
+        ].sort((a, b) => {
+          const timeA = ((a as any).timestamp || (a as any).createdAt)?.toMillis() || 0;
+          const timeB = ((b as any).timestamp || (b as any).createdAt)?.toMillis() || 0;
+          return timeA - timeB;
+        });
+
+        activityElements.push(
+          new Paragraph({
+            text: "Session Activity & Chat Log",
+            heading: HeadingLevel.HEADING_1,
+            pageBreakBefore: true,
+            spacing: { before: 240, after: 200 }
+          })
+        );
+
+        if (combinedItems.length === 0) {
+          activityElements.push(
+            new Paragraph({
+              text: "No chat messages or session activities recorded.",
+              spacing: { before: 120, after: 120 }
+            })
+          );
+        } else {
+          let runningMessageRows: TableRow[] = [];
+
+          const flushMessages = () => {
+            if (runningMessageRows.length > 0) {
+              const tableHeader = new TableRow({
+                children: [
+                  new TableCell({ width: { size: 10, type: WidthType.PERCENTAGE }, shading: { fill: "F1F5F9" }, children: [new Paragraph({ children: [new TextRun({ text: "Date", bold: true, font: "Arial", size: 18 })] })] }),
+                  new TableCell({ width: { size: 12, type: WidthType.PERCENTAGE }, shading: { fill: "F1F5F9" }, children: [new Paragraph({ children: [new TextRun({ text: "Time", bold: true, font: "Arial", size: 18 })] })] }),
+                  new TableCell({ width: { size: 8, type: WidthType.PERCENTAGE }, shading: { fill: "F1F5F9" }, children: [new Paragraph({ children: [new TextRun({ text: "Slide", bold: true, font: "Arial", size: 18 })] })] }),
+                  new TableCell({ width: { size: 15, type: WidthType.PERCENTAGE }, shading: { fill: "F1F5F9" }, children: [new Paragraph({ children: [new TextRun({ text: "Name", bold: true, font: "Arial", size: 18 })] })] }),
+                  new TableCell({ width: { size: 20, type: WidthType.PERCENTAGE }, shading: { fill: "F1F5F9" }, children: [new Paragraph({ children: [new TextRun({ text: "Email", bold: true, font: "Arial", size: 18 })] })] }),
+                  new TableCell({ width: { size: 35, type: WidthType.PERCENTAGE }, shading: { fill: "F1F5F9" }, children: [new Paragraph({ children: [new TextRun({ text: "Question / Message", bold: true, font: "Arial", size: 18 })] })] }),
+                ]
+              });
+              activityElements.push(
+                new Table({
+                  width: { size: 100, type: WidthType.PERCENTAGE },
+                  rows: [tableHeader, ...runningMessageRows],
+                  spacing: { after: 240 }
+                })
+              );
+              runningMessageRows = [];
+            }
+          };
+
+          for (const item of combinedItems) {
+            if (item.type === 'message') {
+              const m = item as Message;
+              const dateObj = m.timestamp?.toDate() || new Date();
+              const dateStr = dateObj.toLocaleDateString();
+              const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+              const slideStr = m.slide !== undefined && m.slide !== null ? `Slide ${m.slide}` : '-';
+              const nameStr = m.userName || '-';
+              const emailStr = m.userEmail || '-';
+              const textStr = m.text || '';
+              const likesStr = m.likes ? ` (👍 ${m.likes})` : '';
+
+              const cellBorders = {
+                top: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                bottom: { style: BorderStyle.SINGLE, size: 4, color: "E2E8F0" },
+                left: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                right: { style: BorderStyle.NONE, size: 0, color: "auto" }
+              };
+
+              runningMessageRows.push(
+                new TableRow({
+                  children: [
+                    new TableCell({ borders: cellBorders, children: [new Paragraph({ children: [new TextRun({ text: dateStr, font: "Arial", size: 18 })] })] }),
+                    new TableCell({ borders: cellBorders, children: [new Paragraph({ children: [new TextRun({ text: timeStr, font: "Arial", size: 18 })] })] }),
+                    new TableCell({ borders: cellBorders, children: [new Paragraph({ children: [new TextRun({ text: slideStr, font: "Arial", size: 18 })] })] }),
+                    new TableCell({ borders: cellBorders, children: [new Paragraph({ children: [new TextRun({ text: nameStr, font: "Arial", size: 18, bold: true })] })] }),
+                    new TableCell({ borders: cellBorders, children: [new Paragraph({ children: [new TextRun({ text: emailStr, font: "Arial", size: 18 })] })] }),
+                    new TableCell({ borders: cellBorders, children: [new Paragraph({ children: [
+                      new TextRun({ text: textStr, font: "Arial", size: 18 }),
+                      ...(likesStr ? [new TextRun({ text: likesStr, font: "Arial", size: 18, bold: true, color: "854D0E" })] : [])
+                    ] })] }),
+                  ]
+                })
+              );
+            } else {
+              flushMessages();
+
+              const cellBorders = {
+                top: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                bottom: { style: BorderStyle.SINGLE, size: 4, color: "E2E8F0" },
+                left: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                right: { style: BorderStyle.NONE, size: 0, color: "auto" }
+              };
+
+              if (item.type === 'poll') {
+                const p = item as Poll;
+                const dateObj = p.createdAt?.toDate() || new Date();
+                const dateStr = dateObj.toLocaleDateString();
+                const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const slideStr = p.slide !== undefined ? ` [Slide ${p.slide}]` : '';
+                const totalVotes = Object.values(p.votes || {}).reduce((sum, val) => sum + val, 0);
+
+                activityElements.push(
+                  new Paragraph({
+                    text: "📊 MCQ POLL RESULTS",
+                    heading: HeadingLevel.HEADING_3,
+                    spacing: { before: 240, after: 60 }
+                  }),
+                  new Paragraph({
+                    children: [
+                      new TextRun({ text: `Triggered on ${dateStr} at ${timeStr}${slideStr}`, size: 16, color: "64748B", italic: true })
+                    ],
+                    spacing: { after: 120 }
+                  })
+                );
+
+                const pollRows = p.options.map(opt => {
+                  const count = p.votes[opt] || 0;
+                  const percentage = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
+                  const isCorrect = p.correctAnswer === opt;
+                  return new TableRow({
+                    children: [
+                      new TableCell({
+                        borders: cellBorders,
+                        width: { size: 30, type: WidthType.PERCENTAGE },
+                        children: [new Paragraph({ children: [new TextRun({ text: `Option ${opt}`, bold: true, font: "Arial", size: 18 })] })]
+                      }),
+                      new TableCell({
+                        borders: cellBorders,
+                        width: { size: 40, type: WidthType.PERCENTAGE },
+                        children: [new Paragraph({ children: [new TextRun({ text: `${count} votes (${percentage}%)`, font: "Arial", size: 18 })] })]
+                      }),
+                      new TableCell({
+                        borders: cellBorders,
+                        width: { size: 30, type: WidthType.PERCENTAGE },
+                        children: [new Paragraph({ children: [
+                          ...(isCorrect ? [new TextRun({ text: "✓ CORRECT ANSWER", bold: true, color: "10B981", font: "Arial", size: 18 })] : [])
+                        ] })]
+                      })
+                    ]
+                  });
+                });
+
+                activityElements.push(
+                  new Table({
+                    width: { size: 100, type: WidthType.PERCENTAGE },
+                    rows: pollRows,
+                    spacing: { after: 120 }
+                  }),
+                  new Paragraph({
+                    children: [new TextRun({ text: `Total Votes: ${totalVotes}`, bold: true, font: "Arial", size: 18 })],
+                    spacing: { after: 240 }
+                  })
+                );
+
+              } else if (item.type === 'wordCloud') {
+                const w = item as WordCloud;
+                const dateObj = w.createdAt?.toDate() || new Date();
+                const dateStr = dateObj.toLocaleDateString();
+                const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const slideStr = w.slide !== undefined ? ` [Slide ${w.slide}]` : '';
+                const totalWords = Object.values(w.words || {}).reduce((sum, val) => sum + val, 0);
+
+                activityElements.push(
+                  new Paragraph({
+                    text: "☁️ WORD CLOUD RESULTS",
+                    heading: HeadingLevel.HEADING_3,
+                    spacing: { before: 240, after: 60 }
+                  }),
+                  new Paragraph({
+                    children: [
+                      new TextRun({ text: `Triggered on ${dateStr} at ${timeStr}${slideStr}`, size: 16, color: "64748B", italic: true }),
+                      new TextRun({ text: `\nPrompt: "${w.prompt}"`, bold: true, font: "Arial", size: 18 })
+                    ],
+                    spacing: { after: 120 }
+                  })
+                );
+
+                const wordRows = Object.entries(w.words || {})
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([word, count]) => {
+                    return new TableRow({
+                      children: [
+                        new TableCell({
+                          borders: cellBorders,
+                          width: { size: 70, type: WidthType.PERCENTAGE },
+                          children: [new Paragraph({ children: [new TextRun({ text: word, bold: true, font: "Arial", size: 18 })] })]
+                        }),
+                        new TableCell({
+                          borders: cellBorders,
+                          width: { size: 30, type: WidthType.PERCENTAGE },
+                          children: [new Paragraph({ children: [new TextRun({ text: `${count} submissions`, font: "Arial", size: 18 })] })]
+                        })
+                      ]
+                    });
+                  });
+
+                activityElements.push(
+                  new Table({
+                    width: { size: 100, type: WidthType.PERCENTAGE },
+                    rows: wordRows,
+                    spacing: { after: 120 }
+                  }),
+                  new Paragraph({
+                    children: [new TextRun({ text: `Total Submissions: ${totalWords}`, bold: true, font: "Arial", size: 18 })],
+                    spacing: { after: 240 }
+                  })
+                );
+
+              } else if (item.type === 'openEnded') {
+                const q = item as OpenEndedQuestion;
+                const dateObj = q.createdAt?.toDate() || new Date();
+                const dateStr = dateObj.toLocaleDateString();
+                const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const slideStr = q.slide !== undefined ? ` [Slide ${q.slide}]` : '';
+                const totalResponses = Object.values(q.responses || {}).length;
+
+                activityElements.push(
+                  new Paragraph({
+                    text: "💬 OPEN ENDED RESULTS",
+                    heading: HeadingLevel.HEADING_3,
+                    spacing: { before: 240, after: 60 }
+                  }),
+                  new Paragraph({
+                    children: [
+                      new TextRun({ text: `Triggered on ${dateStr} at ${timeStr}${slideStr}`, size: 16, color: "64748B", italic: true }),
+                      new TextRun({ text: `\nQuestion: "${q.prompt}"`, bold: true, font: "Arial", size: 18 })
+                    ],
+                    spacing: { after: 120 }
+                  })
+                );
+
+                const responseParagraphs = Object.values(q.responses || {}).map(resp => {
+                  return new Paragraph({
+                    children: [
+                      new TextRun({ text: `• `, bold: true, font: "Arial", size: 18 }),
+                      new TextRun({ text: `"${resp}"`, italic: true, font: "Arial", size: 18, color: "334155" })
+                    ],
+                    spacing: { before: 60, after: 60 }
+                  });
+                });
+
+                activityElements.push(
+                  ...responseParagraphs,
+                  new Paragraph({
+                    children: [new TextRun({ text: `Total Responses: ${totalResponses}`, bold: true, font: "Arial", size: 18 })],
+                    spacing: { before: 120, after: 240 }
+                  })
+                );
+              }
+            }
+          }
+
+          flushMessages();
+        }
+      }
+
       const docFilename = `ActiveDeck_Presentation_${presentation.pinCode || 'Export'}.docx`;
 
       const docxFile = new Document({
@@ -1528,7 +1814,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               ],
             }),
             new Paragraph({ spacing: { after: 240 } }),
-            ...slideElements
+            ...slideElements,
+            ...activityElements
           ]
         }]
       });
@@ -1545,6 +1832,429 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     } catch (err) {
       console.error("Failed to compile presentation export:", err);
       alert("Failed to export presentation document.");
+    } finally {
+      setIsDownloadingPresentation(false);
+    }
+  };
+
+  const handleDownloadOnlyChat = async () => {
+    if (!presentation?.id) return;
+    setIsDownloadingPresentation(true);
+    try {
+      const { collection, query, where, getDocs } = await import('firebase/firestore');
+
+      const msgsQuery = query(
+        collection(db, 'messages'),
+        where('presentationId', '==', presentation.id)
+      );
+      const msgsSnap = await getDocs(msgsQuery);
+      const msgs = msgsSnap.docs
+        .map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }))
+        .filter((m: any) => !m.isBackgroundPreview) as Message[];
+
+      msgs.sort((a, b) => {
+        const timeA = a.timestamp?.toMillis() || 0;
+        const timeB = b.timestamp?.toMillis() || 0;
+        return timeA - timeB;
+      });
+
+      const pollsQuery = query(
+        collection(db, 'polls'),
+        where('presentationId', '==', presentation.id)
+      );
+      const pollsSnap = await getDocs(pollsQuery);
+      const ps = pollsSnap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Poll[];
+      ps.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
+
+      const wcQuery = query(
+        collection(db, 'wordClouds'),
+        where('presentationId', '==', presentation.id)
+      );
+      const wcSnap = await getDocs(wcQuery);
+      const wcs = wcSnap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as WordCloud[];
+      wcs.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
+
+      const oeqQuery = query(
+        collection(db, 'openEndedQuestions'),
+        where('presentationId', '==', presentation.id)
+      );
+      const oeqSnap = await getDocs(oeqQuery);
+      const oeqs = oeqSnap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as OpenEndedQuestion[];
+      oeqs.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
+
+      const themeAccentColor = secondaryColor || '#ff3e00';
+
+      const header = `<!DOCTYPE html>
+<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head>
+<meta charset='utf-8'>
+<title>ActiveDeck Chat & Poll Log</title>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: #1e293b;
+    margin: 40px;
+    background-color: #f8fafc;
+    line-height: 1.5;
+  }
+  .container {
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    text-align: left;
+  }
+  .header {
+    border-bottom: 3px solid ${themeAccentColor};
+    padding-bottom: 20px;
+    margin-bottom: 30px;
+    text-align: center;
+  }
+  .header h1 {
+    font-size: 26px;
+    margin: 0 0 8px 0;
+    color: #0f172a;
+    font-weight: 800;
+    text-align: center;
+  }
+  .header p {
+    font-size: 13px;
+    color: #64748b;
+    margin: 0;
+    text-align: center;
+  }
+  .log-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 30px;
+    table-layout: fixed;
+  }
+  .log-table th {
+    background-color: #f1f5f9;
+    color: #475569;
+    font-weight: 700;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 12px 6px;
+    border-bottom: 2px solid #cbd5e1;
+    text-align: left;
+  }
+  .log-table td {
+    padding: 12px 6px;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: 13px;
+    vertical-align: top;
+    color: #334155;
+    word-break: break-word;
+    word-wrap: break-word;
+  }
+  .badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+  .badge-slide {
+    background-color: #f1f5f9;
+    color: #475569;
+    border: 1px solid #cbd5e1;
+  }
+  .badge-likes {
+    background-color: #fef08a;
+    color: #854d0e;
+    border: 1px solid #fde047;
+    margin-left: 4px;
+  }
+  .card {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 24px 0;
+    border-radius: 8px;
+  }
+  .card td {
+    padding: 20px;
+    border: none;
+    text-align: left;
+    vertical-align: top;
+  }
+  .card-title {
+    font-weight: 800;
+    font-size: 15px;
+    margin: 0 0 4px 0;
+    color: #0f172a;
+    text-align: center;
+  }
+  .card-meta {
+    font-size: 11px;
+    color: #64748b;
+    margin: 0 0 16px 0;
+    text-align: center;
+  }
+  .card-subtitle {
+    font-size: 13px;
+    font-weight: 600;
+    color: #334155;
+    margin: 0 0 12px 0;
+    text-align: center;
+  }
+  .poll-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+  .poll-table td {
+    padding: 6px 10px;
+    border: none;
+    font-size: 13px;
+  }
+  .word-pill {
+    display: inline-block;
+    padding: 5px 10px;
+    background-color: #ffffff;
+    color: #1e293b;
+    border: 1px solid #cbd5e1;
+    border-radius: 16px;
+    margin-right: 6px;
+    margin-bottom: 6px;
+    font-size: 12px;
+    word-break: break-all;
+  }
+  .response-box {
+    padding: 10px 14px;
+    background-color: #ffffff;
+    border-left: 3px solid #10b981;
+    border-radius: 0 4px 4px 0;
+    margin-bottom: 8px;
+    font-style: italic;
+    font-size: 13px;
+    color: #334155;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+    word-break: break-word;
+    word-wrap: break-word;
+  }
+</style>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1e293b; margin: 40px; background-color: #f8fafc; line-height: 1.5;">
+  <table align="center" width="100%" style="width: 100%; max-width: 720px; margin: 0 auto; border-collapse: collapse; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); text-align: left;">
+    <tr>
+      <td style="padding: 40px; border: none; vertical-align: top; background-color: #ffffff;">
+        <div class="header" style="border-bottom: 3px solid ${themeAccentColor}; padding-bottom: 20px; margin-bottom: 30px; text-align: center;">
+          <h1 style="font-size: 26px; margin: 0 0 8px 0; color: #0f172a; font-weight: 800; text-align: center;">ActiveDeck Session Activity Log</h1>
+          <p style="font-size: 13px; color: #64748b; margin: 0; text-align: center;">Generated on ${new Date().toLocaleString()}</p>
+        </div>`;
+
+      const footer = "</td></tr></table></body></html>";
+
+      const combinedItems = [
+        ...msgs.map(m => ({ ...m, type: 'message' as const })),
+        ...ps.map(p => ({ ...p, type: 'poll' as const })),
+        ...wcs.map(w => ({ ...w, type: 'wordCloud' as const })),
+        ...oeqs.map(q => ({ ...q, type: 'openEnded' as const }))
+      ].sort((a, b) => {
+        const timeA = ((a as any).timestamp || (a as any).createdAt)?.toMillis() || 0;
+        const timeB = ((b as any).timestamp || (b as any).createdAt)?.toMillis() || 0;
+        return timeA - timeB;
+      });
+
+      let htmlContent = '';
+      let isTableOpen = false;
+
+      combinedItems.forEach(item => {
+        if (item.type === 'message') {
+          const m = item as Message;
+          const dateObj = m.timestamp?.toDate() || new Date();
+          const dateStr = dateObj.toLocaleDateString();
+          const timeStr = dateObj.toLocaleTimeString();
+
+          if (!isTableOpen) {
+            htmlContent += `<table class="log-table" style="width: 100%; border-collapse: collapse; margin-bottom: 30px; table-layout: fixed;">
+              <thead>
+                <tr style="background-color: #f1f5f9;">
+                  <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 6px; border-bottom: 2px solid #cbd5e1; text-align: center; width: 10%;">Date</th>
+                  <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 6px; border-bottom: 2px solid #cbd5e1; text-align: center; width: 12%;">Time</th>
+                  <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 6px; border-bottom: 2px solid #cbd5e1; text-align: center; width: 8%;">Slide</th>
+                  <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 6px; border-bottom: 2px solid #cbd5e1; text-align: left; width: 13%;">Name</th>
+                  <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 6px; border-bottom: 2px solid #cbd5e1; text-align: left; width: 17%;">Email</th>
+                  <th style="background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 6px; border-bottom: 2px solid #cbd5e1; text-align: left; width: 40%;">Question / Message</th>
+                </tr>
+              </thead>
+              <tbody>`;
+            isTableOpen = true;
+          }
+
+          const slideBadge = m.slide !== undefined && m.slide !== null
+            ? `<span class="badge badge-slide" style="display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; background-color: #f1f5f9; color: #475569; border: 1px solid #cbd5e1;">Slide ${m.slide}</span>`
+            : `-`;
+
+          const likesBadge = m.likes 
+            ? `<span class="badge badge-likes" style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; background-color: #fef08a; color: #854d0e; border: 1px solid #fde047; margin-left: 4px;">👍 ${m.likes}</span>`
+            : '';
+
+          const emailLink = m.userEmail
+            ? `<a href="mailto:${m.userEmail}" style="color: #2563eb; text-decoration: none; border-bottom: 1px dotted #2563eb; word-break: break-all;">${m.userEmail}</a>`
+            : '-';
+
+          const cleanText = m.text ? m.text.replace(/(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/gi, (match) => {
+            if (match.includes('@')) return `<a href="mailto:${match}" style="color: #2563eb; text-decoration: underline;">${match}</a>`;
+            const url = match.startsWith('http') ? match : `https://${match}`;
+            return `<a href="${url}" target="_blank" style="color: #2563eb; text-decoration: underline;">${match}</a>`;
+          }) : '';
+
+          htmlContent += `<tr>
+            <td style="padding: 12px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: center; word-break: break-word; word-wrap: break-word;">${dateStr}</td>
+            <td style="padding: 12px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: center; word-break: break-word; word-wrap: break-word;">${timeStr}</td>
+            <td style="padding: 12px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: center; word-break: break-word; word-wrap: break-word;">${slideBadge}</td>
+            <td style="padding: 12px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; font-weight: 600; text-align: left; word-break: break-word; word-wrap: break-word;">${m.userName}</td>
+            <td style="padding: 12px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: left; word-break: break-all; word-wrap: break-word;">${emailLink}</td>
+            <td style="padding: 12px 6px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; color: #334155; text-align: left; word-break: break-word; word-wrap: break-word;"><strong>${cleanText}</strong>${likesBadge}</td>
+          </tr>`;
+        } else {
+          if (isTableOpen) {
+            htmlContent += `</tbody></table>`;
+            isTableOpen = false;
+          }
+
+          if (item.type === 'poll') {
+            const p = item as Poll;
+            const dateObj = p.createdAt?.toDate() || new Date();
+            const dateStr = dateObj.toLocaleDateString();
+            const timeStr = dateObj.toLocaleTimeString();
+            const slideStr = p.slide !== undefined ? ` [Slide ${p.slide}]` : '';
+            const totalVotes = Object.values(p.votes || {}).reduce((a, b) => a + b, 0);
+
+            let pollOptionsHtml = '';
+            p.options.forEach(opt => {
+              const count = p.votes[opt] || 0;
+              const percentage = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
+              const isCorrect = p.correctAnswer === opt;
+              const correctBadge = isCorrect 
+                ? `<span style="color: #10b981; font-weight: bold; margin-left: 8px; font-size: 12px;">✓ CORRECT ANSWER</span>` 
+                : '';
+
+              pollOptionsHtml += `<tr>
+                <td style="width: 15%; font-weight: bold; padding: 6px 10px; border: none; font-size: 13px;">Option ${opt}</td>
+                <td style="width: 50%; padding: 6px 10px; border: none;">
+                  <table style="width: 100%; border: 1px solid #cbd5e1; border-collapse: collapse; height: 16px;">
+                    <tr>
+                      <td style="width: ${percentage}%; background-color: ${themeAccentColor}; border: none; padding: 0; height: 16px;"></td>
+                      <td style="width: ${100 - percentage}%; background-color: #f1f5f9; border: none; padding: 0; height: 16px;"></td>
+                    </tr>
+                  </table>
+                </td>
+                <td style="width: 35%; padding: 6px 10px; border: none; font-size: 13px; word-break: break-word; word-wrap: break-word;">
+                  <strong>${count} votes</strong> (${percentage}%)${correctBadge}
+                </td>
+              </tr>`;
+            });
+
+            htmlContent += `<table class="card card-mcq" style="width: 100%; border-collapse: collapse; margin: 24px 0; background-color: #fff5f2; border: 1px solid #fca5a5; border-left: 6px solid ${themeAccentColor}; border-radius: 8px;">
+              <tr>
+                <td style="padding: 20px; border: none; text-align: left; vertical-align: top;">
+                  <h3 class="card-title" style="font-weight: 800; font-size: 15px; margin: 0 0 4px 0; color: #0f172a; text-align: center;">📊 MCQ POLL RESULTS</h3>
+                  <p class="card-meta" style="font-size: 11px; color: #64748b; margin: 0 0 16px 0; text-align: center;">Triggered on ${dateStr} at ${timeStr}${slideStr}</p>
+                  <table class="poll-table" style="width: 100%; border-collapse: collapse; table-layout: fixed;">
+                    ${pollOptionsHtml}
+                  </table>
+                  <p style="margin-top: 12px; margin-bottom: 0; font-size: 12px; font-weight: bold; color: #475569; text-align: center;">Total Votes: ${totalVotes}</p>
+                </td>
+              </tr>
+            </table>`;
+
+          } else if (item.type === 'wordCloud') {
+            const w = item as WordCloud;
+            const dateObj = w.createdAt?.toDate() || new Date();
+            const dateStr = dateObj.toLocaleDateString();
+            const timeStr = dateObj.toLocaleTimeString();
+            const slideStr = w.slide !== undefined ? ` [Slide ${w.slide}]` : '';
+            const totalWords = Object.values(w.words || {}).reduce((a, b) => a + b, 0);
+
+            let wordPillsHtml = '';
+            Object.entries(w.words || {}).sort((a, b) => b[1] - a[1]).forEach(([word, count]) => {
+              wordPillsHtml += `<span class="word-pill" style="display: inline-block; padding: 5px 10px; background-color: #ffffff; color: #1e293b; border: 1px solid #cbd5e1; border-radius: 16px; margin-right: 6px; margin-bottom: 6px; font-size: 12px; word-break: break-all;">
+                <strong>${word}</strong> (${count})
+              </span>`;
+            });
+
+            htmlContent += `<table class="card card-wordcloud" style="width: 100%; border-collapse: collapse; margin: 24px 0; background-color: #eff6ff; border: 1px solid #93c5fd; border-left: 6px solid #3b82f6; border-radius: 8px;">
+              <tr>
+                <td style="padding: 20px; border: none; text-align: left; vertical-align: top;">
+                  <h3 class="card-title" style="font-weight: 800; font-size: 15px; margin: 0 0 4px 0; color: #0f172a; text-align: center;">☁️ WORD CLOUD RESULTS</h3>
+                  <p class="card-meta" style="font-size: 11px; color: #64748b; margin: 0 0 16px 0; text-align: center;">Triggered on ${dateStr} at ${timeStr}${slideStr}</p>
+                  <h4 class="card-subtitle" style="font-size: 13px; font-weight: 600; color: #334155; margin: 0 0 12px 0; text-align: center;">Prompt: "${w.prompt}"</h4>
+                  <div style="margin-top: 12px; margin-bottom: 12px; text-align: center;">
+                    ${wordPillsHtml || '<p style="font-size: 13px; color: #64748b; font-style: italic; text-align: center;">No entries recorded</p>'}
+                  </div>
+                  <p style="margin-top: 12px; margin-bottom: 0; font-size: 12px; font-weight: bold; color: #475569; text-align: center;">Total Submissions: ${totalWords}</p>
+                </td>
+              </tr>
+            </table>`;
+
+          } else if (item.type === 'openEnded') {
+            const q = item as OpenEndedQuestion;
+            const dateObj = q.createdAt?.toDate() || new Date();
+            const dateStr = dateObj.toLocaleDateString();
+            const timeStr = dateObj.toLocaleTimeString();
+            const slideStr = q.slide !== undefined ? ` [Slide ${q.slide}]` : '';
+            const totalResponses = Object.values(q.responses || {}).length;
+
+            let responsesHtml = '';
+            Object.values(q.responses || {}).forEach(response => {
+              responsesHtml += `<div class="response-box" style="padding: 10px 14px; background-color: #ffffff; border-left: 3px solid #10b981; border-radius: 0 4px 4px 0; margin-bottom: 8px; font-style: italic; font-size: 13px; color: #334155; border-top: none; border-right: none; border-bottom: none; word-break: break-word; word-wrap: break-word;">
+                "${response}"
+              </div>`;
+            });
+
+            htmlContent += `<table class="card card-openended" style="width: 100%; border-collapse: collapse; margin: 24px 0; background-color: #f0fdf4; border: 1px solid #6ee7b7; border-left: 6px solid #10b981; border-radius: 8px;">
+              <tr>
+                <td style="padding: 20px; border: none; text-align: left; vertical-align: top;">
+                  <h3 class="card-title" style="font-weight: 800; font-size: 15px; margin: 0 0 4px 0; color: #0f172a; text-align: center;">💬 OPEN ENDED RESULTS</h3>
+                  <p class="card-meta" style="font-size: 11px; color: #64748b; margin: 0 0 16px 0; text-align: center;">Triggered on ${dateStr} at ${timeStr}${slideStr}</p>
+                  <h4 class="card-subtitle" style="font-size: 13px; font-weight: 600; color: #334155; margin: 0 0 12px 0; text-align: center;">Question: "${q.prompt}"</h4>
+                  <div style="margin-top: 12px; margin-bottom: 12px;">
+                    ${responsesHtml || '<p style="font-size: 13px; color: #64748b; font-style: italic; text-align: center;">No responses recorded</p>'}
+                  </div>
+                  <p style="margin-top: 12px; margin-bottom: 0; font-size: 12px; font-weight: bold; color: #475569; text-align: center;">Total Responses: ${totalResponses}</p>
+                </td>
+              </tr>
+            </table>`;
+          }
+        }
+      });
+
+      if (isTableOpen) {
+        htmlContent += `</tbody></table>`;
+      }
+
+      const html = header + htmlContent + footer;
+      const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `chat-log-${presentation.pinCode || 'Export'}.doc`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Failed to download chat log:", err);
+      alert("Failed to download chat log.");
     } finally {
       setIsDownloadingPresentation(false);
     }
@@ -2426,6 +3136,72 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           </div>
         )}
 
+        {/* Download Options Modal Overlay */}
+        {showDownloadModal && (
+          <div 
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 backdrop-blur-md p-4 animate-in fade-in duration-205"
+            onClick={() => setShowDownloadModal(false)}
+          >
+            <div 
+              className="bg-white rounded-3xl shadow-2xl border border-slate-200 p-6 max-w-lg w-full text-center relative animate-in zoom-in-95 duration-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Close Button */}
+              <button 
+                onClick={() => setShowDownloadModal(false)}
+                className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer border-0 bg-transparent"
+                title="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="w-10 h-10 bg-indigo-600/10 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <Download className="w-5 h-5 text-indigo-600" />
+              </div>
+              
+              <h2 className="text-lg font-black text-slate-900 mb-2">Download Presentation / Chat Log</h2>
+              <p className="text-slate-500 text-xs mb-6 leading-relaxed text-center">
+                Choose how you would like to download your presentation session data. You can download the slides with drawings, include all chat and activities, or download only the chat log.
+              </p>
+              
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={async () => {
+                    setShowDownloadModal(false);
+                    await handleDownloadPresentation(true);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition-all active:scale-[0.98] cursor-pointer shadow-md border-0"
+                >
+                  <FileText className="w-4.5 h-4.5 text-white" />
+                  <span>Presentation + Chat Log (.docx)</span>
+                </button>
+
+                <button
+                  onClick={async () => {
+                    setShowDownloadModal(false);
+                    await handleDownloadPresentation(false);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-bold transition-all active:scale-[0.98] cursor-pointer shadow-md border-0"
+                >
+                  <PresentationIcon className="w-4.5 h-4.5 text-white" />
+                  <span>Presentation Only (.docx)</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setShowDownloadModal(false);
+                    handleDownloadOnlyChat();
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-3 bg-white hover:bg-slate-50 text-slate-800 rounded-xl text-sm font-bold transition-all active:scale-[0.98] cursor-pointer border border-slate-200 shadow-sm"
+                >
+                  <Send className="w-4.5 h-4.5 text-slate-500" />
+                  <span>Chat Log Only (.doc)</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Detailed Instructions Modal Overlay */}
         {showInstructions && (
           <div 
@@ -2850,10 +3626,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           {/* Mid-Left: Download Presentation Button */}
           <div className="absolute left-[25%] -translate-x-1/2">
             <button
-              onClick={handleDownloadPresentation}
+              onClick={() => setShowDownloadModal(true)}
               disabled={isDownloadingPresentation}
               className="flex items-center gap-2 px-3.5 py-2 bg-slate-955/40 hover:bg-slate-850 disabled:bg-slate-800/20 disabled:text-slate-600 text-slate-400 hover:text-white rounded-xl transition-all active:scale-95 border border-slate-800 cursor-pointer shadow-lg hover:scale-105 text-[10px] font-black uppercase tracking-wider whitespace-nowrap"
-              title="Download presentation annotations (.docx)"
+              title="Download presentation or session logs"
             >
               {isDownloadingPresentation ? (
                 <>
