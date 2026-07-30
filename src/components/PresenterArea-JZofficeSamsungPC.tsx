@@ -48,7 +48,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const [error, setError] = useState<string | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
   const [laserEnabled, setLaserEnabled] = useState(true);
-  const [presentWithNotes, setPresentWithNotes] = useState(true);
+  const [presentWithNotes, setPresentWithNotes] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
 
   // Update live clock every second
