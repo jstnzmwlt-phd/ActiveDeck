@@ -1492,10 +1492,18 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             ) : (
               <div className="w-full flex flex-col h-full p-4 gap-3 bg-black relative">
                 {/* Header space above slide area for Join URL */}
-                <div className="w-full flex items-center justify-between px-2 shrink-0 select-none">
+                <div className="w-full flex items-center justify-between px-2 shrink-0 select-none relative">
                   <div className="flex items-center gap-2">
                     {logoUrl && <img src={logoUrl} alt="Logo" className="h-6 md:h-7 object-contain" />}
                   </div>
+                  
+                  {/* Centered Faded ActiveDeck Label */}
+                  <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 opacity-20 pointer-events-none">
+                    <span className="text-sm md:text-base font-black uppercase tracking-[0.25em] text-white">
+                      ActiveDeck
+                    </span>
+                  </div>
+
                   <div className="flex items-center gap-2 md:gap-3.5">
                     <span className="text-[10px] md:text-xs font-black tracking-widest text-slate-500 uppercase">JOIN CHAT AT:</span>
                     <span className="text-lg sm:text-xl md:text-2xl font-mono font-black text-osu-orange select-all bg-osu-orange/10 border border-osu-orange/25 px-4 py-1.5 rounded-xl shadow-lg shadow-orange-500/5">

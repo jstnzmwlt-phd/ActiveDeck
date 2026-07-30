@@ -3753,13 +3753,13 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
             {isProjector ? (
               /* On Projector: Rotating Icon Badge if attendance is activated, otherwise nothing */
               showAttendance && !presentation?.disableAttendance ? (
-                <div className="flex flex-col items-center bg-slate-950 px-2 py-1 rounded-xl border border-slate-800 shadow-inner shrink-0" title="Screen Verification Icon">
-                  <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">ICON</span>
-                  <div className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center bg-slate-900/60 rounded-lg border border-slate-800/40">
+                <div className="flex flex-col items-center bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 shadow-inner shrink-0 animate-in zoom-in-95 duration-200" title="Screen Verification Icon">
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">ICON</span>
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center bg-slate-900/60 rounded-lg border border-slate-800/40">
                     {presentation?.currentIcon ? (
-                      <MedicalIcon name={presentation.currentIcon} className="w-6 h-6 sm:w-6.5 sm:h-6.5 text-osu-orange" />
+                      <MedicalIcon name={presentation.currentIcon} className="w-10 h-10 sm:w-11 sm:h-11 text-osu-orange" />
                     ) : (
-                      <span className="text-slate-600 text-[10px] font-bold">---</span>
+                      <span className="text-slate-600 text-xs font-bold">---</span>
                     )}
                   </div>
                 </div>
@@ -4073,15 +4073,18 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
       {/* Messages Area Wrapper */}
       <div className="flex-1 flex flex-col relative overflow-hidden bg-white">
-        {/* OSU Logo Watermark */}
+        {/* OSU Logo Watermark & Faded App Label */}
         {internalLogoUrl !== null && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-10 z-0">
+          <div className="absolute inset-x-0 top-20 flex flex-col items-center justify-start pointer-events-none opacity-10 z-0 gap-3">
             <img 
               src={internalLogoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png"} 
               alt="Logo Watermark" 
-              className="w-3/4 object-contain" 
+              className="w-3/4 object-contain max-h-[160px]" 
               referrerPolicy="no-referrer" 
             />
+            <span className="text-xl md:text-2xl font-black uppercase tracking-[0.2em] text-slate-800 select-none text-center">
+              ActiveDeck Chat
+            </span>
           </div>
         )}
 
