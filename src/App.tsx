@@ -1919,14 +1919,19 @@ function AppContent() {
         </div>
 
         {/* Floating Glassmorphic Fullscreen Toggle Button */}
-        <button
-          type="button"
-          onClick={toggleFullscreen}
-          className="absolute bottom-10 left-10 z-[100] p-3 rounded-full bg-slate-900/80 hover:bg-osu-orange border border-slate-800 hover:border-osu-orange text-slate-400 hover:text-white shadow-2xl transition-all duration-300 backdrop-blur-md cursor-pointer opacity-0 group-hover:opacity-100 flex items-center justify-center hover:scale-110 active:scale-95 outline-none"
-          title={isFullscreen ? "Exit Full Screen" : "Enter Full Screen"}
-        >
-          {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
-        </button>
+        <div className="absolute bottom-10 left-10 z-[100] flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-auto">
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            className="p-3 rounded-full bg-slate-900/80 hover:bg-osu-orange border border-slate-800 hover:border-osu-orange text-slate-400 hover:text-white shadow-2xl transition-all duration-300 backdrop-blur-md cursor-pointer flex items-center justify-center hover:scale-110 active:scale-95 outline-none"
+            title={isFullscreen ? "Exit Full Screen" : "Enter Full Screen (or press F11)"}
+          >
+            {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+          </button>
+          <span className="text-[11px] font-semibold text-slate-400 bg-slate-900/90 border border-slate-800 px-3 py-1.5 rounded-full backdrop-blur-md shadow-lg select-none">
+            Tip: Press <kbd className="px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-osu-orange font-bold text-[10px]">F11</kbd> for locked Full Screen
+          </span>
+        </div>
       </div>
     );
   }
