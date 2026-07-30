@@ -3713,14 +3713,22 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
             <div className="flex flex-col min-w-0 justify-center gap-0.5 shrink-0">
               <div className="flex items-center gap-1.5 min-w-0">
                 <div className="w-2 h-2 rounded-full bg-osu-orange animate-pulse shrink-0" />
-                <span className="text-[10px] font-black text-osu-orange uppercase tracking-wider whitespace-nowrap">
+                <span className={cn(
+                  "font-black text-osu-orange uppercase tracking-wider whitespace-nowrap",
+                  isProjector ? "text-[11px]" : "text-[10px]"
+                )}>
                   JOIN CODE:
                 </span>
               </div>
               
               {presentation?.pinCode && (
                 <div className="flex items-center mt-0.5">
-                  <span className="text-base sm:text-lg font-mono font-black tracking-wider text-osu-orange bg-osu-orange/10 border border-osu-orange/20 px-2 py-0.5 rounded-xl leading-none select-all shadow-sm whitespace-nowrap">
+                  <span className={cn(
+                    "font-mono font-black tracking-wider text-osu-orange bg-osu-orange/10 border border-osu-orange/20 rounded-xl leading-none select-all shadow-sm whitespace-nowrap",
+                    isProjector 
+                      ? "text-2xl sm:text-3xl px-3 py-1.5" 
+                      : "text-base sm:text-lg px-2 py-0.5"
+                  )}>
                     {presentation.pinCode.replace(/(\d{3})(\d{3})/, '$1 $2')}
                   </span>
                 </div>
@@ -3728,7 +3736,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
             </div>
 
             {/* Middle Section: Bigger Rotating Dynamic Icon Badge */}
-            {showAttendance && !presentation?.disableAttendance && (
+            {!isProjector && showAttendance && !presentation?.disableAttendance && (
               <div className="flex flex-col items-center bg-slate-950 px-2 py-1 rounded-xl border border-slate-800 shadow-inner shrink-0" title="Screen Verification Icon">
                 <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">ICON</span>
                 <div className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center bg-slate-900/60 rounded-lg border border-slate-800/40">
@@ -3741,27 +3749,44 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               </div>
             )}
 
-            {/* Right Section: Clickable QR Code Thumbnail */}
-            <div 
-              onClick={() => setIsQRExpanded(!isQRExpanded)}
-              className="bg-white p-1 rounded-xl border border-slate-800 shadow-sm flex flex-col items-center justify-center cursor-pointer hover:border-osu-orange hover:shadow-md transition-all group/qr shrink-0"
-              title={isQRExpanded ? "Click to minimize QR code" : "Click to expand QR code"}
-            >
-              <QRCodeSVG 
-                value={dynamicChatUrl} 
-                size={66}
-                level="M"
-                includeMargin={false}
-                imageSettings={{
-                  src: internalLogoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png",
-                  x: undefined,
-                  y: undefined,
-                  height: 16,
-                  width: 16,
-                  excavate: true,
-                }}
-              />
-            </div>
+            {/* Right Section: Clickable QR Code Thumbnail (Presenter view) OR Rotating Icon Badge (Projector view, only when attendance is active) */}
+            {isProjector ? (
+              /* On Projector: Rotating Icon Badge if attendance is activated, otherwise nothing */
+              showAttendance && !presentation?.disableAttendance ? (
+                <div className="flex flex-col items-center bg-slate-950 px-2 py-1 rounded-xl border border-slate-800 shadow-inner shrink-0" title="Screen Verification Icon">
+                  <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">ICON</span>
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center bg-slate-900/60 rounded-lg border border-slate-800/40">
+                    {presentation?.currentIcon ? (
+                      <MedicalIcon name={presentation.currentIcon} className="w-6 h-6 sm:w-6.5 sm:h-6.5 text-osu-orange" />
+                    ) : (
+                      <span className="text-slate-600 text-[10px] font-bold">---</span>
+                    )}
+                  </div>
+                </div>
+              ) : null
+            ) : (
+              /* On Presenter: Clickable QR Code Thumbnail */
+              <div 
+                onClick={() => setIsQRExpanded(!isQRExpanded)}
+                className="bg-white p-1 rounded-xl border border-slate-800 shadow-sm flex flex-col items-center justify-center cursor-pointer hover:border-osu-orange hover:shadow-md transition-all group/qr shrink-0"
+                title={isQRExpanded ? "Click to minimize QR code" : "Click to expand QR code"}
+              >
+                <QRCodeSVG 
+                  value={dynamicChatUrl} 
+                  size={66}
+                  level="M"
+                  includeMargin={false}
+                  imageSettings={{
+                    src: internalLogoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png",
+                    x: undefined,
+                    y: undefined,
+                    height: 16,
+                    width: 16,
+                    excavate: true,
+                  }}
+                />
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -3920,12 +3945,15 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
       {/* Embedded QR Code Section */}
       {(!isChatOnly || isProjector) && (
-        isQRExpanded ? (
+        (isProjector || isQRExpanded) ? (
           /* Expanded Card View */
           <div 
-            onClick={() => setIsQRExpanded(false)}
-            className="p-5 bg-white border-b border-slate-200 flex flex-col items-center justify-center gap-3.5 cursor-pointer animate-in fade-in duration-300 select-none h-[380px]"
-            title="Click to minimize QR code"
+            onClick={isProjector ? undefined : () => setIsQRExpanded(false)}
+            className={cn(
+              "p-5 bg-white border-b border-slate-200 flex flex-col items-center justify-center gap-3.5 select-none h-[380px]",
+              isProjector ? "cursor-default" : "cursor-pointer"
+            )}
+            title={isProjector ? undefined : "Click to minimize QR code"}
           >
             <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-md flex flex-col items-center gap-2 animate-in zoom-in-95 duration-300">
               <QRCodeSVG 
@@ -3973,9 +4001,11 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 <Users className="w-3.5 h-3.5 text-osu-orange" />
                 <span>{participantCount} Joined</span>
               </div>
-              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-2.5 animate-pulse">
-                (Click anywhere to minimize)
-              </p>
+              {!isProjector && (
+                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-2.5 animate-pulse">
+                  (Click anywhere to minimize)
+                </p>
+              )}
             </div>
           </div>
         ) : (
