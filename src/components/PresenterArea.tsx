@@ -3480,10 +3480,23 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       </div>
     ) : (
       /* PROJECTOR MODE SCREEN VIEW */
-      <div className="w-full flex flex-col items-center justify-center h-full p-4">
+      <div className="w-full flex flex-col h-full p-4 gap-3 bg-black">
+        {/* Header space above slide area for Join URL */}
+        <div className="w-full flex items-center justify-between px-2 shrink-0 select-none">
+          <div className="flex items-center gap-2">
+            {logoUrl && <img src={logoUrl} alt="Logo" className="h-6 md:h-7 object-contain" />}
+          </div>
+          <div className="flex items-center gap-2 md:gap-3.5">
+            <span className="text-[10px] md:text-xs font-black tracking-widest text-slate-500 uppercase">JOIN CHAT AT:</span>
+            <span className="text-lg sm:text-xl md:text-2xl font-mono font-black text-osu-orange select-all bg-osu-orange/10 border border-osu-orange/25 px-4 py-1.5 rounded-xl shadow-lg shadow-orange-500/5">
+              https://active-deck.app/chat
+            </span>
+          </div>
+        </div>
+
         <div 
           ref={actualProjectorFrameRef}
-          className="relative w-full h-full bg-black border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex items-center justify-center mx-auto"
+          className="relative w-full flex-1 bg-black border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex items-center justify-center mx-auto min-h-0"
         >
           <ScreenCapture 
             isCapturing={isCapturing} 

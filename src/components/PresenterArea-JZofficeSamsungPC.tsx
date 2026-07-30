@@ -1490,16 +1490,29 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 )}
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center w-full h-full p-4 relative">
+              <div className="w-full flex flex-col h-full p-4 gap-3 bg-black relative">
+                {/* Header space above slide area for Join URL */}
+                <div className="w-full flex items-center justify-between px-2 shrink-0 select-none">
+                  <div className="flex items-center gap-2">
+                    {logoUrl && <img src={logoUrl} alt="Logo" className="h-6 md:h-7 object-contain" />}
+                  </div>
+                  <div className="flex items-center gap-2 md:gap-3.5">
+                    <span className="text-[10px] md:text-xs font-black tracking-widest text-slate-500 uppercase">JOIN CHAT AT:</span>
+                    <span className="text-lg sm:text-xl md:text-2xl font-mono font-black text-osu-orange select-all bg-osu-orange/10 border border-osu-orange/25 px-4 py-1.5 rounded-xl shadow-lg shadow-orange-500/5">
+                      https://active-deck.app/chat
+                    </span>
+                  </div>
+                </div>
+
                 <div 
                   style={{ 
                     aspectRatio: `${videoAspectRatio}`,
                     width: '100%',
                     height: 'auto',
                     maxWidth: '100%',
-                    maxHeight: 'calc(100% - 40px)',
+                    maxHeight: '100%',
                   }}
-                  className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden p-1.5 flex items-center justify-center shadow-2xl mx-auto"
+                  className="relative flex-1 bg-black border border-slate-800 rounded-2xl overflow-hidden p-1.5 flex items-center justify-center shadow-2xl mx-auto min-h-0"
                 >
                   <ScreenCapture 
                     isCapturing={isCapturing} 
