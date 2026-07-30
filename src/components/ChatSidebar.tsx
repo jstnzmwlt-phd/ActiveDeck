@@ -3974,7 +3974,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 }}
               />
               {/* Progress countdown bar */}
-              {!presentation?.disableAttendance && (
+              {showAttendance && !presentation?.disableAttendance && (
                 <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden relative">
                   <div 
                     className="h-full bg-osu-orange transition-all duration-100 ease-linear"
