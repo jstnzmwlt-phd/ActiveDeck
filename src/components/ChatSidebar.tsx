@@ -4075,17 +4075,33 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       <div className="flex-1 flex flex-col relative overflow-hidden bg-white">
         {/* OSU Logo Watermark & Faded App Label */}
         {internalLogoUrl !== null && (
-          <div className="absolute inset-x-0 top-20 flex flex-col items-center justify-start pointer-events-none opacity-10 z-0 gap-3">
-            <img 
-              src={internalLogoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png"} 
-              alt="Logo Watermark" 
-              className="w-3/4 object-contain max-h-[160px]" 
-              referrerPolicy="no-referrer" 
-            />
-            <span className="text-xl md:text-2xl font-black uppercase tracking-[0.2em] text-slate-800 select-none text-center">
-              ActiveDeck Chat
-            </span>
-          </div>
+          isProjector ? (
+            /* Centered on the projector display */
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none opacity-10 z-0 gap-3">
+              <img 
+                src={internalLogoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png"} 
+                alt="Logo Watermark" 
+                className="w-3/4 object-contain max-h-[160px]" 
+                referrerPolicy="no-referrer" 
+              />
+              <span className="text-xl md:text-2xl font-black uppercase tracking-[0.2em] text-slate-800 select-none text-center">
+                ActiveDeck Chat
+              </span>
+            </div>
+          ) : (
+            /* Higher up on the presenter display */
+            <div className="absolute inset-x-0 top-20 flex flex-col items-center justify-start pointer-events-none opacity-10 z-0 gap-3">
+              <img 
+                src={internalLogoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png"} 
+                alt="Logo Watermark" 
+                className="w-3/4 object-contain max-h-[160px]" 
+                referrerPolicy="no-referrer" 
+              />
+              <span className="text-xl md:text-2xl font-black uppercase tracking-[0.2em] text-slate-800 select-none text-center">
+                ActiveDeck Chat
+              </span>
+            </div>
+          )
         )}
 
         {/* Sticky Pinned Messages Banner */}
