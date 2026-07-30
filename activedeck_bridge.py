@@ -29,13 +29,7 @@ def move_ppt_windows(direction):
     try:
         ppt_app = win32com.client.GetActiveObject("PowerPoint.Application")
         if ppt_app.SlideShowWindows.Count > 0:
-            show_window = ppt_app.SlideShowWindows(1)
-            try:
-                show_window.Activate()
-            except Exception:
-                pass
-
-            view = show_window.View
+            view = ppt_app.SlideShowWindows(1).View
             if direction == "next":
                 view.Next()
             elif direction == "prev":
@@ -43,16 +37,11 @@ def move_ppt_windows(direction):
             else:
                 try:
                     slide_num = int(direction)
-                    presentation = show_window.Presentation
+                    presentation = ppt_app.SlideShowWindows(1).Presentation
                     if 1 <= slide_num <= presentation.Slides.Count:
                         view.GotoSlide(slide_num)
                 except ValueError:
                     pass
-
-            try:
-                show_window.Activate()
-            except Exception:
-                pass
     except Exception:
         pass
     finally:
