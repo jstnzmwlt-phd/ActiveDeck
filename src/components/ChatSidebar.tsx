@@ -3953,11 +3953,17 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           <div 
             onClick={isProjector ? undefined : () => setIsQRExpanded(false)}
             className={cn(
-              "p-5 bg-white border-b border-slate-200 flex flex-col items-center justify-center gap-3.5 select-none h-[380px]",
-              isProjector ? "cursor-default" : "cursor-pointer"
+              "p-5 bg-white border-b border-slate-200 flex flex-col items-center justify-center select-none",
+              isProjector ? "h-auto py-4 gap-2.5 cursor-default" : "h-[380px] gap-3.5 cursor-pointer"
             )}
             title={isProjector ? undefined : "Click to minimize QR code"}
           >
+            {isProjector && (
+              <p className="text-[8.5px] font-black text-slate-500 uppercase tracking-widest leading-none text-center">
+                {presentation?.disableAttendance ? "Scan to Join Chat" : "Scan to Mark Attendance and Join Chat"}
+              </p>
+            )}
+
             <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-md flex flex-col items-center gap-2 animate-in zoom-in-95 duration-300">
               <QRCodeSVG 
                 value={dynamicChatUrl} 
@@ -3993,23 +3999,23 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               )}
             </div>
             
-            <div className="text-center space-y-1 w-full max-w-[270px]">
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-tight">
-                {presentation?.disableAttendance ? "Scan to Join Chat" : "Scan to Mark Attendance and Join Chat"}
-              </p>
-              <p className="text-xs font-bold text-slate-700 font-mono select-all truncate">
-                {shortUrl || chatOnlyUrl}
-              </p>
-              <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-slate-100 rounded border border-slate-200 text-[10px] font-black text-slate-650 mt-1">
-                <Users className="w-3.5 h-3.5 text-osu-orange" />
-                <span>{participantCount} Joined</span>
-              </div>
-              {!isProjector && (
+            {!isProjector && (
+              <div className="text-center space-y-1 w-full max-w-[270px]">
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-tight">
+                  {presentation?.disableAttendance ? "Scan to Join Chat" : "Scan to Mark Attendance and Join Chat"}
+                </p>
+                <p className="text-xs font-bold text-slate-700 font-mono select-all truncate">
+                  {shortUrl || chatOnlyUrl}
+                </p>
+                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-slate-100 rounded border border-slate-200 text-[10px] font-black text-slate-650 mt-1">
+                  <Users className="w-3.5 h-3.5 text-osu-orange" />
+                  <span>{participantCount} Joined</span>
+                </div>
                 <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-2.5 animate-pulse">
                   (Click anywhere to minimize)
                 </p>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         ) : (
           /* Minimized Horizontal View */
