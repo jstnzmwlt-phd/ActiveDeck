@@ -159,6 +159,13 @@ def background_slide_exporter():
                     pres = ppt_app.SlideShowWindows(1).Presentation
                     
                     if pres.Name != last_exported_presentation:
+                        # Clear old slides in temp_dir to prevent serving stale files from previous presentations
+                        try:
+                            import shutil
+                            if os.path.exists(temp_dir):
+                                shutil.rmtree(temp_dir)
+                        except Exception:
+                            pass
                         os.makedirs(temp_dir, exist_ok=True)
                         
                         # EXPORT BOTH FORMATS: 
@@ -197,6 +204,13 @@ def export_slides_endpoint():
             if ppt_app.SlideShowWindows.Count > 0:
                 pres = ppt_app.SlideShowWindows(1).Presentation
                 temp_dir = os.path.join(tempfile.gettempdir(), "activedeck_slides")
+                # Clear old slides in temp_dir before manual export too
+                try:
+                    import shutil
+                    if os.path.exists(temp_dir):
+                        shutil.rmtree(temp_dir)
+                except Exception:
+                    pass
                 os.makedirs(temp_dir, exist_ok=True)
                 count = pres.Slides.Count
                 for i in range(1, count + 1):
