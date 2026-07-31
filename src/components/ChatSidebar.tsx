@@ -4129,7 +4129,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 initialCollapsed={isAllCollapsed}
                 isInitiallyNew={false}
                 isPresenter={msg.isPresenterPost !== undefined ? msg.isPresenterPost : msg.userId === presentation?.presenterId}
-                isUnread={!readMessageIds[msg.id]}
+                isUnread={isProjector ? false : !readMessageIds[msg.id]}
                 onFocus={(msg) => {
                   setReadMessageIds(prev => ({ ...prev, [msg.id]: true }));
                   const isAlreadyFocused = focusedMessage?.id === msg.id;
@@ -4315,7 +4315,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                   initialCollapsed={isAllCollapsed}
                   isInitiallyNew={isInitiallyNew}
                   isPresenter={msg.isPresenterPost !== undefined ? msg.isPresenterPost : msg.userId === presentation?.presenterId}
-                  isUnread={!readMessageIds[msg.id]}
+                  isUnread={isProjector ? false : !readMessageIds[msg.id]}
                   onFocus={(msg) => {
                     setReadMessageIds(prev => ({ ...prev, [msg.id]: true }));
                     const isAlreadyFocused = focusedMessage?.id === msg.id;
