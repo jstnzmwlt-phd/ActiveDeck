@@ -722,15 +722,41 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
     slideImgUrl: string,
     presenterDrawingsJson?: string
   ): Promise<Uint8Array | null> => {
-    return new Promise((resolve) => {
+    return new Promise(async (resolve) => {
+      let localUrl = '';
+      try {
+        if (slideImgUrl.startsWith('data:')) {
+          localUrl = slideImgUrl;
+        } else {
+          const isExternal = slideImgUrl.startsWith('http') && !slideImgUrl.includes(window.location.host);
+          const fetchUrl = isExternal 
+            ? `/api/proxy-image?url=${encodeURIComponent(slideImgUrl)}`
+            : slideImgUrl;
+            
+          const response = await fetch(fetchUrl);
+          if (!response.ok) {
+            throw new Error(`Fetch failed: ${response.statusText}`);
+          }
+          const blob = await response.blob();
+          localUrl = URL.createObjectURL(blob);
+        }
+      } catch (e) {
+        console.error("compositeSlideWithAnnotations: Failed to fetch image", e);
+        localUrl = slideImgUrl;
+      }
+
       const img = new Image();
-      img.crossOrigin = 'anonymous';
+      if (!localUrl.startsWith('data:') && !localUrl.startsWith('blob:')) {
+        img.crossOrigin = 'anonymous';
+      }
+      
       img.onload = () => {
         const canvas = document.createElement('canvas');
         canvas.width = img.naturalWidth || 1920;
         canvas.height = img.naturalHeight || 1080;
         const ctx = canvas.getContext('2d');
         if (!ctx) {
+          if (localUrl.startsWith('blob:')) URL.revokeObjectURL(localUrl);
           resolve(null);
           return;
         }
@@ -789,6 +815,38 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
               ctx.moveTo(p2.x, p2.y);
               ctx.lineTo(h2x, h2y);
               ctx.stroke();
+            } else if (stroke.isLine && pts.length >= 2) {
+              const p1 = pts[0];
+              const p2 = pts[pts.length - 1];
+              ctx.beginPath();
+              ctx.moveTo(p1.x, p1.y);
+              ctx.lineTo(p2.x, p2.y);
+              ctx.stroke();
+            } else if (stroke.isRectangle && pts.length >= 2) {
+              const p1 = pts[0];
+              const p2 = pts[pts.length - 1];
+              const x = Math.min(p1.x, p2.x);
+              const y = Math.min(p1.y, p2.y);
+              const w = Math.abs(p2.x - p1.x);
+              const h = Math.abs(p2.y - p1.y);
+              ctx.beginPath();
+              ctx.rect(x, y, w, h);
+              ctx.stroke();
+            } else if (stroke.isCircle && pts.length >= 2) {
+              const p1 = pts[0];
+              const p2 = pts[pts.length - 1];
+              const cx = (p1.x + p2.x) / 2;
+              const cy = (p1.y + p2.y) / 2;
+              const rx = Math.abs(p2.x - p1.x) / 2;
+              const ry = Math.abs(p2.y - p1.y) / 2;
+              ctx.beginPath();
+              if (typeof ctx.ellipse === 'function') {
+                ctx.ellipse(cx, cy, rx, ry, 0, 0, 2 * Math.PI);
+              } else {
+                const r = (rx + ry) / 2;
+                ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+              }
+              ctx.stroke();
             } else {
               ctx.beginPath();
               pts.forEach((p: any, i: number) => {
@@ -812,7 +870,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
           } catch {}
         }
 
-        // Convert base64 dataUri to Uint8Array directly
         try {
           const dataUrl = canvas.toDataURL('image/png');
           const parts = dataUrl.split(',');
@@ -823,16 +880,20 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
             for (let i = 0; i < len; i++) {
               bytes[i] = binaryStr.charCodeAt(i);
             }
+            if (localUrl.startsWith('blob:')) URL.revokeObjectURL(localUrl);
             resolve(bytes);
           } else {
+            if (localUrl.startsWith('blob:')) URL.revokeObjectURL(localUrl);
             resolve(null);
           }
         } catch (e) {
+          if (localUrl.startsWith('blob:')) URL.revokeObjectURL(localUrl);
           resolve(null);
         }
       };
 
       img.onerror = () => {
+        if (localUrl.startsWith('blob:')) URL.revokeObjectURL(localUrl);
         // Fallback fetch
         fetch(slideImgUrl)
           .then(res => res.arrayBuffer())
@@ -840,7 +901,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
           .catch(() => resolve(null));
       };
 
-      img.src = slideImgUrl;
+      img.src = localUrl;
     });
   };
 
