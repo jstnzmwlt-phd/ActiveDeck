@@ -1276,17 +1276,24 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     const mx = presentation.magnifierX ?? 50;
     const my = presentation.magnifierY ?? 50;
 
-    const lensWidth = 350;
-    const lensHeight = 200;
+    // Proportional lens size (38% of slide dimensions) to ensure identical visual zoom on all screens
+    const lensWidth = bounds.renderedWidth * 0.38;
+    const lensHeight = bounds.renderedHeight * 0.38;
     const scale = 2.5;
 
     // Position of magnifier center in pixels on the rendered slide
     const slidePx = (mx / 100) * bounds.renderedWidth;
     const slidePy = (my / 100) * bounds.renderedHeight;
 
+    // Clamp lens position so the window itself NEVER goes off the slide boundary
+    const halfW = lensWidth / 2;
+    const halfH = lensHeight / 2;
+    const clampedPx = Math.max(halfW, Math.min(bounds.renderedWidth - halfW, slidePx));
+    const clampedPy = Math.max(halfH, Math.min(bounds.renderedHeight - halfH, slidePy));
+
     // Offset in the container
-    const absoluteLeft = bounds.offsetX + slidePx;
-    const absoluteTop = bounds.offsetY + slidePy;
+    const absoluteLeft = bounds.offsetX + clampedPx;
+    const absoluteTop = bounds.offsetY + clampedPy;
 
     // Calculate background image source for zoom
     const bridgeSlideImgSrc = 
@@ -1295,6 +1302,12 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         : (isBridgeConnected && currentSlide) 
           ? `http://127.0.0.1:5000/slides/${currentSlide}.jpg` 
           : currentSlidePreviewUrl || null;
+
+    // Calculate the zoomed slide offset inside the lens (with clamping to avoid black bars at edges)
+    const idealLeft = -slidePx * scale + halfW;
+    const idealTop = -slidePy * scale + halfH;
+    const zoomLeft = Math.max(-(bounds.renderedWidth * scale - lensWidth), Math.min(0, idealLeft));
+    const zoomTop = Math.max(-(bounds.renderedHeight * scale - lensHeight), Math.min(0, idealTop));
 
     return (
       <div
@@ -1306,7 +1319,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           height: `${lensHeight}px`,
           transform: 'translate(-50%, -50%)',
           borderRadius: '12px',
-          border: 'none', // Removed red border as requested
+          border: 'none',
           boxShadow: '0 15px 35px rgba(0, 0, 0, 0.8), inset 0 0 20px rgba(0, 0, 0, 0.4)', // Rich drop shadow
           overflow: 'hidden',
           zIndex: 100,
@@ -1324,8 +1337,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             position: 'absolute',
             width: `${bounds.renderedWidth * scale}px`,
             height: `${bounds.renderedHeight * scale}px`,
-            left: `${-slidePx * scale + lensWidth / 2}px`,
-            top: `${-slidePy * scale + lensHeight / 2}px`,
+            left: `${zoomLeft}px`,
+            top: `${zoomTop}px`,
             pointerEvents: 'none',
             display: 'flex',
             alignItems: 'center',
