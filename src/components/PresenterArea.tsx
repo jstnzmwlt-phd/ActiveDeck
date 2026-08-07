@@ -2635,7 +2635,14 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         ref={presenterFrameRef}
                         onMouseMove={!isProjectorMode ? handleMouseMove : undefined}
                         onMouseLeave={!isProjectorMode ? handleMouseLeave : undefined}
-                        className="relative w-full h-full bg-black border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex items-center justify-center mx-auto"
+                        onClick={() => {
+                          if (!isPenActive) {
+                            setIsPenActive(true);
+                          }
+                        }}
+                        className={`relative w-full h-full bg-black border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex items-center justify-center mx-auto ${
+                          !isPenActive ? 'cursor-pointer' : ''
+                        }`}
                       >
                       <ScreenCapture 
                         isCapturing={isCapturing} 
