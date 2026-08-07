@@ -1275,7 +1275,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     const mx = presentation.magnifierX ?? 50;
     const my = presentation.magnifierY ?? 50;
 
-    const lensSize = 180;
+    const lensWidth = 350;
+    const lensHeight = 200;
     const scale = 2.5;
 
     // Position of magnifier center in pixels on the rendered slide
@@ -1300,12 +1301,12 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           position: 'absolute',
           left: absoluteLeft,
           top: absoluteTop,
-          width: `${lensSize}px`,
-          height: `${lensSize}px`,
+          width: `${lensWidth}px`,
+          height: `${lensHeight}px`,
           transform: 'translate(-50%, -50%)',
-          borderRadius: '50%',
-          border: '4px solid rgba(255, 255, 255, 0.95)',
-          boxShadow: '0 0 25px 8px rgba(0, 0, 0, 0.65), inset 0 0 20px 4px rgba(0, 0, 0, 0.4)',
+          borderRadius: '12px',
+          border: '4px solid #b91c1c', // Solid red border
+          boxShadow: '0 10px 30px rgba(0, 0, 0, 0.65), inset 0 0 20px rgba(0, 0, 0, 0.4)',
           overflow: 'hidden',
           zIndex: 100,
           pointerEvents: !isProject ? 'auto' : 'none',
@@ -1322,8 +1323,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             position: 'absolute',
             width: `${bounds.renderedWidth * scale}px`,
             height: `${bounds.renderedHeight * scale}px`,
-            left: `${-slidePx * scale + lensSize / 2}px`,
-            top: `${-slidePy * scale + lensSize / 2}px`,
+            left: `${-slidePx * scale + lensWidth / 2}px`,
+            top: `${-slidePy * scale + lensHeight / 2}px`,
             pointerEvents: 'none',
             display: 'flex',
             alignItems: 'center',
