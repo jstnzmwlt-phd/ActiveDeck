@@ -173,6 +173,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
   // Presenter Live Slide Drawing State
   const [isPenActive, setIsPenActive] = useState<boolean>(false);
+  const [wasLaserActiveBeforeMagnifier, setWasLaserActiveBeforeMagnifier] = useState<boolean>(false);
   const [penTool, setPenTool] = useState<'pen' | 'arrow' | 'line' | 'circle' | 'rectangle' | 'highlighter' | 'text' | 'eraser'>('pen');
   const [penColor, setPenColor] = useState<string>('#EF4444'); // Default Red
   const [highlighterColor, setHighlighterColor] = useState<string>('#EAB308'); // Default Yellow
@@ -1305,8 +1306,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           height: `${lensHeight}px`,
           transform: 'translate(-50%, -50%)',
           borderRadius: '12px',
-          border: '4px solid #b91c1c', // Solid red border
-          boxShadow: '0 10px 30px rgba(0, 0, 0, 0.65), inset 0 0 20px rgba(0, 0, 0, 0.4)',
+          border: 'none', // Removed red border as requested
+          boxShadow: '0 15px 35px rgba(0, 0, 0, 0.8), inset 0 0 20px rgba(0, 0, 0, 0.4)', // Rich drop shadow
           overflow: 'hidden',
           zIndex: 100,
           pointerEvents: !isProject ? 'auto' : 'none',
@@ -2709,6 +2710,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 setLaserEnabled(newEnabled);
                 if (!newEnabled) {
                   updateLaserPosition(0, 0, false);
+                } else if (presentation?.magnifierActive) {
+                  updateMagnifierPositionInFirebase(50, 50, false);
                 }
               }}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all duration-200 shadow-lg cursor-pointer hover:scale-105 active:scale-95 ${
@@ -2740,6 +2743,16 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             <button
               onClick={() => {
                 const newActive = !presentation?.magnifierActive;
+                if (newActive) {
+                  setWasLaserActiveBeforeMagnifier(laserEnabled);
+                  if (laserEnabled) {
+                    setLaserEnabled(false);
+                    updateLaserPosition(0, 0, false);
+                  }
+                } else if (wasLaserActiveBeforeMagnifier) {
+                  setLaserEnabled(true);
+                  setWasLaserActiveBeforeMagnifier(false);
+                }
                 updateMagnifierPositionInFirebase(50, 50, newActive);
               }}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all duration-200 shadow-lg cursor-pointer hover:scale-105 active:scale-95 ${
