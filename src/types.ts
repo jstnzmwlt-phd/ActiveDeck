@@ -70,6 +70,9 @@ export interface Presentation {
   showSlidePreview?: boolean;
   presenterDrawings?: Record<string, string>;
   activeDrawingStrokeJSON?: string | null;
+  magnifierX?: number;
+  magnifierY?: number;
+  magnifierActive?: boolean;
 }
 
 export interface Message {

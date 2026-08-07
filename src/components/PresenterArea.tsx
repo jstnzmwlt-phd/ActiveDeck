@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Presentation, Message, Poll, WordCloud, OpenEndedQuestion } from '../types';
 import { ScreenCapture } from './ScreenCapture';
-import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play, X, Loader2, Tv, Minimize, Maximize, FileText, Square, Send, CheckCircle2, Check, Clock, Pen, Eraser, Highlighter, MoveRight, Type, Undo2, Redo2, Trash2, Minus, Circle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play, X, Loader2, Tv, Minimize, Maximize, FileText, Square, Send, CheckCircle2, Check, Clock, Pen, Eraser, Highlighter, MoveRight, Type, Undo2, Redo2, Trash2, Minus, Circle, Search } from 'lucide-react';
 import { useBridge } from '../contexts/BridgeContext';
 import { auth, db, storage } from '../firebase';
 import { doc, getDoc, updateDoc, onSnapshot, collection, query, where } from 'firebase/firestore';
@@ -1215,6 +1215,147 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const handleMouseLeave = () => {
     if (isProjectorMode || !presentation?.id) return;
     updateLaserPosition(0, 0, false);
+  };
+
+  const isDraggingMagnifierRef = useRef(false);
+
+  const handleMagnifierPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    e.preventDefault();
+    isDraggingMagnifierRef.current = true;
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const handleMagnifierPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingMagnifierRef.current || !presenterFrameRef.current) return;
+    updateMagnifierPositionFromEvent(e, presenterFrameRef.current);
+  };
+
+  const handleMagnifierPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    isDraggingMagnifierRef.current = false;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch (_) {}
+  };
+
+  const updateMagnifierPositionFromEvent = (
+    e: React.PointerEvent | React.MouseEvent,
+    container: HTMLDivElement
+  ) => {
+    const b = getRenderedSlideBounds(container);
+    if (!b || b.renderedWidth === 0 || b.renderedHeight === 0) return;
+
+    const rect = container.getBoundingClientRect();
+    const contentX = e.clientX - rect.left - b.offsetX;
+    const contentY = e.clientY - rect.top - b.offsetY;
+
+    // Convert to percentage and clamp between 0 and 100
+    const x = Math.max(0, Math.min(100, (contentX / b.renderedWidth) * 100));
+    const y = Math.max(0, Math.min(100, (contentY / b.renderedHeight) * 100));
+
+    updateMagnifierPositionInFirebase(x, y, true);
+  };
+
+  const updateMagnifierPositionInFirebase = async (x: number, y: number, active: boolean) => {
+    if (!presentation?.id) return;
+    try {
+      await updateDoc(doc(db, 'presentations', presentation.id), {
+        magnifierX: Number(x.toFixed(2)),
+        magnifierY: Number(y.toFixed(2)),
+        magnifierActive: active
+      });
+    } catch (err) {
+      console.warn("Error updating magnifier position in Firebase:", err);
+    }
+  };
+
+  const renderMagnifier = (bounds: RenderedSlideBounds, isProject: boolean) => {
+    if (!presentation?.magnifierActive) return null;
+
+    const mx = presentation.magnifierX ?? 50;
+    const my = presentation.magnifierY ?? 50;
+
+    const lensSize = 180;
+    const scale = 2.5;
+
+    // Position of magnifier center in pixels on the rendered slide
+    const slidePx = (mx / 100) * bounds.renderedWidth;
+    const slidePy = (my / 100) * bounds.renderedHeight;
+
+    // Offset in the container
+    const absoluteLeft = bounds.offsetX + slidePx;
+    const absoluteTop = bounds.offsetY + slidePy;
+
+    // Calculate background image source for zoom
+    const bridgeSlideImgSrc = 
+      (isBridgeConnected && currentSlideBase64) 
+        ? currentSlideBase64 
+        : (isBridgeConnected && currentSlide) 
+          ? `http://127.0.0.1:5000/slides/${currentSlide}.jpg` 
+          : currentSlidePreviewUrl || null;
+
+    return (
+      <div
+        style={{
+          position: 'absolute',
+          left: absoluteLeft,
+          top: absoluteTop,
+          width: `${lensSize}px`,
+          height: `${lensSize}px`,
+          transform: 'translate(-50%, -50%)',
+          borderRadius: '50%',
+          border: '4px solid rgba(255, 255, 255, 0.95)',
+          boxShadow: '0 0 25px 8px rgba(0, 0, 0, 0.65), inset 0 0 20px 4px rgba(0, 0, 0, 0.4)',
+          overflow: 'hidden',
+          zIndex: 100,
+          pointerEvents: !isProject ? 'auto' : 'none',
+          cursor: !isProject ? 'move' : 'none',
+          touchAction: 'none',
+        }}
+        onPointerDown={!isProject ? handleMagnifierPointerDown : undefined}
+        onPointerMove={!isProject ? handleMagnifierPointerMove : undefined}
+        onPointerUp={!isProject ? handleMagnifierPointerUp : undefined}
+      >
+        {/* Zoomed slide contents */}
+        <div
+          style={{
+            position: 'absolute',
+            width: `${bounds.renderedWidth * scale}px`,
+            height: `${bounds.renderedHeight * scale}px`,
+            left: `${-slidePx * scale + lensSize / 2}px`,
+            top: `${-slidePy * scale + lensSize / 2}px`,
+            pointerEvents: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: '#000',
+          }}
+        >
+          {isCapturing && stream ? (
+            <video
+              ref={(el) => {
+                if (el && el.srcObject !== stream) {
+                  el.srcObject = stream;
+                  el.play().catch(() => {});
+                }
+              }}
+              autoPlay
+              playsInline
+              muted
+              className="w-full h-full object-contain animate-none"
+              style={{ pointerEvents: 'none', transform: 'none' }}
+            />
+          ) : bridgeSlideImgSrc ? (
+            <img
+              src={bridgeSlideImgSrc}
+              alt="Zoomed Slide"
+              className="w-full h-full object-contain"
+              style={{ pointerEvents: 'none' }}
+            />
+          ) : null}
+        </div>
+      </div>
+    );
   };
 
   useEffect(() => {
@@ -2594,6 +2735,23 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               <span>Pen {isPenActive ? 'ON' : 'OFF'}</span>
             </button>
 
+            {/* Slide Magnifier Toggle Switch */}
+            <button
+              onClick={() => {
+                const newActive = !presentation?.magnifierActive;
+                updateMagnifierPositionInFirebase(50, 50, newActive);
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all duration-200 shadow-lg cursor-pointer hover:scale-105 active:scale-95 ${
+                presentation?.magnifierActive 
+                  ? 'bg-emerald-600 border-emerald-500 text-white hover:bg-emerald-700 hover:border-emerald-600 shadow-emerald-500/10' 
+                  : 'bg-red-600 border-red-500 text-white hover:bg-red-700 hover:border-red-600 shadow-red-500/10'
+              }`}
+              title="Toggle Slide Magnifier"
+            >
+              <Search className="w-3 h-3 text-white" />
+              <span>Magnifier {presentation?.magnifierActive ? 'ON' : 'OFF'}</span>
+            </button>
+
           </div>
 
           {/* Slide Number (Slightly to the right to make some distance) */}
@@ -2635,13 +2793,15 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         ref={presenterFrameRef}
                         onMouseMove={!isProjectorMode ? handleMouseMove : undefined}
                         onMouseLeave={!isProjectorMode ? handleMouseLeave : undefined}
-                        onClick={() => {
-                          if (!isPenActive) {
+                        onClick={(e) => {
+                          if (presentation?.magnifierActive) {
+                            updateMagnifierPositionFromEvent(e, presenterFrameRef.current!);
+                          } else if (!isPenActive) {
                             setIsPenActive(true);
                           }
                         }}
                         className={`relative w-full h-full bg-black border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex items-center justify-center mx-auto ${
-                          !isPenActive ? 'cursor-pointer' : ''
+                          presentation?.magnifierActive || !isPenActive ? 'cursor-pointer' : ''
                         }`}
                       >
                       <ScreenCapture 
@@ -2749,6 +2909,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                             }}
                           />
                         )}
+
+                        {renderMagnifier(presenterBounds, false)}
                       </div>
                     </div>
                   </div>
@@ -3067,6 +3229,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         }}
                       />
                     )}
+
+                    {renderMagnifier(projectorBounds, true)}
                   </div>
                 </div>
               </div>
@@ -3689,6 +3853,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 }}
               />
             )}
+
+            {renderMagnifier(actualProjectorBounds, true)}
           </div>
         </div>
 
