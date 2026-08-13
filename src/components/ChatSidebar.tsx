@@ -4169,11 +4169,11 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
             <div className="flex flex-col items-center justify-center p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-300 animate-in fade-in duration-500">
               <MessageSquareOff className="w-8 h-8 text-slate-400 mb-3" />
               <h3 className="text-sm font-bold text-slate-700">
-                {canModerate ? "Comments Hidden from Audience" : "Comments are Hidden"}
+                Chat Disabled
               </h3>
               <p className="text-xs text-slate-500 mt-1">
                 {canModerate 
-                  ? `Currently collecting responses (${messages.length} received). Toggle the chat bubble icon in the header to reveal them.`
+                  ? "Chat disabled, enable it above to receive messages from audience"
                   : "The presenter has hidden responses for now. They will be visible once the discussion begins."}
               </p>
             </div>
