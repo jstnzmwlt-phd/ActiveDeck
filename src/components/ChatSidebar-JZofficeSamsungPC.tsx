@@ -3403,20 +3403,24 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                       <BarChart2 className="w-4 h-4 mb-0.5" />
                       <span>MCQ</span>
                     </button>
-                    <button 
-                      onClick={() => handleCreateWordCloud('Word Cloud')}
-                      className="flex-1 flex flex-col items-center justify-center px-1 py-2 bg-blue-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-blue-600 transition-all shadow-sm leading-tight border-0 cursor-pointer"
-                    >
-                      <Cloud className="w-4 h-4 mb-0.5" />
-                      <span>Cloud</span>
-                    </button>
-                    <button                
-                        onClick={() => handleCreateOpenEndedQuestion('Open question')}
-                        className="flex-1 flex flex-col items-center justify-center px-1 py-2 bg-green-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-green-600 transition-all shadow-sm leading-tight border-0 cursor-pointer"
-                    >                
-                      <MessageSquare className="w-4 h-4 mb-0.5" />
-                      <span>Open ?</span>
-                    </button>
+                    {presentation?.showSlidePreview !== false && (
+                      <>
+                        <button 
+                          onClick={() => handleCreateWordCloud('Word Cloud')}
+                          className="flex-1 flex flex-col items-center justify-center px-1 py-2 bg-blue-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-blue-600 transition-all shadow-sm leading-tight border-0 cursor-pointer"
+                        >
+                          <Cloud className="w-4 h-4 mb-0.5" />
+                          <span>Cloud</span>
+                        </button>
+                        <button                
+                            onClick={() => handleCreateOpenEndedQuestion('Open question')}
+                            className="flex-1 flex flex-col items-center justify-center px-1 py-2 bg-green-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-green-600 transition-all shadow-sm leading-tight border-0 cursor-pointer"
+                        >                
+                          <MessageSquare className="w-4 h-4 mb-0.5" />
+                          <span>Open ?</span>
+                        </button>
+                      </>
+                    )}
                   </div>
                   <button 
                     onClick={() => setIsAllCollapsed(!isAllCollapsed)}
@@ -3514,8 +3518,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           {/* Render Polls, Word Clouds, and Messages interleaved chronologically by time (pinned messages are excluded from the main feed) */}
           {[...messages.filter(m => !m.isPinned).map(m => ({ ...m, type: 'message' as const })), 
             ...polls.map(p => ({ ...p, type: 'poll' as const })),
-            ...wordClouds.map(w => ({ ...w, type: 'wordCloud' as const })),
-            ...openEndedQuestions.map(q => ({ ...q, type: 'openEndedQuestion' as const }))]
+            ...(presentation?.showSlidePreview !== false ? wordClouds.map(w => ({ ...w, type: 'wordCloud' as const })) : []),
+            ...(presentation?.showSlidePreview !== false ? openEndedQuestions.map(q => ({ ...q, type: 'openEndedQuestion' as const })) : [])]
             .sort((a, b) => {
               const timeA = ((a as any).timestamp || (a as any).createdAt)?.toMillis() || 0;
               const timeB = ((b as any).timestamp || (b as any).createdAt)?.toMillis() || 0;

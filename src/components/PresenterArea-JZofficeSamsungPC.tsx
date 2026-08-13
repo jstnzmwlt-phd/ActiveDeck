@@ -1175,7 +1175,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 {/* Left Column (Current Slide + Presenter Notes below it) */}
                 <div 
                   className="flex flex-col gap-4 w-full md:flex-shrink-0"
-                  style={{ width: `calc(${leftWidthPercent}% - 8px)` }}
+                  style={{ width: presentation?.showSlidePreview !== false ? `calc(${leftWidthPercent}% - 8px)` : '100%' }}
                 >
                   <div className="flex flex-col gap-2 w-full">
 
@@ -1309,75 +1309,79 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                   </div>
                 </div>
 
-                {/* Interactive Drag Splitter between Current Slide + Notes (Left) and Next Slide Preview (Right) */}
-                <div 
-                  onMouseDown={handleMouseDownPresenterNotesSplit}
-                  onTouchStart={handleTouchStartPresenterNotesSplit}
-                  onDoubleClick={() => setLeftWidthPercent(62)}
-                  className="hidden md:flex w-2.5 self-stretch cursor-col-resize items-center justify-center flex-shrink-0 group/notes-splitter select-none bg-transparent hover:bg-white/[0.02] active:bg-white/[0.04] transition-all rounded-lg mx-1"
-                  title="Drag to resize panels (double-click to reset)"
-                >
-                  <div className="w-[3px] h-24 bg-slate-800/85 group-hover/notes-splitter:bg-osu-orange/70 group-active/notes-splitter:bg-osu-orange rounded-full transition-all duration-200" />
-                </div>
-
-                {/* Right Column (Next Slide): smaller preview */}
-                <div 
-                  className="flex flex-col gap-2 w-full md:flex-shrink-0 ml-auto"
-                  style={{ width: `calc(${100 - leftWidthPercent}% - 8px)` }}
-                >
-                  <div className="flex items-center justify-between px-1">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Next Slide</span>
-                    {nextSlide !== null && (
-                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
-                        Slide {nextSlide}
-                      </span>
-                    )}
-                  </div>
-                  <div className="relative w-full aspect-video bg-black border border-slate-850 rounded-2xl overflow-hidden p-1 flex items-center justify-center shadow-lg">
-                    {isBridgeConnected && nextSlideBase64 ? (
-                      <img 
-                        src={nextSlideBase64} 
-                        alt="Next Slide Preview" 
-                        className="w-full h-full object-contain bg-black animate-in fade-in duration-300"
-                        key={`websocket-next-${nextSlide}`}
-                      />
-                    ) : isBridgeConnected && nextSlide !== null && !nextSlideImageError ? (
-                      <img 
-                        src={`http://127.0.0.1:5000/slides/${nextSlide}.jpg`} 
-                        alt="Next Slide Preview" 
-                        className="w-full h-full object-contain bg-black animate-in fade-in duration-300"
-                        key={`local-next-${nextSlide}`}
-                        onError={() => setNextSlideImageError(true)}
-                      />
-                    ) : nextSlidePreviewUrl ? (
-                      <img 
-                        src={nextSlidePreviewUrl} 
-                        alt="Next Slide Preview" 
-                        className="w-full h-full object-contain bg-black animate-in fade-in duration-300"
-                        key={`firestore-next-${nextSlide}`}
-                      />
-                    ) : (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600 text-center p-4">
-                        <Monitor className="w-8 h-8 mb-2 opacity-20" />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                          {nextSlide !== null ? `Slide ${nextSlide}` : 'No Next Slide'}
-                        </span>
-                        <span className="text-[9px] text-slate-600 mt-1">
-                          {nextSlide !== null ? 'Waiting for slide capture...' : 'End of presentation'}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  {/* Clock Display under Next Slide Preview */}
-                  <div className="mt-2 flex items-center justify-center gap-2.5 px-5 py-2 bg-slate-950/95 border border-slate-800 rounded-xl shadow-xl text-slate-100 select-none w-fit mx-auto shrink-0">
-                    <Clock className="w-6 h-6 md:w-7 md:h-7 text-osu-orange shrink-0 animate-pulse" />
-                    <div className="flex items-baseline font-mono font-black text-2xl md:text-3xl lg:text-4xl tracking-tight leading-none">
-                      <span>{(currentTime.getHours() % 12 || 12).toString().padStart(2, '0')}:{currentTime.getMinutes().toString().padStart(2, '0')}</span>
-                      <span className="text-[0.6em] text-slate-400 font-semibold ml-0.5">:{currentTime.getSeconds().toString().padStart(2, '0')}</span>
-                      <span className="text-[0.65em] ml-1.5 font-sans font-black text-osu-orange uppercase">{currentTime.getHours() >= 12 ? 'PM' : 'AM'}</span>
+                {presentation?.showSlidePreview !== false && (
+                  <>
+                    {/* Interactive Drag Splitter between Current Slide + Notes (Left) and Next Slide Preview (Right) */}
+                    <div 
+                      onMouseDown={handleMouseDownPresenterNotesSplit}
+                      onTouchStart={handleTouchStartPresenterNotesSplit}
+                      onDoubleClick={() => setLeftWidthPercent(62)}
+                      className="hidden md:flex w-2.5 self-stretch cursor-col-resize items-center justify-center flex-shrink-0 group/notes-splitter select-none bg-transparent hover:bg-white/[0.02] active:bg-white/[0.04] transition-all rounded-lg mx-1"
+                      title="Drag to resize panels (double-click to reset)"
+                    >
+                      <div className="w-[3px] h-24 bg-slate-800/85 group-hover/notes-splitter:bg-osu-orange/70 group-active/notes-splitter:bg-osu-orange rounded-full transition-all duration-200" />
                     </div>
-                  </div>
-                </div>
+
+                    {/* Right Column (Next Slide): smaller preview */}
+                    <div 
+                      className="flex flex-col gap-2 w-full md:flex-shrink-0 ml-auto"
+                      style={{ width: `calc(${100 - leftWidthPercent}% - 8px)` }}
+                    >
+                      <div className="flex items-center justify-between px-1">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Next Slide</span>
+                        {nextSlide !== null && (
+                          <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                            Slide {nextSlide}
+                          </span>
+                        )}
+                      </div>
+                      <div className="relative w-full aspect-video bg-black border border-slate-850 rounded-2xl overflow-hidden p-1 flex items-center justify-center shadow-lg">
+                        {isBridgeConnected && nextSlideBase64 ? (
+                          <img 
+                            src={nextSlideBase64} 
+                            alt="Next Slide Preview" 
+                            className="w-full h-full object-contain bg-black animate-in fade-in duration-300"
+                            key={`websocket-next-${nextSlide}`}
+                          />
+                        ) : isBridgeConnected && nextSlide !== null && !nextSlideImageError ? (
+                          <img 
+                            src={`http://127.0.0.1:5000/slides/${nextSlide}.jpg`} 
+                            alt="Next Slide Preview" 
+                            className="w-full h-full object-contain bg-black animate-in fade-in duration-300"
+                            key={`local-next-${nextSlide}`}
+                            onError={() => setNextSlideImageError(true)}
+                          />
+                        ) : nextSlidePreviewUrl ? (
+                          <img 
+                            src={nextSlidePreviewUrl} 
+                            alt="Next Slide Preview" 
+                            className="w-full h-full object-contain bg-black animate-in fade-in duration-300"
+                            key={`firestore-next-${nextSlide}`}
+                          />
+                        ) : (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600 text-center p-4">
+                            <Monitor className="w-8 h-8 mb-2 opacity-20" />
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                              {nextSlide !== null ? `Slide ${nextSlide}` : 'No Next Slide'}
+                            </span>
+                            <span className="text-[9px] text-slate-600 mt-1">
+                              {nextSlide !== null ? 'Waiting for slide capture...' : 'End of presentation'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      {/* Clock Display under Next Slide Preview */}
+                      <div className="mt-2 flex items-center justify-center gap-2.5 px-5 py-2 bg-slate-950/95 border border-slate-800 rounded-xl shadow-xl text-slate-100 select-none w-fit mx-auto shrink-0">
+                        <Clock className="w-6 h-6 md:w-7 md:h-7 text-osu-orange shrink-0 animate-pulse" />
+                        <div className="flex items-baseline font-mono font-black text-2xl md:text-3xl lg:text-4xl tracking-tight leading-none">
+                          <span>{(currentTime.getHours() % 12 || 12).toString().padStart(2, '0')}:{currentTime.getMinutes().toString().padStart(2, '0')}</span>
+                          <span className="text-[0.6em] text-slate-400 font-semibold ml-0.5">:{currentTime.getSeconds().toString().padStart(2, '0')}</span>
+                          <span className="text-[0.65em] ml-1.5 font-sans font-black text-osu-orange uppercase">{currentTime.getHours() >= 12 ? 'PM' : 'AM'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
               </>
             ) : (
               /* SINGLE SCREEN FULL LAYOUT: Notes OFF */

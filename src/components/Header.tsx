@@ -365,14 +365,14 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
           {presentationId && onNewSession && (
             <div className="flex items-center gap-1.5 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 shadow-xs select-none">
               <span className="text-slate-600 font-black uppercase text-[10px] tracking-wider">
-                PPT:
+                Mode:
               </span>
               <button
                 onClick={handleTogglePPT}
                 className={`relative inline-flex h-4.5 w-8 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                   showSlidePreview ? 'bg-osu-orange' : 'bg-slate-350'
                 }`}
-                title={showSlidePreview ? "Slide previews are visible in audience portal" : "Slide previews are hidden in audience portal"}
+                title={showSlidePreview ? "Advanced Mode (Show next slide preview, selector, and all features)" : "Basic Mode (Show only current slide and MCQ)"}
               >
                 <span
                   className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow ring-0 transition duration-205 ease-in-out ${
@@ -380,8 +380,8 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
                   }`}
                 />
               </button>
-              <span className={`text-[10px] font-black uppercase tracking-wider w-6 ${showSlidePreview ? 'text-osu-orange' : 'text-slate-400'}`}>
-                {showSlidePreview ? 'ON' : 'OFF'}
+              <span className={`text-[10px] font-black uppercase tracking-wider w-16 text-left ${showSlidePreview ? 'text-osu-orange' : 'text-slate-400'}`}>
+                {showSlidePreview ? 'Advanced' : 'Basic'}
               </span>
             </div>
           )}
