@@ -2008,7 +2008,7 @@ function AppContent() {
         <>
           <div className="h-full w-full flex flex-col bg-slate-950 font-sans antialiased overflow-hidden">
             {/* Pinned Slide Preview Container at the Top of Viewport */}
-            {presentation?.showSlidePreview !== false && (
+            {true && (
               <div className="w-full shrink-0 bg-slate-950 border-b border-slate-900 relative z-20 shadow-lg">
                 <div 
                   className="w-full aspect-[16/9] max-h-[25vh] bg-black select-none relative group overflow-hidden"
@@ -2292,7 +2292,7 @@ function AppContent() {
                           for (let i = 1; i <= maxSlide; i++) {
                             allTabs.push({
                               id: String(i),
-                              label: presentation?.showSlidePreview !== false ? `Slide ${i}` : `\u00A0\u00A0\u00A0\u00A0`,
+                              label: `Slide ${i}`,
                               position: i,
                               isCustom: false
                             });
@@ -2643,7 +2643,7 @@ function AppContent() {
                       for (let i = 1; i <= maxSlide; i++) {
                         allTabs.push({
                           id: String(i),
-                          label: presentation?.showSlidePreview !== false ? `Slide ${i}` : `\u00A0\u00A0\u00A0\u00A0`,
+                          label: `Slide ${i}`,
                           position: i,
                           isCustom: false
                         });
@@ -2792,7 +2792,7 @@ function AppContent() {
                     {/* Notes Writing Area (Left/Top) */}
                     <div 
                       className="flex flex-col min-w-0 min-h-0"
-                      style={{ flex: presentation?.showSlidePreview !== false ? `1 1 ${notesSplitRatio}%` : '1 1 100%', minWidth: '150px' }}
+                      style={{ flex: `1 1 ${notesSplitRatio}%`, minWidth: '150px' }}
                     >
                       {notesMode === 'text' ? (
                         <RichTextEditor
@@ -2806,7 +2806,7 @@ function AppContent() {
                           }}
                           onFocus={() => setIsEditorFocused(true)}
                           onBlur={() => setIsEditorFocused(false)}
-                          placeholder={presentation?.showSlidePreview !== false ? `Type your notes for ${getTabTitle(activeTab)} here...` : `Type your notes here...`}
+                          placeholder={`Type your notes for ${getTabTitle(activeTab)} here...`}
                           className="flex-1 min-h-[120px]"
                         />
                       ) : (
@@ -2818,13 +2818,13 @@ function AppContent() {
                               [activeTab]: newVal
                             }));
                           }}
-                          placeholder={presentation?.showSlidePreview !== false ? `Draw your notes for ${getTabTitle(activeTab)} here...` : `Draw your notes here...`}
+                          placeholder={`Draw your notes for ${getTabTitle(activeTab)} here...`}
                         />
                       )}
                     </div>
 
                     {/* Interactive Drag Splitter between Notes and Preview */}
-                    {presentation?.showSlidePreview !== false && (
+                    {true && (
                       <div 
                         onMouseDown={handleMouseDownNotesSplit}
                         onTouchStart={handleTouchStartNotesSplit}
@@ -2837,7 +2837,7 @@ function AppContent() {
                     )}
 
                     {/* Premium Large Slide Preview (Right/Bottom) */}
-                    {presentation?.showSlidePreview !== false && (
+                    {true && (
                       <div 
                         className="flex flex-col min-w-0 min-h-[200px] md:min-h-0 rounded-xl border border-slate-800 bg-slate-950 select-none group shadow-xl relative overflow-hidden"
                         style={{ flex: `1 1 ${100 - notesSplitRatio}%`, minWidth: '150px' }}
