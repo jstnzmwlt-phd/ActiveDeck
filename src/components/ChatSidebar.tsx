@@ -2228,6 +2228,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim() || !user) return;
+    if (isChatOnly && presentation?.hideComments) return;
 
     try {
       const emailToSave = user.isAnonymous ? guestEmail : user.email;
@@ -4517,13 +4518,25 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                   <p className="text-[10px] font-bold text-blue-700 uppercase tracking-tight">Active Activity: Chat Paused</p>
                 </div>
               )}
+              {presentation?.hideComments && !hasActiveInteractive && (
+                <div className="mb-2 px-1 py-1.5 bg-red-50 border border-red-100 rounded-lg flex items-center gap-2 animate-in slide-in-from-bottom-2 duration-300">
+                  <div className="w-1.5 h-1.5 bg-red-500 rounded-full" />
+                  <p className="text-[10px] font-bold text-red-700 uppercase tracking-tight">Chat Disabled by Presenter</p>
+                </div>
+              )}
               <form onSubmit={handleSendMessage} className="flex gap-2">
                 <input
                   type="text"
-                  placeholder={hasActiveInteractive ? "Chat paused for active activity..." : "Type a message..."}
-                  disabled={hasActiveInteractive}
-                  className={`flex-1 min-w-0 px-3 py-2 text-base border rounded-md focus:outline-none focus:ring-2 focus:ring-osu-orange transition-all ${
+                  placeholder={
                     hasActiveInteractive 
+                      ? "Chat paused for active activity..." 
+                      : presentation?.hideComments 
+                        ? "Chat disabled by presenter..." 
+                        : "Type a message..."
+                  }
+                  disabled={hasActiveInteractive || presentation?.hideComments}
+                  className={`flex-1 min-w-0 px-3 py-2 text-base border rounded-md focus:outline-none focus:ring-2 focus:ring-osu-orange transition-all ${
+                    (hasActiveInteractive || presentation?.hideComments)
                       ? "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed italic" 
                       : "border-slate-300 bg-white"
                   }`}
@@ -4532,9 +4545,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 />
                 <button
                   type="submit"
-                  disabled={hasActiveInteractive || !inputText.trim()}
+                  disabled={hasActiveInteractive || presentation?.hideComments || !inputText.trim()}
                   className={`shrink-0 p-2 rounded-md transition-colors ${
-                    hasActiveInteractive || !inputText.trim()
+                    (hasActiveInteractive || presentation?.hideComments || !inputText.trim())
                       ? "bg-slate-200 text-slate-400 cursor-not-allowed" 
                       : "bg-osu-black text-white hover:bg-slate-800 shadow-sm"
                   }`}
