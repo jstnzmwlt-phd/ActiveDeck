@@ -380,7 +380,7 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
                   }`}
                 />
               </button>
-              <span className={`text-[10px] font-black uppercase tracking-wider w-16 text-left ${showSlidePreview ? 'text-osu-orange' : 'text-slate-400'}`}>
+              <span className={`text-[10px] font-black uppercase tracking-wider w-16 text-left ${showSlidePreview ? 'text-osu-orange' : 'text-blue-500'}`}>
                 {showSlidePreview ? 'Advanced' : 'Basic'}
               </span>
             </div>
