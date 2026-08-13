@@ -4174,7 +4174,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               <p className="text-xs text-slate-500 mt-1">
                 {canModerate 
                   ? "Chat disabled, enable it above to receive messages from audience"
-                  : "The presenter has hidden responses for now. They will be visible once the discussion begins."}
+                  : "The chat has been disabled"}
               </p>
             </div>
           )}
