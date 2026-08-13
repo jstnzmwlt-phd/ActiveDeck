@@ -5,7 +5,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Message, Presentation, Poll, WordCloud, OpenEndedQuestion, GlobalSettings } from '../types';
 import { useAuth } from './AuthProvider';
 import { useBridge } from '../contexts/BridgeContext';
-import { Send, HelpCircle, MessageSquare, Trash2, ThumbsUp, Download, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud, Eye, EyeOff, Timer, Users, ChevronDown, ChevronUp, Pin, Loader2, AlertCircle, Presentation as PresentationIcon, Paperclip, Maximize2, Minimize2, X } from 'lucide-react';
+import { Send, HelpCircle, MessageSquare, MessageSquareOff, Trash2, ThumbsUp, Download, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud, Eye, EyeOff, Timer, Users, ChevronDown, ChevronUp, Pin, Loader2, AlertCircle, Presentation as PresentationIcon, Paperclip, Maximize2, Minimize2, X } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { QRCodeSVG } from 'qrcode.react';
@@ -3207,7 +3207,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 )}
                 title={presentation?.hideComments ? "Comments Hidden from Audience" : "Comments Visible to Audience"}
               >
-                {presentation?.hideComments ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                {presentation?.hideComments ? <MessageSquareOff className="w-4 h-4" /> : <MessageSquare className="w-4 h-4" />}
               </button>
               <button 
                 onClick={handleDownloadWord}
@@ -3492,13 +3492,13 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         >
           {presentation?.hideComments && (
             <div className="flex flex-col items-center justify-center p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-300 animate-in fade-in duration-500">
-              <EyeOff className="w-8 h-8 text-slate-400 mb-3" />
+              <MessageSquareOff className="w-8 h-8 text-slate-400 mb-3" />
               <h3 className="text-sm font-bold text-slate-700">
                 {canModerate ? "Comments Hidden from Audience" : "Comments are Hidden"}
               </h3>
               <p className="text-xs text-slate-500 mt-1">
                 {canModerate 
-                  ? `Currently collecting responses (${messages.length} received). Toggle the eye icon in the header to reveal them.`
+                  ? `Currently collecting responses (${messages.length} received). Toggle the chat bubble icon in the header to reveal them.`
                   : "The presenter has hidden responses for now. They will be visible once the discussion begins."}
               </p>
             </div>
