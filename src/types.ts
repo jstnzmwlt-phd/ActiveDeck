@@ -68,6 +68,7 @@ export interface Presentation {
   presenterEmail?: string;
   isEnded?: boolean;
   showSlidePreview?: boolean;
+  chatEnabled?: boolean;
   presenterDrawings?: Record<string, string>;
   activeDrawingStrokeJSON?: string | null;
   magnifierX?: number;

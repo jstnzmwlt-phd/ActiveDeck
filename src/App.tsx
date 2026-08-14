@@ -425,6 +425,12 @@ function AppContent() {
   );
   const [mobileTab, setMobileTab] = useState<'chat' | 'notes'>('chat');
 
+  useEffect(() => {
+    if (presentation?.chatEnabled === false) {
+      setMobileTab('notes');
+    }
+  }, [presentation?.chatEnabled]);
+
   // Maintain maxSlideSeen so slide tabs only grow and never get removed when presenter moves backwards
   useEffect(() => {
     const candidates: number[] = [1, maxSlideSeen];
@@ -1957,31 +1963,35 @@ function AppContent() {
           />
         </div>
 
-        {/* Interactive Drag Splitter */}
-        <div 
-          onMouseDown={handleMouseDownProjector}
-          onTouchStart={handleTouchStartProjector}
-          onDoubleClick={handleDoubleClickProjector}
-          className="w-3 h-full cursor-col-resize flex items-center justify-center flex-shrink-0 group/splitter select-none"
-          title="Drag to resize sidebar (double-click to reset)"
-        >
-          <div className="w-[3px] h-20 bg-slate-800 group-hover/splitter:bg-osu-orange/70 group-active/splitter:bg-osu-orange rounded-full transition-all duration-200" />
-        </div>
+        {presentation?.chatEnabled !== false && (
+          <>
+            {/* Interactive Drag Splitter */}
+            <div 
+              onMouseDown={handleMouseDownProjector}
+              onTouchStart={handleTouchStartProjector}
+              onDoubleClick={handleDoubleClickProjector}
+              className="w-3 h-full cursor-col-resize flex items-center justify-center flex-shrink-0 group/splitter select-none"
+              title="Drag to resize sidebar (double-click to reset)"
+            >
+              <div className="w-[3px] h-20 bg-slate-800 group-hover/splitter:bg-osu-orange/70 group-active/splitter:bg-osu-orange rounded-full transition-all duration-200" />
+            </div>
 
-        {/* Expanded Read-Only Sidebar Q&A Display */}
-        <div 
-          style={{ width: `${sidebarWidth}px`, minWidth: '260px' }}
-          className="h-full flex-shrink-0 rounded-2xl overflow-hidden border-2 border-osu-orange bg-slate-900 shadow-2xl"
-        >
-          <ChatSidebar 
-            presentation={presentation} 
-            logoUrl={settings?.theme.logoUrl} 
-            presentationLoaded={presentationLoaded} 
-            showAttendance={settings?.showAttendance}
-            isProjector={true}
-            isChatOnly={true} // Acts as student but read-only
-          />
-        </div>
+            {/* Expanded Read-Only Sidebar Q&A Display */}
+            <div 
+              style={{ width: `${sidebarWidth}px`, minWidth: '260px' }}
+              className="h-full flex-shrink-0 rounded-2xl overflow-hidden border-2 border-osu-orange bg-slate-900 shadow-2xl"
+            >
+              <ChatSidebar 
+                presentation={presentation} 
+                logoUrl={settings?.theme.logoUrl} 
+                presentationLoaded={presentationLoaded} 
+                showAttendance={settings?.showAttendance}
+                isProjector={true}
+                isChatOnly={true} // Acts as student but read-only
+              />
+            </div>
+          </>
+        )}
 
         {/* Floating Glassmorphic Fullscreen Toggle Button */}
         <div className="absolute bottom-10 left-10 z-[100] flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-auto">
@@ -2173,36 +2183,38 @@ function AppContent() {
             )}
 
             {/* Dual Tab Switcher Button Group */}
-            <div className="flex bg-slate-900 border-b border-slate-800 shrink-0 p-1 relative z-20 shadow-md">
-              <button
-                type="button"
-                onClick={() => setMobileTab('chat')}
-                className={`flex-1 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                  mobileTab === 'chat'
-                    ? 'bg-osu-orange text-white shadow-md'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <MessageSquare className="w-3.5 h-3.5" />
-                Chat
-              </button>
-              <button
-                type="button"
-                onClick={() => setMobileTab('notes')}
-                className={`flex-1 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                  mobileTab === 'notes'
-                    ? 'bg-osu-orange text-white shadow-md'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <NotebookPen className="w-3.5 h-3.5" />
-                Notes
-              </button>
-            </div>
+            {presentation?.chatEnabled !== false && (
+              <div className="flex bg-slate-900 border-b border-slate-800 shrink-0 p-1 relative z-20 shadow-md">
+                <button
+                  type="button"
+                  onClick={() => setMobileTab('chat')}
+                  className={`flex-1 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    mobileTab === 'chat'
+                      ? 'bg-osu-orange text-white shadow-md'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  Chat
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobileTab('notes')}
+                  className={`flex-1 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    mobileTab === 'notes'
+                      ? 'bg-osu-orange text-white shadow-md'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <NotebookPen className="w-3.5 h-3.5" />
+                  Notes
+                </button>
+              </div>
+            )}
 
             {/* Content Area Underneath Switcher */}
             <div className="flex-1 min-h-0 flex flex-col relative z-10 bg-slate-950">
-              {mobileTab === 'chat' ? (
+              {mobileTab === 'chat' && presentation?.chatEnabled !== false ? (
                 <div className="w-full h-full bg-white relative flex-1 flex flex-col min-h-0">
                   <ChatSidebar 
                     isChatOnly={true} 
@@ -2215,7 +2227,7 @@ function AppContent() {
                 </div>
               ) : (
                 <div className="flex-1 flex flex-col min-h-0 p-3 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 overflow-y-auto custom-scrollbar">
-                  {!hasJoinedChat ? (
+                  {!hasJoinedChat && presentation?.chatEnabled !== false ? (
                     <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-4">
                       <div className="w-12 h-12 rounded-2xl bg-osu-orange/10 border border-osu-orange/20 flex items-center justify-center text-osu-orange shadow-lg">
                         <Lock className="w-5 h-5 animate-pulse" />
@@ -2486,33 +2498,37 @@ function AppContent() {
       <>
         <div className={`h-full w-full flex flex-col ${chatLayoutDirection === 'right' ? 'md:flex-row-reverse' : 'md:flex-row'} bg-slate-950 font-sans antialiased overflow-hidden`}>
           {/* Left Side: The Chat Sidebar / Join Screen */}
-          <div 
-            style={{ width: !hasJoinedChat ? '660px' : `${audienceChatWidth}px` }}
-            className="w-full md:w-auto h-full bg-slate-950 relative flex-shrink-0 transition-all duration-300"
-          >
-          <ChatSidebar 
-            isChatOnly={true} 
-            presentation={presentation} 
-            logoUrl={settings?.theme.logoUrl} 
-            presentationLoaded={presentationLoaded} 
-            showAttendance={settings?.showAttendance}
-            onJoinChange={setHasJoinedChat}
-          />
-        </div>
+          {presentation?.chatEnabled !== false && (
+            <>
+              <div 
+                style={{ width: !hasJoinedChat ? '660px' : `${audienceChatWidth}px` }}
+                className="w-full md:w-auto h-full bg-slate-950 relative flex-shrink-0 transition-all duration-300"
+              >
+                <ChatSidebar 
+                  isChatOnly={true} 
+                  presentation={presentation} 
+                  logoUrl={settings?.theme.logoUrl} 
+                  presentationLoaded={presentationLoaded} 
+                  showAttendance={settings?.showAttendance}
+                  onJoinChange={setHasJoinedChat}
+                />
+              </div>
 
-        {/* Interactive Drag Splitter */}
-        <div 
-          onMouseDown={handleMouseDownAudienceChat}
-          onTouchStart={handleTouchStartAudienceChat}
-          onDoubleClick={handleDoubleClickAudienceChat}
-          className="hidden md:flex w-3 h-full cursor-col-resize items-center justify-center flex-shrink-0 group/splitter select-none bg-slate-950 border-l border-r border-slate-900"
-          title="Drag to resize chat (double-click to reset)"
-        >
-          <div className="w-[3px] h-20 bg-slate-800 group-hover/splitter:bg-osu-orange/70 group-active/splitter:bg-osu-orange rounded-full transition-all duration-200" />
-        </div>
+              {/* Interactive Drag Splitter */}
+              <div 
+                onMouseDown={handleMouseDownAudienceChat}
+                onTouchStart={handleTouchStartAudienceChat}
+                onDoubleClick={handleDoubleClickAudienceChat}
+                className="hidden md:flex w-3 h-full cursor-col-resize items-center justify-center flex-shrink-0 group/splitter select-none bg-slate-950 border-l border-r border-slate-900"
+                title="Drag to resize chat (double-click to reset)"
+              >
+                <div className="w-[3px] h-20 bg-slate-800 group-hover/splitter:bg-osu-orange/70 group-active/splitter:bg-osu-orange rounded-full transition-all duration-200" />
+              </div>
+            </>
+          )}
 
-        {/* Right Side: Premium Welcome Panel (Desktop/Laptop only) */}
-        <div className="hidden md:flex flex-1 h-full flex-col bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 border-l border-slate-800/80 p-4 md:p-5 relative overflow-hidden">
+          {/* Right Side: Premium Welcome Panel (Desktop/Laptop only) */}
+          <div className={`hidden md:flex flex-1 h-full flex-col bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 ${presentation?.chatEnabled !== false ? 'border-l border-slate-800/80' : ''} p-4 md:p-5 relative overflow-hidden`}>
           {/* Ambient lighting glow */}
           <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-osu-orange/5 rounded-full blur-[100px] pointer-events-none" />
           
@@ -2566,7 +2582,7 @@ function AppContent() {
 
             {/* Note-Taking Section */}
             <div className="flex-1 flex flex-col min-h-0 bg-white/[0.01] border border-white/5 rounded-2xl p-4 shadow-xl backdrop-blur-sm space-y-3">
-              {!hasJoinedChat ? (
+              {!hasJoinedChat && presentation?.chatEnabled !== false ? (
                 <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-4 animate-in fade-in duration-305">
                   <div className="w-12 h-12 rounded-2xl bg-osu-orange/10 border border-osu-orange/20 flex items-center justify-center text-osu-orange shadow-lg shadow-orange-500/5">
                     <Lock className="w-5 h-5 animate-pulse" />
@@ -3047,29 +3063,33 @@ function AppContent() {
           <PresenterArea presentation={presentation} logoUrl={settings?.theme.logoUrl} onCreatePresentation={handleCreatePresentationForArea} />
         </div>
 
-        {/* Interactive Drag Splitter */}
-        <div 
-          onMouseDown={handleMouseDownPresenter}
-          onTouchStart={handleTouchStartPresenter}
-          onDoubleClick={handleDoubleClickPresenter}
-          className="w-3 h-full cursor-col-resize flex items-center justify-center flex-shrink-0 group/splitter select-none"
-          title="Drag to resize sidebar (double-click to reset)"
-        >
-          <div className="w-[3px] h-20 bg-slate-300 group-hover/splitter:bg-osu-orange/70 group-active/splitter:bg-osu-orange rounded-full transition-all duration-200" />
-        </div>
+        {presentation?.chatEnabled !== false && (
+          <>
+            {/* Interactive Drag Splitter */}
+            <div 
+              onMouseDown={handleMouseDownPresenter}
+              onTouchStart={handleTouchStartPresenter}
+              onDoubleClick={handleDoubleClickPresenter}
+              className="w-3 h-full cursor-col-resize flex items-center justify-center flex-shrink-0 group/splitter select-none"
+              title="Drag to resize sidebar (double-click to reset)"
+            >
+              <div className="w-[3px] h-20 bg-slate-300 group-hover/splitter:bg-osu-orange/70 group-active/splitter:bg-osu-orange rounded-full transition-all duration-200" />
+            </div>
 
-        {/* Audience Chat (Resizable sidebar) */}
-        <div 
-          style={{ width: `${presenterSidebarWidth}px`, minWidth: '270px' }}
-          className="h-full flex-shrink-0 rounded-xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.24)] border-2 border-osu-orange bg-white"
-        >
-          <ChatSidebar 
-            presentation={presentation} 
-            logoUrl={settings?.theme.logoUrl} 
-            presentationLoaded={presentationLoaded} 
-            showAttendance={settings?.showAttendance}
-          />
-        </div>
+            {/* Audience Chat (Resizable sidebar) */}
+            <div 
+              style={{ width: `${presenterSidebarWidth}px`, minWidth: '270px' }}
+              className="h-full flex-shrink-0 rounded-xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.24)] border-2 border-osu-orange bg-white"
+            >
+              <ChatSidebar 
+                presentation={presentation} 
+                logoUrl={settings?.theme.logoUrl} 
+                presentationLoaded={presentationLoaded} 
+                showAttendance={settings?.showAttendance}
+              />
+            </div>
+          </>
+        )}
       </div>
 
       <footer className="px-6 pb-3 pt-1 flex items-center justify-between text-[11px] font-bold tracking-wider text-slate-400 uppercase select-none">

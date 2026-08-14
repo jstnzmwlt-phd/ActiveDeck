@@ -22,6 +22,7 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   const [showSlidePreview, setShowSlidePreview] = useState(true);
+  const [chatEnabled, setChatEnabled] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
@@ -54,9 +55,10 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
       if (docSnap.exists()) {
         const data = docSnap.data();
         setShowSlidePreview(data.showSlidePreview !== false);
+        setChatEnabled(data.chatEnabled !== false);
       }
     }, (err) => {
-      console.warn("Header: Error reading showSlidePreview:", err);
+      console.warn("Header: Error reading showSlidePreview or chatEnabled:", err);
     });
     return () => unsub();
   }, [presentationId]);
@@ -71,6 +73,19 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
       });
     } catch (err) {
       console.error("Header: Error updating showSlidePreview:", err);
+    }
+  };
+
+  const handleToggleChat = async () => {
+    if (!presentationId) return;
+    const nextVal = !chatEnabled;
+    setChatEnabled(nextVal);
+    try {
+      await updateDoc(doc(db, 'presentations', presentationId), {
+        chatEnabled: nextVal
+      });
+    } catch (err) {
+      console.error("Header: Error updating chatEnabled:", err);
     }
   };
 
@@ -382,11 +397,38 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
             </div>
           )}
 
+          {/* Chat Toggle Switch (only visible to presenters) */}
+          {presentationId && onNewSession && (
+            <div className="flex items-center gap-1.5 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 shadow-xs select-none">
+              <span className="text-slate-600 font-black uppercase text-[10px] tracking-wider">
+                Chat:
+              </span>
+              <button
+                onClick={handleToggleChat}
+                className={`relative inline-flex h-4.5 w-8 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  chatEnabled ? 'bg-osu-orange' : 'bg-slate-350'
+                }`}
+                title={chatEnabled ? "Disable Chat & Interactive Features" : "Enable Chat & Interactive Features"}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow ring-0 transition duration-205 ease-in-out ${
+                    chatEnabled ? 'translate-x-3.5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+              <span className={`text-[10px] font-black uppercase tracking-wider w-8 text-left ${chatEnabled ? 'text-osu-orange' : 'text-slate-500'}`}>
+                {chatEnabled ? 'On' : 'Off'}
+              </span>
+            </div>
+          )}
+
           {/* Join URL Display */}
-          <div className="flex items-center gap-1.5 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 shadow-xs select-none">
-            <span className="text-slate-600 font-black uppercase text-[10px] tracking-wider hidden lg:inline">Join Here:</span>
-            <span className="text-osu-orange select-all font-mono font-black text-sm">active-deck.app/chat</span>
-          </div>
+          {chatEnabled && (
+            <div className="flex items-center gap-1.5 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 shadow-xs select-none">
+              <span className="text-slate-600 font-black uppercase text-[10px] tracking-wider hidden lg:inline">Join Here:</span>
+              <span className="text-osu-orange select-all font-mono font-black text-sm">active-deck.app/chat</span>
+            </div>
+          )}
 
 
           <div className="flex items-center gap-1.5 text-sm font-mono font-bold text-slate-800 bg-white px-2 py-0.5 rounded-lg border border-osu-orange shadow-xs">

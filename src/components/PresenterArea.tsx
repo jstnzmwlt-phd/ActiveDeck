@@ -3360,36 +3360,40 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 </p>
               </div>
 
-               {/* QR Code Card */}
-              <div className="bg-white p-4 rounded-2xl shadow-xl flex flex-col items-center justify-center border-2 border-osu-orange/20 hover:scale-102 transition-transform duration-300">
-                <QRCodeSVG
-                  value={`https://active-deck.app/chat?pin=${presentation?.pinCode || ''}`}
-                  size={190}
-                  level="H"
-                  includeMargin={false}
-                />
-              </div>
+               {presentation?.chatEnabled !== false && (
+                 <>
+                   {/* QR Code Card */}
+                   <div className="bg-white p-4 rounded-2xl shadow-xl flex flex-col items-center justify-center border-2 border-osu-orange/20 hover:scale-102 transition-transform duration-300">
+                     <QRCodeSVG
+                       value={`https://active-deck.app/chat?pin=${presentation?.pinCode || ''}`}
+                       size={190}
+                       level="H"
+                       includeMargin={false}
+                     />
+                   </div>
 
-              {/* PIN & Connection Info */}
-              <div className="space-y-4">
-                <div className="space-y-1.5">
-                  <div className="text-slate-500 text-xs md:text-sm font-black uppercase tracking-widest">
-                    Scan to Join, or Go to:
-                  </div>
-                  <div className="text-2xl md:text-3xl font-black text-white bg-slate-900 border border-slate-800 px-7 py-3 rounded-2xl inline-block tracking-wider shadow-inner">
-                    active-deck.app/chat
-                  </div>
-                </div>
-                
-                <div className="flex flex-col items-center gap-0.5 pt-1">
-                  <div className="text-slate-500 text-[10px] md:text-xs font-black uppercase tracking-widest">
-                    Enter Join Code (PIN):
-                  </div>
-                  <div className="text-5xl md:text-6xl font-black tracking-wider text-osu-orange select-all font-mono">
-                    {presentation?.pinCode ? presentation.pinCode.replace(/(\d{3})(?=\d)/g, '$1 ') : '--- ---'}
-                  </div>
-                </div>
-              </div>
+                   {/* PIN & Connection Info */}
+                   <div className="space-y-4">
+                     <div className="space-y-1.5">
+                       <div className="text-slate-500 text-xs md:text-sm font-black uppercase tracking-widest">
+                         Scan to Join, or Go to:
+                       </div>
+                       <div className="text-2xl md:text-3xl font-black text-white bg-slate-900 border border-slate-800 px-7 py-3 rounded-2xl inline-block tracking-wider shadow-inner">
+                         active-deck.app/chat
+                       </div>
+                     </div>
+                     
+                     <div className="flex flex-col items-center gap-0.5 pt-1">
+                       <div className="text-slate-500 text-[10px] md:text-xs font-black uppercase tracking-widest">
+                         Enter Join Code (PIN):
+                       </div>
+                       <div className="text-5xl md:text-6xl font-black tracking-wider text-osu-orange select-all font-mono">
+                         {presentation?.pinCode ? presentation.pinCode.replace(/(\d{3})(?=\d)/g, '$1 ') : '--- ---'}
+                       </div>
+                     </div>
+                   </div>
+                 </>
+               )}
             </div>
           </div>
         )}
