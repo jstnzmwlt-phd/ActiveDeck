@@ -3001,6 +3001,14 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                       >
                         <div className="flex items-center justify-between px-1 flex-shrink-0">
                           <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Next Slide</span>
+                          
+                          {presentation?.chatEnabled !== false && (
+                            <div className="flex items-center gap-1.5 bg-slate-950/60 px-2 py-0.5 rounded-lg border border-slate-800 shadow-inner select-none">
+                              <span className="text-slate-400 font-black uppercase text-[8px] tracking-wider">Join Here:</span>
+                              <span className="text-osu-orange select-all font-mono font-black text-[10px]">active-deck.app/chat</span>
+                            </div>
+                          )}
+
                           {effectiveNextSlide !== null && (
                             <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
                               Slide {effectiveNextSlide}

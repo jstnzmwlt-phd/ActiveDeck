@@ -416,17 +416,9 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
                   }`}
                 />
               </button>
-              <span className={`text-[10px] font-black uppercase tracking-wider w-8 text-left ${chatEnabled ? 'text-osu-orange' : 'text-slate-500'}`}>
+              <span className={`text-[10px] font-black uppercase tracking-wider w-8 text-left ${chatEnabled ? 'text-osu-orange' : 'text-red-500 font-bold'}`}>
                 {chatEnabled ? 'On' : 'Off'}
               </span>
-            </div>
-          )}
-
-          {/* Join URL Display */}
-          {chatEnabled && (
-            <div className="flex items-center gap-1.5 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 shadow-xs select-none">
-              <span className="text-slate-600 font-black uppercase text-[10px] tracking-wider hidden lg:inline">Join Here:</span>
-              <span className="text-osu-orange select-all font-mono font-black text-sm">active-deck.app/chat</span>
             </div>
           )}
 
