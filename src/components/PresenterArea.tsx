@@ -3009,13 +3009,25 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         className="flex flex-col gap-2 min-h-0 w-full"
                         style={{ height: `calc(${rightTopHeightPercent}% - 6px)` }}
                       >
-                        <div className="flex items-center justify-between px-1 flex-shrink-0">
-                          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Next Slide</span>
-                          {effectiveNextSlide !== null && (
-                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
-                              Slide {effectiveNextSlide}
-                            </span>
-                          )}
+                        <div className="flex items-center justify-between px-1 flex-shrink-0 h-7">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Next Slide</span>
+                            {effectiveNextSlide !== null && (
+                              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 bg-slate-900/50 px-1.5 py-0.5 rounded border border-slate-800">
+                                Slide {effectiveNextSlide}
+                              </span>
+                            )}
+                          </div>
+                          
+                          {/* Live Clock moved to header */}
+                          <div className="flex items-center gap-1.5 px-2 py-0.5 bg-slate-900/90 border border-slate-800 rounded-lg text-slate-100 select-none shadow-sm">
+                            <Clock className="w-3.5 h-3.5 text-osu-orange shrink-0 animate-pulse" />
+                            <div className="flex items-baseline font-mono font-black text-sm tracking-tight leading-none">
+                              <span>{(currentTime.getHours() % 12 || 12).toString().padStart(2, '0')}:{currentTime.getMinutes().toString().padStart(2, '0')}</span>
+                              <span className="text-[0.7em] text-slate-400 font-semibold ml-0.5">:{currentTime.getSeconds().toString().padStart(2, '0')}</span>
+                              <span className="text-[0.75em] ml-1 font-sans font-black text-osu-orange uppercase">{currentTime.getHours() >= 12 ? 'PM' : 'AM'}</span>
+                            </div>
+                          </div>
                         </div>
                         
                         {/* Changed aspect-video to flex-1 min-h-0 to resize dynamically */}
@@ -3039,15 +3051,6 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                               </span>
                             </div>
                           )}
-                        </div>
-                        {/* Clock Display under Next Slide Preview */}
-                        <div className="mt-1 flex items-center justify-center gap-2.5 px-4 py-1.5 bg-slate-950/95 border border-slate-800 rounded-xl shadow-xl text-slate-100 select-none w-fit mx-auto shrink-0">
-                          <Clock className="w-5 h-5 text-osu-orange shrink-0 animate-pulse" />
-                          <div className="flex items-baseline font-mono font-black text-xl md:text-2xl lg:text-3xl tracking-tight leading-none">
-                            <span>{(currentTime.getHours() % 12 || 12).toString().padStart(2, '0')}:{currentTime.getMinutes().toString().padStart(2, '0')}</span>
-                            <span className="text-[0.6em] text-slate-400 font-semibold ml-0.5">:{currentTime.getSeconds().toString().padStart(2, '0')}</span>
-                            <span className="text-[0.65em] ml-1.5 font-sans font-black text-osu-orange uppercase">{currentTime.getHours() >= 12 ? 'PM' : 'AM'}</span>
-                          </div>
                         </div>
                       </div>
 

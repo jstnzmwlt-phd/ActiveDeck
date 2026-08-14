@@ -296,10 +296,6 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
     <div className={`p-4 bg-white border-b border-slate-200 h-14 py-1.5 relative w-full flex-shrink-0 ${(isAdminModalOpen || isExportModalOpen) ? 'z-[200]' : 'z-50'}`}>
       <div className="flex items-center justify-between relative h-full">
         <div className="flex items-center gap-2 z-10 shrink-0">
-          <h2 className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-            <Monitor className="w-3.5 h-3.5 text-osu-orange" />
-            <span className="hidden sm:inline">Screen Presentation</span>
-          </h2>
           
           <button 
             onClick={() => !isBridgeConnected && setUseWithoutBridge(false)}
