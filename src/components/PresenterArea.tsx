@@ -2781,22 +2781,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
           </div>
 
-          {/* Slide Number (Slightly to the right to make some distance) */}
-          <div className="absolute left-[58%] -translate-x-1/2 z-50">
-            {(currentSlide !== null || presentation?.currentSlide !== undefined) && (
-              <div className="bg-[#ff3e00]/90 text-white px-2.5 py-1 rounded-lg border border-white/20 shadow-lg flex items-center gap-1.5 animate-in fade-in duration-300">
-                <span className="text-[9px] font-black uppercase tracking-wider opacity-85">Slide</span>
-                <span className="text-sm font-black font-mono">
-                  {currentSlide !== null ? currentSlide : presentation?.currentSlide}
-                </span>
-              </div>
-            )}
-          </div>
-
           {/* Live Clock on Right */}
           <div className="flex items-center gap-1.5 px-3 py-0.5 bg-slate-950/60 border border-slate-800 rounded-lg text-slate-100 select-none shadow-inner">
-            <Clock className="w-4.5 h-4.5 text-osu-orange shrink-0 animate-pulse" />
-            <div className="flex items-baseline font-mono font-black text-xl tracking-tight leading-none">
+            <Clock className="w-5 h-5 text-osu-orange shrink-0 animate-pulse" />
+            <div className="flex items-baseline font-mono font-black text-2xl tracking-tight leading-none">
               <span>{(currentTime.getHours() % 12 || 12).toString().padStart(2, '0')}:{currentTime.getMinutes().toString().padStart(2, '0')}</span>
               <span className="text-[0.6em] text-slate-400 font-semibold ml-0.5">:{currentTime.getSeconds().toString().padStart(2, '0')}</span>
               <span className="text-[0.65em] ml-1.5 font-sans font-black text-osu-orange uppercase">{currentTime.getHours() >= 12 ? 'PM' : 'AM'}</span>
@@ -3962,9 +3950,12 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               <>
                 <div className="w-px h-6 bg-slate-800/80" />
                 <div
-                  className="px-4 py-1 text-[11px] font-black uppercase tracking-widest text-slate-400 bg-slate-950/40 rounded-lg border border-slate-850/30 min-w-[125px] text-center font-mono select-none"
+                  className="px-4 py-1.5 text-xs font-black uppercase tracking-widest text-slate-400 bg-slate-950/40 rounded-lg border border-slate-850/30 min-w-[150px] text-center font-mono select-none flex items-center justify-center gap-1.5"
                 >
-                  Slide {currentSlide} of {totalSlides}
+                  <span>Slide</span>
+                  <span className="text-osu-orange text-base font-black">{currentSlide}</span>
+                  <span className="text-slate-500 font-bold">of</span>
+                  <span className="text-slate-350">{totalSlides}</span>
                 </div>
                 <div className="w-px h-6 bg-slate-800/80" />
               </>
