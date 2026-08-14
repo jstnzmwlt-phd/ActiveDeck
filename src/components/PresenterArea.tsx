@@ -4232,7 +4232,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               maxWidth: `calc((100vh - 160px) * ${videoAspectRatio})`,
               maxHeight: 'calc(100vh - 160px)'
             }}
-            className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden p-1.5 flex items-center justify-center shadow-2xl mx-auto"
+            className="relative bg-black border border-slate-800 rounded-2xl overflow-hidden p-0 flex items-center justify-center shadow-2xl mx-auto"
           >
             <ScreenCapture 
               isCapturing={isCapturing} 
