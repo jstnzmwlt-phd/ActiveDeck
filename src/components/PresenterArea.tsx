@@ -3767,12 +3767,14 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
           {/* Right: Join URL */}
           <div className="flex-1 flex items-center justify-end min-w-0">
-            <div className="flex items-center gap-2 md:gap-3.5">
-              <span className="text-[10px] md:text-xs font-black tracking-widest text-slate-500 uppercase">JOIN CHAT AT:</span>
-              <span className="text-lg sm:text-xl md:text-2xl font-mono font-black text-osu-orange select-all bg-osu-orange/10 border border-osu-orange/25 px-4 py-1.5 rounded-xl shadow-lg shadow-orange-500/5">
-                https://active-deck.app/chat
-              </span>
-            </div>
+            {presentation?.chatEnabled !== false && (
+              <div className="flex items-center gap-2 md:gap-3.5">
+                <span className="text-[10px] md:text-xs font-black tracking-widest text-slate-500 uppercase">JOIN CHAT AT:</span>
+                <span className="text-lg sm:text-xl md:text-2xl font-mono font-black text-osu-orange select-all bg-osu-orange/10 border border-osu-orange/25 px-4 py-1.5 rounded-xl shadow-lg shadow-orange-500/5">
+                  https://active-deck.app/chat
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
