@@ -694,10 +694,12 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const presenterFrameRef = useRef<HTMLDivElement | null>(null);
   const projectorFrameRef = useRef<HTMLDivElement | null>(null);
   const actualProjectorFrameRef = useRef<HTMLDivElement | null>(null);
+  const poppedPenFrameRef = useRef<HTMLDivElement | null>(null);
 
   const presenterBounds = useRenderedSlideBounds(presenterFrameRef, [isCapturing, isProjectorMode, presentWithNotes, videoAspectRatio]);
   const projectorBounds = useRenderedSlideBounds(projectorFrameRef, [isCapturing, isProjectorMode, videoAspectRatio]);
   const actualProjectorBounds = useRenderedSlideBounds(actualProjectorFrameRef, [isCapturing, isProjectorMode, videoAspectRatio]);
+  const poppedPenBounds = useRenderedSlideBounds(poppedPenFrameRef, [isPenActive, isCapturing, videoAspectRatio]);
 
 
   const [leftWidthPercent, setLeftWidthPercent] = useState<number>(62); // Default starting width percentage for left panel
@@ -4222,6 +4224,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
           </div>
           <div 
+            ref={poppedPenFrameRef}
             style={{
               aspectRatio: `${videoAspectRatio}`,
               width: '100%',
@@ -4248,15 +4251,24 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             />
 
             {/* Interactive SVG Drawing Layer */}
-            <svg
-              viewBox="0 0 1000 1000"
-              preserveAspectRatio="none"
-              className="absolute inset-0 w-full h-full cursor-crosshair pointer-events-auto z-70"
-              onPointerDown={handleDrawingPointerDown}
-              onPointerMove={handleDrawingPointerMove}
-              onPointerUp={handleDrawingPointerUp}
-              onPointerLeave={handleDrawingPointerUp}
+            <div
+              className="absolute pointer-events-none z-70"
+              style={{
+                top: poppedPenBounds.offsetY,
+                left: poppedPenBounds.offsetX,
+                width: poppedPenBounds.renderedWidth > 0 ? poppedPenBounds.renderedWidth : '100%',
+                height: poppedPenBounds.renderedHeight > 0 ? poppedPenBounds.renderedHeight : '100%',
+              }}
             >
+              <svg
+                viewBox="0 0 1000 1000"
+                preserveAspectRatio="none"
+                className="w-full h-full cursor-crosshair pointer-events-auto"
+                onPointerDown={handleDrawingPointerDown}
+                onPointerMove={handleDrawingPointerMove}
+                onPointerUp={handleDrawingPointerUp}
+                onPointerLeave={handleDrawingPointerUp}
+              >
               {currentSlideStrokes.map((stroke, idx) => {
                 if (stroke.text) {
                   const pt = stroke.points[0];
@@ -4303,6 +4315,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 />
               )}
             </svg>
+          </div>
 
             {/* Virtual Laser Dot inside popped-out display */}
             {presentation?.laserActive && presentation.laserX !== undefined && presentation.laserY !== undefined && (
