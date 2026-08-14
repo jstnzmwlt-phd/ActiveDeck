@@ -3950,12 +3950,12 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               <>
                 <div className="w-px h-6 bg-slate-800/80" />
                 <div
-                  className="px-4 py-1.5 text-xs font-black uppercase tracking-widest text-slate-400 bg-slate-950/40 rounded-lg border border-slate-850/30 min-w-[150px] text-center font-mono select-none flex items-center justify-center gap-1.5"
+                  className="px-5 py-1 text-xs font-black uppercase tracking-wider text-slate-400 bg-slate-950/40 rounded-lg border border-slate-850/30 min-w-[180px] text-center font-mono select-none flex items-center justify-center gap-2"
                 >
-                  <span>Slide</span>
-                  <span className="text-osu-orange text-base font-black">{currentSlide}</span>
+                  <span className="text-slate-400">Slide</span>
+                  <span className="text-osu-orange text-xl md:text-2xl font-black leading-none">{currentSlide}</span>
                   <span className="text-slate-500 font-bold">of</span>
-                  <span className="text-slate-350">{totalSlides}</span>
+                  <span className="text-slate-200 text-base md:text-lg font-black leading-none">{totalSlides}</span>
                 </div>
                 <div className="w-px h-6 bg-slate-800/80" />
               </>
