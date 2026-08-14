@@ -2773,6 +2773,14 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
           </div>
 
+          {/* Join URL Display (Between clock and buttons) */}
+          {presentation?.chatEnabled !== false && (
+            <div className="flex items-center gap-1.5 bg-slate-950/60 px-3 py-1.5 rounded-lg border border-slate-800 shadow-inner select-none">
+              <span className="text-slate-400 font-black uppercase text-[10px] tracking-wider">Join Here:</span>
+              <span className="text-osu-orange select-all font-mono font-black text-sm">active-deck.app/chat</span>
+            </div>
+          )}
+
           {/* Live Clock on Right */}
           <div className="flex items-center gap-1.5 px-3 py-0.5 bg-slate-950/60 border border-slate-800 rounded-lg text-slate-100 select-none shadow-inner">
             <Clock className="w-5 h-5 text-osu-orange shrink-0 animate-pulse" />
@@ -3001,14 +3009,6 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                       >
                         <div className="flex items-center justify-between px-1 flex-shrink-0">
                           <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Next Slide</span>
-                          
-                          {presentation?.chatEnabled !== false && (
-                            <div className="flex items-center gap-1.5 bg-slate-950/60 px-2 py-0.5 rounded-lg border border-slate-800 shadow-inner select-none">
-                              <span className="text-slate-400 font-black uppercase text-[8px] tracking-wider">Join Here:</span>
-                              <span className="text-osu-orange select-all font-mono font-black text-[10px]">active-deck.app/chat</span>
-                            </div>
-                          )}
-
                           {effectiveNextSlide !== null && (
                             <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
                               Slide {effectiveNextSlide}
