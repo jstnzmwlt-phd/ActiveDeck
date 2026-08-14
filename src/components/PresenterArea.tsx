@@ -2682,18 +2682,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       {/* Presenter Control Bar - Displays off the slide area */}
       {isCapturing && !isProjectorMode && (
         <div className="bg-slate-900 border-b border-slate-800 px-4 py-2 flex items-center justify-between z-[70] shrink-0 select-none relative">
-          {/* Left Side: Status & Controls */}
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 px-2 py-1 bg-red-600/90 text-white text-[9px] font-black uppercase tracking-widest rounded-lg border border-red-500/20 shadow-lg shadow-red-500/5 animate-in fade-in duration-300">
-              <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
-              Live
-            </div>
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">
-              Active Display
-            </span>
             <button
               onClick={stopCapture}
-              className="flex items-center gap-1.5 ml-4 px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white text-[9px] font-black uppercase tracking-widest rounded-lg border border-red-500/25 shadow-lg shadow-red-500/10 transition-all hover:scale-105 active:scale-95 cursor-pointer border-0"
+              className="flex items-center gap-1.5 px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white text-[9px] font-black uppercase tracking-widest rounded-lg border border-red-500/25 shadow-lg shadow-red-500/10 transition-all hover:scale-105 active:scale-95 cursor-pointer border-0"
               title="Stop Presentation"
             >
               <Square className="w-2.5 h-2.5 fill-current" />
@@ -2705,7 +2697,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               onClick={() => {
                 setPresentWithNotes(!presentWithNotes);
               }}
-              className={`flex items-center gap-1.5 ml-2 px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all duration-200 shadow-lg cursor-pointer hover:scale-105 active:scale-95 ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all duration-200 shadow-lg cursor-pointer hover:scale-105 active:scale-95 ${
                 presentWithNotes 
                   ? 'bg-emerald-600 border-emerald-500 text-white hover:bg-emerald-700 hover:border-emerald-600 shadow-emerald-500/10' 
                   : 'bg-red-600 border-red-500 text-white hover:bg-red-700 hover:border-red-600 shadow-red-500/10'
