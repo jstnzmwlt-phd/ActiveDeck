@@ -249,24 +249,24 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
 
   return (
     <div className="p-4 rounded-xl border-2 border-green-500 bg-white shadow-lg animate-in zoom-in-95 duration-200">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-2 mb-3 min-w-0 w-full">
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
           <button 
             onClick={() => {
               const nextCollapsed = !isCollapsed;
               setIsCollapsed(nextCollapsed);
               onToggleCollapse?.(q.id, nextCollapsed);
             }}
-            className="p-1 -ml-1 hover:bg-slate-100 rounded transition-colors text-slate-400 hover:text-green-500"
+            className="p-1 -ml-1 hover:bg-slate-100 rounded transition-colors text-slate-400 hover:text-green-500 shrink-0"
           >
             {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
           </button>
-          <MessageSquare className="w-4 h-4 text-green-500" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Open Question</span>
+          <MessageSquare className="w-4 h-4 text-green-500 shrink-0" />
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 truncate">Open Question</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 shrink-0">
           {isCollapsed && q.active && timeLeft !== null && (
-            <div className={`flex items-center gap-1.5 px-2 py-1 bg-red-50 border border-red-100 rounded-lg text-xs font-mono font-black ${timeLeft > 10 ? 'text-slate-700' : 'text-red-500 animate-pulse'}`}>
+            <div className={`flex items-center gap-1.5 px-2 py-1 bg-red-50 border border-red-100 rounded-lg text-xs font-mono font-black shrink-0 ${timeLeft > 10 ? 'text-slate-700' : 'text-red-500 animate-pulse'}`}>
               <Timer className="w-3.5 h-3.5" />
               <span>Time Left: </span>
               {Math.floor(timeLeft / 60)}:{Math.floor(timeLeft % 60).toString().padStart(2, '0')}
@@ -276,7 +276,7 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
             <>
               <button 
                 onClick={() => onToggleResults(q.id, !!q.showResults)}                
-                className={`p-1 ${q.showResults ? 'text-green-500' : 'text-slate-400'} hover:text-green-500 mr-1.5`}
+                className={`p-1 ${q.showResults ? 'text-green-500' : 'text-slate-400'} hover:text-green-500 mr-1 shrink-0`}
                 title={q.showResults ? "Hide Results from Audience" : "Show Results to Audience"}
               >
                 {q.showResults ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
@@ -284,19 +284,19 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
               {q.active ? (
                 <button 
                   onClick={() => onClose(q.id)} 
-                  className="flex flex-col items-center p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors" 
+                  className="flex flex-col items-center p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors shrink-0" 
                   title="Stop Interaction (End Submissions)"
                 >
                   <Square className="w-3.5 h-3.5 fill-current" />
                   <span className="text-[8px] font-black uppercase tracking-wider mt-0.5 leading-none">Stop</span>
                 </button>
               ) : isDraft ? (
-                <span className="text-[8px] font-bold text-green-500 uppercase">Draft</span>
+                <span className="text-[8px] font-bold text-green-500 uppercase shrink-0">Draft</span>
               ) : (
-                <span className="text-[8px] font-bold text-red-500 uppercase">Closed</span>
+                <span className="text-[8px] font-bold text-red-500 uppercase shrink-0">Closed</span>
               )}
               {isDraft && (
-                <button onClick={() => onDelete(q.id)} className="p-1 text-slate-400 hover:text-red-500" title="Delete Question">
+                <button onClick={() => onDelete(q.id)} className="p-1 text-slate-400 hover:text-red-500 shrink-0" title="Delete Question">
                   <Trash2 className="w-4 h-4" />
                 </button>
               )}
@@ -556,40 +556,40 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
 
   return (
     <div className="p-4 rounded-xl border-2 border-osu-orange bg-white shadow-lg animate-in zoom-in-95 duration-200">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-2 mb-3 min-w-0 w-full">
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
           <button 
             onClick={() => {
               const nextCollapsed = !isCollapsed;
               setIsCollapsed(nextCollapsed);
               onToggleCollapse?.(poll.id, nextCollapsed);
             }}
-            className="p-1 -ml-1 hover:bg-slate-100 rounded transition-colors text-slate-400 hover:text-osu-orange"
+            className="p-1 -ml-1 hover:bg-slate-100 rounded transition-colors text-slate-400 hover:text-osu-orange shrink-0"
           >
             {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
           </button>
-          <BarChart2 className="w-4 h-4 text-osu-orange" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Poll</span>
+          <BarChart2 className="w-4 h-4 text-osu-orange shrink-0" />
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 truncate">Poll</span>
           {isCollapsed && timeLeft !== null && (
-            <div className="flex items-center gap-1.5 ml-2 px-2 py-1 bg-red-50 border border-red-100 rounded-lg text-xs font-mono font-black text-red-600">
+            <div className="flex items-center gap-1.5 ml-1 px-2 py-1 bg-red-50 border border-red-100 rounded-lg text-xs font-mono font-black text-red-600 shrink-0">
               <Timer className="w-3.5 h-3.5" />
               {formatTime(timeLeft)}
             </div>
           )}
-          {isDraft && canModerate && (
-            <div className="flex items-center gap-1 ml-2 px-1.5 py-0.5 bg-orange-50 border border-orange-100 rounded text-[10px] font-bold text-osu-orange">
+          {isCollapsed && isDraft && canModerate && (
+            <div className="flex items-center gap-1 ml-1 px-1.5 py-0.5 bg-orange-50 border border-orange-100 rounded text-[10px] font-bold text-osu-orange shrink-0">
               <Timer className="w-3 h-3" />
               {formatTime(poll.duration || 60)}
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 shrink-0">
           {canModerate && (
             <>
               <button 
                 onClick={() => onToggleResults(poll.id, !!poll.showResults)}
                 className={cn(
-                  "p-1 rounded transition-colors mr-1.5",
+                  "p-1 rounded transition-colors mr-1 shrink-0",
                   poll.showResults 
                     ? "text-green-600 hover:text-green-700" 
                     : "text-red-500 hover:text-red-600"
@@ -601,19 +601,19 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
               {poll.active ? (
                 <button 
                   onClick={() => onClose(poll.id)} 
-                  className="flex flex-col items-center p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors" 
+                  className="flex flex-col items-center p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors shrink-0" 
                   title="Stop Interaction (End Submissions)"
                 >
                   <Square className="w-3.5 h-3.5 fill-current" />
                   <span className="text-[8px] font-black uppercase tracking-wider mt-0.5 leading-none">Stop</span>
                 </button>
               ) : isDraft ? (
-                <span className="text-[8px] font-bold text-orange-500 uppercase">Draft</span>
+                <span className="text-[8px] font-bold text-orange-500 uppercase shrink-0">Draft</span>
               ) : (
-                <span className="text-[8px] font-bold text-red-500 uppercase">Closed</span>
+                <span className="text-[8px] font-bold text-red-500 uppercase shrink-0">Closed</span>
               )}
               {isDraft && (
-                <button onClick={() => onDelete(poll.id)} className="p-1 text-slate-400 hover:text-red-500" title="Delete Poll">
+                <button onClick={() => onDelete(poll.id)} className="p-1 text-slate-400 hover:text-red-500 shrink-0" title="Delete Poll">
                   <Trash2 className="w-4 h-4" />
                 </button>
               )}
@@ -917,24 +917,24 @@ const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, 
 
   return (
     <div className="p-4 rounded-xl border-2 border-blue-500 bg-white shadow-lg animate-in zoom-in-95 duration-200">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-2 mb-3 min-w-0 w-full">
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
           <button 
             onClick={() => {
               const nextCollapsed = !isCollapsed;
               setIsCollapsed(nextCollapsed);
               onToggleCollapse?.(cloud.id, nextCollapsed);
             }}
-            className="p-1 -ml-1 hover:bg-slate-100 rounded transition-colors text-slate-400 hover:text-blue-500"
+            className="p-1 -ml-1 hover:bg-slate-100 rounded transition-colors text-slate-400 hover:text-blue-500 shrink-0"
           >
             {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
           </button>
-          <Cloud className="w-4 h-4 text-blue-500" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Word Cloud</span>
+          <Cloud className="w-4 h-4 text-blue-500 shrink-0" />
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 truncate">Word Cloud</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 shrink-0">
           {isCollapsed && cloud.active && timeLeft !== null && (
-            <div className={`flex items-center gap-1.5 px-2 py-1 bg-red-50 border border-red-100 rounded-lg text-xs font-mono font-black ${timeLeft > 10 ? 'text-slate-700' : 'text-red-500 animate-pulse'}`}>
+            <div className={`flex items-center gap-1.5 px-2 py-1 bg-red-50 border border-red-100 rounded-lg text-xs font-mono font-black shrink-0 ${timeLeft > 10 ? 'text-slate-700' : 'text-red-500 animate-pulse'}`}>
               <Timer className="w-3.5 h-3.5" />
               <span>Time Left: </span>
               {Math.floor(timeLeft / 60)}:{Math.floor(timeLeft % 60).toString().padStart(2, '0')}
@@ -945,7 +945,7 @@ const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, 
               <button 
                 onClick={() => onToggleResults(cloud.id, !!cloud.showResults)}
                 className={cn(
-                  "p-1 rounded transition-colors mr-1.5",
+                  "p-1 rounded transition-colors mr-1 shrink-0",
                   cloud.showResults 
                     ? "text-green-600 hover:text-green-700" 
                     : "text-red-500 hover:text-red-600"
@@ -957,19 +957,19 @@ const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, 
               {cloud.active ? (
                 <button 
                   onClick={() => onClose(cloud.id)} 
-                  className="flex flex-col items-center p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors" 
+                  className="flex flex-col items-center p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors shrink-0" 
                   title="Stop Interaction (End Submissions)"
                 >
                   <Square className="w-3.5 h-3.5 fill-current" />
                   <span className="text-[8px] font-black uppercase tracking-wider mt-0.5 leading-none">Stop</span>
                 </button>
               ) : isDraft ? (
-                <span className="text-[8px] font-bold text-blue-500 uppercase">Draft</span>
+                <span className="text-[8px] font-bold text-blue-500 uppercase shrink-0">Draft</span>
               ) : (
-                <span className="text-[8px] font-bold text-red-500 uppercase">Closed</span>
+                <span className="text-[8px] font-bold text-red-500 uppercase shrink-0">Closed</span>
               )}
               {isDraft && (
-                <button onClick={() => onDelete(cloud.id)} className="p-1 text-slate-400 hover:text-red-500" title="Delete Word Cloud">
+                <button onClick={() => onDelete(cloud.id)} className="p-1 text-slate-400 hover:text-red-500 shrink-0" title="Delete Word Cloud">
                   <Trash2 className="w-4 h-4" />
                 </button>
               )}
