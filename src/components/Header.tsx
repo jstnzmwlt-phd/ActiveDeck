@@ -375,8 +375,8 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
           {/* PPT Preview Toggle (only visible to presenters) */}
           {presentationId && onNewSession && (
             <div className="flex items-center gap-1.5 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 shadow-xs select-none">
-              <span className="text-slate-600 font-black uppercase text-[10px] tracking-wider">
-                Mode:
+              <span className={`text-[10px] font-black uppercase tracking-wider transition-colors duration-200 ${!showSlidePreview ? 'text-blue-500' : 'text-slate-400'}`}>
+                Basic
               </span>
               <button
                 onClick={handleTogglePPT}
@@ -391,8 +391,8 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
                   }`}
                 />
               </button>
-              <span className={`text-[10px] font-black uppercase tracking-wider w-16 text-left ${showSlidePreview ? 'text-osu-orange' : 'text-blue-500'}`}>
-                {showSlidePreview ? 'Advanced' : 'Basic'}
+              <span className={`text-[10px] font-black uppercase tracking-wider transition-colors duration-200 ${showSlidePreview ? 'text-osu-orange' : 'text-slate-400'}`}>
+                Advanced
               </span>
             </div>
           )}
