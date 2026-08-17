@@ -91,12 +91,12 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
           </div>
         )}
         
-        {/* Bridge Clean Slide Fallback Image Layer (Provides crisp slide visual if video stream is black/paused) */}
-        {bridgeSlideImgSrc && (!isCapturing || !stream) && (
+        {/* Bridge Clean Slide Image Layer (Provides crisp, native PowerPoint slide visual with exact aspect ratio) */}
+        {bridgeSlideImgSrc && (
           <img 
             src={bridgeSlideImgSrc} 
             alt={`Slide ${currentSlide || 1}`}
-            className="absolute inset-0 w-full h-full object-contain z-5"
+            className="absolute inset-0 w-full h-full object-contain z-15"
             onLoad={(e) => {
               if (onSlideImageLoad) onSlideImageLoad(e);
             }}

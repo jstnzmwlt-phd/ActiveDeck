@@ -37,19 +37,19 @@ export const getRenderedSlideBounds = (container: HTMLElement | null): RenderedS
   const containerRect = container.getBoundingClientRect();
   if (containerRect.width === 0 || containerRect.height === 0) return null;
 
-  // Find active video or active slide image (specifically excluding watermark logo image)
-  const video = container.querySelector('video') as HTMLVideoElement | null;
+  // Find active slide image or active video (give priority to visible clean slide image if present)
   const slideImg = (container.querySelector('img:not([alt*="Logo"])') || container.querySelector('img')) as HTMLImageElement | null;
+  const video = container.querySelector('video') as HTMLVideoElement | null;
 
   let intrinsicW = 0;
   let intrinsicH = 0;
 
-  if (video && video.videoWidth > 0 && video.videoHeight > 0) {
-    intrinsicW = video.videoWidth;
-    intrinsicH = video.videoHeight;
-  } else if (slideImg && slideImg.naturalWidth > 0 && slideImg.naturalHeight > 0) {
+  if (slideImg && slideImg.naturalWidth > 0 && slideImg.naturalHeight > 0) {
     intrinsicW = slideImg.naturalWidth;
     intrinsicH = slideImg.naturalHeight;
+  } else if (video && video.videoWidth > 0 && video.videoHeight > 0) {
+    intrinsicW = video.videoWidth;
+    intrinsicH = video.videoHeight;
   }
 
   // Fallback to 16:9 if intrinsic dimensions are not yet loaded
