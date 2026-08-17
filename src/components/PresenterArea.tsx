@@ -39,7 +39,7 @@ export const getRenderedSlideBounds = (container: HTMLElement | null): RenderedS
 
   // Find active video or active slide image (specifically excluding watermark logo image)
   const video = container.querySelector('video') as HTMLVideoElement | null;
-  const slideImg = container.querySelector('img[alt^="Slide"]') as HTMLImageElement | null;
+  const slideImg = (container.querySelector('img:not([alt*="Logo"])') || container.querySelector('img')) as HTMLImageElement | null;
 
   let intrinsicW = 0;
   let intrinsicH = 0;
@@ -77,7 +77,12 @@ export const getRenderedSlideBounds = (container: HTMLElement | null): RenderedS
   const offsetX = (containerW - renderedWidth) / 2;
   const offsetY = (containerH - renderedHeight) / 2;
 
-  return { offsetX, offsetY, renderedWidth, renderedHeight };
+  return {
+    offsetX: Number(offsetX.toFixed(2)),
+    offsetY: Number(offsetY.toFixed(2)),
+    renderedWidth: Number(renderedWidth.toFixed(2)),
+    renderedHeight: Number(renderedHeight.toFixed(2))
+  };
 };
 
 export const useRenderedSlideBounds = (
@@ -96,7 +101,19 @@ export const useRenderedSlideBounds = (
       const container = frameRef.current;
       if (!container) return;
       const b = getRenderedSlideBounds(container);
-      if (b) setBounds(b);
+      if (b) {
+        setBounds(prev => {
+          if (
+            Math.abs(prev.offsetX - b.offsetX) < 0.25 &&
+            Math.abs(prev.offsetY - b.offsetY) < 0.25 &&
+            Math.abs(prev.renderedWidth - b.renderedWidth) < 0.25 &&
+            Math.abs(prev.renderedHeight - b.renderedHeight) < 0.25
+          ) {
+            return prev;
+          }
+          return b;
+        });
+      }
     };
 
     update();
@@ -108,9 +125,58 @@ export const useRenderedSlideBounds = (
     ro.observe(elem);
     window.addEventListener('resize', update);
 
+    const attachMediaListeners = () => {
+      const video = elem.querySelector('video');
+      if (video) {
+        video.addEventListener('loadedmetadata', update);
+        video.addEventListener('loadeddata', update);
+        video.addEventListener('resize', update);
+        video.addEventListener('play', update);
+        video.addEventListener('playing', update);
+      }
+      const img = elem.querySelector('img');
+      if (img) {
+        if (img.complete && img.naturalWidth > 0) {
+          update();
+        } else {
+          img.addEventListener('load', update);
+        }
+      }
+    };
+
+    attachMediaListeners();
+
+    const mo = new MutationObserver(() => {
+      attachMediaListeners();
+      update();
+    });
+    mo.observe(elem, { childList: true, subtree: true, attributes: true, attributeFilter: ['src', 'style', 'class'] });
+
+    const timers = [
+      setTimeout(update, 50),
+      setTimeout(update, 150),
+      setTimeout(update, 300),
+      setTimeout(update, 600),
+      setTimeout(update, 1200),
+    ];
+
     return () => {
       ro.disconnect();
+      mo.disconnect();
       window.removeEventListener('resize', update);
+      timers.forEach(clearTimeout);
+      const video = elem.querySelector('video');
+      if (video) {
+        video.removeEventListener('loadedmetadata', update);
+        video.removeEventListener('loadeddata', update);
+        video.removeEventListener('resize', update);
+        video.removeEventListener('play', update);
+        video.removeEventListener('playing', update);
+      }
+      const img = elem.querySelector('img');
+      if (img) {
+        img.removeEventListener('load', update);
+      }
     };
   }, [frameRef, ...deps]);
 

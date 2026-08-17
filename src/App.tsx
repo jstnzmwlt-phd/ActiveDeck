@@ -2039,7 +2039,7 @@ function AppContent() {
                       <img 
                         src={pushedSlidesMap[activeTab]} 
                         alt={`Slide ${activeTab} Preview`}
-                        className="max-w-full max-h-full object-contain pointer-events-none"
+                        className="w-full h-full object-contain pointer-events-none"
                       />
                       {/* Drawing Overlay - positioned using calculated bounds */}
                       <div 
