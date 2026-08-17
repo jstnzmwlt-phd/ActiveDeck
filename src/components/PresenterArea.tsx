@@ -37,19 +37,19 @@ export const getRenderedSlideBounds = (container: HTMLElement | null): RenderedS
   const containerRect = container.getBoundingClientRect();
   if (containerRect.width === 0 || containerRect.height === 0) return null;
 
-  // Find active slide image or active video (give priority to visible clean slide image if present)
-  const slideImg = (container.querySelector('img:not([alt*="Logo"])') || container.querySelector('img')) as HTMLImageElement | null;
+  // Find active video or active slide image (specifically excluding watermark logo image)
   const video = container.querySelector('video') as HTMLVideoElement | null;
+  const slideImg = (container.querySelector('img:not([alt*="Logo"])') || container.querySelector('img')) as HTMLImageElement | null;
 
   let intrinsicW = 0;
   let intrinsicH = 0;
 
-  if (slideImg && slideImg.naturalWidth > 0 && slideImg.naturalHeight > 0) {
-    intrinsicW = slideImg.naturalWidth;
-    intrinsicH = slideImg.naturalHeight;
-  } else if (video && video.videoWidth > 0 && video.videoHeight > 0) {
+  if (video && video.videoWidth > 0 && video.videoHeight > 0) {
     intrinsicW = video.videoWidth;
     intrinsicH = video.videoHeight;
+  } else if (slideImg && slideImg.naturalWidth > 0 && slideImg.naturalHeight > 0) {
+    intrinsicW = slideImg.naturalWidth;
+    intrinsicH = slideImg.naturalHeight;
   }
 
   // Fallback to 16:9 if intrinsic dimensions are not yet loaded
@@ -1006,8 +1006,24 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       try {
         let blob: Blob | null = null;
 
-        // 1. Try to use WebSocket currentSlideBase64 if connected, matching activeSlideNum, and available
-        if (isBridgeConnected && currentSlideBase64 && activeSlideNum === currentSlide) {
+        // 1. If screen capture video stream is live, capture directly from video to capture live animations & transitions
+        const video = containerRef.current?.querySelector('video') || videoRef.current;
+        if (video && video.videoWidth > 0 && video.videoHeight > 0) {
+          const canvas = document.createElement('canvas');
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            blob = await new Promise<Blob | null>((resolveBlob) => {
+              canvas.toBlob((b) => resolveBlob(b), 'image/jpeg', 0.85);
+            });
+            console.log(`[SlidePreview 2-Stage] ${stageName} captured live video frame (${canvas.width}x${canvas.height}) for slide ${activeSlideNum}`);
+          }
+        }
+
+        // 2. Fallback to WebSocket currentSlideBase64 if video capture was unavailable
+        if (!blob && isBridgeConnected && currentSlideBase64 && activeSlideNum === currentSlide) {
           try {
             const response = await fetch(currentSlideBase64);
             if (response.ok) {
@@ -1019,7 +1035,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           }
         }
 
-        // 2. Try to fetch clean, static slide image exported by the PowerPoint bridge if connected
+        // 3. Fallback to clean, static slide image exported by the PowerPoint bridge if video was unavailable
         if (!blob && isBridgeConnected) {
           try {
             const slideUrl = `http://127.0.0.1:5000/slides/${activeSlideNum}.jpg`;
@@ -1031,32 +1047,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               console.warn(`[SlidePreview 2-Stage] Local bridge returned status ${response.status} for slide ${activeSlideNum}`);
             }
           } catch (fetchErr) {
-            console.warn(`[SlidePreview 2-Stage] ${stageName} failed to fetch clean slide image from bridge, falling back to video capture:`, fetchErr);
+            console.warn(`[SlidePreview 2-Stage] ${stageName} failed to fetch clean slide image from bridge:`, fetchErr);
           }
-        }
-
-        // 3. Fallback to capturing the live screen shared video element if bridge image is unavailable
-        if (!blob) {
-          const video = containerRef.current?.querySelector('video') || videoRef.current;
-          if (!video || !video.videoWidth || !video.videoHeight) {
-            setIsUploadingPreview(false);
-            return;
-          }
-
-          const canvas = document.createElement('canvas');
-          canvas.width = video.videoWidth || 1280;
-          canvas.height = video.videoHeight || 720;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) {
-            setIsUploadingPreview(false);
-            return;
-          }
-
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          
-          blob = await new Promise<Blob | null>((resolveBlob) => {
-            canvas.toBlob((b) => resolveBlob(b), 'image/jpeg', 0.65);
-          });
         }
 
         if (!blob) {

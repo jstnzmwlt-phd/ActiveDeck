@@ -91,8 +91,8 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
           </div>
         )}
         
-        {/* Bridge Clean Slide Image Layer (Provides crisp, native PowerPoint slide visual with exact aspect ratio) */}
-        {bridgeSlideImgSrc && (
+        {/* Bridge Clean Slide Fallback Image Layer (Provides crisp slide visual when not screen-capturing) */}
+        {bridgeSlideImgSrc && (!isCapturing || !stream) && (
           <img 
             src={bridgeSlideImgSrc} 
             alt={`Slide ${currentSlide || 1}`}
