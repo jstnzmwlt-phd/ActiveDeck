@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { AuthProvider, useAuth } from './components/AuthProvider';
-import { PresenterArea } from './components/PresenterArea';
+import { PresenterArea, useRenderedSlideBounds } from './components/PresenterArea';
 import { ChatSidebar } from './components/ChatSidebar';
 import { Header } from './components/Header';
 import { Presentation, GlobalSettings, DrawingStroke } from './types';
@@ -1436,7 +1436,11 @@ function AppContent() {
   const isDraggingAudienceChatRef = useRef(false);
   const isDraggingNotesSplitRef = useRef(false);
   const notesContainerRef = useRef<HTMLDivElement>(null);
+  const desktopPreviewFrameRef = useRef<HTMLDivElement>(null);
+  const mobilePreviewFrameRef = useRef<HTMLDivElement>(null);
   const chatLayoutDirectionRef = useRef(chatLayoutDirection);
+  const desktopPreviewBounds = useRenderedSlideBounds(desktopPreviewFrameRef, [activeTab, pushedSlidesMap[activeTab]]);
+  const mobilePreviewBounds = useRenderedSlideBounds(mobilePreviewFrameRef, [activeTab, pushedSlidesMap[activeTab]]);
 
   useEffect(() => {
     chatLayoutDirectionRef.current = chatLayoutDirection;
@@ -2031,13 +2035,22 @@ function AppContent() {
                   title={pushedSlidesMap[activeTab] ? `Slide ${activeTab} Preview (Tap to Zoom)` : "No slide preview shared yet"}
                 >
                   {pushedSlidesMap[activeTab] ? (
-                    <div className="relative w-full h-full flex items-center justify-center cursor-zoom-in bg-black">
-                      <div className="relative max-w-full max-h-full">
-                        <img 
-                          src={pushedSlidesMap[activeTab]} 
-                          alt={`Slide ${activeTab} Preview`}
-                          className="max-w-full max-h-[25vh] block pointer-events-none"
-                        />
+                    <div ref={mobilePreviewFrameRef} className="relative w-full h-full flex items-center justify-center cursor-zoom-in bg-black">
+                      <img 
+                        src={pushedSlidesMap[activeTab]} 
+                        alt={`Slide ${activeTab} Preview`}
+                        className="max-w-full max-h-full object-contain pointer-events-none"
+                      />
+                      {/* Drawing Overlay - positioned using calculated bounds */}
+                      <div 
+                        className="absolute pointer-events-none"
+                        style={{
+                          top: mobilePreviewBounds.offsetY,
+                          left: mobilePreviewBounds.offsetX,
+                          width: mobilePreviewBounds.renderedWidth > 0 ? mobilePreviewBounds.renderedWidth : '100%',
+                          height: mobilePreviewBounds.renderedHeight > 0 ? mobilePreviewBounds.renderedHeight : '100%',
+                        }}
+                      >
                       {/* Presenter Live Slide Drawing Layer */}
                       {(() => {
                         const drawingsJson = presentation?.presenterDrawings?.[activeTab];
@@ -2049,7 +2062,7 @@ function AppContent() {
                             <svg
                               viewBox="0 0 1000 1000"
                               preserveAspectRatio="none"
-                              className="absolute inset-0 w-full h-full pointer-events-none z-10"
+                              className="w-full h-full pointer-events-none z-10"
                             >
                               {strokes.map((stroke, idx) => {
                                 if (stroke.text) {
@@ -2144,8 +2157,8 @@ function AppContent() {
                           return null;
                         }
                       })()}
-                      {/* Floating badge */}
                       </div>
+                      {/* Floating badge */}
                       <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-black/60 border border-white/10 text-white text-[9px] font-bold">
                         Slide {activeTab}
                       </div>
@@ -2869,12 +2882,23 @@ function AppContent() {
                               className="flex-1 relative overflow-hidden bg-black flex items-center justify-center min-h-0 cursor-zoom-in group/preview"
                               title="Click to zoom in"
                             >
-                              <div className="relative max-w-full max-h-full">
+                              <div ref={desktopPreviewFrameRef} className="absolute inset-0">
                                 <img 
                                   src={pushedSlidesMap[activeTab]} 
                                   alt={`${getTabTitle(activeTab)} Preview`}
-                                  className="max-w-full max-h-full block transition-transform duration-300 group-hover/preview:scale-[1.01] pointer-events-none"
+                                  className="w-full h-full object-contain transition-transform duration-300 group-hover/preview:scale-[1.01] pointer-events-none"
                                 />
+                              </div>
+                              {/* Drawing Overlay - positioned using calculated bounds */}
+                              <div 
+                                className="absolute pointer-events-none"
+                                style={{
+                                  top: desktopPreviewBounds.offsetY,
+                                  left: desktopPreviewBounds.offsetX,
+                                  width: desktopPreviewBounds.renderedWidth > 0 ? desktopPreviewBounds.renderedWidth : '100%',
+                                  height: desktopPreviewBounds.renderedHeight > 0 ? desktopPreviewBounds.renderedHeight : '100%',
+                                }}
+                              >
                               {/* Presenter Live Slide Drawing Layer */}
                               {(() => {
                                 const drawingsJson = presentation?.presenterDrawings?.[activeTab];
@@ -2886,7 +2910,7 @@ function AppContent() {
                                     <svg
                                       viewBox="0 0 1000 1000"
                                       preserveAspectRatio="none"
-                                      className="absolute inset-0 w-full h-full pointer-events-none z-10"
+                                      className="w-full h-full pointer-events-none z-10"
                                     >
                                       {strokes.map((stroke, idx) => {
                                         if (stroke.text) {
