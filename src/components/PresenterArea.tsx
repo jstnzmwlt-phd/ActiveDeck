@@ -4244,6 +4244,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               isProjectorMode={isProjectorMode}
               videoRef={videoRef}
               onLoadedMetadata={handleVideoLoadedMetadata}
+              onSlideImageLoad={handleSlideImageLoad}
               isBridgeConnected={isBridgeConnected}
               currentSlideBase64={currentSlideBase64}
               currentSlide={currentSlide}
