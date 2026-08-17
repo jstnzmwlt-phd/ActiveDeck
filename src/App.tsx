@@ -2032,11 +2032,11 @@ function AppContent() {
                 >
                   {pushedSlidesMap[activeTab] ? (
                     <div className="relative w-full h-full flex items-center justify-center cursor-zoom-in bg-black">
-                      <div className="relative max-w-full max-h-full flex items-center justify-center">
+                      <div className="relative aspect-video max-w-full max-h-full flex items-center justify-center">
                         <img 
                           src={pushedSlidesMap[activeTab]} 
                           alt={`Slide ${activeTab} Preview`}
-                          className="max-w-full max-h-[25vh] object-contain pointer-events-none"
+                          className="w-full h-full object-contain pointer-events-none"
                         />
                       {/* Presenter Live Slide Drawing Layer */}
                       {(() => {
@@ -2869,11 +2869,11 @@ function AppContent() {
                               className="flex-1 relative overflow-hidden bg-black flex items-center justify-center min-h-0 cursor-zoom-in group/preview"
                               title="Click to zoom in"
                             >
-                              <div className="relative max-w-full max-h-full flex items-center justify-center">
+                              <div className="relative aspect-video max-w-full max-h-full flex items-center justify-center">
                                 <img 
                                   src={pushedSlidesMap[activeTab]} 
                                   alt={`${getTabTitle(activeTab)} Preview`}
-                                  className="max-w-full max-h-full object-contain transition-transform duration-300 group-hover/preview:scale-[1.01] pointer-events-none"
+                                  className="w-full h-full object-contain transition-transform duration-300 group-hover/preview:scale-[1.01] pointer-events-none"
                                 />
                               {/* Presenter Live Slide Drawing Layer */}
                               {(() => {
