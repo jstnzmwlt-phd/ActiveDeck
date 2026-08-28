@@ -1533,13 +1533,44 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const autoMinimizeTimersRef = useRef<Record<string, NodeJS.Timeout>>({});
   const autoMinimizeStartTimesRef = useRef<Record<string, number>>({});
   const prevSlideRef = useRef<number | undefined | null>(undefined);
+  const [nowTick, setNowTick] = useState(Date.now());
+
+  // 1-second ticker when active/expiring items exist to ensure precise expiration detection
+  useEffect(() => {
+    const hasActiveOrExpiring = polls.some(p => p.active || p.expiresAt) ||
+      openEndedQuestions.some(q => q.active || q.expiresAt) ||
+      wordClouds.some(w => w.active || w.expiresAt);
+
+    if (!hasActiveOrExpiring) return;
+
+    const interval = setInterval(() => {
+      setNowTick(Date.now());
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [polls, openEndedQuestions, wordClouds]);
+
+  const getExpiresMs = (exp: any): number => {
+    if (!exp) return 0;
+    if (typeof exp.toMillis === 'function') return exp.toMillis();
+    if (typeof exp.toDate === 'function') return exp.toDate().getTime();
+    if (exp.seconds !== undefined) return exp.seconds * 1000;
+    const t = new Date(exp).getTime();
+    return isNaN(t) ? 0 : t;
+  };
 
   // Helper function to evaluate if an interactive element is ended & viewable to everyone
   const isInteractiveEndedAndViewable = (item: Poll | OpenEndedQuestion | WordCloud): boolean => {
+    // Must be viewable to everyone
     if (!item.showResults) return false;
+    // Ignore unlaunched drafts
     if (item.started === false) return false;
-    const isTimeExpired = item.expiresAt?.seconds ? (item.expiresAt.seconds * 1000 <= Date.now()) : false;
-    return !item.active || isTimeExpired;
+
+    const expiresMs = getExpiresMs(item.expiresAt);
+    const isTimeExpired = expiresMs > 0 && expiresMs <= Date.now();
+    const isEnded = !item.active || isTimeExpired;
+
+    return isEnded;
   };
 
   // 1. 20-second timer for ended and viewable interactive elements
@@ -1559,8 +1590,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
       if (endedViewable && !isCollapsed) {
         if (!currentTimers[item.id]) {
+          console.log(`[AutoMinimize] Starting 20s minimize timer for item ${item.id}`);
           currentStartTimes[item.id] = Date.now();
           currentTimers[item.id] = setTimeout(() => {
+            console.log(`[AutoMinimize] 20s timer expired for item ${item.id}. Minimizing...`);
             setCollapsedMessageIds(prev => ({ ...prev, [item.id]: true }));
             delete currentTimers[item.id];
             delete currentStartTimes[item.id];
@@ -1582,7 +1615,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         delete currentStartTimes[id];
       }
     });
-  }, [polls, openEndedQuestions, wordClouds, collapsedMessageIds]);
+  }, [polls, openEndedQuestions, wordClouds, collapsedMessageIds, nowTick]);
 
   // 2. Immediate minimization on Slide Change
   useEffect(() => {
@@ -1590,6 +1623,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     if (activeSlide === null || activeSlide === undefined) return;
 
     if (prevSlideRef.current !== undefined && prevSlideRef.current !== null && prevSlideRef.current !== activeSlide) {
+      console.log(`[AutoMinimize] Slide changed from ${prevSlideRef.current} to ${activeSlide}. Minimizing ended & viewable elements...`);
       const allInteractiveItems: Array<Poll | OpenEndedQuestion | WordCloud> = [
         ...polls,
         ...openEndedQuestions,
@@ -1613,6 +1647,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       });
 
       if (countToCollapse > 0) {
+        console.log(`[AutoMinimize] Minimized ${countToCollapse} ended & viewable items on slide change.`);
         setCollapsedMessageIds(prev => ({ ...prev, ...toCollapse }));
       }
     }
