@@ -997,7 +997,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
   // Background 2-Stage Automatic Slide Preview Capture & Upload Effect (Immediate + Delayed Animation Capture)
   useEffect(() => {
-    if (!presentation?.id || !isCapturing) return;
+    if (!presentation?.id || (!isCapturing && !isBridgeConnected)) return;
 
     const activeSlideNum = currentSlide !== null ? currentSlide : (presentation?.currentSlide || 1);
     setIsUploadingPreview(true);
@@ -1104,7 +1104,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       clearTimeout(immediateTimeoutId);
       clearTimeout(delayedTimeoutId);
     };
-  }, [currentSlide, presentation?.currentSlide, isCapturing, presentation?.id, captureTrigger]);
+  }, [currentSlide, presentation?.currentSlide, isCapturing, isBridgeConnected, presentation?.id, captureTrigger]);
 
   useEffect(() => {
     return () => {

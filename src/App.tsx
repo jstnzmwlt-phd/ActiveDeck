@@ -325,6 +325,15 @@ function AppContent() {
 
   const [pushedSlidesMap, setPushedSlidesMap] = useState<Record<string, string>>({});
 
+  const getSlidePreviewUrl = (tab: string | number | undefined | null): string | undefined => {
+    if (tab === undefined || tab === null) return undefined;
+    const strKey = String(tab);
+    if (pushedSlidesMap[strKey]) return pushedSlidesMap[strKey];
+    const numKey = Number(tab);
+    if (!isNaN(numKey) && pushedSlidesMap[String(numKey)]) return pushedSlidesMap[String(numKey)];
+    return undefined;
+  };
+
   // Custom blank note tabs added by the student
   const [customTabs, setCustomTabs] = useState<Array<{ id: string; label: string; position: number }>>([]);
 
@@ -494,22 +503,30 @@ function AppContent() {
 
     const unsubPreviews = onSnapshot(qPreviews, (snapshot) => {
       const newPreviewsMap: Record<string, string> = {};
+      const previewsTimeMap: Record<string, number> = {};
       const incomingCustomTabs: Array<{ id: string; label: string; position: number }> = [];
       let latestPushedId: string | null = null;
       let latestTime = 0;
 
       snapshot.docs.forEach(docSnap => {
         const data = docSnap.data();
-        if (data.isBackgroundPreview && data.fileUrl && data.slide !== undefined && data.slide !== null) {
+        if (data.fileUrl && data.slide !== undefined && data.slide !== null) {
           const slideId = String(data.slide);
-          newPreviewsMap[slideId] = data.fileUrl;
+          const timestampVal = data.timestamp?.seconds 
+            ? data.timestamp.seconds * 1000 
+            : (typeof data.timestamp?.toMillis === 'function' ? data.timestamp.toMillis() : 0);
+
+          // Give priority to newer timestamps or explicit slide preview captures
+          if (!newPreviewsMap[slideId] || timestampVal >= (previewsTimeMap[slideId] || 0) || data.isBackgroundPreview || data.isPushedSlide) {
+            newPreviewsMap[slideId] = data.fileUrl;
+            previewsTimeMap[slideId] = timestampVal;
+          }
 
           if (data.isCustomNoteTab || slideId.startsWith('note_')) {
             const pos = data.position || 999;
             const label = data.label || '';
             incomingCustomTabs.push({ id: slideId, label, position: pos });
 
-            const timestampVal = data.timestamp?.seconds ? data.timestamp.seconds * 1000 : 0;
             if (timestampVal > latestTime) {
               latestTime = timestampVal;
               latestPushedId = slideId;
@@ -1439,8 +1456,9 @@ function AppContent() {
   const desktopPreviewFrameRef = useRef<HTMLDivElement>(null);
   const mobilePreviewFrameRef = useRef<HTMLDivElement>(null);
   const chatLayoutDirectionRef = useRef(chatLayoutDirection);
-  const desktopPreviewBounds = useRenderedSlideBounds(desktopPreviewFrameRef, [activeTab, pushedSlidesMap[activeTab]]);
-  const mobilePreviewBounds = useRenderedSlideBounds(mobilePreviewFrameRef, [activeTab, pushedSlidesMap[activeTab]]);
+  const activeSlidePreviewUrl = getSlidePreviewUrl(activeTab);
+  const desktopPreviewBounds = useRenderedSlideBounds(desktopPreviewFrameRef, [activeTab, activeSlidePreviewUrl]);
+  const mobilePreviewBounds = useRenderedSlideBounds(mobilePreviewFrameRef, [activeTab, activeSlidePreviewUrl]);
 
   useEffect(() => {
     chatLayoutDirectionRef.current = chatLayoutDirection;
@@ -2027,17 +2045,18 @@ function AppContent() {
                 <div 
                   className="w-full aspect-[16/9] max-h-[25vh] bg-black select-none relative group overflow-hidden"
                   onClick={() => {
-                    if (pushedSlidesMap[activeTab]) {
-                      setLightboxImgUrl(pushedSlidesMap[activeTab]);
+                    const previewUrl = getSlidePreviewUrl(activeTab);
+                    if (previewUrl) {
+                      setLightboxImgUrl(previewUrl);
                       setIsLightboxOpen(true);
                     }
                   }}
-                  title={pushedSlidesMap[activeTab] ? `Slide ${activeTab} Preview (Tap to Zoom)` : "No slide preview shared yet"}
+                  title={getSlidePreviewUrl(activeTab) ? `Slide ${activeTab} Preview (Tap to Zoom)` : "No slide preview shared yet"}
                 >
-                  {pushedSlidesMap[activeTab] ? (
+                  {getSlidePreviewUrl(activeTab) ? (
                     <div ref={mobilePreviewFrameRef} className="relative w-full h-full flex items-center justify-center cursor-zoom-in bg-black">
                       <img 
-                        src={pushedSlidesMap[activeTab]} 
+                        src={getSlidePreviewUrl(activeTab)} 
                         alt={`Slide ${activeTab} Preview`}
                         className="w-full h-full object-contain pointer-events-none"
                       />
@@ -2870,21 +2889,24 @@ function AppContent() {
                       <div 
                         className="flex flex-col min-w-0 min-h-[200px] md:min-h-0 rounded-xl border border-slate-800 bg-slate-950 select-none group shadow-xl relative overflow-hidden"
                         style={{ flex: `1 1 ${100 - notesSplitRatio}%`, minWidth: '150px' }}
-                        title={pushedSlidesMap[activeTab] ? `${getTabTitle(activeTab)} Preview (Click to Zoom)` : "No slide preview shared yet"}
+                        title={getSlidePreviewUrl(activeTab) ? `${getTabTitle(activeTab)} Preview (Click to Zoom)` : "No slide preview shared yet"}
                       >
-                        {pushedSlidesMap[activeTab] ? (
+                        {getSlidePreviewUrl(activeTab) ? (
                           <div className="w-full h-full relative flex flex-col h-full justify-between">
                             <div 
                               onClick={() => {
-                                setLightboxImgUrl(pushedSlidesMap[activeTab]);
-                                setIsLightboxOpen(true);
+                                const previewUrl = getSlidePreviewUrl(activeTab);
+                                if (previewUrl) {
+                                  setLightboxImgUrl(previewUrl);
+                                  setIsLightboxOpen(true);
+                                }
                               }}
                               className="flex-1 relative overflow-hidden bg-black flex items-center justify-center min-h-0 cursor-zoom-in group/preview"
                               title="Click to zoom in"
                             >
                               <div ref={desktopPreviewFrameRef} className="absolute inset-0">
                                 <img 
-                                  src={pushedSlidesMap[activeTab]} 
+                                  src={getSlidePreviewUrl(activeTab)} 
                                   alt={`${getTabTitle(activeTab)} Preview`}
                                   className="w-full h-full object-contain transition-transform duration-300 group-hover/preview:scale-[1.01] pointer-events-none"
                                 />
