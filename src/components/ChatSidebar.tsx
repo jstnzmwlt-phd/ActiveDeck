@@ -1526,6 +1526,109 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     setCollapsedMessageIds({});
   }, [isAllCollapsed]);
 
+  // ---------------------------------------------------------------------------
+  // Auto-minimize ended and viewable interactive elements after 20 seconds,
+  // or immediately when the presentation slide changes.
+  // ---------------------------------------------------------------------------
+  const autoMinimizeTimersRef = useRef<Record<string, NodeJS.Timeout>>({});
+  const autoMinimizeStartTimesRef = useRef<Record<string, number>>({});
+  const prevSlideRef = useRef<number | undefined | null>(undefined);
+
+  // Helper function to evaluate if an interactive element is ended & viewable to everyone
+  const isInteractiveEndedAndViewable = (item: Poll | OpenEndedQuestion | WordCloud): boolean => {
+    if (!item.showResults) return false;
+    if (item.started === false) return false;
+    const isTimeExpired = item.expiresAt?.seconds ? (item.expiresAt.seconds * 1000 <= Date.now()) : false;
+    return !item.active || isTimeExpired;
+  };
+
+  // 1. 20-second timer for ended and viewable interactive elements
+  useEffect(() => {
+    const allInteractiveItems: Array<Poll | OpenEndedQuestion | WordCloud> = [
+      ...polls,
+      ...openEndedQuestions,
+      ...wordClouds
+    ];
+
+    const currentTimers = autoMinimizeTimersRef.current;
+    const currentStartTimes = autoMinimizeStartTimesRef.current;
+
+    allInteractiveItems.forEach((item) => {
+      const endedViewable = isInteractiveEndedAndViewable(item);
+      const isCollapsed = Boolean(collapsedMessageIds[item.id]);
+
+      if (endedViewable && !isCollapsed) {
+        if (!currentTimers[item.id]) {
+          currentStartTimes[item.id] = Date.now();
+          currentTimers[item.id] = setTimeout(() => {
+            setCollapsedMessageIds(prev => ({ ...prev, [item.id]: true }));
+            delete currentTimers[item.id];
+            delete currentStartTimes[item.id];
+          }, 20000);
+        }
+      } else {
+        if (currentTimers[item.id]) {
+          clearTimeout(currentTimers[item.id]);
+          delete currentTimers[item.id];
+          delete currentStartTimes[item.id];
+        }
+      }
+    });
+
+    Object.keys(currentTimers).forEach((id) => {
+      if (!allInteractiveItems.some(i => i.id === id)) {
+        clearTimeout(currentTimers[id]);
+        delete currentTimers[id];
+        delete currentStartTimes[id];
+      }
+    });
+  }, [polls, openEndedQuestions, wordClouds, collapsedMessageIds]);
+
+  // 2. Immediate minimization on Slide Change
+  useEffect(() => {
+    const activeSlide = currentSlide !== null ? currentSlide : (presentation?.currentSlide ?? null);
+    if (activeSlide === null || activeSlide === undefined) return;
+
+    if (prevSlideRef.current !== undefined && prevSlideRef.current !== null && prevSlideRef.current !== activeSlide) {
+      const allInteractiveItems: Array<Poll | OpenEndedQuestion | WordCloud> = [
+        ...polls,
+        ...openEndedQuestions,
+        ...wordClouds
+      ];
+
+      const toCollapse: Record<string, boolean> = {};
+      let countToCollapse = 0;
+
+      allInteractiveItems.forEach((item) => {
+        if (isInteractiveEndedAndViewable(item) && !collapsedMessageIds[item.id]) {
+          toCollapse[item.id] = true;
+          countToCollapse++;
+
+          if (autoMinimizeTimersRef.current[item.id]) {
+            clearTimeout(autoMinimizeTimersRef.current[item.id]);
+            delete autoMinimizeTimersRef.current[item.id];
+            delete autoMinimizeStartTimesRef.current[item.id];
+          }
+        }
+      });
+
+      if (countToCollapse > 0) {
+        setCollapsedMessageIds(prev => ({ ...prev, ...toCollapse }));
+      }
+    }
+
+    prevSlideRef.current = activeSlide;
+  }, [currentSlide, presentation?.currentSlide, polls, openEndedQuestions, wordClouds, collapsedMessageIds]);
+
+  // 3. Cleanup timers on component unmount
+  useEffect(() => {
+    return () => {
+      Object.values(autoMinimizeTimersRef.current).forEach(t => clearTimeout(t));
+      autoMinimizeTimersRef.current = {};
+      autoMinimizeStartTimesRef.current = {};
+    };
+  }, []);
+
   const [showWordCloudModal, setShowWordCloudModal] = useState(false);
   const [showOpenEndedQuestionModal, setShowOpenEndedQuestionModal] = useState(false);
   const [wordCloudPrompt, setWordCloudPrompt] = useState('');
