@@ -65,6 +65,7 @@ export interface Presentation {
   chatAllCollapsed?: boolean;
   chatCollapsedMessageIds?: Record<string, boolean>;
   qrExpanded?: boolean;
+  joinHeaderVisible?: boolean;
   presenterEmail?: string;
   isEnded?: boolean;
   showSlidePreview?: boolean;

@@ -5,7 +5,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Message, Presentation, Poll, WordCloud, OpenEndedQuestion, GlobalSettings } from '../types';
 import { useAuth } from './AuthProvider';
 import { useBridge } from '../contexts/BridgeContext';
-import { Send, HelpCircle, MessageSquare, MessageSquareOff, Trash2, ThumbsUp, Download, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud, Eye, EyeOff, Timer, Users, ChevronDown, ChevronUp, Pin, Loader2, AlertCircle, Presentation as PresentationIcon, Paperclip, Maximize2, Minimize2, X, Square, Lock, Unlock } from 'lucide-react';
+import { Send, HelpCircle, MessageSquare, MessageSquareOff, Trash2, ThumbsUp, Download, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud, Eye, EyeOff, Timer, Users, ChevronDown, ChevronUp, Pin, Loader2, AlertCircle, Presentation as PresentationIcon, Paperclip, Maximize2, Minimize2, X, Square, Lock, Unlock, QrCode } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { QRCodeSVG } from 'qrcode.react';
@@ -1458,6 +1458,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isAllCollapsed, setIsAllCollapsed] = useState(false);
   const [isQRExpanded, setIsQRExpanded] = useState(false);
+  const [isJoinHeaderVisible, setIsJoinHeaderVisible] = useState(true);
   const [collapsedMessageIds, setCollapsedMessageIds] = useState<Record<string, boolean>>({});
   const [readMessageIds, setReadMessageIds] = useState<Record<string, boolean>>({});
 
@@ -1468,6 +1469,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     if (presentation && !hasInitializedFromPresentation.current) {
       if (presentation.qrExpanded !== undefined) {
         setIsQRExpanded(presentation.qrExpanded);
+      }
+      if (presentation.joinHeaderVisible !== undefined) {
+        setIsJoinHeaderVisible(presentation.joinHeaderVisible);
       }
       if (presentation.chatAllCollapsed !== undefined) {
         setIsAllCollapsed(presentation.chatAllCollapsed);
@@ -1491,6 +1495,14 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   useEffect(() => {
     if (canModerate && presentation?.id && hasInitializedFromPresentation.current) {
       updateDoc(doc(db, 'presentations', presentation.id), {
+        joinHeaderVisible: isJoinHeaderVisible
+      }).catch(err => console.error("Failed to update join header visibility state:", err));
+    }
+  }, [isJoinHeaderVisible, canModerate, presentation?.id]);
+
+  useEffect(() => {
+    if (canModerate && presentation?.id && hasInitializedFromPresentation.current) {
+      updateDoc(doc(db, 'presentations', presentation.id), {
         chatAllCollapsed: isAllCollapsed
       }).catch(err => console.error("Failed to update bulk collapse state:", err));
     }
@@ -1510,6 +1522,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       if (presentation.qrExpanded !== undefined) {
         setIsQRExpanded(presentation.qrExpanded);
       }
+      if (presentation.joinHeaderVisible !== undefined) {
+        setIsJoinHeaderVisible(presentation.joinHeaderVisible);
+      }
       if (presentation.chatAllCollapsed !== undefined) {
         setIsAllCollapsed(presentation.chatAllCollapsed);
       }
@@ -1519,7 +1534,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         setCollapsedMessageIds({});
       }
     }
-  }, [isProjector, presentation?.qrExpanded, presentation?.chatAllCollapsed, presentation?.chatCollapsedMessageIds]);
+  }, [isProjector, presentation?.qrExpanded, presentation?.joinHeaderVisible, presentation?.chatAllCollapsed, presentation?.chatCollapsedMessageIds]);
 
   // When bulk collapse/expand state changes, clear individual message overrides
   useEffect(() => {
@@ -3845,7 +3860,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       )}
 
       {/* Join Code Bar - Presenter & Projector Modes */}
-      {(!isChatOnly || isProjector) && (
+      {(!isChatOnly || isProjector) && isJoinHeaderVisible && (
         <div className="bg-slate-900 text-white px-3 py-2.5 border-b border-slate-800 shrink-0 select-none">
           <div className="flex items-center justify-between min-w-0 gap-2">
             {/* Left Section: Join PIN Code */}
@@ -3904,26 +3919,37 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 </div>
               ) : null
             ) : (
-              /* On Presenter: Clickable QR Code Thumbnail */
-              <div 
-                onClick={() => setIsQRExpanded(!isQRExpanded)}
-                className="bg-white p-1 rounded-xl border border-slate-800 shadow-sm flex flex-col items-center justify-center cursor-pointer hover:border-osu-orange hover:shadow-md transition-all group/qr shrink-0"
-                title={isQRExpanded ? "Click to minimize QR code" : "Click to expand QR code"}
-              >
-                <QRCodeSVG 
-                  value={dynamicChatUrl} 
-                  size={66}
-                  level="M"
-                  includeMargin={false}
-                  imageSettings={{
-                    src: internalLogoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png",
-                    x: undefined,
-                    y: undefined,
-                    height: 16,
-                    width: 16,
-                    excavate: true,
-                  }}
-                />
+              /* On Presenter: Clickable QR Code Thumbnail & Hide Button */
+              <div className="flex items-center gap-2 shrink-0">
+                <div 
+                  onClick={() => setIsQRExpanded(!isQRExpanded)}
+                  className="bg-white p-1 rounded-xl border border-slate-800 shadow-sm flex flex-col items-center justify-center cursor-pointer hover:border-osu-orange hover:shadow-md transition-all group/qr shrink-0"
+                  title={isQRExpanded ? "Click to minimize QR code" : "Click to expand QR code"}
+                >
+                  <QRCodeSVG 
+                    value={dynamicChatUrl} 
+                    size={66}
+                    level="M"
+                    includeMargin={false}
+                    imageSettings={{
+                      src: internalLogoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png",
+                      x: undefined,
+                      y: undefined,
+                      height: 16,
+                      width: 16,
+                      excavate: true,
+                    }}
+                  />
+                </div>
+                {canModerate && (
+                  <button
+                    onClick={() => setIsJoinHeaderVisible(false)}
+                    className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-800 text-slate-400 hover:text-white transition-colors border border-slate-700/50"
+                    title="Hide Join Code & QR code (opens more room for chat)"
+                  >
+                    <ChevronUp className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -3953,6 +3979,21 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           <div className="flex flex-wrap items-center gap-1.5 flex-shrink-0">
             {canModerate && (
               <>
+                <button 
+                  onClick={() => setIsJoinHeaderVisible(!isJoinHeaderVisible)}
+                  className={cn(
+                    "px-2 py-1 rounded transition-colors flex items-center gap-1.5 text-xs font-bold",
+                    !isJoinHeaderVisible 
+                      ? "text-osu-orange bg-osu-orange/10 border border-osu-orange/30" 
+                      : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                  )}
+                  title={isJoinHeaderVisible ? "Hide Join Code & QR Code" : "Show Join Code & QR Code"}
+                >
+                  <QrCode className="w-4 h-4" />
+                  {!isJoinHeaderVisible && (
+                    <span className="inline">Show Join Info</span>
+                  )}
+                </button>
                 {showAttendance && (
                   <button 
                     onClick={handleToggleDisableAttendance}
@@ -4086,7 +4127,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       )}
 
       {/* Embedded QR Code Section */}
-      {(!isChatOnly || isProjector) && (
+      {(!isChatOnly || isProjector) && isJoinHeaderVisible && (
         (isProjector || isQRExpanded) ? (
           /* Expanded Card View */
           <div 
