@@ -4126,9 +4126,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         </div>
       )}
 
-      {/* Embedded QR Code Section */}
-      {(!isChatOnly || isProjector) && isJoinHeaderVisible && (
-        (isProjector || isQRExpanded) ? (
+      {/* Embedded QR Code Section & Session Controls */}
+      {(!isChatOnly || isProjector) && (
+        (isProjector || (isQRExpanded && isJoinHeaderVisible)) ? (
           /* Expanded Card View */
           <div 
             onClick={isProjector ? undefined : () => setIsQRExpanded(false)}
