@@ -380,7 +380,7 @@ export const parseHtmlToDocxParagraphs = (htmlString: string): Paragraph[] => {
           }));
         }
       } else {
-        elem.childNodes.forEach(child => processNode(child, childRuns, newStyle));
+        elem.childNodes.forEach(child => processNode(child, currentRuns, newStyle));
       }
     }
   };
