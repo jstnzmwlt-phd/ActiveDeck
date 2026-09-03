@@ -1522,9 +1522,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       if (presentation.qrExpanded !== undefined) {
         setIsQRExpanded(presentation.qrExpanded);
       }
-      if (presentation.joinHeaderVisible !== undefined) {
-        setIsJoinHeaderVisible(presentation.joinHeaderVisible);
-      }
+      // Projector mode always keeps join code & QR code visible for the classroom audience
+      setIsJoinHeaderVisible(true);
       if (presentation.chatAllCollapsed !== undefined) {
         setIsAllCollapsed(presentation.chatAllCollapsed);
       }
@@ -1534,7 +1533,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         setCollapsedMessageIds({});
       }
     }
-  }, [isProjector, presentation?.qrExpanded, presentation?.joinHeaderVisible, presentation?.chatAllCollapsed, presentation?.chatCollapsedMessageIds]);
+  }, [isProjector, presentation?.qrExpanded, presentation?.chatAllCollapsed, presentation?.chatCollapsedMessageIds]);
 
   // When bulk collapse/expand state changes, clear individual message overrides
   useEffect(() => {
@@ -3860,7 +3859,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       )}
 
       {/* Join Code Bar - Presenter & Projector Modes */}
-      {(!isChatOnly || isProjector) && isJoinHeaderVisible && (
+      {(isProjector || (!isChatOnly && isJoinHeaderVisible)) && (
         <div className="bg-slate-900 text-white px-3 py-2.5 border-b border-slate-800 shrink-0 select-none">
           <div className="flex items-center justify-between min-w-0 gap-2">
             {/* Left Section: Join PIN Code */}
