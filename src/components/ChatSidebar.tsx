@@ -228,13 +228,17 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
       }
       const remaining = Math.max(0, Math.floor((expiresMs - now) / 1000));
       setTimeLeft(remaining);
+
+      if (remaining === 0 && q.active && canModerate) {
+        onClose(q.id);
+      }
     };
 
     updateTimer();
 
     const interval = setInterval(updateTimer, 1000);
     return () => clearInterval(interval);
-  }, [q.active, q.expiresAt, q.id, canModerate]);
+  }, [q.active, q.expiresAt, q.id, canModerate, onClose]);
 
   useEffect(() => {
     setIsCollapsed(forceCollapsed ?? initialCollapsed);
@@ -1541,7 +1545,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   }, [isAllCollapsed]);
 
   // ---------------------------------------------------------------------------
-  // Auto-minimize ended and viewable interactive elements after 20 seconds,
+  // Auto-minimize ended and viewable interactive elements after 30 seconds,
   // or immediately when the presentation slide changes.
   // ---------------------------------------------------------------------------
   const autoMinimizeTimersRef = useRef<Record<string, NodeJS.Timeout>>({});
@@ -1573,10 +1577,41 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     return isNaN(t) ? 0 : t;
   };
 
+  // Auto-close expired interactive items and display results automatically when countdown reaches 0
+  useEffect(() => {
+    if (!canModerate) return;
+    const now = Date.now();
+
+    polls.forEach(p => {
+      if (p.active && p.expiresAt) {
+        const expiresMs = getExpiresMs(p.expiresAt);
+        if (expiresMs > 0 && expiresMs <= now) {
+          handleClosePoll(p.id);
+        }
+      }
+    });
+
+    wordClouds.forEach(w => {
+      if (w.active && w.expiresAt) {
+        const expiresMs = getExpiresMs(w.expiresAt);
+        if (expiresMs > 0 && expiresMs <= now) {
+          handleCloseWordCloud(w.id);
+        }
+      }
+    });
+
+    openEndedQuestions.forEach(q => {
+      if (q.active && q.expiresAt) {
+        const expiresMs = getExpiresMs(q.expiresAt);
+        if (expiresMs > 0 && expiresMs <= now) {
+          handleCloseOpenEndedQuestion(q.id);
+        }
+      }
+    });
+  }, [polls, wordClouds, openEndedQuestions, canModerate, nowTick]);
+
   // Helper function to evaluate if an interactive element is ended & viewable to everyone
   const isInteractiveEndedAndViewable = (item: Poll | OpenEndedQuestion | WordCloud): boolean => {
-    // Must be viewable to everyone
-    if (!item.showResults) return false;
     // Ignore unlaunched drafts
     if (item.started === false) return false;
 
@@ -1584,10 +1619,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     const isTimeExpired = expiresMs > 0 && expiresMs <= Date.now();
     const isEnded = !item.active || isTimeExpired;
 
-    return isEnded;
+    return isEnded && (item.showResults || isEnded);
   };
 
-  // 1. 20-second timer for ended and viewable interactive elements
+  // 1. 30-second timer for ended and viewable interactive elements
   useEffect(() => {
     const allInteractiveItems: Array<Poll | OpenEndedQuestion | WordCloud> = [
       ...polls,
@@ -1604,14 +1639,14 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
       if (endedViewable && !isCollapsed) {
         if (!currentTimers[item.id]) {
-          console.log(`[AutoMinimize] Starting 20s minimize timer for item ${item.id}`);
+          console.log(`[AutoMinimize] Starting 30s minimize timer for item ${item.id}`);
           currentStartTimes[item.id] = Date.now();
           currentTimers[item.id] = setTimeout(() => {
-            console.log(`[AutoMinimize] 20s timer expired for item ${item.id}. Minimizing...`);
+            console.log(`[AutoMinimize] 30s timer expired for item ${item.id}. Minimizing...`);
             setCollapsedMessageIds(prev => ({ ...prev, [item.id]: true }));
             delete currentTimers[item.id];
             delete currentStartTimes[item.id];
-          }, 20000);
+          }, 30000);
         }
       } else {
         if (currentTimers[item.id]) {
@@ -2179,12 +2214,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     }
   }, [isChatOnly, hasJoined, isTokenValid, attendanceStatus, guestEmail, guestName, presentation?.id, urlToken]);
 
-  // Check if session ID changed or ended, and log out if it does not match or if the presentation is null
+  // Check if session ID changed or ended, and log out if it does not match, is ended, or if the presentation is null
   useEffect(() => {
     if (isChatOnly && presentationLoaded) {
       const savedPresId = localStorage.getItem('activeDeckJoinedPresentationId');
       const savedJoined = localStorage.getItem('activeDeckJoined') === 'true';
-      if (presentation === null || (presentation && savedPresId !== presentation.id)) {
+      if (presentation === null || presentation.isEnded === true || (presentation as any).active === false || (presentation && savedPresId !== presentation.id)) {
         if (savedJoined) {
           setHasJoined(false);
           setGuestEmail('');
@@ -3387,7 +3422,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const handleCloseWordCloud = async (cloudId: string) => {
     if (!canModerate) return;
     try {
-      await updateDoc(doc(db, 'wordClouds', cloudId), { active: false });
+      await updateDoc(doc(db, 'wordClouds', cloudId), { active: false, showResults: true });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `wordClouds/${cloudId}`);
     }
@@ -3432,7 +3467,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const handleCloseOpenEndedQuestion = async (id: string) => {
     if (!canModerate) return;
     try {
-      await updateDoc(doc(db, 'openEndedQuestions', id), { active: false });
+      await updateDoc(doc(db, 'openEndedQuestions', id), { active: false, showResults: true });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `openEndedQuestions/${id}`);
     }
@@ -3577,7 +3612,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const handleClosePoll = async (pollId: string) => {
     if (!canModerate) return;
     try {
-      await updateDoc(doc(db, 'polls', pollId), { active: false });
+      await updateDoc(doc(db, 'polls', pollId), { active: false, showResults: true });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `polls/${pollId}`);
     }

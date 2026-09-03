@@ -2604,7 +2604,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         }
 
         mediaStream.getVideoTracks()[0].onended = () => {
-          stopCapture();
+          console.warn("ActiveDeck: Screen capture video track ended. Preserving presentation mode and slide preview.");
+          setStream(null);
+          // Do not call stopCapture() here so the presentation session, timer, slide navigator, and notes remain active!
         };
       })
       .catch((err: any) => {

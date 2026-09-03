@@ -1,13 +1,97 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { doc, getDoc, query, collection, where, getDocs, limit } from 'firebase/firestore';
 import { db } from '../firebase';
-import { KeyRound, Loader2, AlertCircle } from 'lucide-react';
+import { KeyRound, Loader2, AlertCircle, Download, FileText, X, CheckCircle2 } from 'lucide-react';
+import { exportNotesToDocx, isNotesEmpty } from '../utils/exportNotesDocx';
 
 export const JoinScreen: React.FC = () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const isSessionEnded = urlParams.get('session_ended') === 'true';
+
   const [pinInput, setPinInput] = useState('');
   const [isValidating, setIsValidating] = useState(false);
-  const [errorMsg, setErrorErrorMsg] = useState<string | null>(null);
+  const [errorMsg, setErrorErrorMsg] = useState<string | null>(
+    isSessionEnded ? 'The previous session has ended. Please enter the new session code to join.' : null
+  );
   const [isShaking, setIsShaking] = useState(false);
+
+  // Previous Session Notes Recovery States
+  const [lastSessionId, setLastSessionId] = useState<string | null>(() => localStorage.getItem('activeDeckLastSessionId'));
+  const [lastSessionPin, setLastSessionPin] = useState<string>(() => localStorage.getItem('activeDeckLastSessionPin') || '');
+  const [lastPresenterEmail, setLastPresenterEmail] = useState<string>(() => localStorage.getItem('activeDeckLastPresenterEmail') || '');
+  const [hasPreviousNotes, setHasPreviousNotes] = useState<boolean>(false);
+  const [showPreviousNotesModal, setShowPreviousNotesModal] = useState<boolean>(false);
+  const [isDownloadingPreviousNotes, setIsDownloadingPreviousNotes] = useState<boolean>(false);
+  const [previousNotesDownloaded, setPreviousNotesDownloaded] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!lastSessionId) {
+      setHasPreviousNotes(false);
+      setShowPreviousNotesModal(false);
+      return;
+    }
+
+    const savedNotes = localStorage.getItem(`activeDeckNotes_${lastSessionId}`);
+    const savedDrawings = localStorage.getItem(`activeDeckDrawings_${lastSessionId}`);
+    const savedSlides = localStorage.getItem(`activeDeckPushedSlides_${lastSessionId}`);
+
+    let notesTextMap: Record<string, string> = {};
+    if (savedNotes) {
+      try {
+        const parsed = JSON.parse(savedNotes);
+        notesTextMap = typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : { '1': savedNotes };
+      } catch {
+        notesTextMap = { '1': savedNotes };
+      }
+    }
+
+    let notesDrawingsMap: Record<string, string> = {};
+    if (savedDrawings) {
+      try {
+        notesDrawingsMap = JSON.parse(savedDrawings);
+      } catch {}
+    }
+
+    let pushedSlidesMap: Record<string, string> = {};
+    if (savedSlides) {
+      try {
+        pushedSlidesMap = JSON.parse(savedSlides);
+      } catch {}
+    }
+
+    const notesExist = !isNotesEmpty(notesTextMap, notesDrawingsMap, pushedSlidesMap);
+    setHasPreviousNotes(notesExist);
+
+    // If student was redirected from an ended session or has notes available, display the prompt popup
+    if (notesExist) {
+      setShowPreviousNotesModal(true);
+    }
+  }, [lastSessionId]);
+
+  const handleDownloadPreviousNotes = async () => {
+    if (!lastSessionId) return;
+    setIsDownloadingPreviousNotes(true);
+    try {
+      const success = await exportNotesToDocx({
+        presentationId: lastSessionId,
+        pinCode: lastSessionPin || undefined,
+        presenterEmail: lastPresenterEmail || undefined
+      });
+      if (success) {
+        setPreviousNotesDownloaded(true);
+        setTimeout(() => {
+          setPreviousNotesDownloaded(false);
+        }, 4000);
+      } else {
+        alert("No saved notes found for the previous session.");
+      }
+    } catch (err) {
+      console.error("Failed to export previous notes:", err);
+      alert("Failed to export notes document.");
+    } finally {
+      setIsDownloadingPreviousNotes(false);
+    }
+  };
 
   const triggerShake = () => {
     setIsShaking(true);
@@ -48,8 +132,11 @@ export const JoinScreen: React.FC = () => {
           const q = query(collection(db, 'presentations'), where('pinCode', '==', pinCode), limit(1));
           const querySnap = await getDocs(q);
           if (!querySnap.empty) {
-            presentationId = querySnap.docs[0].id;
-            console.log('Fallback direct lookup successful. Found presentation ID:', presentationId);
+            const data = querySnap.docs[0].data();
+            if (data.active !== false && !data.isEnded) {
+              presentationId = querySnap.docs[0].id;
+              console.log('Fallback direct lookup successful. Found active presentation ID:', presentationId);
+            }
           }
         } catch (fallbackErr) {
           console.error('Fallback presentations query failed:', fallbackErr);
@@ -92,6 +179,67 @@ export const JoinScreen: React.FC = () => {
       {/* Dynamic Background Gradients */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-osu-orange/5 blur-[120px] rounded-full pointer-events-none" />
       <div className="absolute bottom-1/4 left-1/3 w-[300px] h-[300px] bg-slate-900/20 blur-[100px] rounded-full pointer-events-none" />
+
+      {/* Previous Session Notes Recovery Modal */}
+      {showPreviousNotesModal && hasPreviousNotes && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-orange-500/10 text-center space-y-5 relative animate-in zoom-in-95 duration-200">
+            <button
+              type="button"
+              onClick={() => setShowPreviousNotesModal(false)}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-full hover:bg-slate-800 transition-colors cursor-pointer"
+              title="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="w-14 h-14 bg-osu-orange/10 border border-osu-orange/20 text-osu-orange rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-orange-500/10">
+              <FileText className="w-7 h-7 animate-pulse text-osu-orange" />
+            </div>
+
+            <div className="space-y-2">
+              <h2 className="text-xl font-black uppercase tracking-wide text-white">Previous Notes Available</h2>
+              <p className="text-xs text-slate-300 leading-relaxed max-w-sm mx-auto">
+                Your previous session {lastSessionPin ? <span className="font-mono font-bold text-osu-orange">(PIN: {lastSessionPin})</span> : ''} has ended. Would you like to download your notes (.docx) before joining the new session?
+              </p>
+            </div>
+
+            <div className="space-y-2.5 pt-2">
+              <button
+                type="button"
+                onClick={handleDownloadPreviousNotes}
+                disabled={isDownloadingPreviousNotes}
+                className="w-full h-12 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-orange-500/15 active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {isDownloadingPreviousNotes ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Preparing Document...</span>
+                  </>
+                ) : previousNotesDownloaded ? (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 text-green-300" />
+                    <span>Notes Downloaded (.docx)!</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4" />
+                    <span>Download Previous Notes (.docx)</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowPreviousNotesModal(false)}
+                className="w-full h-10 border border-slate-800 hover:border-slate-700 bg-slate-900/60 hover:bg-slate-800 text-slate-400 hover:text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all flex items-center justify-center cursor-pointer"
+              >
+                Continue to Join New Session
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Join Code Card with Shake Micro-animation support */}
       <div 
@@ -148,7 +296,7 @@ export const JoinScreen: React.FC = () => {
           <button 
             type="submit"
             disabled={isValidating || pinInput.length !== 6}
-            className="w-full max-w-[280px] mx-auto h-12 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-orange-500/15 active:scale-[0.98] flex items-center justify-center gap-2"
+            className="w-full max-w-[280px] mx-auto h-12 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-orange-500/15 active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
           >
             {isValidating ? (
               <>
@@ -160,6 +308,35 @@ export const JoinScreen: React.FC = () => {
             )}
           </button>
         </form>
+
+        {/* Previous Notes Download Quick Link */}
+        {hasPreviousNotes && (
+          <div className="pt-2 border-t border-slate-800/80">
+            <button
+              type="button"
+              onClick={handleDownloadPreviousNotes}
+              disabled={isDownloadingPreviousNotes}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 text-[11px] font-bold transition-all cursor-pointer"
+            >
+              {isDownloadingPreviousNotes ? (
+                <>
+                  <Loader2 className="w-3 h-3 animate-spin text-osu-orange" />
+                  <span>Exporting notes...</span>
+                </>
+              ) : previousNotesDownloaded ? (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
+                  <span className="text-green-300">Notes Downloaded (.docx)</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-3 h-3 text-osu-orange" />
+                  <span>Download Previous Session Notes {lastSessionPin ? `(#${lastSessionPin})` : ''}</span>
+                </>
+              )}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Styled Brand Tagline */}
@@ -178,3 +355,4 @@ export const JoinScreen: React.FC = () => {
     </div>
   );
 };
+

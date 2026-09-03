@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Monitor, Clock, Maximize, Minimize, Link2, Link2Off, Sun, Moon, Loader2, AlertCircle, Eye, EyeOff, Download, ShieldAlert, X, Tv } from 'lucide-react';
 import { useBridge } from '../contexts/BridgeContext';
-import { collection, getDocs, query, orderBy, doc, onSnapshot, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, doc, onSnapshot, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 
 interface HeaderProps {
@@ -169,6 +169,14 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
       console.error("Header: Failed to broadcast close-projector:", err);
     }
 
+    try {
+      const channel = new BroadcastChannel('activedeck-session');
+      channel.postMessage({ type: 'session-ended', presentationId });
+      channel.close();
+    } catch (err) {
+      console.error("Header: Failed to broadcast session-ended:", err);
+    }
+
     if (onNewSession) {
       try {
         await onNewSession();
@@ -176,6 +184,17 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
         console.error("Header: Error starting new session:", err);
       }
     } else {
+      if (presentationId) {
+        try {
+          await updateDoc(doc(db, 'presentations', presentationId), {
+            isEnded: true,
+            active: false,
+            endedAt: serverTimestamp()
+          });
+        } catch (e) {
+          console.error("Header: Failed to mark presentation as ended:", e);
+        }
+      }
       sessionStorage.removeItem('activePresenterPresentationId');
       sessionStorage.setItem('activeDeckForceNewSession', 'true');
       const targetUrl = window.location.origin + window.location.pathname;

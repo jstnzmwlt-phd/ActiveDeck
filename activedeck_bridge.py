@@ -21,26 +21,65 @@ from flask_sock import Sock
 app = Flask(__name__)
 sock = Sock(app)
 
+# Global COM Lock to prevent PowerPoint STA thread collisions between exporter & commands
+com_lock = threading.Lock()
+
 # ---------------------------------------------------------
 # 1. MOVEMENT COMMANDS
 # ---------------------------------------------------------
 def move_ppt_windows(direction):
-    pythoncom.CoInitialize()
-    try:
-        ppt_app = win32com.client.GetActiveObject("PowerPoint.Application")
-        if ppt_app.SlideShowWindows.Count > 0:
-            view = ppt_app.SlideShowWindows(1).View
+    with com_lock:
+        pythoncom.CoInitialize()
+        try:
+            ppt_app = win32com.client.GetActiveObject("PowerPoint.Application")
+            
+            # Scenario A: PowerPoint is running in Slide Show Mode
+            if ppt_app.SlideShowWindows.Count > 0:
+                view = ppt_app.SlideShowWindows(1).View
+                presentation = ppt_app.SlideShowWindows(1).Presentation
+                total_slides = presentation.Slides.Count
+                current_pos = view.CurrentShowPosition
+
             if direction == "next":
-                view.Next()
+                # CRITICAL GUARD: In PowerPoint COM API, calling view.Next() on the last slide
+                # terminates the slideshow and returns PowerPoint to Normal Editing View.
+                # Only advance if we are not already on the last slide.
+                if current_pos < total_slides:
+                    view.Next()
             elif direction == "prev":
-                view.Previous()
+                if current_pos > 1:
+                    view.Previous()
             else:
                 try:
                     slide_num = int(direction)
-                    presentation = ppt_app.SlideShowWindows(1).Presentation
-                    if 1 <= slide_num <= presentation.Slides.Count:
+                    if 1 <= slide_num <= total_slides:
                         view.GotoSlide(slide_num)
                 except ValueError:
+                    pass
+
+        # Scenario B: PowerPoint is in Normal Editing View
+        elif ppt_app.Presentations.Count > 0:
+            pres = ppt_app.ActivePresentation
+            if pres:
+                try:
+                    win = ppt_app.ActiveWindow
+                    total_slides = pres.Slides.Count
+                    current_pos = win.View.Slide.SlideIndex if (win and win.View and win.View.Slide) else 1
+                    
+                    if direction == "next":
+                        if current_pos < total_slides:
+                            win.View.GotoSlide(current_pos + 1)
+                    elif direction == "prev":
+                        if current_pos > 1:
+                            win.View.GotoSlide(current_pos - 1)
+                    else:
+                        try:
+                            slide_num = int(direction)
+                            if 1 <= slide_num <= total_slides:
+                                win.View.GotoSlide(slide_num)
+                        except ValueError:
+                            pass
+                except Exception:
                     pass
     except Exception:
         pass
@@ -73,68 +112,89 @@ def move_ppt_silently(direction):
 # 2. STATE EXTRACTION COMMANDS 
 # ---------------------------------------------------------
 def get_ppt_state_windows():
-    pythoncom.CoInitialize()
-    try:
-        ppt_app = win32com.client.GetActiveObject("PowerPoint.Application")
-        if ppt_app.SlideShowWindows.Count > 0:
-            presentation = ppt_app.SlideShowWindows(1).Presentation
-            view = ppt_app.SlideShowWindows(1).View
+    with com_lock:
+        pythoncom.CoInitialize()
+        try:
+            ppt_app = win32com.client.GetActiveObject("PowerPoint.Application")
             
-            current_slide_index = view.CurrentShowPosition
-            total_slides = presentation.Slides.Count
-            next_slide_index = current_slide_index + 1 if current_slide_index < total_slides else 0
+            current_slide_index = None
+            total_slides = 0
+            presentation = None
             
-            current_slide = presentation.Slides(current_slide_index)
-            notes_text = ""
-            
-            if current_slide.HasNotesPage:
-                notes_page = current_slide.NotesPage
-                for shape in notes_page.Shapes:
-                    if shape.Type == 14 and shape.PlaceholderFormat.Type == 2: 
-                        if shape.HasTextFrame and shape.TextFrame.HasText:
-                            notes_text = shape.TextFrame.TextRange.Text
-                            break
-            # Fetch current slide image as base64 securely
-            current_slide_base64 = None
-            if current_slide_index > 0:
-                temp_dir = os.path.join(tempfile.gettempdir(), "activedeck_slides")
-                current_image_path = os.path.join(temp_dir, f"{current_slide_index}.jpg")
-                if not os.path.exists(current_image_path):
-                    current_image_path = os.path.join(temp_dir, f"Slide{current_slide_index}.JPG")
-                if os.path.exists(current_image_path):
-                    try:
-                        with open(current_image_path, "rb") as img_file:
-                            current_slide_base64 = "data:image/jpeg;base64," + base64.b64encode(img_file.read()).decode('utf-8')
-                    except Exception:
-                        pass
+            # Primary: Active Slide Show Window
+            if ppt_app.SlideShowWindows.Count > 0:
+                presentation = ppt_app.SlideShowWindows(1).Presentation
+                view = ppt_app.SlideShowWindows(1).View
+                current_slide_index = view.CurrentShowPosition
+                total_slides = presentation.Slides.Count
+            # Secondary Fallback: Normal View (if presenter is viewing/editing slides in Normal View)
+            elif ppt_app.Presentations.Count > 0:
+                presentation = ppt_app.ActivePresentation
+                total_slides = presentation.Slides.Count
+                try:
+                    win = ppt_app.ActiveWindow
+                    if win and win.View and win.View.Slide:
+                        current_slide_index = win.View.Slide.SlideIndex
+                except Exception:
+                    current_slide_index = 1
 
-            # Fetch next slide image as base64 securely if it exists to bypass HTTPS mixed content blocking
-            next_slide_base64 = None
-            if next_slide_index > 0:
-                temp_dir = os.path.join(tempfile.gettempdir(), "activedeck_slides")
-                next_image_path = os.path.join(temp_dir, f"{next_slide_index}.jpg")
-                if not os.path.exists(next_image_path):
-                    next_image_path = os.path.join(temp_dir, f"Slide{next_slide_index}.JPG")
-                if os.path.exists(next_image_path):
-                    try:
-                        with open(next_image_path, "rb") as img_file:
-                            next_slide_base64 = "data:image/jpeg;base64," + base64.b64encode(img_file.read()).decode('utf-8')
-                    except Exception:
-                        pass
-                            
-            return {
-                "current_slide": current_slide_index,
-                "current_slide_base64": current_slide_base64,
-                "next_slide": next_slide_index if next_slide_index > 0 else 0,
-                "total_slides": total_slides,
-                "notes": notes_text.strip(),
-                "next_slide_base64": next_slide_base64
-            }
-    except Exception:
-        pass 
-    finally:
-        pythoncom.CoUninitialize()
-    return None
+            if presentation and current_slide_index is not None and total_slides > 0:
+                next_slide_index = current_slide_index + 1 if current_slide_index < total_slides else 0
+                
+                notes_text = ""
+                try:
+                    current_slide = presentation.Slides(current_slide_index)
+                    if current_slide.HasNotesPage:
+                        notes_page = current_slide.NotesPage
+                        for shape in notes_page.Shapes:
+                            if shape.Type == 14 and shape.PlaceholderFormat.Type == 2: 
+                                if shape.HasTextFrame and shape.TextFrame.HasText:
+                                    notes_text = shape.TextFrame.TextRange.Text
+                                    break
+                except Exception:
+                    pass
+
+                # Fetch current slide image as base64 securely
+                current_slide_base64 = None
+                if current_slide_index > 0:
+                    temp_dir = os.path.join(tempfile.gettempdir(), "activedeck_slides")
+                    current_image_path = os.path.join(temp_dir, f"{current_slide_index}.jpg")
+                    if not os.path.exists(current_image_path):
+                        current_image_path = os.path.join(temp_dir, f"Slide{current_slide_index}.JPG")
+                    if os.path.exists(current_image_path):
+                        try:
+                            with open(current_image_path, "rb") as img_file:
+                                current_slide_base64 = "data:image/jpeg;base64," + base64.b64encode(img_file.read()).decode('utf-8')
+                        except Exception:
+                            pass
+
+                # Fetch next slide image as base64 securely if it exists to bypass HTTPS mixed content blocking
+                next_slide_base64 = None
+                if next_slide_index > 0:
+                    temp_dir = os.path.join(tempfile.gettempdir(), "activedeck_slides")
+                    next_image_path = os.path.join(temp_dir, f"{next_slide_index}.jpg")
+                    if not os.path.exists(next_image_path):
+                        next_image_path = os.path.join(temp_dir, f"Slide{next_slide_index}.JPG")
+                    if os.path.exists(next_image_path):
+                        try:
+                            with open(next_image_path, "rb") as img_file:
+                                next_slide_base64 = "data:image/jpeg;base64," + base64.b64encode(img_file.read()).decode('utf-8')
+                        except Exception:
+                            pass
+                                
+                return {
+                    "current_slide": current_slide_index,
+                    "current_slide_base64": current_slide_base64,
+                    "next_slide": next_slide_index if next_slide_index > 0 else 0,
+                    "total_slides": total_slides,
+                    "notes": notes_text.strip(),
+                    "next_slide_base64": next_slide_base64
+                }
+        except Exception:
+            pass 
+        finally:
+            pythoncom.CoUninitialize()
+        return None
 
 def get_ppt_state_silently():
     if current_os == "Windows":
@@ -151,14 +211,18 @@ def background_slide_exporter():
     while True:
         time.sleep(2)
         if current_os == "Windows":
-            try:
-                pythoncom.CoInitialize()
-                ppt_app = win32com.client.GetActiveObject("PowerPoint.Application")
-                
-                if ppt_app.SlideShowWindows.Count > 0:
-                    pres = ppt_app.SlideShowWindows(1).Presentation
+            with com_lock:
+                try:
+                    pythoncom.CoInitialize()
+                    ppt_app = win32com.client.GetActiveObject("PowerPoint.Application")
                     
-                    if pres.Name != last_exported_presentation:
+                    pres = None
+                    if ppt_app.SlideShowWindows.Count > 0:
+                        pres = ppt_app.SlideShowWindows(1).Presentation
+                    elif ppt_app.Presentations.Count > 0:
+                        pres = ppt_app.ActivePresentation
+                    
+                    if pres and pres.Name != last_exported_presentation:
                         # Clear old slides in temp_dir to prevent serving stale files from previous presentations
                         try:
                             import shutil
@@ -177,12 +241,12 @@ def background_slide_exporter():
                             slide.Export(os.path.join(temp_dir, f"Slide{i}.JPG"), "JPG")
                             
                         last_exported_presentation = pres.Name
-                else:
-                    last_exported_presentation = ""
-            except Exception:
-                pass
-            finally:
-                pythoncom.CoUninitialize()
+                    elif not pres:
+                        last_exported_presentation = ""
+                except Exception:
+                    pass
+                finally:
+                    pythoncom.CoUninitialize()
 
 # ---------------------------------------------------------
 # 4. WEBSERVER ROUTES (Images & WebSockets)

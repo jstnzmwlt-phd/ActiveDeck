@@ -15,6 +15,7 @@ import { JoinScreen } from './components/JoinScreen';
 import { RichTextEditor } from './components/RichTextEditor';
 import { HandwrittenCanvas } from './components/HandwrittenCanvas';
 import { ImageLightboxModal } from './components/ImageLightboxModal';
+import { exportNotesToDocx } from './utils/exportNotesDocx';
 import { 
   Document, 
   Packer, 
@@ -264,6 +265,15 @@ function AppContent() {
       console.error('AppContent - Failed to broadcast close-projector:', err);
     }
 
+    // Broadcast session-ended message to instantly notify all open student/audience tabs
+    try {
+      const channel = new BroadcastChannel('activedeck-session');
+      channel.postMessage({ type: 'session-ended', presentationId: presentation?.id });
+      channel.close();
+    } catch (err) {
+      console.error('AppContent - Failed to broadcast session-ended:', err);
+    }
+
     // 1. Unsubscribe from any active snapshot listener to avoid memory leaks or stale updates
     if (activeUnsubscribeRef.current) {
       console.log('AppContent - Unsubscribing from current presentation listener');
@@ -271,16 +281,31 @@ function AppContent() {
       activeUnsubscribeRef.current = null;
     }
 
-    // 2. Deactivate the old presentation PIN code so students can no longer join it
-    if (presentation && presentation.pinCode) {
-      try {
-        await updateDoc(doc(db, 'sessionPins', presentation.pinCode), {
-          active: false,
-          deactivatedAt: serverTimestamp()
-        });
-        console.log(`AppContent - Deactivated old PIN: ${presentation.pinCode}`);
-      } catch (err) {
-        console.error('AppContent - Failed to deactivate old PIN in sessionPins:', err);
+    // 2. Mark the presentation as ended/inactive in Firestore and deactivate the old PIN
+    if (presentation) {
+      if (presentation.id) {
+        try {
+          await updateDoc(doc(db, 'presentations', presentation.id), {
+            isEnded: true,
+            active: false,
+            endedAt: serverTimestamp()
+          });
+          console.log(`AppContent - Marked presentation ${presentation.id} as isEnded: true`);
+        } catch (err) {
+          console.error('AppContent - Failed to mark presentation as ended in Firestore:', err);
+        }
+      }
+
+      if (presentation.pinCode) {
+        try {
+          await updateDoc(doc(db, 'sessionPins', presentation.pinCode), {
+            active: false,
+            deactivatedAt: serverTimestamp()
+          });
+          console.log(`AppContent - Deactivated old PIN: ${presentation.pinCode}`);
+        } catch (err) {
+          console.error('AppContent - Failed to deactivate old PIN in sessionPins:', err);
+        }
       }
     }
 
@@ -537,6 +562,9 @@ function AppContent() {
 
       console.log("[SlidePreview] Updated background slidePreviewsMap:", newPreviewsMap);
       setPushedSlidesMap(newPreviewsMap);
+      if (activePresentationId && Object.keys(newPreviewsMap).length > 0) {
+        localStorage.setItem(`activeDeckPushedSlides_${activePresentationId}`, JSON.stringify(newPreviewsMap));
+      }
 
       if (incomingCustomTabs.length > 0) {
         setCustomTabs(prev => {
@@ -615,6 +643,17 @@ function AppContent() {
     setNotesTitle(savedTitle || '');
     setSaveStatus('');
     
+    // Cache last active presentation details for note recovery upon session termination
+    if (activePresentationId) {
+      localStorage.setItem('activeDeckLastSessionId', activePresentationId);
+      if (presentation?.pinCode) {
+        localStorage.setItem('activeDeckLastSessionPin', presentation.pinCode);
+      }
+      if (presentation?.presenterEmail) {
+        localStorage.setItem('activeDeckLastPresenterEmail', presentation.presenterEmail);
+      }
+    }
+
     // Set active tab to presentation's current slide or default to '1'
     const initialSlide = presentation?.currentSlide !== undefined && presentation.currentSlide !== null 
       ? String(presentation.currentSlide) 
@@ -1063,198 +1102,22 @@ function AppContent() {
   };
 
   const handleDownloadNotes = async () => {
-    if (isNotesEmpty(notesTextMap, notesDrawingsMap) && Object.keys(pushedSlidesMap).length === 0) {
-      alert("Nothing to export. Connect to a presentation or take some notes first!");
-      return;
-    }
-    const title = notesTitle.trim() || `Session_${presentation?.pinCode || 'Notes'}`;
-    const filename = `ActiveDeck_Notes_${title.replace(/[^a-z0-9_-]/gi, '_')}.docx`;
-    
-    const presenterName = presentation?.presenterEmail ? presentation.presenterEmail.split('@')[0] : 'Presenter';
-    const pin = presentation?.pinCode || 'N/A';
-    
-    const getTabPos = (tabId: string) => {
-      const custom = customTabs.find(c => c.id === tabId);
-      if (custom) return custom.position;
-      const num = Number(tabId);
-      return isNaN(num) ? 999999 : num;
-    };
-
-    const sortedSlides = Array.from(new Set([
-      ...Object.keys(notesTextMap),
-      ...Object.keys(notesDrawingsMap),
-      ...Object.keys(pushedSlidesMap),
-      ...customTabs.map(c => c.id)
-    ]))
-      .filter(slide => {
-        const html = notesTextMap[slide] || '';
-        const hasText = html && html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim() !== '';
-        
-        const drawingJson = notesDrawingsMap[slide] || '';
-        let hasDrawing = false;
-        try {
-          if (drawingJson) {
-            const strokes = JSON.parse(drawingJson);
-            hasDrawing = Array.isArray(strokes) && strokes.length > 0;
-          }
-        } catch {}
-        
-        const hasImg = !!pushedSlidesMap[slide];
-        
-        return hasText || hasDrawing || hasImg;
-      })
-      .sort((a, b) => getTabPos(a) - getTabPos(b));
-
-    const slideElements: (Paragraph | Table)[] = [];
-
-    for (const slide of sortedSlides) {
-      slideElements.push(
-        new Paragraph({
-          text: getTabTitle(slide),
-          heading: HeadingLevel.HEADING_2,
-          spacing: { before: 240, after: 120 }
-        })
-      );
-
-      const slideImgUrl = pushedSlidesMap[slide];
-      if (slideImgUrl) {
-        const presenterJson = presentation?.presenterDrawings?.[slide];
-        const studentJson = studentSlideDrawingsMap[slide];
-
-        const imgBytes = await compositeSlideWithAnnotations(
-          slideImgUrl,
-          presenterJson,
-          studentJson
-        );
-        if (imgBytes) {
-          slideElements.push(
-            new Paragraph({
-              children: [
-                new TextRun({ text: "Slide Image:", bold: true, color: "475569", size: 20, font: "Arial" }),
-              ],
-              spacing: { before: 80, after: 60 }
-            })
-          );
-          slideElements.push(
-            new Paragraph({
-              children: [
-                new ImageRun({
-                  data: imgBytes,
-                  transformation: { width: 500, height: 280 },
-                  type: 'png'
-                })
-              ],
-              spacing: { after: 180 }
-            })
-          );
-        }
-      }
-
-      const htmlContent = notesTextMap[slide];
-      if (htmlContent) {
-        const textParagraphs = parseHtmlToDocxParagraphs(htmlContent);
-        slideElements.push(...textParagraphs);
-      }
-
-      const drawingJson = notesDrawingsMap[slide];
-      if (drawingJson) {
-        const pngDataUrl = convertStrokesToPng(drawingJson);
-        if (pngDataUrl) {
-          const drawingBytes = dataUriToUint8Array(pngDataUrl);
-          if (drawingBytes) {
-            slideElements.push(
-              new Paragraph({
-                children: [
-                  new TextRun({ text: "Handwritten Drawing:", bold: true, color: "475569", size: 20, font: "Arial" }),
-                ],
-                spacing: { before: 120, after: 60 }
-              })
-            );
-            slideElements.push(
-              new Paragraph({
-                children: [
-                  new ImageRun({
-                    data: drawingBytes,
-                    transformation: { width: 500, height: 350 },
-                    type: 'png'
-                  })
-                ],
-                spacing: { after: 180 }
-              })
-            );
-          }
-        }
-      }
-    }
-
-    const doc = new Document({
-      sections: [{
-        properties: {},
-        children: [
-          new Paragraph({
-            text: "ActiveDeck Study Notes",
-            heading: HeadingLevel.HEADING_1,
-            spacing: { after: 200 }
-          }),
-          new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            borders: {
-              top: { style: BorderStyle.NONE, size: 0, color: "auto" },
-              bottom: { style: BorderStyle.NONE, size: 0, color: "auto" },
-              left: { style: BorderStyle.SINGLE, size: 24, color: "EB5D00" },
-              right: { style: BorderStyle.NONE, size: 0, color: "auto" },
-            },
-            rows: [
-              new TableRow({
-                children: [
-                  new TableCell({
-                    shading: { fill: "F8F9FA" },
-                    children: [
-                      new Paragraph({
-                        children: [
-                          new TextRun({ text: "Presenter: ", bold: true, color: "111111", font: "Arial" }),
-                          new TextRun({ text: presenterName, font: "Arial" }),
-                        ],
-                      }),
-                      new Paragraph({
-                        children: [
-                          new TextRun({ text: "Session PIN: ", bold: true, color: "111111", font: "Arial" }),
-                          new TextRun({ text: pin, font: "Arial" }),
-                        ],
-                      }),
-                      new Paragraph({
-                        children: [
-                          new TextRun({ text: "Notes Title: ", bold: true, color: "111111", font: "Arial" }),
-                          new TextRun({ text: title, font: "Arial" }),
-                        ],
-                      }),
-                      new Paragraph({
-                        children: [
-                          new TextRun({ text: "Date: ", bold: true, color: "111111", font: "Arial" }),
-                          new TextRun({ text: new Date().toLocaleDateString(), font: "Arial" }),
-                        ],
-                      }),
-                    ],
-                  }),
-                ],
-              }),
-            ],
-          }),
-          new Paragraph({ spacing: { after: 240 } }),
-          ...slideElements
-        ]
-      }]
+    if (!activePresentationId) return;
+    const success = await exportNotesToDocx({
+      presentationId: activePresentationId,
+      pinCode: presentation?.pinCode,
+      presenterEmail: presentation?.presenterEmail,
+      notesTitle,
+      notesTextMap,
+      notesDrawingsMap,
+      studentSlideDrawingsMap,
+      pushedSlidesMap,
+      presenterDrawingsMap: presentation?.presenterDrawings,
+      customTabs
     });
-
-    const blob = await Packer.toBlob(doc);
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    if (!success) {
+      alert("Nothing to export. Connect to a presentation or take some notes first!");
+    }
   };
 
 
@@ -1417,6 +1280,30 @@ function AppContent() {
       channel.close();
     };
   }, [isProjector]);
+
+  // Listen for session-ended broadcast on same-origin tabs (forces student notes page to restart session)
+  useEffect(() => {
+    if (!isChatOnly) return;
+    try {
+      const channel = new BroadcastChannel('activedeck-session');
+      channel.onmessage = (event) => {
+        if (event.data?.type === 'session-ended') {
+          if (!activePresentationId || !event.data.presentationId || event.data.presentationId === activePresentationId) {
+            console.log('AppContent - Received session-ended broadcast. Forcing student to Join Screen for new session.');
+            localStorage.removeItem('activeDeckJoined');
+            localStorage.removeItem('activeDeckJoinedPresentationId');
+            setHasJoinedChat(false);
+            setPresentation(null);
+            setActivePresentationId(null);
+            window.location.href = window.location.origin + '/chat?session_ended=true';
+          }
+        }
+      };
+      return () => {
+        channel.close();
+      };
+    } catch (e) {}
+  }, [isChatOnly, activePresentationId]);
 
   // Listen for clear-all-drawings broadcast when presentation stops
   useEffect(() => {
@@ -1748,8 +1635,24 @@ function AppContent() {
         const docRef = doc(db, 'presentations', activePresentationId);
         const unsub = onSnapshot(docRef, (docSnap) => {
           if (docSnap.exists()) {
-            console.log('AppContent - Presentation data received:', docSnap.id);
             const data = docSnap.data();
+            
+            // If presentation has ended or is inactive, force student/viewer back to Join Screen
+            if (data.isEnded === true || data.active === false) {
+              console.log('AppContent - Active presentation has ended. Forcing student to Join Screen for new session.');
+              localStorage.removeItem('activeDeckJoined');
+              localStorage.removeItem('activeDeckJoinedPresentationId');
+              setHasJoinedChat(false);
+              setPresentation(null);
+              setActivePresentationId(null);
+              if (isChatOnly) {
+                window.location.href = window.location.origin + '/chat?session_ended=true';
+              }
+              setPresentationLoaded(true);
+              return;
+            }
+
+            console.log('AppContent - Presentation data received:', docSnap.id);
             setPresentation({ id: docSnap.id, ...data } as Presentation);
             ensurePresentationHasPin(docSnap.id, data);
             const localEmail = sessionStorage.getItem('activePresenterEmail');
@@ -1759,8 +1662,15 @@ function AppContent() {
               );
             }
           } else {
-            console.warn('AppContent - Presentation not found:', activePresentationId);
+            console.warn('AppContent - Presentation not found or deleted:', activePresentationId);
             setPresentation(null);
+            if (isChatOnly) {
+              localStorage.removeItem('activeDeckJoined');
+              localStorage.removeItem('activeDeckJoinedPresentationId');
+              setHasJoinedChat(false);
+              setActivePresentationId(null);
+              window.location.href = window.location.origin + '/chat?session_ended=true';
+            }
           }
           setPresentationLoaded(true);
         }, (error) => {
@@ -1774,8 +1684,17 @@ function AppContent() {
           const docRef = doc(db, 'presentations', activePresentationId);
           const unsub = onSnapshot(docRef, (docSnap) => {
             if (docSnap.exists()) {
-              console.log('AppContent - Cached presentation exists in Firestore. Setting active:', docSnap.id);
               const data = docSnap.data();
+              if (data.isEnded === true || data.active === false) {
+                console.warn('AppContent - Cached presentation was ended. Cleaning cache.');
+                sessionStorage.removeItem('activePresenterPresentationId');
+                setActivePresentationId(null);
+                setPresentation(null);
+                setPresentationLoaded(true);
+                return;
+              }
+
+              console.log('AppContent - Cached presentation exists in Firestore. Setting active:', docSnap.id);
               setPresentation({ id: docSnap.id, ...data } as Presentation);
               ensurePresentationHasPin(docSnap.id, data);
               const localEmail = sessionStorage.getItem('activePresenterEmail');

@@ -134,7 +134,7 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
             <Monitor className="w-16 h-16 mb-4 opacity-20" />
             <h3 className="text-xl font-bold text-slate-300 mb-2">Presentation Mode</h3>
             <p className="max-w-md text-sm text-slate-400 mb-8">
-              Click below to start. For the best experience, select your <span className="text-osu-orange font-bold">PowerPoint window</span> when prompted.
+              Click below to start. For the best experience, select your <span className="text-osu-orange font-bold">PowerPoint Slide Show window</span> (or Screen) when prompted.
             </p>
 
             <button
