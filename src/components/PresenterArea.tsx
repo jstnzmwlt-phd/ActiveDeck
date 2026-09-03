@@ -517,6 +517,16 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   };
 
   const handleDrawingPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    // 1. Update laser position if laser pointer is enabled
+    if (laserEnabled && presentation?.id && isCapturing && !isProjectorMode) {
+      const coords = getDrawingCoordinates(e);
+      if (coords) {
+        const x = coords.x / 10;
+        const y = coords.y / 10;
+        updateLaserPosition(x, y, true);
+      }
+    }
+
     if (!isPenActive || !isDrawingPointerDownRef.current) return;
     e.preventDefault();
 
@@ -543,6 +553,13 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       setActiveDrawingStroke(updatedStroke);
       broadcastActiveStrokeLive(updatedStroke);
     }
+  };
+
+  const handleDrawingPointerLeave = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (laserEnabled && presentation?.id && !isProjectorMode) {
+      updateLaserPosition(0, 0, false);
+    }
+    handleDrawingPointerUp(e);
   };
 
   const handleDrawingPointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
@@ -4270,6 +4287,28 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               </button>
             </div>
 
+            {/* Laser Pointer Toggle Switch in Pen Mode */}
+            <div className="flex items-center border-l border-slate-800 pl-4">
+              <button
+                onClick={() => {
+                  const newEnabled = !laserEnabled;
+                  setLaserEnabled(newEnabled);
+                  if (!newEnabled) {
+                    updateLaserPosition(0, 0, false);
+                  }
+                }}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-bold transition-all cursor-pointer shadow-md ${
+                  laserEnabled
+                    ? 'bg-emerald-600 border-emerald-500 text-white shadow-emerald-500/20'
+                    : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800'
+                }`}
+                title="Toggle Virtual Laser Pointer on slide"
+              >
+                <div className={`w-2.5 h-2.5 rounded-full ${laserEnabled ? 'bg-white animate-pulse' : 'bg-slate-500'}`} />
+                <span>Laser {laserEnabled ? 'ON' : 'OFF'}</span>
+              </button>
+            </div>
+
             {/* Close Pen Mode */}
             <button
               onClick={() => setIsPenActive(false)}
@@ -4283,6 +4322,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           </div>
           <div 
             ref={poppedPenFrameRef}
+            onMouseMove={!isProjectorMode ? handleMouseMove : undefined}
+            onMouseLeave={!isProjectorMode ? handleMouseLeave : undefined}
             style={{
               aspectRatio: `${videoAspectRatio}`,
               width: '100%',
@@ -4326,7 +4367,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 onPointerDown={handleDrawingPointerDown}
                 onPointerMove={handleDrawingPointerMove}
                 onPointerUp={handleDrawingPointerUp}
-                onPointerLeave={handleDrawingPointerUp}
+                onPointerLeave={handleDrawingPointerLeave}
               >
               {currentSlideStrokes.map((stroke, idx) => {
                 if (stroke.text) {
