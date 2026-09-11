@@ -3370,7 +3370,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 transition-all duration-500 shadow-lg ${
                 isBridgeConnected 
                   ? 'bg-green-500/10 border border-green-500/35 text-green-400 shadow-green-500/5 animate-pulse' 
-                  : 'bg-osu-orange/10 border border-osu-orange/30 text-osu-orange shadow-orange-500/5'
+                  : 'bg-red-500/10 border border-red-500/30 text-red-500 shadow-red-500/5'
               }`}>
                 <PresentationIcon className="w-7 h-7" />
               </div>
@@ -3378,8 +3378,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               <h2 className="text-xl font-black text-white mb-1 tracking-tight">Ready to Present?</h2>
               
               <div className="flex items-center gap-1.5 justify-center mb-6">
-                <span className={`w-2 h-2 rounded-full ${isBridgeConnected ? 'bg-green-500 animate-pulse' : 'bg-osu-orange'}`} />
-                <span className={`text-[11px] font-black uppercase tracking-wider ${isBridgeConnected ? 'text-green-500' : 'text-osu-orange'}`}>
+                <span className={`w-2 h-2 rounded-full ${isBridgeConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                <span className={`text-[11px] font-black uppercase tracking-wider ${isBridgeConnected ? 'text-green-500' : 'text-red-500'}`}>
                   {isBridgeConnected ? 'ActiveDeck Bridge Connected' : 'ActiveDeck Bridge Offline'}
                 </span>
               </div>
@@ -3404,7 +3404,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                       href="https://github.com/jstnzmwlt-phd/ActiveDeck/releases/download/v1.0.0/activedeck_bridge.2.0.zip"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-2.5 w-full py-3.5 bg-osu-orange hover:bg-[#c03900] text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg shadow-orange-500/20 text-sm"
+                      className="flex items-center justify-center gap-2.5 w-full py-3.5 bg-red-600 hover:bg-red-700 text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg shadow-red-500/20 text-sm"
                     >
                       <Download className="w-4 h-4" />
                       Download ActiveDeck Bridge
@@ -3558,7 +3558,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             onClick={() => setShowInstructions(false)}
           >
             <div 
-              className="bg-white rounded-3xl shadow-2xl border border-slate-200 p-6 max-w-lg w-full text-center relative animate-in zoom-in-95 duration-200"
+              className="bg-white rounded-3xl shadow-2xl border border-slate-200 p-6 max-w-lg w-full text-center relative animate-in zoom-in-95 duration-200 max-h-[92vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Close Button */}
@@ -3570,19 +3570,21 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 <X className="w-5 h-5" />
               </button>
 
-              <div className="w-10 h-10 bg-osu-orange/10 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                <PresentationIcon className="w-5 h-5 text-osu-orange" />
+              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center mx-auto mb-3 transition-colors ${
+                isBridgeConnected ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-500'
+              }`}>
+                <PresentationIcon className="w-5 h-5" />
               </div>
               
               <h2 className="text-lg font-black text-slate-900 mb-0.5">Ready to Present?</h2>
-              <div className="text-slate-500 text-xs mb-4">
+              <div className="text-xs mb-4">
                 {isBridgeConnected ? (
                   <span className="text-green-600 font-bold flex items-center justify-center gap-1">
                     <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
                     Bridge Connected & Ready
                   </span>
                 ) : (
-                  <span>Follow the steps below to set up your presentation.</span>
+                  <span className="text-slate-500">Follow the steps below to set up your presentation.</span>
                 )}
               </div>
               
@@ -3637,7 +3639,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         </div>
                         <div className="flex gap-2.5">
                           <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">3</div>
-                          <p className="text-xs text-slate-600 leading-relaxed">Install file (<span className="font-bold">activedeck_bridge.exe</span>).</p>
+                          <p className="text-xs text-slate-600 leading-relaxed">Install file (<span className="font-bold">activedeck_bridge.exe</span>). A green color on the <span className="font-bold">"Ready to Present"</span> window means that the bridge is working.</p>
                         </div>
                         <div className="flex gap-2.5">
                           <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">4</div>
@@ -3665,7 +3667,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                             href="https://github.com/jstnzmwlt-phd/ActiveDeck/releases/download/v1.0.0/activedeck_bridge.2.0.zip"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center justify-center gap-2.5 w-full py-2.5 bg-osu-orange hover:bg-[#c03900] text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg shadow-orange-500/20 text-sm"
+                            className="flex items-center justify-center gap-2.5 w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg shadow-red-500/20 text-sm"
                           >
                             <Download className="w-4 h-4" />
                             Download ActiveDeck Bridge
@@ -3686,7 +3688,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                           className="flex items-center justify-center gap-2.5 w-full py-3 bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-xl shadow-green-500/30 text-base cursor-pointer border-0"
                         >
                           <Play className="w-5 h-5 fill-current" />
-                          Start Your Presentation
+                          Start Presentation
                         </button>
                       )}
                     </div>
@@ -3709,18 +3711,22 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         </div>
                         <div className="flex gap-2.5">
                           <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">3</div>
-                          <p className="text-xs text-slate-600 leading-relaxed">Install file (<span className="font-bold">activedeck_bridge.exe</span>).</p>
+                          <p className="text-xs text-slate-600 leading-relaxed">Install file (<span className="font-bold">activedeck_bridge.exe</span>). A green color on the <span className="font-bold">"Ready to Present"</span> window means that the bridge is working.</p>
                         </div>
                         <div className="flex gap-2.5">
                           <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">4</div>
-                          <p className="text-xs text-slate-600 leading-relaxed">Open PPT and start <span className="font-bold">Slide Show (F5)</span> on your computer.</p>
+                          <p className="text-xs text-slate-600 leading-relaxed">Open PPT and start <span className="font-bold">Slide Show (F5)</span> on your computer. Make sure the slide show is showing on the projector (audience) screen, and disable <span className="font-bold">"Presenter"</span> mode.</p>
                         </div>
                         <div className="flex gap-2.5">
                           <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">5</div>
-                          <p className="text-xs text-slate-600 leading-relaxed">Click the <span className="font-bold">Projector Mode</span> button in the top bar to launch the audience screen window.</p>
+                          <p className="text-xs text-slate-600 leading-relaxed">Click the <span className="font-bold">Projector Mode</span> button on the ActiveDeck main screen (in the top bar) to launch the audience screen window.</p>
                         </div>
                         <div className="flex gap-2.5">
                           <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">6</div>
+                          <p className="text-xs text-slate-600 leading-relaxed">Click <span className="font-bold">"Start Presentation"</span> (green button) and share the PPT main screen.</p>
+                        </div>
+                        <div className="flex gap-2.5">
+                          <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">7</div>
                           <p className="text-xs text-slate-600 leading-relaxed">Drag the new <span className="font-bold">Projector Mode</span> window to the projector or audience display screen.</p>
                         </div>
                         <div 
@@ -3741,7 +3747,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                             href="https://github.com/jstnzmwlt-phd/ActiveDeck/releases/download/v1.0.0/activedeck_bridge.2.0.zip"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center justify-center gap-2.5 w-full py-2.5 bg-osu-orange hover:bg-[#c03900] text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg shadow-orange-500/20 text-sm"
+                            className="flex items-center justify-center gap-2.5 w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg shadow-red-500/20 text-sm"
                           >
                             <Download className="w-4 h-4" />
                             Download ActiveDeck Bridge
@@ -3762,7 +3768,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                           className="flex items-center justify-center gap-2.5 w-full py-3 bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-xl shadow-green-500/30 text-base cursor-pointer border-0"
                         >
                           <Play className="w-5 h-5 fill-current" />
-                          Start Your Presentation
+                          Start Presentation
                         </button>
                       )}
                     </div>
@@ -3817,7 +3823,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               
               <div className="pt-4 border-t border-slate-100 flex items-center justify-center gap-2 text-slate-400">
                 <div className={`w-2 h-2 rounded-full animate-pulse ${isBridgeConnected ? 'bg-green-500' : 'bg-red-500'}`} />
-                <span className="text-[10px] font-bold uppercase tracking-widest">
+                <span className={`text-[10px] font-bold uppercase tracking-widest ${isBridgeConnected ? 'text-green-600 font-black' : 'text-slate-400'}`}>
                   {isBridgeConnected 
                     ? 'Bridge Online & Ready' 
                     : 'Waiting for ActiveDeck connection...'}
