@@ -40,51 +40,51 @@ def move_ppt_windows(direction):
                 total_slides = presentation.Slides.Count
                 current_pos = view.CurrentShowPosition
 
-            if direction == "next":
-                # CRITICAL GUARD: In PowerPoint COM API, calling view.Next() on the last slide
-                # terminates the slideshow and returns PowerPoint to Normal Editing View.
-                # Only advance if we are not already on the last slide.
-                if current_pos < total_slides:
-                    view.Next()
-            elif direction == "prev":
-                if current_pos > 1:
-                    view.Previous()
-            else:
-                try:
-                    slide_num = int(direction)
-                    if 1 <= slide_num <= total_slides:
-                        view.GotoSlide(slide_num)
-                except ValueError:
-                    pass
+                if direction == "next":
+                    # CRITICAL GUARD: In PowerPoint COM API, calling view.Next() on the last slide
+                    # terminates the slideshow and returns PowerPoint to Normal Editing View.
+                    # Only advance if we are not already on the last slide.
+                    if current_pos < total_slides:
+                        view.Next()
+                elif direction == "prev":
+                    if current_pos > 1:
+                        view.Previous()
+                else:
+                    try:
+                        slide_num = int(direction)
+                        if 1 <= slide_num <= total_slides:
+                            view.GotoSlide(slide_num)
+                    except ValueError:
+                        pass
 
-        # Scenario B: PowerPoint is in Normal Editing View
-        elif ppt_app.Presentations.Count > 0:
-            pres = ppt_app.ActivePresentation
-            if pres:
-                try:
-                    win = ppt_app.ActiveWindow
-                    total_slides = pres.Slides.Count
-                    current_pos = win.View.Slide.SlideIndex if (win and win.View and win.View.Slide) else 1
-                    
-                    if direction == "next":
-                        if current_pos < total_slides:
-                            win.View.GotoSlide(current_pos + 1)
-                    elif direction == "prev":
-                        if current_pos > 1:
-                            win.View.GotoSlide(current_pos - 1)
-                    else:
-                        try:
-                            slide_num = int(direction)
-                            if 1 <= slide_num <= total_slides:
-                                win.View.GotoSlide(slide_num)
-                        except ValueError:
-                            pass
-                except Exception:
-                    pass
-    except Exception:
-        pass
-    finally:
-        pythoncom.CoUninitialize()
+            # Scenario B: PowerPoint is in Normal Editing View
+            elif ppt_app.Presentations.Count > 0:
+                pres = ppt_app.ActivePresentation
+                if pres:
+                    try:
+                        win = ppt_app.ActiveWindow
+                        total_slides = pres.Slides.Count
+                        current_pos = win.View.Slide.SlideIndex if (win and win.View and win.View.Slide) else 1
+                        
+                        if direction == "next":
+                            if current_pos < total_slides:
+                                win.View.GotoSlide(current_pos + 1)
+                        elif direction == "prev":
+                            if current_pos > 1:
+                                win.View.GotoSlide(current_pos - 1)
+                        else:
+                            try:
+                                slide_num = int(direction)
+                                if 1 <= slide_num <= total_slides:
+                                    win.View.GotoSlide(slide_num)
+                            except ValueError:
+                                pass
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        finally:
+            pythoncom.CoUninitialize()
 
 def move_ppt_mac(direction):
     if direction == "next":
