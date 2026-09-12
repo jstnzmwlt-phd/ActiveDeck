@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Monitor, Clock, Maximize, Minimize, Link2, Link2Off, Sun, Moon, Loader2, AlertCircle, Eye, EyeOff, Download, ShieldAlert, X, Tv, UserCheck, LogOut } from 'lucide-react';
 import { useBridge } from '../contexts/BridgeContext';
 import { collection, getDocs, query, orderBy, doc, onSnapshot, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -332,7 +333,7 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
   }, [isWakeLockActive]);
 
   return (
-    <div className={`p-4 bg-white border-b border-slate-200 h-14 py-1.5 relative w-full flex-shrink-0 ${(isAdminModalOpen || isExportModalOpen) ? 'z-[200]' : 'z-50'}`}>
+    <div className={`p-4 bg-white border-b border-slate-200 h-14 py-1.5 relative w-full flex-shrink-0 ${(isAdminModalOpen || isExportModalOpen || isNewSessionModalOpen) ? 'z-[200]' : 'z-50'}`}>
       <div className="flex items-center justify-between relative h-full">
         <div className="flex items-center gap-2 z-10 shrink-0">
           
@@ -502,9 +503,9 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
       </div>
 
       {/* Admin Password Modal */}
-      {isAdminModalOpen && (
+      {isAdminModalOpen && createPortal(
         <div 
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+          className="fixed inset-0 z-[100000] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
           onClick={() => setIsAdminModalOpen(false)}
         >
           <div 
@@ -573,13 +574,14 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Attendance Export Modal */}
-      {isExportModalOpen && (
+      {isExportModalOpen && createPortal(
         <div 
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+          className="fixed inset-0 z-[100000] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
           onClick={() => setIsExportModalOpen(false)}
         >
           <div 
@@ -629,13 +631,14 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* New Session Presenter Choice Modal */}
-      {isNewSessionModalOpen && (
+      {isNewSessionModalOpen && createPortal(
         <div 
-          className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200 select-none"
+          className="fixed inset-0 z-[100000] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200 select-none"
           onClick={() => {
             if (!isStartingNewSession) setIsNewSessionModalOpen(false);
           }}
@@ -735,7 +738,8 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
     </div>
