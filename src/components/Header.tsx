@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Monitor, Clock, Maximize, Minimize, Link2, Link2Off, Sun, Moon, Loader2, AlertCircle, Eye, EyeOff, Download, ShieldAlert, X, Tv } from 'lucide-react';
+import { Monitor, Clock, Maximize, Minimize, Link2, Link2Off, Sun, Moon, Loader2, AlertCircle, Eye, EyeOff, Download, ShieldAlert, X, Tv, UserCheck, LogOut } from 'lucide-react';
 import { useBridge } from '../contexts/BridgeContext';
 import { collection, getDocs, query, orderBy, doc, onSnapshot, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -7,7 +7,7 @@ import { db } from '../firebase';
 interface HeaderProps {
   presentationId?: string | null;
   showAttendance?: boolean;
-  onNewSession?: () => Promise<void>;
+  onNewSession?: (mode: 'same' | 'different') => Promise<void>;
   pinCode?: string | null;
 }
 
@@ -151,16 +151,15 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
 
 
 
+  const [isNewSessionModalOpen, setIsNewSessionModalOpen] = useState(false);
+  const [isStartingNewSession, setIsStartingNewSession] = useState(false);
+
   const handleNewSession = () => {
-    const confirmed = window.confirm(
-      "Are you sure you want to start a brand new session?\n\nThis will generate a brand new Join Code, clear the chat, and reset the student attendance list."
-    );
-    if (confirmed) {
-      executeNewSession();
-    }
+    setIsNewSessionModalOpen(true);
   };
 
-  const executeNewSession = async () => {
+  const executeNewSession = async (mode: 'same' | 'different') => {
+    setIsStartingNewSession(true);
     try {
       const channel = new BroadcastChannel('activedeck-stream');
       channel.postMessage({ type: 'close-projector' });
@@ -179,9 +178,12 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
 
     if (onNewSession) {
       try {
-        await onNewSession();
+        await onNewSession(mode);
       } catch (err) {
         console.error("Header: Error starting new session:", err);
+      } finally {
+        setIsStartingNewSession(false);
+        setIsNewSessionModalOpen(false);
       }
     } else {
       if (presentationId) {
@@ -194,6 +196,9 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
         } catch (e) {
           console.error("Header: Failed to mark presentation as ended:", e);
         }
+      }
+      if (mode === 'different') {
+        sessionStorage.removeItem('activePresenterEmail');
       }
       sessionStorage.removeItem('activePresenterPresentationId');
       sessionStorage.setItem('activeDeckForceNewSession', 'true');
@@ -619,6 +624,112 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
                 type="button"
                 onClick={() => setIsExportModalOpen(false)}
                 className="px-4 py-2 text-xs font-medium text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Session Presenter Choice Modal */}
+      {isNewSessionModalOpen && (
+        <div 
+          className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200 select-none"
+          onClick={() => {
+            if (!isStartingNewSession) setIsNewSessionModalOpen(false);
+          }}
+        >
+          <div 
+            className="bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-6 sm:p-8 max-w-md w-full text-slate-100 animate-in zoom-in-95 duration-200 relative text-center space-y-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button 
+              type="button"
+              disabled={isStartingNewSession}
+              onClick={() => setIsNewSessionModalOpen(false)}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-full hover:bg-slate-800 transition-colors disabled:opacity-30 cursor-pointer"
+              title="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="w-16 h-16 bg-osu-orange/10 border border-osu-orange/20 text-osu-orange rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-orange-500/10">
+              <Monitor className="w-8 h-8 animate-pulse text-osu-orange" />
+            </div>
+
+            <div className="space-y-2">
+              <h2 className="text-xl font-black uppercase tracking-wide text-white">Start New Session</h2>
+              <p className="text-xs text-slate-400 leading-relaxed max-w-sm mx-auto">
+                Select whether you are continuing with the current presenter or handing over to a different presenter.
+              </p>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              {/* Option 1: Same Presenter */}
+              <button
+                type="button"
+                disabled={isStartingNewSession}
+                onClick={() => executeNewSession('same')}
+                className="w-full p-4 bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 hover:border-osu-orange/60 rounded-2xl transition-all duration-200 text-left flex items-center gap-4 group cursor-pointer active:scale-[0.98] shadow-md disabled:opacity-50"
+              >
+                <div className="w-11 h-11 rounded-xl bg-osu-orange/15 border border-osu-orange/30 text-osu-orange flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                  <UserCheck className="w-5 h-5 text-osu-orange" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black uppercase tracking-wider text-white group-hover:text-osu-orange transition-colors">
+                      Same Presenter
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-osu-orange/10 text-osu-orange border border-osu-orange/20">
+                      Stay Signed In
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">
+                    Generates a new student Join Code, resets chat & attendance, but keeps you logged in.
+                  </p>
+                </div>
+              </button>
+
+              {/* Option 2: Different Presenter */}
+              <button
+                type="button"
+                disabled={isStartingNewSession}
+                onClick={() => executeNewSession('different')}
+                className="w-full p-4 bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 hover:border-red-500/60 rounded-2xl transition-all duration-200 text-left flex items-center gap-4 group cursor-pointer active:scale-[0.98] shadow-md disabled:opacity-50"
+              >
+                <div className="w-11 h-11 rounded-xl bg-red-500/15 border border-red-500/30 text-red-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                  <LogOut className="w-5 h-5 text-red-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black uppercase tracking-wider text-white group-hover:text-red-400 transition-colors">
+                      Different Presenter
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">
+                      Sign Out
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">
+                    Ends session for all students and prompts the next presenter to sign in with their email.
+                  </p>
+                </div>
+              </button>
+            </div>
+
+            {isStartingNewSession && (
+              <div className="flex items-center justify-center gap-2 pt-2 text-xs text-osu-orange font-bold animate-pulse">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Initializing new session...</span>
+              </div>
+            )}
+
+            <div className="pt-2">
+              <button
+                type="button"
+                disabled={isStartingNewSession}
+                onClick={() => setIsNewSessionModalOpen(false)}
+                className="w-full h-10 border border-slate-800 hover:border-slate-700 bg-slate-900/60 hover:bg-slate-800 text-slate-400 hover:text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all flex items-center justify-center cursor-pointer disabled:opacity-30"
               >
                 Cancel
               </button>

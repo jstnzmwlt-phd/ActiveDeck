@@ -253,8 +253,8 @@ function AppContent() {
     }
   };
 
-  const handleStartNewSession = async () => {
-    console.log('AppContent - Starting a brand-new presentation session with page-reload...');
+  const handleStartNewSession = async (mode: 'same' | 'different' = 'different') => {
+    console.log(`AppContent - Starting new session in mode: ${mode}...`);
     
     // Broadcast message to close the projector window/tab
     try {
@@ -309,20 +309,38 @@ function AppContent() {
       }
     }
 
-    // 3. Clear cached presenter details to force re-authentication for the next presenter
-    sessionStorage.removeItem('activePresenterEmail');
-    sessionStorage.removeItem('activePresenterPresentationId');
-    sessionStorage.removeItem('activeDeckForceNewSession');
+    if (mode === 'same') {
+      // Keep presenterEmail, remove old presentation cache, and generate a fresh session
+      sessionStorage.removeItem('activePresenterPresentationId');
+      sessionStorage.removeItem('activeDeckForceNewSession');
+      setPresentation(null);
+      setPresentationLoaded(false);
 
-    // 4. Clear local states
-    setPresenterEmail('');
-    setPresentation(null);
-    setPresentationLoaded(false);
+      try {
+        const newId = await createNewPresentation();
+        if (newId) {
+          console.log('AppContent - Successfully created new session for same presenter:', newId);
+          setActivePresentationId(newId);
+        }
+      } catch (err) {
+        console.error('AppContent - Failed to create new presentation for same presenter:', err);
+      }
+    } else {
+      // 3. Clear cached presenter details to force re-authentication for the next presenter
+      sessionStorage.removeItem('activePresenterEmail');
+      sessionStorage.removeItem('activePresenterPresentationId');
+      sessionStorage.removeItem('activeDeckForceNewSession');
 
-    // 5. Perform a clean full page reload/redirect to prompt for presenter login
-    const cleanUrl = window.location.origin + window.location.pathname;
-    console.log('AppContent - Redirecting cleanly to:', cleanUrl);
-    window.location.href = cleanUrl;
+      // 4. Clear local states
+      setPresenterEmail('');
+      setPresentation(null);
+      setPresentationLoaded(false);
+
+      // 5. Perform a clean full page reload/redirect to prompt for presenter login
+      const cleanUrl = window.location.origin + window.location.pathname;
+      console.log('AppContent - Redirecting cleanly to:', cleanUrl);
+      window.location.href = cleanUrl;
+    }
   };
 
   const handleCreatePresentationForArea = async () => {
