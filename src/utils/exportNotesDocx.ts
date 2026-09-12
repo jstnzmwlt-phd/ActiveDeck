@@ -16,7 +16,8 @@ import { DrawingStroke } from '../types';
 export const isNotesEmpty = (
   notesMap?: Record<string, string>,
   drawingsMap?: Record<string, string>,
-  pushedSlidesMap?: Record<string, string>
+  pushedSlidesMap?: Record<string, string>,
+  studentSlideDrawingsMap?: Record<string, string>
 ): boolean => {
   const hasText = notesMap && Object.keys(notesMap).length > 0 && !Object.values(notesMap).every(html => {
     if (!html) return true;
@@ -34,9 +35,19 @@ export const isNotesEmpty = (
     }
   });
 
+  const hasStudentDrawings = studentSlideDrawingsMap && Object.keys(studentSlideDrawingsMap).length > 0 && !Object.values(studentSlideDrawingsMap).every(drawingJson => {
+    if (!drawingJson) return true;
+    try {
+      const strokes = JSON.parse(drawingJson);
+      return !Array.isArray(strokes) || strokes.length === 0;
+    } catch {
+      return true;
+    }
+  });
+
   const hasSlides = pushedSlidesMap && Object.keys(pushedSlidesMap).length > 0;
 
-  return !hasText && !hasDrawings && !hasSlides;
+  return !hasText && !hasDrawings && !hasStudentDrawings && !hasSlides;
 };
 
 export const dataUriToUint8Array = (dataUrl: string): Uint8Array | null => {
@@ -509,7 +520,7 @@ export const exportNotesToDocx = async (options: ExportNotesOptions): Promise<bo
     notesTitle = localStorage.getItem(`activeDeckNotesTitle_${presentationId}`) || '';
   }
 
-  if (isNotesEmpty(notesTextMap, notesDrawingsMap, pushedSlidesMap)) {
+  if (isNotesEmpty(notesTextMap, notesDrawingsMap, pushedSlidesMap, studentSlideDrawingsMap)) {
     return false;
   }
 

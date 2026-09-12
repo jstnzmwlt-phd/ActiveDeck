@@ -679,6 +679,19 @@ function AppContent() {
     setActiveTab(initialSlide);
   }, [activePresentationId]);
 
+  // Keep last active presentation info always up to date in localStorage as presentation loads
+  useEffect(() => {
+    if (presentation?.id) {
+      localStorage.setItem('activeDeckLastSessionId', presentation.id);
+      if (presentation.pinCode) {
+        localStorage.setItem('activeDeckLastSessionPin', presentation.pinCode);
+      }
+      if (presentation.presenterEmail) {
+        localStorage.setItem('activeDeckLastPresenterEmail', presentation.presenterEmail);
+      }
+    }
+  }, [presentation?.id, presentation?.pinCode, presentation?.presenterEmail]);
+
   // Synchronize activeTab with presenter slide when slide changes (with idle detection)
   useEffect(() => {
     if (!presentation || presentation.currentSlide === undefined || presentation.currentSlide === null) return;
@@ -1308,6 +1321,16 @@ function AppContent() {
         if (event.data?.type === 'session-ended') {
           if (!activePresentationId || !event.data.presentationId || event.data.presentationId === activePresentationId) {
             console.log('AppContent - Received session-ended broadcast. Forcing student to Join Screen for new session.');
+            const endingId = event.data?.presentationId || activePresentationId || localStorage.getItem('activeDeckJoinedPresentationId');
+            if (endingId) {
+              localStorage.setItem('activeDeckLastSessionId', endingId);
+            }
+            if (presentation?.pinCode) {
+              localStorage.setItem('activeDeckLastSessionPin', presentation.pinCode);
+            }
+            if (presentation?.presenterEmail) {
+              localStorage.setItem('activeDeckLastPresenterEmail', presentation.presenterEmail);
+            }
             localStorage.removeItem('activeDeckJoined');
             localStorage.removeItem('activeDeckJoinedPresentationId');
             setHasJoinedChat(false);
@@ -1321,7 +1344,7 @@ function AppContent() {
         channel.close();
       };
     } catch (e) {}
-  }, [isChatOnly, activePresentationId]);
+  }, [isChatOnly, activePresentationId, presentation]);
 
   // Listen for clear-all-drawings broadcast when presentation stops
   useEffect(() => {
@@ -1658,6 +1681,16 @@ function AppContent() {
             // If presentation has ended or is inactive, force student/viewer back to Join Screen
             if (data.isEnded === true || data.active === false) {
               console.log('AppContent - Active presentation has ended. Forcing student to Join Screen for new session.');
+              const endingId = activePresentationId || docSnap.id || localStorage.getItem('activeDeckJoinedPresentationId');
+              if (endingId) {
+                localStorage.setItem('activeDeckLastSessionId', endingId);
+              }
+              if (data.pinCode || presentation?.pinCode) {
+                localStorage.setItem('activeDeckLastSessionPin', data.pinCode || presentation?.pinCode);
+              }
+              if (data.presenterEmail || presentation?.presenterEmail) {
+                localStorage.setItem('activeDeckLastPresenterEmail', data.presenterEmail || presentation?.presenterEmail);
+              }
               localStorage.removeItem('activeDeckJoined');
               localStorage.removeItem('activeDeckJoinedPresentationId');
               setHasJoinedChat(false);
@@ -1672,6 +1705,15 @@ function AppContent() {
 
             console.log('AppContent - Presentation data received:', docSnap.id);
             setPresentation({ id: docSnap.id, ...data } as Presentation);
+            if (docSnap.id) {
+              localStorage.setItem('activeDeckLastSessionId', docSnap.id);
+            }
+            if (data.pinCode) {
+              localStorage.setItem('activeDeckLastSessionPin', data.pinCode);
+            }
+            if (data.presenterEmail) {
+              localStorage.setItem('activeDeckLastPresenterEmail', data.presenterEmail);
+            }
             ensurePresentationHasPin(docSnap.id, data);
             const localEmail = sessionStorage.getItem('activePresenterEmail');
             if (localEmail && !data.presenterEmail) {

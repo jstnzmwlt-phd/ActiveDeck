@@ -2221,6 +2221,16 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       const savedJoined = localStorage.getItem('activeDeckJoined') === 'true';
       if (presentation === null || presentation.isEnded === true || (presentation as any).active === false || (presentation && savedPresId !== presentation.id)) {
         if (savedJoined) {
+          const endingId = presentation?.id || savedPresId;
+          if (endingId) {
+            localStorage.setItem('activeDeckLastSessionId', endingId);
+          }
+          if (presentation?.pinCode) {
+            localStorage.setItem('activeDeckLastSessionPin', presentation.pinCode);
+          }
+          if (presentation?.presenterEmail) {
+            localStorage.setItem('activeDeckLastPresenterEmail', presentation.presenterEmail);
+          }
           setHasJoined(false);
           setGuestEmail('');
           setGuestName('');
