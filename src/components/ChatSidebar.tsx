@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { auth, db, storage } from '../firebase';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, getDoc, getDocFromServer, doc, deleteDoc, updateDoc, arrayUnion, arrayRemove, increment, where, writeBatch, Timestamp, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -1478,9 +1478,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     return 300;
   });
   const [isResizingQr, setIsResizingQr] = useState(false);
-  const [qrCodeSize, setQrCodeSize] = useState<number>(230);
+  const [sidebarWidth, setSidebarWidth] = useState<number>(320);
   const sidebarContainerRef = useRef<HTMLDivElement>(null);
-  const qrBoxRef = useRef<HTMLDivElement>(null);
   const qrStartHeightRef = useRef<number>(300);
   const qrStartYRef = useRef<number>(0);
 
@@ -1553,37 +1552,31 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
   useEffect(() => {
     if (!isProjector) return;
-    const el = qrBoxRef.current;
+    const el = sidebarContainerRef.current;
     if (!el) return;
 
-    const hasCountdown = showAttendance && !presentation?.disableAttendance;
-
-    const updateSize = (contentWidth: number, contentHeight: number) => {
-      const availW = Math.max(0, contentWidth - 4);
-      const availH = Math.max(0, contentHeight - (hasCountdown ? 12 : 4));
-      const calculated = Math.floor(Math.min(availW, availH));
-      if (calculated >= 40) {
-        setQrCodeSize(calculated);
+    const updateSidebarWidth = () => {
+      if (el.clientWidth > 0) {
+        setSidebarWidth(el.clientWidth);
       }
     };
 
-    const rect = el.getBoundingClientRect();
-    if (rect.width > 0 && rect.height > 0) {
-      updateSize(rect.width - 8, rect.height - 8);
-    }
-
-    const ro = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const { width, height } = entry.contentRect;
-        if (width > 0 && height > 0) {
-          updateSize(width, height);
-        }
-      }
+    updateSidebarWidth();
+    const ro = new ResizeObserver(() => {
+      updateSidebarWidth();
     });
-
     ro.observe(el);
     return () => ro.disconnect();
-  }, [isProjector, showAttendance, presentation?.disableAttendance, projectorQrHeight]);
+  }, [isProjector]);
+
+  // Non-circular deterministic QR code size that safely fills the card
+  const computedQrSize = useMemo(() => {
+    if (!isProjector) return 230;
+    const hasCountdown = showAttendance && !presentation?.disableAttendance;
+    const availW = Math.max(70, sidebarWidth - 28);
+    const availH = Math.max(70, projectorQrHeight - (hasCountdown ? 54 : 40));
+    return Math.floor(Math.min(availW, availH));
+  }, [isProjector, sidebarWidth, projectorQrHeight, showAttendance, presentation?.disableAttendance]);
   const [collapsedMessageIds, setCollapsedMessageIds] = useState<Record<string, boolean>>({});
   const [readMessageIds, setReadMessageIds] = useState<Record<string, boolean>>({});
 
@@ -4299,8 +4292,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
             onClick={isProjector ? undefined : () => setIsQRExpanded(false)}
             style={isProjector ? { height: `${projectorQrHeight}px` } : undefined}
             className={cn(
-              "p-5 bg-white border-b border-slate-200 flex flex-col items-center justify-center select-none",
-              isProjector ? "py-1.5 px-2 gap-1 cursor-default overflow-hidden shrink-0 border-b-0" : "h-[380px] gap-3.5 cursor-pointer shrink-0"
+              "w-full bg-white border-b border-slate-200 flex flex-col items-center justify-center select-none",
+              isProjector ? "py-2 px-3 gap-1 cursor-default overflow-hidden shrink-0 border-b-0" : "h-[380px] p-5 gap-3.5 cursor-pointer shrink-0"
             )}
             title={isProjector ? undefined : "Click to minimize QR code"}
           >
@@ -4311,26 +4304,25 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
             )}
 
             <div 
-              ref={isProjector ? qrBoxRef : undefined}
               className={cn(
-                "bg-white rounded-xl border border-slate-200 shadow-md flex flex-col items-center justify-center animate-in zoom-in-95 duration-300",
+                "w-full bg-white rounded-xl border border-slate-200 shadow-md flex flex-col items-center justify-center animate-in zoom-in-95 duration-300",
                 isProjector
-                  ? "p-1.5 gap-1 flex-1 min-h-0 min-w-0 max-w-full overflow-hidden"
+                  ? "flex-1 min-h-0 p-1.5 gap-1 overflow-hidden"
                   : "p-2.5 gap-2"
               )}
             >
               <QRCodeSVG 
                 value={dynamicChatUrl} 
-                size={isProjector ? qrCodeSize : 230}
+                size={computedQrSize}
                 level="M"
                 includeMargin={!isProjector}
-                style={{ maxWidth: '100%', maxHeight: '100%', aspectRatio: '1 / 1' }}
+                marginSize={isProjector ? 1 : undefined}
                 imageSettings={{
                   src: internalLogoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png",
                   x: undefined,
                   y: undefined,
-                  height: Math.max(12, Math.round((isProjector ? qrCodeSize : 230) * 0.165)),
-                  width: Math.max(12, Math.round((isProjector ? qrCodeSize : 230) * 0.165)),
+                  height: Math.max(14, Math.round(computedQrSize * 0.17)),
+                  width: Math.max(14, Math.round(computedQrSize * 0.17)),
                   excavate: true,
                 }}
               />
