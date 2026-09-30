@@ -167,7 +167,7 @@ interface OpenEndedQuestionCardProps {
   canModerate: boolean;
   onClose: (id: string) => void;
   onDelete: (id: string) => void;
-  onStart: (id: string, duration: number, attachSlide: boolean) => void;
+  onStart: (id: string, duration: number) => void;
   onSubmit: (id: string, response: string) => void;
   onToggleResults: (id: string, visible: boolean) => void;
   onAdjustDuration: (id: string, duration: number) => void;
@@ -184,7 +184,6 @@ interface OpenEndedQuestionCardProps {
 const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, canModerate, onClose, onDelete, onStart, onSubmit, onToggleResults, onAdjustDuration, initialCollapsed = false, isInitiallyNew = false, secondaryColor, isProjector = false, onOpenImageLightbox, isStarting, forceCollapsed, onToggleCollapse }) => {
   const [response, setResponse] = useState('');
   const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : (forceCollapsed ?? initialCollapsed));
-  const [attachSlide, setAttachSlide] = useState(false);
   const responsesData = q.responses || {};
   const isDraft = q.started === false || (!q.started && !q.active && Object.values(q.responses || {}).length === 0);
   const showResults = !!q.showResults;
@@ -395,23 +394,9 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
                   </button>
                 </div>
 
-                {/* Attach Slide Checkbox */}
-                <div className="flex items-center gap-2 mt-1 px-1.5 select-none cursor-pointer">
-                  <input 
-                    type="checkbox"
-                    id={`open-attach-slide-${q.id}`}
-                    checked={attachSlide}
-                    onChange={(e) => setAttachSlide(e.target.checked)}
-                    disabled={isStarting}
-                    className="w-3.5 h-3.5 rounded border-slate-300 text-osu-orange focus:ring-osu-orange cursor-pointer disabled:opacity-50"
-                  />
-                  <label htmlFor={`open-attach-slide-${q.id}`} className="text-[10px] font-black text-slate-550 uppercase tracking-wider cursor-pointer select-none">
-                    Attach Slide Screenshot
-                  </label>
-                </div>
               </div>
               <button 
-                onClick={() => onStart(q.id, q.duration || 60, attachSlide)}
+                onClick={() => onStart(q.id, q.duration || 60)}
                 disabled={isStarting}
                 className="w-full py-3 bg-green-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-black uppercase tracking-widest rounded-xl hover:bg-green-600 transition-all shadow-lg shadow-green-500/20 active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
               >
@@ -477,7 +462,7 @@ interface PollCardProps {
   onToggleResults: (pollId: string, currentShow: boolean) => void;
   onClose: (pollId: string) => void;
   onDelete: (pollId: string) => void;
-  onStart: (pollId: string, duration: number, attachSlide: boolean) => void;
+  onStart: (pollId: string, duration: number) => void;
   onAdjustDuration: (pollId: string, newDuration: number) => void;
   onMarkCorrect: (pollId: string, option: string) => void;
   initialCollapsed?: boolean;
@@ -493,7 +478,6 @@ interface PollCardProps {
 const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate, onVote, onToggleResults, onClose, onDelete, onStart, onAdjustDuration, onMarkCorrect, initialCollapsed = false, isInitiallyNew = false, secondaryColor, isProjector = false, onOpenImageLightbox, isStarting, forceCollapsed, onToggleCollapse }) => {
   const totalVotes = Object.values(poll.votes || {}).reduce((a, b) => a + b, 0);
   const userVote = user && poll.voters ? poll.voters[user.uid] : null;
-  const [attachSlide, setAttachSlide] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number | null>(() => {
     if (!poll.active || !poll.expiresAt) return null;
     const now = Date.now();
@@ -698,23 +682,9 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
                   </button>
                 </div>
 
-                {/* Attach Slide Checkbox */}
-                <div className="flex items-center gap-2 mt-1 px-1.5 select-none cursor-pointer">
-                  <input 
-                    type="checkbox"
-                    id={`poll-attach-slide-${poll.id}`}
-                    checked={attachSlide}
-                    onChange={(e) => setAttachSlide(e.target.checked)}
-                    disabled={isStarting}
-                    className="w-3.5 h-3.5 rounded border-slate-350 text-osu-orange focus:ring-osu-orange cursor-pointer disabled:opacity-50"
-                  />
-                  <label htmlFor={`poll-attach-slide-${poll.id}`} className="text-[10px] font-black text-slate-550 uppercase tracking-wider cursor-pointer select-none">
-                    Attach Slide Screenshot
-                  </label>
-                </div>
               </div>
               <button 
-                onClick={() => onStart(poll.id, poll.duration || 60, attachSlide)}
+                onClick={() => onStart(poll.id, poll.duration || 60)}
                 disabled={isStarting}
                 className="w-full py-3 bg-osu-orange disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-black uppercase tracking-widest rounded-xl hover:bg-[#c03900] transition-all shadow-lg shadow-orange-500/20 active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
               >
@@ -3561,7 +3531,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     }
   };
 
-  const handleStartOpenEndedQuestion = async (id: string, duration: number, attachSlide: boolean) => {
+  const handleStartOpenEndedQuestion = async (id: string, duration: number, attachSlide: boolean = false) => {
     if (!canModerate) return;
     setIsLaunchingInteraction(true);
     try {
@@ -3659,7 +3629,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     }
   };
 
-  const handleStartPoll = async (pollId: string, duration: number, attachSlide: boolean) => {
+  const handleStartPoll = async (pollId: string, duration: number, attachSlide: boolean = false) => {
     if (!canModerate) return;
     setIsLaunchingInteraction(true);
     try {
