@@ -1463,6 +1463,127 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [isAllCollapsed, setIsAllCollapsed] = useState(false);
   const [isQRExpanded, setIsQRExpanded] = useState(false);
   const [isJoinHeaderVisible, setIsJoinHeaderVisible] = useState(true);
+
+  // Projector QR Code Horizontal Resizer State & Handlers
+  const [projectorQrHeight, setProjectorQrHeight] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('activedeck_projector_qr_height');
+      if (saved) {
+        const val = parseInt(saved, 10);
+        if (!isNaN(val) && val >= 120 && val <= 650) {
+          return val;
+        }
+      }
+    } catch {}
+    return 300;
+  });
+  const [isResizingQr, setIsResizingQr] = useState(false);
+  const [qrCodeSize, setQrCodeSize] = useState<number>(230);
+  const sidebarContainerRef = useRef<HTMLDivElement>(null);
+  const qrBoxRef = useRef<HTMLDivElement>(null);
+  const qrStartHeightRef = useRef<number>(300);
+  const qrStartYRef = useRef<number>(0);
+
+  const handleMouseDownQrSplit = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizingQr(true);
+    qrStartYRef.current = e.clientY;
+    qrStartHeightRef.current = projectorQrHeight;
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+  };
+
+  const handleTouchStartQrSplit = (e: React.TouchEvent) => {
+    setIsResizingQr(true);
+    qrStartYRef.current = e.touches[0].clientY;
+    qrStartHeightRef.current = projectorQrHeight;
+  };
+
+  const handleDoubleClickQrSplit = () => {
+    setProjectorQrHeight(300);
+    try {
+      localStorage.setItem('activedeck_projector_qr_height', '300');
+    } catch {}
+  };
+
+  useEffect(() => {
+    if (!isResizingQr) return;
+
+    const handleMouseMove = (moveEvent: MouseEvent | TouchEvent) => {
+      const clientY = 'touches' in moveEvent 
+        ? (moveEvent as TouchEvent).touches[0].clientY 
+        : (moveEvent as MouseEvent).clientY;
+      const deltaY = clientY - qrStartYRef.current;
+      let newHeight = qrStartHeightRef.current + deltaY;
+
+      const containerHeight = sidebarContainerRef.current?.getBoundingClientRect().height || window.innerHeight;
+      const minH = 120;
+      const maxH = Math.max(minH, containerHeight - 160);
+
+      if (newHeight < minH) newHeight = minH;
+      if (newHeight > maxH) newHeight = maxH;
+
+      setProjectorQrHeight(Math.round(newHeight));
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingQr(false);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      setProjectorQrHeight(current => {
+        try {
+          localStorage.setItem('activedeck_projector_qr_height', String(current));
+        } catch {}
+        return current;
+      });
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('touchmove', handleMouseMove);
+    window.addEventListener('touchend', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('touchmove', handleMouseMove);
+      window.removeEventListener('touchend', handleMouseUp);
+    };
+  }, [isResizingQr]);
+
+  useEffect(() => {
+    if (!isProjector) return;
+    const el = qrBoxRef.current;
+    if (!el) return;
+
+    const hasCountdown = showAttendance && !presentation?.disableAttendance;
+
+    const updateSize = (contentWidth: number, contentHeight: number) => {
+      const availW = contentWidth;
+      const availH = contentHeight - (hasCountdown ? 14 : 0);
+      const calculated = Math.floor(Math.min(availW, availH));
+      if (calculated >= 40) {
+        setQrCodeSize(calculated);
+      }
+    };
+
+    const rect = el.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      updateSize(rect.width - 16, rect.height - 16);
+    }
+
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        if (width > 0 && height > 0) {
+          updateSize(width, height);
+        }
+      }
+    });
+
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [isProjector, showAttendance, presentation?.disableAttendance, projectorQrHeight]);
   const [collapsedMessageIds, setCollapsedMessageIds] = useState<Record<string, boolean>>({});
   const [readMessageIds, setReadMessageIds] = useState<Record<string, boolean>>({});
 
@@ -3876,7 +3997,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   }
 
   return (
-    <div className="flex flex-col h-full max-h-full overflow-hidden bg-white relative">
+    <div ref={sidebarContainerRef} className="flex flex-col h-full max-h-full overflow-hidden bg-white relative">
       {/* Clear Chat Confirmation Modal */}
       {showClearConfirm && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
@@ -4176,36 +4297,46 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           /* Expanded Card View */
           <div 
             onClick={isProjector ? undefined : () => setIsQRExpanded(false)}
+            style={isProjector ? { height: `${projectorQrHeight}px` } : undefined}
             className={cn(
               "p-5 bg-white border-b border-slate-200 flex flex-col items-center justify-center select-none",
-              isProjector ? "h-auto py-4 gap-2.5 cursor-default" : "h-[380px] gap-3.5 cursor-pointer"
+              isProjector ? "py-2.5 px-3 gap-1.5 cursor-default overflow-hidden shrink-0 border-b-0" : "h-[380px] gap-3.5 cursor-pointer shrink-0"
             )}
             title={isProjector ? undefined : "Click to minimize QR code"}
           >
             {isProjector && (
-              <p className="text-[8.5px] font-black text-slate-500 uppercase tracking-widest leading-none text-center">
+              <p className="text-[8.5px] font-black text-slate-500 uppercase tracking-widest leading-none text-center shrink-0 mb-0.5">
                 {presentation?.disableAttendance ? "Scan to Join Chat" : "Scan to Mark Attendance and Join Chat"}
               </p>
             )}
 
-            <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-md flex flex-col items-center gap-2 animate-in zoom-in-95 duration-300">
+            <div 
+              ref={isProjector ? qrBoxRef : undefined}
+              className={cn(
+                "bg-white rounded-xl border border-slate-200 shadow-md flex flex-col items-center justify-center animate-in zoom-in-95 duration-300",
+                isProjector
+                  ? "p-2 gap-1.5 flex-1 min-h-0 min-w-0 max-w-full overflow-hidden"
+                  : "p-2.5 gap-2"
+              )}
+            >
               <QRCodeSVG 
                 value={dynamicChatUrl} 
-                size={230}
+                size={isProjector ? qrCodeSize : 230}
                 level="M"
                 includeMargin={true}
+                style={{ maxWidth: '100%', maxHeight: '100%', aspectRatio: '1 / 1' }}
                 imageSettings={{
                   src: internalLogoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png",
                   x: undefined,
                   y: undefined,
-                  height: 38,
-                  width: 38,
+                  height: Math.max(12, Math.round((isProjector ? qrCodeSize : 230) * 0.165)),
+                  width: Math.max(12, Math.round((isProjector ? qrCodeSize : 230) * 0.165)),
                   excavate: true,
                 }}
               />
               {/* Progress countdown bar */}
               {showAttendance && !presentation?.disableAttendance && (
-                <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden relative">
+                <div className="w-full max-w-[240px] h-1.5 bg-slate-100 rounded-full overflow-hidden relative shrink-0">
                   <div 
                     className="h-full bg-osu-orange transition-all duration-100 ease-linear"
                     style={{ 
@@ -4303,6 +4434,19 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
             </div>
           </div>
         )
+      )}
+
+      {/* Horizontal Divider Adjuster between QR code and Chat (Projector Mode) */}
+      {isProjector && (
+        <div
+          onMouseDown={handleMouseDownQrSplit}
+          onTouchStart={handleTouchStartQrSplit}
+          onDoubleClick={handleDoubleClickQrSplit}
+          className="h-3 w-full cursor-row-resize flex items-center justify-center flex-shrink-0 group/qr-splitter select-none bg-slate-100 hover:bg-slate-200 active:bg-slate-300 transition-colors border-y border-slate-200 z-30"
+          title="Drag to resize QR code (double-click to reset)"
+        >
+          <div className="h-[3px] w-12 bg-slate-400 group-hover/qr-splitter:bg-osu-orange group-active/qr-splitter:bg-osu-orange rounded-full transition-all duration-200" />
+        </div>
       )}
 
       {/* Messages Area Wrapper */}
