@@ -434,15 +434,15 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
               }}
               className={`relative flex items-center gap-1.5 px-2.5 py-1 bg-osu-orange hover:bg-[#c03900] text-white text-[11px] font-black uppercase tracking-wider rounded-lg transition-all active:scale-95 cursor-pointer ${
                 shouldPulsateProjector
-                  ? 'animate-projector-pulse ring-2 ring-white ring-offset-2 ring-offset-osu-orange shadow-lg shadow-orange-500/50'
+                  ? 'animate-projector-pulse ring-2 ring-green-400 ring-offset-2 ring-offset-slate-800 shadow-lg shadow-green-500/50'
                   : 'shadow-sm'
               }`}
               title="Launch Projector Mode in a new window"
             >
               {shouldPulsateProjector && (
                 <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5 pointer-events-none">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-90"></span>
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-yellow-300"></span>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-90"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-400 ring-1 ring-white"></span>
                 </span>
               )}
               <Tv className="w-3 h-3 text-white" />

@@ -1559,8 +1559,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     const hasCountdown = showAttendance && !presentation?.disableAttendance;
 
     const updateSize = (contentWidth: number, contentHeight: number) => {
-      const availW = contentWidth;
-      const availH = contentHeight - (hasCountdown ? 14 : 0);
+      const availW = Math.max(0, contentWidth - 4);
+      const availH = Math.max(0, contentHeight - (hasCountdown ? 12 : 4));
       const calculated = Math.floor(Math.min(availW, availH));
       if (calculated >= 40) {
         setQrCodeSize(calculated);
@@ -1569,7 +1569,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
     const rect = el.getBoundingClientRect();
     if (rect.width > 0 && rect.height > 0) {
-      updateSize(rect.width - 16, rect.height - 16);
+      updateSize(rect.width - 8, rect.height - 8);
     }
 
     const ro = new ResizeObserver((entries) => {
@@ -4300,7 +4300,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
             style={isProjector ? { height: `${projectorQrHeight}px` } : undefined}
             className={cn(
               "p-5 bg-white border-b border-slate-200 flex flex-col items-center justify-center select-none",
-              isProjector ? "py-2.5 px-3 gap-1.5 cursor-default overflow-hidden shrink-0 border-b-0" : "h-[380px] gap-3.5 cursor-pointer shrink-0"
+              isProjector ? "py-1.5 px-2 gap-1 cursor-default overflow-hidden shrink-0 border-b-0" : "h-[380px] gap-3.5 cursor-pointer shrink-0"
             )}
             title={isProjector ? undefined : "Click to minimize QR code"}
           >
@@ -4315,7 +4315,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               className={cn(
                 "bg-white rounded-xl border border-slate-200 shadow-md flex flex-col items-center justify-center animate-in zoom-in-95 duration-300",
                 isProjector
-                  ? "p-2 gap-1.5 flex-1 min-h-0 min-w-0 max-w-full overflow-hidden"
+                  ? "p-1.5 gap-1 flex-1 min-h-0 min-w-0 max-w-full overflow-hidden"
                   : "p-2.5 gap-2"
               )}
             >
@@ -4323,7 +4323,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 value={dynamicChatUrl} 
                 size={isProjector ? qrCodeSize : 230}
                 level="M"
-                includeMargin={true}
+                includeMargin={!isProjector}
                 style={{ maxWidth: '100%', maxHeight: '100%', aspectRatio: '1 / 1' }}
                 imageSettings={{
                   src: internalLogoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png",
