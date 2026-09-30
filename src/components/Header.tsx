@@ -10,9 +10,10 @@ interface HeaderProps {
   showAttendance?: boolean;
   onNewSession?: (mode: 'same' | 'different') => Promise<void>;
   pinCode?: string | null;
+  isSharingPresentation?: boolean;
 }
 
-export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, onNewSession, pinCode }) => {
+export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, onNewSession, pinCode, isSharingPresentation = false }) => {
   const { isBridgeConnected, setUseWithoutBridge } = useBridge();
   const [isWakeLockActive, setIsWakeLockActive] = useState(false);
   const [isWakeLockLoading, setIsWakeLockLoading] = useState(false);
@@ -25,6 +26,47 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
   const [showSlidePreview, setShowSlidePreview] = useState(true);
   const [chatEnabled, setChatEnabled] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [hasOpenedProjector, setHasOpenedProjector] = useState(false);
+  const [isLocallySharing, setIsLocallySharing] = useState(false);
+
+  useEffect(() => {
+    const handleStarted = () => setIsLocallySharing(true);
+    const handleStopped = () => setIsLocallySharing(false);
+
+    window.addEventListener('activedeck-stream-started', handleStarted);
+    window.addEventListener('activedeck-stream-stopped', handleStopped);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel('activedeck-stream');
+      bc.onmessage = (event) => {
+        if (event.data?.type === 'stream-started') {
+          setIsLocallySharing(true);
+        } else if (event.data?.type === 'stream-stopped' || event.data?.type === 'close-projector') {
+          setIsLocallySharing(false);
+        }
+      };
+    } catch (e) {
+      console.warn('Header: BroadcastChannel error:', e);
+    }
+
+    if ((window as any).activeDeckStream?.active) {
+      setIsLocallySharing(true);
+    }
+
+    return () => {
+      window.removeEventListener('activedeck-stream-started', handleStarted);
+      window.removeEventListener('activedeck-stream-stopped', handleStopped);
+      if (bc) bc.close();
+    };
+  }, []);
+
+  useEffect(() => {
+    setHasOpenedProjector(false);
+  }, [presentationId]);
+
+  const isSharing = isSharingPresentation || isLocallySharing;
+  const shouldPulsateProjector = isSharing && !hasOpenedProjector;
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -161,6 +203,8 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
 
   const executeNewSession = async (mode: 'same' | 'different') => {
     setIsStartingNewSession(true);
+    setHasOpenedProjector(false);
+    setIsLocallySharing(false);
     try {
       const channel = new BroadcastChannel('activedeck-stream');
       channel.postMessage({ type: 'close-projector' });
@@ -372,11 +416,35 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
                   url.searchParams.set('pin', pinCode);
                 }
                 url.searchParams.set('view', 'projector');
-                window.open(url.toString(), '_blank', 'popup=yes,width=1280,height=720,resizable=yes,scrollbars=yes');
+                const projWin = window.open(url.toString(), '_blank', 'popup=yes,width=1280,height=720,resizable=yes,scrollbars=yes');
+                setHasOpenedProjector(true);
+
+                if (projWin) {
+                  const checkClosedTimer = setInterval(() => {
+                    try {
+                      if (projWin.closed) {
+                        clearInterval(checkClosedTimer);
+                        setHasOpenedProjector(false);
+                      }
+                    } catch {
+                      clearInterval(checkClosedTimer);
+                    }
+                  }, 1500);
+                }
               }}
-              className="flex items-center gap-1.5 px-2.5 py-1 bg-osu-orange hover:bg-[#c03900] text-white text-[11px] font-black uppercase tracking-wider rounded-lg transition-all shadow-sm active:scale-95 cursor-pointer"
+              className={`relative flex items-center gap-1.5 px-2.5 py-1 bg-osu-orange hover:bg-[#c03900] text-white text-[11px] font-black uppercase tracking-wider rounded-lg transition-all active:scale-95 cursor-pointer ${
+                shouldPulsateProjector
+                  ? 'animate-projector-pulse ring-2 ring-white ring-offset-2 ring-offset-osu-orange shadow-lg shadow-orange-500/50'
+                  : 'shadow-sm'
+              }`}
               title="Launch Projector Mode in a new window"
             >
+              {shouldPulsateProjector && (
+                <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5 pointer-events-none">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-90"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-yellow-300"></span>
+                </span>
+              )}
               <Tv className="w-3 h-3 text-white" />
               <span>Projector Mode</span>
             </button>

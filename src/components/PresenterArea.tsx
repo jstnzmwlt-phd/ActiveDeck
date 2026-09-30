@@ -188,9 +188,10 @@ interface PresenterAreaProps {
   logoUrl?: string;
   onCreatePresentation?: () => Promise<string>;
   isProjectorMode?: boolean;
+  onStreamStateChange?: (isCapturing: boolean) => void;
 }
 
-export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logoUrl, onCreatePresentation, isProjectorMode = false }) => {
+export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logoUrl, onCreatePresentation, isProjectorMode = false, onStreamStateChange }) => {
   const { 
     currentSlide, 
     sendSlideCommand, 
@@ -208,6 +209,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const [secondaryColor, setSecondaryColor] = useState<string>('#ff3e00');
   const [isCapturing, setIsCapturing] = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
+
+  useEffect(() => {
+    onStreamStateChange?.(isCapturing && !!stream);
+  }, [isCapturing, stream, onStreamStateChange]);
   const [error, setError] = useState<string | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
   const [laserEnabled, setLaserEnabled] = useState(true);
@@ -2576,6 +2581,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         } catch (bcErr) {
           console.error("ActiveDeck: Error broadcasting stream-started:", bcErr);
         }
+        window.dispatchEvent(new CustomEvent('activedeck-stream-started'));
         // Only create a new presentation session if one doesn't exist yet
         let activePresentationId = presentation?.id;
         if (!presentation && onCreatePresentation) {
@@ -2586,6 +2592,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             mediaStream.getTracks().forEach(track => track.stop());
             setStream(null);
             setIsCapturing(false);
+            window.dispatchEvent(new CustomEvent('activedeck-stream-stopped'));
             setError("Failed to initialize presentation session in database.");
             return;
           }
@@ -2606,6 +2613,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         mediaStream.getVideoTracks()[0].onended = () => {
           console.warn("ActiveDeck: Screen capture video track ended. Preserving presentation mode and slide preview.");
           setStream(null);
+          window.dispatchEvent(new CustomEvent('activedeck-stream-stopped'));
           // Do not call stopCapture() here so the presentation session, timer, slide navigator, and notes remain active!
         };
       })
@@ -2620,6 +2628,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           setError("Failed to start screen capture. Please ensure your browser supports screen sharing.");
         }
         setIsCapturing(false);
+        window.dispatchEvent(new CustomEvent('activedeck-stream-stopped'));
       });
   };
 
@@ -2666,6 +2675,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     } catch (bcErr) {
       console.error("ActiveDeck: Error broadcasting stream-stopped:", bcErr);
     }
+    window.dispatchEvent(new CustomEvent('activedeck-stream-stopped'));
   };
 
   useEffect(() => {
@@ -2681,6 +2691,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           channel.postMessage({ type: 'stream-stopped' });
           channel.close();
         } catch (e) {}
+        window.dispatchEvent(new CustomEvent('activedeck-stream-stopped'));
       }
     };
   }, [stream]);

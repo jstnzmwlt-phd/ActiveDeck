@@ -160,6 +160,7 @@ function AppContent() {
     return savedJoined;
   });
   const activeUnsubscribeRef = useRef<(() => void) | null>(null);
+  const [isPresentationSharing, setIsPresentationSharing] = useState(false);
 
   // Initialize and capture the active presentation ID state
   const [activePresentationId, setActivePresentationId] = useState<string | null>(() => {
@@ -255,6 +256,7 @@ function AppContent() {
 
   const handleStartNewSession = async (mode: 'same' | 'different' = 'different') => {
     console.log(`AppContent - Starting new session in mode: ${mode}...`);
+    setIsPresentationSharing(false);
     
     // Broadcast message to close the projector window/tab
     try {
@@ -3080,12 +3082,18 @@ function AppContent() {
         showAttendance={settings?.showAttendance}
         onNewSession={handleStartNewSession}
         pinCode={presentation?.pinCode}
+        isSharingPresentation={isPresentationSharing}
       />
       
       <div className="flex flex-row flex-1 p-6 pb-2 gap-3 bg-slate-100 min-h-0 overflow-hidden">
         {/* Presenter View (Flexible, but takes most space) */}
         <div className="flex-1 h-full min-w-0 rounded-xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.24)] border border-slate-300 bg-black">
-          <PresenterArea presentation={presentation} logoUrl={settings?.theme.logoUrl} onCreatePresentation={handleCreatePresentationForArea} />
+          <PresenterArea 
+            presentation={presentation} 
+            logoUrl={settings?.theme.logoUrl} 
+            onCreatePresentation={handleCreatePresentationForArea} 
+            onStreamStateChange={setIsPresentationSharing}
+          />
         </div>
 
         {presentation?.chatEnabled !== false && (
