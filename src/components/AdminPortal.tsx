@@ -82,6 +82,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
   const [loadingAttendance, setLoadingAttendance] = useState(false);
   const [selectedSessionIdsForBulk, setSelectedSessionIdsForBulk] = useState<string[]>([]);
   const [isDeletingSessions, setIsDeletingSessions] = useState(false);
+  const [isCleaningEmptySessions, setIsCleaningEmptySessions] = useState(false);
   const [isDownloadingChatLog, setIsDownloadingChatLog] = useState(false);
   const [sessionSearch, setSessionSearch] = useState('');
   const [downloadingSessionId, setDownloadingSessionId] = useState<string | null>(null);
@@ -720,6 +721,138 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
       console.error("Error during session cleanup:", error);
       alert("An error occurred during cleanup: " + error);
     } finally {
+      setIsDeletingSessions(false);
+    }
+  };
+
+  const handleCleanupEmptySessions = async () => {
+    // Exclude the live presentation and any locked sessions
+    const candidateSessions = recentSessions.filter(session => {
+      if (session.id === presentationId) return false;
+      if (session.isLocked) return false;
+      return true;
+    });
+
+    const lockedCount = recentSessions.filter(s => s.isLocked && s.id !== presentationId).length;
+
+    if (candidateSessions.length === 0) {
+      if (lockedCount > 0) {
+        alert(`No unlocked sessions found to evaluate (${lockedCount} locked session(s) are protected).`);
+      } else {
+        alert("No candidate sessions found to clean up.");
+      }
+      return;
+    }
+
+    setIsCleaningEmptySessions(true);
+    try {
+      // Helper function to check if a session recorded any content
+      const checkHasContent = async (sessionId: string): Promise<boolean> => {
+        // 1. Check messages (both regular chat messages and slide background preview captures are stored here)
+        const msgsSnap = await getDocs(
+          query(collection(db, 'messages'), where('presentationId', '==', sessionId), limit(1))
+        );
+        if (!msgsSnap.empty) return true;
+
+        // 2. Check polls
+        const pollsSnap = await getDocs(
+          query(collection(db, 'polls'), where('presentationId', '==', sessionId), limit(1))
+        );
+        if (!pollsSnap.empty) return true;
+
+        // 3. Check word clouds
+        const wcSnap = await getDocs(
+          query(collection(db, 'wordClouds'), where('presentationId', '==', sessionId), limit(1))
+        );
+        if (!wcSnap.empty) return true;
+
+        // 4. Check open ended questions
+        const oeqSnap = await getDocs(
+          query(collection(db, 'openEndedQuestions'), where('presentationId', '==', sessionId), limit(1))
+        );
+        if (!oeqSnap.empty) return true;
+
+        // 5. Check student attendance
+        const attSnap = await getDocs(
+          query(collection(db, 'presentations', sessionId, 'attendance'), limit(1))
+        );
+        if (!attSnap.empty) return true;
+
+        // 6. Check Firebase Storage for uploaded slides/documents
+        try {
+          const storageFolderRef = ref(storage, `presentations/${sessionId}/documents`);
+          const storageList = await listAll(storageFolderRef);
+          if (storageList.items.length > 0 || storageList.prefixes.length > 0) return true;
+        } catch {
+          // If folder doesn't exist, listAll may throw or return empty
+        }
+
+        return false;
+      };
+
+      // Check all candidate sessions in parallel
+      const checkResults = await Promise.all(
+        candidateSessions.map(async (session) => {
+          const hasContent = await checkHasContent(session.id);
+          return { session, hasContent };
+        })
+      );
+
+      const emptySessions = checkResults
+        .filter(r => !r.hasContent)
+        .map(r => r.session);
+
+      if (emptySessions.length === 0) {
+        const lockedNote = lockedCount > 0 ? ` (${lockedCount} locked session(s) were protected)` : '';
+        alert(`No empty sessions were found. All sessions contain slide images, interactive elements, chats, or check-ins${lockedNote}.`);
+        return;
+      }
+
+      const lockedNote = lockedCount > 0 
+        ? `\n\n(${lockedCount} locked session(s) are protected and will not be touched)` 
+        : '';
+      const confirmMessage = `Found ${emptySessions.length} empty session(s) with no slide images, interactive elements, or chats.${lockedNote}\n\nAre you sure you want to permanently delete them?`;
+      if (!confirm(confirmMessage)) return;
+
+      setIsDeletingSessions(true);
+      let successCount = 0;
+      const failedIds: string[] = [];
+      const successfulIds: string[] = [];
+
+      for (const session of emptySessions) {
+        try {
+          await deleteSessionDoc(session.id);
+          successCount++;
+          successfulIds.push(session.id);
+        } catch (err) {
+          console.error(`Failed to delete empty session ${session.id}:`, err);
+          failedIds.push(session.id);
+        }
+      }
+
+      // Clear successful IDs from bulk selection if selected
+      setSelectedSessionIdsForBulk(prev => prev.filter(id => !successfulIds.includes(id)));
+
+      // If the currently viewed session was deleted, switch to a remaining one
+      if (selectedSessionId && successfulIds.includes(selectedSessionId)) {
+        const remaining = recentSessions.filter(s => !successfulIds.includes(s.id));
+        if (remaining.length > 0) {
+          setSelectedSessionId(remaining[0].id);
+        } else {
+          setSelectedSessionId(null);
+        }
+      }
+
+      if (failedIds.length === 0) {
+        alert(`Successfully cleaned up ${successCount} empty session(s).`);
+      } else {
+        alert(`Cleaned up ${successCount} empty session(s).\n\n${failedIds.length} session(s) could not be deleted (possibly due to Firestore permissions).`);
+      }
+    } catch (error) {
+      console.error("Error during empty session cleanup:", error);
+      alert("An error occurred during empty session cleanup: " + error);
+    } finally {
+      setIsCleaningEmptySessions(false);
       setIsDeletingSessions(false);
     }
   };
@@ -2091,7 +2224,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                     {selectedSessionIdsForBulk.length > 0 && (
                       <button
                         onClick={handleBulkDelete}
-                        disabled={isDeletingSessions}
+                        disabled={isDeletingSessions || isCleaningEmptySessions}
                         className="flex items-center gap-1 px-2.5 py-1 bg-red-950/40 hover:bg-red-900 border border-red-500/30 text-[10px] font-black uppercase tracking-wider text-red-400 hover:text-white rounded-lg transition-all"
                       >
                         {isDeletingSessions ? (
@@ -2215,7 +2348,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                                     e.stopPropagation();
                                     handleDeleteSession(session.id);
                                   }}
-                                  disabled={isDeletingSessions || session.isLocked}
+                                  disabled={isDeletingSessions || isCleaningEmptySessions || session.isLocked}
                                   className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 disabled:opacity-20 disabled:cursor-not-allowed transition-all duration-200 cursor-pointer"
                                   title={session.isLocked ? "Session is locked & protected from deletion" : "Delete Session"}
                                 >
@@ -2594,7 +2727,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                     {selectedSessionIdsForBulk.length > 0 && (
                       <button
                         onClick={handleBulkDelete}
-                        disabled={isDeletingSessions}
+                        disabled={isDeletingSessions || isCleaningEmptySessions}
                         className="flex items-center gap-1.5 h-11 px-4 bg-red-950/40 hover:bg-red-900 border border-red-500/30 text-xs font-black uppercase tracking-wider text-red-400 hover:text-white rounded-xl transition-all cursor-pointer shrink-0 animate-in zoom-in-95 duration-205"
                       >
                         {isDeletingSessions ? (
@@ -2608,8 +2741,23 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
 
                     <button
                       type="button"
+                      onClick={handleCleanupEmptySessions}
+                      disabled={isDeletingSessions || isCleaningEmptySessions}
+                      className="flex items-center gap-1.5 h-11 px-4 bg-slate-800/60 hover:bg-slate-800 border border-slate-700/50 text-xs font-black uppercase tracking-wider text-slate-300 hover:text-white rounded-xl transition-all cursor-pointer shrink-0"
+                      title="Permanently remove all unlocked sessions with no slide images, interactive elements, or chats"
+                    >
+                      {isCleaningEmptySessions ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                      ) : (
+                        <Trash2 className="w-4 h-4 text-amber-400" />
+                      )}
+                      Clean Up Empty Sessions
+                    </button>
+
+                    <button
+                      type="button"
                       onClick={handleCleanupOldSessions}
-                      disabled={isDeletingSessions}
+                      disabled={isDeletingSessions || isCleaningEmptySessions}
                       className="flex items-center gap-1.5 h-11 px-4 bg-slate-800/60 hover:bg-slate-800 border border-slate-700/50 text-xs font-black uppercase tracking-wider text-slate-300 hover:text-white rounded-xl transition-all cursor-pointer shrink-0"
                       title="Permanently clean up all sessions and slide storage files older than 30 days"
                     >
@@ -2923,7 +3071,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                                             <button
                                               type="button"
                                               onClick={() => handleDeleteSession(session.id)}
-                                              disabled={isDeletingSessions || isActiveSession || session.isLocked}
+                                              disabled={isDeletingSessions || isCleaningEmptySessions || isActiveSession || session.isLocked}
                                               className="p-1.5 rounded-xl text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed"
                                               title={
                                                 isActiveSession 
