@@ -1062,6 +1062,22 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
         }
       }
 
+      if (slideElements.length === 0) {
+        slideElements.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: "No slide images were recorded for this presentation session.",
+                italics: true,
+                font: "Arial",
+                color: "64748B"
+              })
+            ],
+            spacing: { before: 120, after: 240 }
+          })
+        );
+      }
+
       const activityElements: any[] = [];
       if (includeChat) {
         // Query database for chat history and activities
@@ -1233,11 +1249,23 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                   });
                 });
 
+                if (pollRows.length > 0) {
+                  activityElements.push(
+                    new Table({
+                      width: { size: 100, type: WidthType.PERCENTAGE },
+                      rows: pollRows
+                    })
+                  );
+                } else {
+                  activityElements.push(
+                    new Paragraph({
+                      children: [new TextRun({ text: "No options recorded for this poll.", italics: true, font: "Arial", size: 18, color: "64748B" })],
+                      spacing: { after: 120 }
+                    })
+                  );
+                }
+
                 activityElements.push(
-                  new Table({
-                    width: { size: 100, type: WidthType.PERCENTAGE },
-                    rows: pollRows
-                  }),
                   new Paragraph({ spacing: { after: 120 } }),
                   new Paragraph({
                     children: [new TextRun({ text: `Total Votes: ${totalVotes}`, bold: true, font: "Arial", size: 18 })],
@@ -1262,7 +1290,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                   new Paragraph({
                     children: [
                       new TextRun({ text: `Triggered on ${dateStr} at ${timeStr}${slideStr}`, size: 16, color: "64748B", italics: true }),
-                      new TextRun({ text: `\nPrompt: "${w.prompt}"`, bold: true, font: "Arial", size: 18 })
+                      new TextRun({ text: `\nPrompt: "${w.prompt || ''}"`, bold: true, font: "Arial", size: 18 })
                     ],
                     spacing: { after: 120 }
                   })
@@ -1287,11 +1315,23 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                     });
                   });
 
+                if (wordRows.length > 0) {
+                  activityElements.push(
+                    new Table({
+                      width: { size: 100, type: WidthType.PERCENTAGE },
+                      rows: wordRows
+                    })
+                  );
+                } else {
+                  activityElements.push(
+                    new Paragraph({
+                      children: [new TextRun({ text: "No word submissions recorded for this word cloud.", italics: true, font: "Arial", size: 18, color: "64748B" })],
+                      spacing: { after: 120 }
+                    })
+                  );
+                }
+
                 activityElements.push(
-                  new Table({
-                    width: { size: 100, type: WidthType.PERCENTAGE },
-                    rows: wordRows
-                  }),
                   new Paragraph({ spacing: { after: 120 } }),
                   new Paragraph({
                     children: [new TextRun({ text: `Total Submissions: ${totalWords}`, bold: true, font: "Arial", size: 18 })],
@@ -1316,24 +1356,34 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                   new Paragraph({
                     children: [
                       new TextRun({ text: `Triggered on ${dateStr} at ${timeStr}${slideStr}`, size: 16, color: "64748B", italics: true }),
-                      new TextRun({ text: `\nQuestion: "${q.prompt}"`, bold: true, font: "Arial", size: 18 })
+                      new TextRun({ text: `\nQuestion: "${q.prompt || ''}"`, bold: true, font: "Arial", size: 18 })
                     ],
                     spacing: { after: 120 }
                   })
                 );
 
-                const responseParagraphs = Object.values(q.responses || {}).map(resp => {
-                  return new Paragraph({
-                    children: [
-                      new TextRun({ text: `• `, bold: true, font: "Arial", size: 18 }),
-                      new TextRun({ text: `"${resp}"`, italics: true, font: "Arial", size: 18, color: "334155" })
-                    ],
-                    spacing: { before: 60, after: 60 }
+                const responseEntries = Object.values(q.responses || {});
+                if (responseEntries.length > 0) {
+                  const responseParagraphs = responseEntries.map(resp => {
+                    return new Paragraph({
+                      children: [
+                        new TextRun({ text: `• `, bold: true, font: "Arial", size: 18 }),
+                        new TextRun({ text: `"${resp}"`, italics: true, font: "Arial", size: 18, color: "334155" })
+                      ],
+                      spacing: { before: 60, after: 60 }
+                    });
                   });
-                });
+                  activityElements.push(...responseParagraphs);
+                } else {
+                  activityElements.push(
+                    new Paragraph({
+                      children: [new TextRun({ text: "No responses recorded for this question.", italics: true, font: "Arial", size: 18, color: "64748B" })],
+                      spacing: { after: 120 }
+                    })
+                  );
+                }
 
                 activityElements.push(
-                  ...responseParagraphs,
                   new Paragraph({
                     children: [new TextRun({ text: `Total Responses: ${totalResponses}`, bold: true, font: "Arial", size: 18 })],
                     spacing: { before: 120, after: 240 }
