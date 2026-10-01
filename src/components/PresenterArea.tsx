@@ -6,6 +6,7 @@ import { useBridge } from '../contexts/BridgeContext';
 import { auth, db, storage } from '../firebase';
 import { doc, getDoc, updateDoc, onSnapshot, collection, query, where } from 'firebase/firestore';
 import { QRCodeSVG } from 'qrcode.react';
+import { compositeSlideWithAnnotations, createSlidePlaceholderImage } from '../utils/exportNotesDocx';
 
 export interface DrawingPoint {
   x: number;
@@ -1525,193 +1526,6 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     };
   }, [isCapturing, currentSlide, presentation?.currentSlide]);
 
-  const compositeSlideWithAnnotations = (
-    slideImgUrl: string,
-    presenterDrawingsJson?: string
-  ): Promise<Uint8Array | null> => {
-    return new Promise(async (resolve) => {
-      let localUrl = '';
-      try {
-        if (slideImgUrl.startsWith('data:')) {
-          localUrl = slideImgUrl;
-        } else {
-          const isExternal = slideImgUrl.startsWith('http') && !slideImgUrl.includes(window.location.host);
-          const fetchUrl = isExternal 
-            ? `/api/proxy-image?url=${encodeURIComponent(slideImgUrl)}`
-            : slideImgUrl;
-            
-          const response = await fetch(fetchUrl);
-          if (!response.ok) {
-            throw new Error(`Fetch failed: ${response.statusText}`);
-          }
-          const blob = await response.blob();
-          localUrl = URL.createObjectURL(blob);
-        }
-      } catch (e) {
-        console.error("compositeSlideWithAnnotations: Failed to fetch image", e);
-        localUrl = slideImgUrl;
-      }
-
-      const img = new Image();
-      if (!localUrl.startsWith('data:') && !localUrl.startsWith('blob:')) {
-        img.crossOrigin = 'anonymous';
-      }
-      
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = img.naturalWidth || 1920;
-        canvas.height = img.naturalHeight || 1080;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          if (localUrl.startsWith('blob:')) URL.revokeObjectURL(localUrl);
-          resolve(null);
-          return;
-        }
-
-        // Draw base slide image
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-        const drawStrokeList = (strokes: any[]) => {
-          strokes.forEach(stroke => {
-            if (!stroke.points || stroke.points.length === 0) return;
-            ctx.save();
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-
-            const scaleX = canvas.width / 1000;
-            const scaleY = canvas.height / 1000;
-            const avgScale = (scaleX + scaleY) / 2;
-
-            ctx.lineWidth = stroke.width * avgScale;
-
-            if (stroke.isHighlighter) {
-              ctx.strokeStyle = 'rgba(234, 179, 8, 0.45)';
-            } else {
-              ctx.strokeStyle = stroke.color === '#FFFFFF' ? '#cbd5e1' : stroke.color;
-              ctx.fillStyle = stroke.color === '#FFFFFF' ? '#cbd5e1' : stroke.color;
-            }
-
-            const pts = stroke.points.map((p: any) => ({
-              x: p.x * scaleX,
-              y: p.y * scaleY
-            }));
-
-            if (stroke.text && pts[0]) {
-              const fontSize = Math.max(26, stroke.width * 5) * avgScale;
-              ctx.font = `bold ${fontSize}px sans-serif`;
-              ctx.fillText(stroke.text, pts[0].x, pts[0].y);
-            } else if (stroke.isArrow && pts.length >= 2) {
-              const p1 = pts[0];
-              const p2 = pts[pts.length - 1];
-              const dx = p2.x - p1.x;
-              const dy = p2.y - p1.y;
-              const angle = Math.atan2(dy, dx);
-              const headLength = Math.max(25, stroke.width * 4) * avgScale;
-              const arrowAngle = Math.PI / 6;
-
-              const h1x = p2.x - headLength * Math.cos(angle - arrowAngle);
-              const h1y = p2.y - headLength * Math.sin(angle - arrowAngle);
-              const h2x = p2.x - headLength * Math.cos(angle + arrowAngle);
-              const h2y = p2.y - headLength * Math.sin(angle + arrowAngle);
-
-              ctx.beginPath();
-              ctx.moveTo(p1.x, p1.y);
-              ctx.lineTo(p2.x, p2.y);
-              ctx.moveTo(p2.x, p2.y);
-              ctx.lineTo(h1x, h1y);
-              ctx.moveTo(p2.x, p2.y);
-              ctx.lineTo(h2x, h2y);
-              ctx.stroke();
-            } else if (stroke.isLine && pts.length >= 2) {
-              const p1 = pts[0];
-              const p2 = pts[pts.length - 1];
-              ctx.beginPath();
-              ctx.moveTo(p1.x, p1.y);
-              ctx.lineTo(p2.x, p2.y);
-              ctx.stroke();
-            } else if (stroke.isRectangle && pts.length >= 2) {
-              const p1 = pts[0];
-              const p2 = pts[pts.length - 1];
-              const x = Math.min(p1.x, p2.x);
-              const y = Math.min(p1.y, p2.y);
-              const w = Math.abs(p2.x - p1.x);
-              const h = Math.abs(p2.y - p1.y);
-              ctx.beginPath();
-              ctx.rect(x, y, w, h);
-              ctx.stroke();
-            } else if (stroke.isCircle && pts.length >= 2) {
-              const p1 = pts[0];
-              const p2 = pts[pts.length - 1];
-              const cx = (p1.x + p2.x) / 2;
-              const cy = (p1.y + p2.y) / 2;
-              const rx = Math.abs(p2.x - p1.x) / 2;
-              const ry = Math.abs(p2.y - p1.y) / 2;
-              ctx.beginPath();
-              if (typeof ctx.ellipse === 'function') {
-                ctx.ellipse(cx, cy, rx, ry, 0, 0, 2 * Math.PI);
-              } else {
-                const r = (rx + ry) / 2;
-                ctx.arc(cx, cy, r, 0, 2 * Math.PI);
-              }
-              ctx.stroke();
-            } else {
-              ctx.beginPath();
-              pts.forEach((p: any, i: number) => {
-                if (i === 0) ctx.moveTo(p.x, p.y);
-                else ctx.lineTo(p.x, p.y);
-              });
-              if (pts.length === 1) {
-                ctx.lineTo(pts[0].x + 0.1, pts[0].y + 0.1);
-              }
-              ctx.stroke();
-            }
-            ctx.restore();
-          });
-        };
-
-        // Draw Presenter Drawings
-        if (presenterDrawingsJson) {
-          try {
-            const pStrokes = JSON.parse(presenterDrawingsJson);
-            if (Array.isArray(pStrokes)) drawStrokeList(pStrokes);
-          } catch {}
-        }
-
-        try {
-          const dataUrl = canvas.toDataURL('image/png');
-          const parts = dataUrl.split(',');
-          if (parts.length >= 2) {
-            const binaryStr = window.atob(parts[1]);
-            const len = binaryStr.length;
-            const bytes = new Uint8Array(len);
-            for (let i = 0; i < len; i++) {
-              bytes[i] = binaryStr.charCodeAt(i);
-            }
-            if (localUrl.startsWith('blob:')) URL.revokeObjectURL(localUrl);
-            resolve(bytes);
-          } else {
-            if (localUrl.startsWith('blob:')) URL.revokeObjectURL(localUrl);
-            resolve(null);
-          }
-        } catch (e) {
-          if (localUrl.startsWith('blob:')) URL.revokeObjectURL(localUrl);
-          resolve(null);
-        }
-      };
-
-      img.onerror = () => {
-        if (localUrl.startsWith('blob:')) URL.revokeObjectURL(localUrl);
-        // Fallback fetch
-        fetch(slideImgUrl)
-          .then(res => res.arrayBuffer())
-          .then(buf => resolve(new Uint8Array(buf)))
-          .catch(() => resolve(null));
-      };
-
-      img.src = localUrl;
-    });
-  };
-
   const handleDownloadPresentation = async (includeChat = false) => {
     if (!presentation?.id) return;
     setIsDownloadingPresentation(true);
@@ -1763,15 +1577,15 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         const slideImgUrl = previewsMap[slide];
         if (slideImgUrl) {
           const presenterJson = presentation?.presenterDrawings?.[slide];
-          const imgBytes = await compositeSlideWithAnnotations(slideImgUrl, presenterJson);
-          if (imgBytes) {
+          const imgResult = (await compositeSlideWithAnnotations(slideImgUrl, presenterJson)) || createSlidePlaceholderImage(titleStr);
+          if (imgResult) {
             slideElements.push(
               new Paragraph({
                 children: [
                   new ImageRun({
-                    data: imgBytes,
+                    data: imgResult.data,
                     transformation: { width: 500, height: 280 },
-                    type: 'png'
+                    type: imgResult.type
                   })
                 ],
                 spacing: { after: 180 }

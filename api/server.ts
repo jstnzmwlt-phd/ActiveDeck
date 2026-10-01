@@ -70,6 +70,8 @@ app.get('/api/shorten', async (req, res) => {
 });
 
 app.get('/api/proxy-image', async (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   const { url } = req.query;
   if (!url || typeof url !== 'string') {
     return res.status(400).send('URL is required');
@@ -81,7 +83,6 @@ app.get('/api/proxy-image', async (req, res) => {
     }
     const contentType = response.headers.get('content-type') || 'image/jpeg';
     res.setHeader('Content-Type', contentType);
-    res.setHeader('Access-Control-Allow-Origin', '*');
     
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);

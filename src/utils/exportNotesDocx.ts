@@ -68,18 +68,105 @@ export const dataUriToUint8Array = (dataUrl: string): Uint8Array | null => {
   }
 };
 
-export const fetchImageAsUint8Array = async (url: string): Promise<Uint8Array | null> => {
+export const detectImageFormat = (bytes: Uint8Array | null | undefined): 'png' | 'jpg' | 'gif' | 'bmp' | null => {
+  if (!bytes || bytes.length < 4) return null;
+  // PNG: 89 50 4E 47
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) {
+    return 'png';
+  }
+  // JPEG: FF D8 FF
+  if (bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF) {
+    return 'jpg';
+  }
+  // GIF: 47 49 46
+  if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46) {
+    return 'gif';
+  }
+  // BMP: 42 4D
+  if (bytes[0] === 0x42 && bytes[1] === 0x4D) {
+    return 'bmp';
+  }
+  return null;
+};
+
+export const fetchImageAsUint8Array = async (url: string): Promise<{ data: Uint8Array; type: 'png' | 'jpg' | 'gif' | 'bmp' } | null> => {
+  if (!url) return null;
   if (url.startsWith('data:')) {
-    return dataUriToUint8Array(url);
+    const bytes = dataUriToUint8Array(url);
+    if (!bytes) return null;
+    const format = detectImageFormat(bytes);
+    return format ? { data: bytes, type: format } : null;
   }
   try {
-    const response = await fetch(url);
-    const arrayBuffer = await response.arrayBuffer();
-    return new Uint8Array(arrayBuffer);
+    const isExternal = url.startsWith('http') && typeof window !== 'undefined' && !url.includes(window.location.host);
+    const urlsToTry = isExternal
+      ? [url, `/api/proxy-image?url=${encodeURIComponent(url)}`]
+      : [url];
+
+    for (const fetchUrl of urlsToTry) {
+      try {
+        const response = await fetch(fetchUrl);
+        if (response.ok) {
+          const arrayBuffer = await response.arrayBuffer();
+          const bytes = new Uint8Array(arrayBuffer);
+          const format = detectImageFormat(bytes);
+          if (format) {
+            return { data: bytes, type: format };
+          }
+        }
+      } catch {
+        // try next fallback URL
+      }
+    }
+    return null;
   } catch (e) {
     console.error("Failed to fetch image URL as Uint8Array:", e);
     return null;
   }
+};
+
+export const createSlidePlaceholderImage = (slideTitle: string): { data: Uint8Array; type: 'png' } | null => {
+  try {
+    if (typeof document === 'undefined') return null;
+    const canvas = document.createElement('canvas');
+    canvas.width = 1000;
+    canvas.height = 560;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    // Background card
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(0, 0, 1000, 560);
+
+    // Subtle border
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(12, 12, 976, 536);
+
+    // Primary Text
+    ctx.fillStyle = '#334155';
+    ctx.font = 'bold 36px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(slideTitle, 500, 240);
+
+    // Secondary Text
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = 'normal 22px Arial, sans-serif';
+    ctx.fillText('Slide preview image not available or archived', 500, 310);
+
+    const dataUrl = canvas.toDataURL('image/png');
+    const bytes = dataUriToUint8Array(dataUrl);
+    if (bytes) {
+      const format = detectImageFormat(bytes);
+      if (format === 'png') {
+        return { data: bytes, type: 'png' };
+      }
+    }
+  } catch (e) {
+    console.warn("createSlidePlaceholderImage failed:", e);
+  }
+  return null;
 };
 
 export const convertStrokesToPng = (drawingJson: string): string => {
@@ -165,180 +252,233 @@ export const convertStrokesToPng = (drawingJson: string): string => {
   }
 };
 
-export const compositeSlideWithAnnotations = (
+export const compositeSlideWithAnnotations = async (
   slideImgUrl: string,
   presenterDrawingsJson?: string,
   studentDrawingsJson?: string
-): Promise<Uint8Array | null> => {
+): Promise<{ data: Uint8Array; type: 'png' | 'jpg' | 'gif' | 'bmp' } | null> => {
+  if (!slideImgUrl) return null;
+
+  const hasStrokes = (json?: string): boolean => {
+    if (!json) return false;
+    try {
+      const parsed = JSON.parse(json);
+      return Array.isArray(parsed) && parsed.length > 0;
+    } catch {
+      return false;
+    }
+  };
+
+  const hasPresenter = hasStrokes(presenterDrawingsJson);
+  const hasStudent = hasStrokes(studentDrawingsJson);
+
+  // If there are NO annotations, directly fetch the original image bytes
+  // This avoids canvas re-encoding overhead and eliminates memory/taint issues
+  if (!hasPresenter && !hasStudent) {
+    return await fetchImageAsUint8Array(slideImgUrl);
+  }
+
+  // If annotations exist, fetch image into a local blob to guarantee clean canvas drawing
   return new Promise(async (resolve) => {
-    let localUrl = '';
+    let localBlobUrl = '';
     try {
       if (slideImgUrl.startsWith('data:')) {
-        localUrl = slideImgUrl;
+        localBlobUrl = slideImgUrl;
       } else {
-        const isExternal = slideImgUrl.startsWith('http') && !slideImgUrl.includes(window.location.host);
-        const fetchUrl = isExternal 
-          ? `/api/proxy-image?url=${encodeURIComponent(slideImgUrl)}`
-          : slideImgUrl;
-          
-        const response = await fetch(fetchUrl);
-        if (!response.ok) {
-          throw new Error(`Fetch failed: ${response.statusText}`);
+        const isExternal = slideImgUrl.startsWith('http') && typeof window !== 'undefined' && !slideImgUrl.includes(window.location.host);
+        const urlsToTry = isExternal
+          ? [slideImgUrl, `/api/proxy-image?url=${encodeURIComponent(slideImgUrl)}`]
+          : [slideImgUrl];
+
+        let blob: Blob | null = null;
+        for (const fetchUrl of urlsToTry) {
+          try {
+            const res = await fetch(fetchUrl);
+            if (res.ok) {
+              const contentType = res.headers.get('content-type') || '';
+              if (contentType.includes('image') || contentType === 'application/octet-stream' || !contentType.includes('json')) {
+                blob = await res.blob();
+                if (blob.size > 100) break;
+              }
+            }
+          } catch {
+            // try next URL
+          }
         }
-        const blob = await response.blob();
-        localUrl = URL.createObjectURL(blob);
+
+        if (blob) {
+          localBlobUrl = URL.createObjectURL(blob);
+        } else {
+          localBlobUrl = slideImgUrl;
+        }
       }
     } catch (e) {
       console.error("compositeSlideWithAnnotations: Failed to fetch image", e);
-      localUrl = slideImgUrl;
+      localBlobUrl = slideImgUrl;
     }
+
+    const cleanup = () => {
+      if (localBlobUrl && localBlobUrl.startsWith('blob:')) {
+        try {
+          URL.revokeObjectURL(localBlobUrl);
+        } catch {}
+      }
+    };
 
     const img = new Image();
-    if (!localUrl.startsWith('data:') && !localUrl.startsWith('blob:')) {
+    if (!localBlobUrl.startsWith('data:') && !localBlobUrl.startsWith('blob:')) {
       img.crossOrigin = 'anonymous';
     }
-    
+
     img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = img.naturalWidth || 1920;
-      canvas.height = img.naturalHeight || 1080;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        if (localUrl.startsWith('blob:')) URL.revokeObjectURL(localUrl);
-        resolve(null);
-        return;
-      }
-
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-      const drawStrokeList = (strokes: DrawingStroke[]) => {
-        strokes.forEach(stroke => {
-          if (!stroke.points || stroke.points.length === 0) return;
-          ctx.save();
-          ctx.lineCap = 'round';
-          ctx.lineJoin = 'round';
-
-          const scaleX = canvas.width / 1000;
-          const scaleY = canvas.height / 1000;
-          const avgScale = (scaleX + scaleY) / 2;
-
-          ctx.lineWidth = stroke.width * avgScale;
-
-          if (stroke.isHighlighter) {
-            ctx.strokeStyle = 'rgba(234, 179, 8, 0.45)';
-          } else {
-            ctx.strokeStyle = stroke.color === '#FFFFFF' ? '#cbd5e1' : stroke.color;
-            ctx.fillStyle = stroke.color === '#FFFFFF' ? '#cbd5e1' : stroke.color;
-          }
-
-          const pts = stroke.points.map(p => ({
-            x: p.x * scaleX,
-            y: p.y * scaleY
-          }));
-
-          if (stroke.text && pts[0]) {
-            const fontSize = Math.max(26, stroke.width * 5) * avgScale;
-            ctx.font = `bold ${fontSize}px sans-serif`;
-            ctx.fillText(stroke.text, pts[0].x, pts[0].y);
-          } else if (stroke.isArrow && pts.length >= 2) {
-            const p1 = pts[0];
-            const p2 = pts[pts.length - 1];
-            const dx = p2.x - p1.x;
-            const dy = p2.y - p1.y;
-            const angle = Math.atan2(dy, dx);
-            const headLength = Math.max(25, stroke.width * 4) * avgScale;
-            const arrowAngle = Math.PI / 6;
-
-            const h1x = p2.x - headLength * Math.cos(angle - arrowAngle);
-            const h1y = p2.y - headLength * Math.sin(angle - arrowAngle);
-            const h2x = p2.x - headLength * Math.cos(angle + arrowAngle);
-            const h2y = p2.y - headLength * Math.sin(angle + arrowAngle);
-
-            ctx.beginPath();
-            ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(p2.x, p2.y);
-            ctx.moveTo(p2.x, p2.y);
-            ctx.lineTo(h1x, h1y);
-            ctx.moveTo(p2.x, p2.y);
-            ctx.lineTo(h2x, h2y);
-            ctx.stroke();
-          } else if (stroke.isLine && pts.length >= 2) {
-            const p1 = pts[0];
-            const p2 = pts[pts.length - 1];
-            ctx.beginPath();
-            ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(p2.x, p2.y);
-            ctx.stroke();
-          } else if (stroke.isRectangle && pts.length >= 2) {
-            const p1 = pts[0];
-            const p2 = pts[pts.length - 1];
-            const x = Math.min(p1.x, p2.x);
-            const y = Math.min(p1.y, p2.y);
-            const w = Math.abs(p2.x - p1.x);
-            const h = Math.abs(p2.y - p1.y);
-            ctx.beginPath();
-            ctx.rect(x, y, w, h);
-            ctx.stroke();
-          } else if (stroke.isCircle && pts.length >= 2) {
-            const p1 = pts[0];
-            const p2 = pts[pts.length - 1];
-            const cx = (p1.x + p2.x) / 2;
-            const cy = (p1.y + p2.y) / 2;
-            const rx = Math.abs(p2.x - p1.x) / 2;
-            const ry = Math.abs(p2.y - p1.y) / 2;
-            ctx.beginPath();
-            if (typeof ctx.ellipse === 'function') {
-              ctx.ellipse(cx, cy, rx, ry, 0, 0, 2 * Math.PI);
-            } else {
-              const r = (rx + ry) / 2;
-              ctx.arc(cx, cy, r, 0, 2 * Math.PI);
-            }
-            ctx.stroke();
-          } else {
-            ctx.beginPath();
-            pts.forEach((p, i) => {
-              if (i === 0) ctx.moveTo(p.x, p.y);
-              else ctx.lineTo(p.x, p.y);
-            });
-            if (pts.length === 1) {
-              ctx.lineTo(pts[0].x + 0.1, pts[0].y + 0.1);
-            }
-            ctx.stroke();
-          }
-          ctx.restore();
-        });
-      };
-
-      if (presenterDrawingsJson) {
-        try {
-          const pStrokes = JSON.parse(presenterDrawingsJson);
-          if (Array.isArray(pStrokes)) drawStrokeList(pStrokes);
-        } catch {}
-      }
-
-      if (studentDrawingsJson) {
-        try {
-          const sStrokes = JSON.parse(studentDrawingsJson);
-          if (Array.isArray(sStrokes)) drawStrokeList(sStrokes);
-        } catch {}
-      }
-
       try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth || 1920;
+        canvas.height = img.naturalHeight || 1080;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          cleanup();
+          fetchImageAsUint8Array(slideImgUrl).then(resolve);
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        const drawStrokeList = (strokes: DrawingStroke[]) => {
+          strokes.forEach(stroke => {
+            if (!stroke.points || stroke.points.length === 0) return;
+            ctx.save();
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            const scaleX = canvas.width / 1000;
+            const scaleY = canvas.height / 1000;
+            const avgScale = (scaleX + scaleY) / 2;
+
+            ctx.lineWidth = stroke.width * avgScale;
+
+            if (stroke.isHighlighter) {
+              ctx.strokeStyle = 'rgba(234, 179, 8, 0.45)';
+            } else {
+              ctx.strokeStyle = stroke.color === '#FFFFFF' ? '#cbd5e1' : stroke.color;
+              ctx.fillStyle = stroke.color === '#FFFFFF' ? '#cbd5e1' : stroke.color;
+            }
+
+            const pts = stroke.points.map(p => ({
+              x: p.x * scaleX,
+              y: p.y * scaleY
+            }));
+
+            if (stroke.text && pts[0]) {
+              const fontSize = Math.max(26, stroke.width * 5) * avgScale;
+              ctx.font = `bold ${fontSize}px sans-serif`;
+              ctx.fillText(stroke.text, pts[0].x, pts[0].y);
+            } else if (stroke.isArrow && pts.length >= 2) {
+              const p1 = pts[0];
+              const p2 = pts[pts.length - 1];
+              const dx = p2.x - p1.x;
+              const dy = p2.y - p1.y;
+              const angle = Math.atan2(dy, dx);
+              const headLength = Math.max(25, stroke.width * 4) * avgScale;
+              const arrowAngle = Math.PI / 6;
+
+              const h1x = p2.x - headLength * Math.cos(angle - arrowAngle);
+              const h1y = p2.y - headLength * Math.sin(angle - arrowAngle);
+              const h2x = p2.x - headLength * Math.cos(angle + arrowAngle);
+              const h2y = p2.y - headLength * Math.sin(angle + arrowAngle);
+
+              ctx.beginPath();
+              ctx.moveTo(p1.x, p1.y);
+              ctx.lineTo(p2.x, p2.y);
+              ctx.moveTo(p2.x, p2.y);
+              ctx.lineTo(h1x, h1y);
+              ctx.moveTo(p2.x, p2.y);
+              ctx.lineTo(h2x, h2y);
+              ctx.stroke();
+            } else if (stroke.isLine && pts.length >= 2) {
+              const p1 = pts[0];
+              const p2 = pts[pts.length - 1];
+              ctx.beginPath();
+              ctx.moveTo(p1.x, p1.y);
+              ctx.lineTo(p2.x, p2.y);
+              ctx.stroke();
+            } else if (stroke.isRectangle && pts.length >= 2) {
+              const p1 = pts[0];
+              const p2 = pts[pts.length - 1];
+              const x = Math.min(p1.x, p2.x);
+              const y = Math.min(p1.y, p2.y);
+              const w = Math.abs(p2.x - p1.x);
+              const h = Math.abs(p2.y - p1.y);
+              ctx.beginPath();
+              ctx.rect(x, y, w, h);
+              ctx.stroke();
+            } else if (stroke.isCircle && pts.length >= 2) {
+              const p1 = pts[0];
+              const p2 = pts[pts.length - 1];
+              const cx = (p1.x + p2.x) / 2;
+              const cy = (p1.y + p2.y) / 2;
+              const rx = Math.abs(p2.x - p1.x) / 2;
+              const ry = Math.abs(p2.y - p1.y) / 2;
+              ctx.beginPath();
+              if (typeof ctx.ellipse === 'function') {
+                ctx.ellipse(cx, cy, rx, ry, 0, 0, 2 * Math.PI);
+              } else {
+                const r = (rx + ry) / 2;
+                ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+              }
+              ctx.stroke();
+            } else {
+              ctx.beginPath();
+              pts.forEach((p, i) => {
+                if (i === 0) ctx.moveTo(p.x, p.y);
+                else ctx.lineTo(p.x, p.y);
+              });
+              if (pts.length === 1) {
+                ctx.lineTo(pts[0].x + 0.1, pts[0].y + 0.1);
+              }
+              ctx.stroke();
+            }
+            ctx.restore();
+          });
+        };
+
+        if (presenterDrawingsJson) {
+          try {
+            const pStrokes = JSON.parse(presenterDrawingsJson);
+            if (Array.isArray(pStrokes)) drawStrokeList(pStrokes);
+          } catch {}
+        }
+
+        if (studentDrawingsJson) {
+          try {
+            const sStrokes = JSON.parse(studentDrawingsJson);
+            if (Array.isArray(sStrokes)) drawStrokeList(sStrokes);
+          } catch {}
+        }
+
         const dataUrl = canvas.toDataURL('image/png');
-        if (localUrl.startsWith('blob:')) URL.revokeObjectURL(localUrl);
-        resolve(dataUriToUint8Array(dataUrl));
+        cleanup();
+        const bytes = dataUriToUint8Array(dataUrl);
+        if (bytes) {
+          const format = detectImageFormat(bytes);
+          if (format) {
+            resolve({ data: bytes, type: format });
+            return;
+          }
+        }
+        fetchImageAsUint8Array(slideImgUrl).then(resolve);
       } catch (e) {
-        if (localUrl.startsWith('blob:')) URL.revokeObjectURL(localUrl);
-        resolve(null);
+        cleanup();
+        fetchImageAsUint8Array(slideImgUrl).then(resolve);
       }
     };
 
     img.onerror = () => {
-      if (localUrl.startsWith('blob:')) URL.revokeObjectURL(localUrl);
+      cleanup();
       fetchImageAsUint8Array(slideImgUrl).then(resolve);
     };
 
-    img.src = localUrl;
+    img.src = localBlobUrl;
   });
 };
 
@@ -582,12 +722,13 @@ export const exportNotesToDocx = async (options: ExportNotesOptions): Promise<bo
       const presenterJson = presenterDrawingsMap[slide];
       const studentJson = studentSlideDrawingsMap[slide];
 
-      const imgBytes = await compositeSlideWithAnnotations(
+      const imgResult = (await compositeSlideWithAnnotations(
         slideImgUrl,
         presenterJson,
         studentJson
-      );
-      if (imgBytes) {
+      )) || createSlidePlaceholderImage(getTabTitle(slide));
+
+      if (imgResult) {
         slideElements.push(
           new Paragraph({
             children: [
@@ -600,9 +741,9 @@ export const exportNotesToDocx = async (options: ExportNotesOptions): Promise<bo
           new Paragraph({
             children: [
               new ImageRun({
-                data: imgBytes,
+                data: imgResult.data,
                 transformation: { width: 500, height: 280 },
-                type: 'png'
+                type: imgResult.type
               })
             ],
             spacing: { after: 180 }
@@ -622,7 +763,8 @@ export const exportNotesToDocx = async (options: ExportNotesOptions): Promise<bo
       const pngDataUrl = convertStrokesToPng(drawingJson);
       if (pngDataUrl) {
         const drawingBytes = dataUriToUint8Array(pngDataUrl);
-        if (drawingBytes) {
+        const format = detectImageFormat(drawingBytes);
+        if (drawingBytes && format) {
           slideElements.push(
             new Paragraph({
               children: [
@@ -637,7 +779,7 @@ export const exportNotesToDocx = async (options: ExportNotesOptions): Promise<bo
                 new ImageRun({
                   data: drawingBytes,
                   transformation: { width: 500, height: 350 },
-                  type: 'png'
+                  type: format
                 })
               ],
               spacing: { after: 180 }
