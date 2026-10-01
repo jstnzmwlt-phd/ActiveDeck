@@ -75,6 +75,7 @@ export interface Presentation {
   magnifierX?: number;
   magnifierY?: number;
   magnifierActive?: boolean;
+  isLocked?: boolean;
 }
 
 export interface Message {

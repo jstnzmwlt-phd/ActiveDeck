@@ -3,7 +3,7 @@ import { doc, getDoc, setDoc, addDoc, collection, onSnapshot, deleteDoc, query, 
 import { db, storage } from '../firebase';
 import { ref, listAll, deleteObject } from 'firebase/storage';
 import { Theme, SavedTheme, Message, Poll, WordCloud, OpenEndedQuestion, Presentation } from '../types';
-import { Palette, UserCheck, Download, ArrowLeft, Loader2, Calendar, Database, AlertCircle, Trash2, Monitor, Plus, Mail, History, Copy, Check, FileText, Send, X, Presentation as PresentationIcon, ChevronDown, ChevronRight, ChevronsUpDown, User } from 'lucide-react';
+import { Palette, UserCheck, Download, ArrowLeft, Loader2, Calendar, Database, AlertCircle, Trash2, Monitor, Plus, Mail, History, Copy, Check, FileText, Send, X, Presentation as PresentationIcon, ChevronDown, ChevronRight, ChevronsUpDown, User, Lock, Unlock } from 'lucide-react';
 
 const formatHtmlTextWithLinks = (text: string): string => {
   if (!text) return '';
@@ -56,6 +56,7 @@ interface RecentPresentationRecord {
   presenterId: string;
   presenterEmail?: string;
   hasActivity?: boolean;
+  isLocked?: boolean;
 }
 
 export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
@@ -85,6 +86,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
   const [downloadingSessionId, setDownloadingSessionId] = useState<string | null>(null);
   const [downloadModalSessionId, setDownloadModalSessionId] = useState<string | null>(null);
   const [expandedPresenters, setExpandedPresenters] = useState<Record<string, boolean>>({});
+  const [lockingSessionId, setLockingSessionId] = useState<string | null>(null);
 
   // Presenter Management States
   const [selectedPresenterKeysForBulk, setSelectedPresenterKeysForBulk] = useState<string[]>([]);
@@ -122,6 +124,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
 
       const oldSessions = recentSessions.filter(session => {
         if (!session.createdAt) return false;
+        if (session.isLocked) return false;
         const createdAtDate = new Date(session.createdAt.seconds * 1000);
         return createdAtDate < thirtyDaysAgo && session.id !== presentationId;
       });
@@ -190,6 +193,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
       sessions: RecentPresentationRecord[];
       latestDate: Date | null;
       hasActiveLiveSession: boolean;
+      lockedCount: number;
     }>();
 
     filteredSessions.forEach(session => {
@@ -209,12 +213,14 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
           sessions: [],
           latestDate: dateObj,
           hasActiveLiveSession: isActive,
+          lockedCount: 0,
         });
       }
 
       const entry = map.get(key)!;
       entry.sessions.push(session);
       if (isActive) entry.hasActiveLiveSession = true;
+      if (session.isLocked) entry.lockedCount++;
       if (dateObj && (!entry.latestDate || dateObj > entry.latestDate)) {
         entry.latestDate = dateObj;
       }
@@ -247,6 +253,26 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
       nextMap[g.email.toLowerCase()] = nextState;
     });
     setExpandedPresenters(nextMap);
+  };
+
+  // Lock / Unlock Presentation Session to protect from accidental deletion
+  const handleToggleLockSession = async (sessionId: string, currentLockState: boolean) => {
+    setLockingSessionId(sessionId);
+    try {
+      const sessionRef = doc(db, 'presentations', sessionId);
+      await updateDoc(sessionRef, {
+        isLocked: !currentLockState
+      });
+      // If we are locking the session, remove it from the bulk delete selection immediately
+      if (!currentLockState) {
+        setSelectedSessionIdsForBulk(prev => prev.filter(id => id !== sessionId));
+      }
+    } catch (error: any) {
+      console.error("Error toggling session lock status:", error);
+      alert(`Failed to update session lock status: ${error.message || error}`);
+    } finally {
+      setLockingSessionId(null);
+    }
   };
 
   // Fetch Global Settings (Institution colors/logo) and Saved Institutions (Initial Load)
@@ -294,7 +320,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
         createdAt: doc.data().createdAt || null,
         presenterId: doc.data().presenterId || '',
         presenterEmail: doc.data().presenterEmail || '',
-        hasActivity: doc.data().hasActivity !== undefined ? doc.data().hasActivity : undefined
+        hasActivity: doc.data().hasActivity !== undefined ? doc.data().hasActivity : undefined,
+        isLocked: doc.data().isLocked === true
       })) as RecentPresentationRecord[];
       setRecentSessions(sessions);
       setLoadingSessions(false);
@@ -431,6 +458,12 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
   // Helper to delete session and all its subcollection documents, messages, and storage files
   const deleteSessionDoc = async (sessionId: string) => {
     console.log(`[deleteSessionDoc] Starting deletion sequence for session: ${sessionId}`);
+
+    // Safety check: Never delete a locked session
+    const targetSession = recentSessions.find(s => s.id === sessionId);
+    if (targetSession?.isLocked) {
+      throw new Error(`Session ${sessionId} is locked and protected from deletion.`);
+    }
     
     // 1. Fetch all attendance check-ins under the session
     let attendanceDocs: any[] = [];
@@ -529,6 +562,12 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
       return;
     }
 
+    const targetSession = recentSessions.find(s => s.id === sessionId);
+    if (targetSession?.isLocked) {
+      alert("This session is locked and protected from deletion. Please unlock it before deleting.");
+      return;
+    }
+
     if (!confirm('Are you sure you want to delete this session? This will permanently erase the session and all its student attendance check-ins.')) {
       return;
     }
@@ -559,15 +598,29 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
   };
 
   const handleBulkDelete = async () => {
-    // Exclude the active presentation ID just to be absolutely safe
-    const safeSelectedIds = selectedSessionIdsForBulk.filter(id => id !== presentationId);
+    // Exclude the active presentation ID and any locked sessions
+    const safeSelectedIds = selectedSessionIdsForBulk.filter(id => {
+      if (id === presentationId) return false;
+      const s = recentSessions.find(item => item.id === id);
+      return !s?.isLocked;
+    });
+
+    const lockedCount = selectedSessionIdsForBulk.filter(id => {
+      const s = recentSessions.find(item => item.id === id);
+      return s?.isLocked;
+    }).length;
 
     if (safeSelectedIds.length === 0) {
-      alert("No eligible sessions selected for deletion. Note: The active live presentation session cannot be deleted.");
+      if (lockedCount > 0) {
+        alert("All selected session(s) are locked and protected from deletion. Please unlock them first if you wish to delete them.");
+      } else {
+        alert("No eligible sessions selected for deletion. Note: The active live presentation session cannot be deleted.");
+      }
       return;
     }
 
-    const confirmMessage = `Are you sure you want to delete the ${safeSelectedIds.length} selected session(s)? This will permanently erase all selected sessions and their student attendance check-ins.`;
+    const lockedNotice = lockedCount > 0 ? ` (${lockedCount} locked session${lockedCount > 1 ? 's' : ''} will be skipped and protected)` : '';
+    const confirmMessage = `Are you sure you want to delete the ${safeSelectedIds.length} selected session(s)?${lockedNotice} This will permanently erase all selected sessions and their student attendance check-ins.`;
     if (!confirm(confirmMessage)) return;
 
     setIsDeletingSessions(true);
@@ -625,19 +678,33 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    // Filter sessions older than 30 days that are not the live presentation
+    // Filter sessions older than 30 days that are not the live presentation and not locked
     const oldSessions = recentSessions.filter(session => {
       if (!session.createdAt) return false;
+      if (session.isLocked) return false;
       const createdAtDate = new Date(session.createdAt.seconds * 1000);
       return createdAtDate < thirtyDaysAgo && session.id !== presentationId;
     });
 
+    const lockedOldSessionsCount = recentSessions.filter(session => {
+      if (!session.createdAt) return false;
+      const createdAtDate = new Date(session.createdAt.seconds * 1000);
+      return createdAtDate < thirtyDaysAgo && session.id !== presentationId && session.isLocked;
+    }).length;
+
     if (oldSessions.length === 0) {
-      alert("No sessions older than 30 days were found.");
+      if (lockedOldSessionsCount > 0) {
+        alert(`No unlocked sessions older than 30 days were found (${lockedOldSessionsCount} locked session(s) are preserved).`);
+      } else {
+        alert("No sessions older than 30 days were found.");
+      }
       return;
     }
 
-    const confirmMessage = `Found ${oldSessions.length} session(s) older than 30 days. Are you sure you want to permanently delete them along with their messages, student attendance, and slide image captures?`;
+    const lockedNote = lockedOldSessionsCount > 0 
+      ? `\n\nNote: ${lockedOldSessionsCount} locked session(s) older than 30 days will be preserved and protected.` 
+      : '';
+    const confirmMessage = `Found ${oldSessions.length} session(s) older than 30 days.${lockedNote} Are you sure you want to permanently delete them along with their messages, student attendance, and slide image captures?`;
     if (!confirm(confirmMessage)) return;
 
     setIsDeletingSessions(true);
@@ -2269,8 +2336,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                                   setSelectedSessionIdsForBulk(prev => prev.filter(id => id !== session.id));
                                 }
                               }}
-                              disabled={session.id === presentationId}
+                              disabled={session.id === presentationId || session.isLocked}
                               className="w-4 h-4 rounded border-slate-750 text-osu-orange focus:ring-osu-orange/20 bg-slate-950 cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed"
+                              title={session.isLocked ? "Session is locked & protected from deletion" : undefined}
                             />
 
                             {/* Session details */}
@@ -2285,9 +2353,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                               </div>
                               <div className="text-[9px] font-mono opacity-70 break-all flex items-center justify-between mt-0.5">
                                 <span>ID: {session.id.substring(0, 10)}...</span>
-                                {session.id === presentationId && (
-                                  <span className="text-[8px] font-black uppercase bg-osu-orange text-white px-1.5 py-0.5 rounded scale-90 origin-right">Active</span>
-                                )}
+                                <div className="flex items-center gap-1">
+                                  {session.id === presentationId && (
+                                    <span className="text-[8px] font-black uppercase bg-osu-orange text-white px-1.5 py-0.5 rounded scale-90 origin-right">Active</span>
+                                  )}
+                                  {session.isLocked && (
+                                    <span className="text-[8px] font-black uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1 py-0.2 rounded flex items-center gap-0.5">
+                                      <Lock className="w-2.5 h-2.5" /> Locked
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                               {session.presenterEmail && (
                                 <div className="text-[9px] text-indigo-400 font-bold truncate mt-0.5">
@@ -2296,20 +2371,44 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                               )}
                             </div>
 
-                            {/* Individual Delete Button on Hover */}
-                            {session.id !== presentationId && (
+                            {/* Hover Actions: Lock/Unlock & Delete */}
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200 flex-shrink-0">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleDeleteSession(session.id);
+                                  handleToggleLockSession(session.id, Boolean(session.isLocked));
                                 }}
-                                disabled={isDeletingSessions}
-                                className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 disabled:opacity-0 transition-all duration-200 cursor-pointer flex-shrink-0"
-                                title="Delete Session"
+                                disabled={lockingSessionId === session.id}
+                                className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                                  session.isLocked 
+                                    ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-500/10' 
+                                    : 'text-slate-500 hover:text-slate-300 hover:bg-slate-750/50'
+                                }`}
+                                title={session.isLocked ? "Session is locked. Click to unlock" : "Lock session to protect from deletion"}
                               >
-                                <Trash2 className="w-3.5 h-3.5" />
+                                {lockingSessionId === session.id ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : session.isLocked ? (
+                                  <Lock className="w-3.5 h-3.5 text-amber-400" />
+                                ) : (
+                                  <Unlock className="w-3.5 h-3.5" />
+                                )}
                               </button>
-                            )}
+
+                              {session.id !== presentationId && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteSession(session.id);
+                                  }}
+                                  disabled={isDeletingSessions || session.isLocked}
+                                  className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 disabled:opacity-20 disabled:cursor-not-allowed transition-all duration-200 cursor-pointer"
+                                  title={session.isLocked ? "Session is locked & protected from deletion" : "Delete Session"}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
                           </div>
                         );
                       })
@@ -2748,16 +2847,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                       <input
                         type="checkbox"
                         checked={
-                          filteredSessions.length > 0 &&
+                          filteredSessions.filter(s => s.id !== presentationId && !s.isLocked).length > 0 &&
                           filteredSessions
-                            .filter(s => s.id !== presentationId)
+                            .filter(s => s.id !== presentationId && !s.isLocked)
                             .every(s => selectedSessionIdsForBulk.includes(s.id))
                         }
                         onChange={(e) => {
                           if (e.target.checked) {
                             setSelectedSessionIdsForBulk(
                               filteredSessions
-                                .filter(s => s.id !== presentationId)
+                                .filter(s => s.id !== presentationId && !s.isLocked)
                                 .map(s => s.id)
                             );
                           } else {
@@ -2766,7 +2865,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                         }}
                         className="w-4 h-4 rounded border-slate-700 text-osu-orange focus:ring-osu-orange/20 bg-slate-950 cursor-pointer"
                       />
-                      <span>Select All Sessions</span>
+                      <span>Select All Unlocked</span>
                     </label>
 
                     {groupedSessionsByPresenter.length > 0 && (
@@ -2802,7 +2901,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                       const groupKey = group.email.toLowerCase().trim();
                       const isExpanded = Boolean(expandedPresenters[groupKey]);
                       
-                      const groupSelectableSessions = group.sessions.filter(s => s.id !== presentationId);
+                      const groupSelectableSessions = group.sessions.filter(s => s.id !== presentationId && !s.isLocked);
                       const isGroupAllSelected = groupSelectableSessions.length > 0 &&
                         groupSelectableSessions.every(s => selectedSessionIdsForBulk.includes(s.id));
                       const isGroupSomeSelected = !isGroupAllSelected &&
@@ -2851,7 +2950,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                                   }
                                 }}
                                 className="w-4 h-4 rounded border-slate-700 text-osu-orange focus:ring-osu-orange/20 bg-slate-950 cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed"
-                                title="Select all sessions for this presenter"
+                                title="Select all unlocked sessions for this presenter"
                               />
 
                               <div className="w-8 h-8 rounded-xl bg-slate-800/80 border border-slate-700/50 flex items-center justify-center shrink-0">
@@ -2871,6 +2970,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                                 <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 shrink-0">
                                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
                                   Active Live
+                                </span>
+                              )}
+
+                              {group.lockedCount > 0 && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black text-amber-400 bg-amber-950/80 border border-amber-500/30 shrink-0" title={`${group.lockedCount} locked session(s) protected from deletion`}>
+                                  <Lock className="w-3 h-3 text-amber-400" />
+                                  {group.lockedCount} Locked
                                 </span>
                               )}
                             </div>
@@ -2906,7 +3012,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                                       <th className="py-2.5 px-4">Session ID</th>
                                       <th className="py-2.5 px-4">Date Hosted</th>
                                       <th className="py-2.5 px-4">Time Hosted</th>
-                                      <th className="py-2.5 px-4 text-right w-48">Actions</th>
+                                      <th className="py-2.5 px-4 text-right w-56">Actions</th>
                                     </tr>
                                   </thead>
                                   <tbody>
@@ -2916,6 +3022,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                                       const timeStr = dateObj ? dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
                                       const isDownloadingThis = downloadingSessionId === session.id;
                                       const isActiveSession = session.id === presentationId;
+                                      const isLockingThis = lockingSessionId === session.id;
 
                                       return (
                                         <tr key={session.id} className="border-b border-slate-800/40 last:border-0 hover:bg-slate-900/50 text-sm transition-colors">
@@ -2923,7 +3030,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                                             <input
                                               type="checkbox"
                                               checked={selectedSessionIdsForBulk.includes(session.id)}
-                                              disabled={isActiveSession}
+                                              disabled={isActiveSession || session.isLocked}
                                               onChange={(e) => {
                                                 if (e.target.checked) {
                                                   setSelectedSessionIdsForBulk(prev => [...prev, session.id]);
@@ -2932,6 +3039,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                                                 }
                                               }}
                                               className="w-4 h-4 rounded border-slate-700 text-osu-orange focus:ring-osu-orange/20 bg-slate-950 cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed"
+                                              title={session.isLocked ? "Session is locked & protected from deletion" : undefined}
                                             />
                                           </td>
                                           <td className="py-3 px-4">
@@ -2951,11 +3059,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                                                   Live Now
                                                 </span>
                                               )}
+                                              {session.isLocked && (
+                                                <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-amber-400 bg-amber-950/80 px-2 py-0.5 rounded-md border border-amber-500/30">
+                                                  <Lock className="w-3 h-3 text-amber-400" />
+                                                  Locked
+                                                </span>
+                                              )}
                                             </div>
                                           </td>
                                           <td className="py-3 px-4 text-slate-400 text-xs">{dateStr}</td>
                                           <td className="py-3 px-4 text-slate-400 text-xs font-semibold">{timeStr}</td>
-                                          <td className="py-3 px-4 text-right flex items-center justify-end gap-2.5">
+                                          <td className="py-3 px-4 text-right flex items-center justify-end gap-2">
                                             <button
                                               type="button"
                                               onClick={() => setDownloadModalSessionId(session.id)}
@@ -2971,12 +3085,39 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                                               Download Options
                                             </button>
 
+                                            {/* Lock / Unlock Toggle Button */}
+                                            <button
+                                              type="button"
+                                              onClick={() => handleToggleLockSession(session.id, Boolean(session.isLocked))}
+                                              disabled={isLockingThis}
+                                              className={`p-1.5 rounded-xl transition-all cursor-pointer ${
+                                                session.isLocked
+                                                  ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25 shadow-sm'
+                                                  : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/80 border border-transparent'
+                                              }`}
+                                              title={session.isLocked ? "Session is locked & protected from deletion. Click to unlock." : "Lock session to protect from deletion"}
+                                            >
+                                              {isLockingThis ? (
+                                                <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                                              ) : session.isLocked ? (
+                                                <Lock className="w-4 h-4 text-amber-400" />
+                                              ) : (
+                                                <Unlock className="w-4 h-4" />
+                                              )}
+                                            </button>
+
                                             <button
                                               type="button"
                                               onClick={() => handleDeleteSession(session.id)}
-                                              disabled={isDeletingSessions || isActiveSession}
+                                              disabled={isDeletingSessions || isActiveSession || session.isLocked}
                                               className="p-1.5 rounded-xl text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed"
-                                              title={isActiveSession ? "Active Live Presentation Session (Cannot Delete)" : "Delete Session"}
+                                              title={
+                                                isActiveSession 
+                                                  ? "Active Live Presentation Session (Cannot Delete)" 
+                                                  : session.isLocked 
+                                                    ? "Session is locked & protected from deletion (Unlock to delete)" 
+                                                    : "Delete Session"
+                                              }
                                             >
                                               <Trash2 className="w-4 h-4" />
                                             </button>
