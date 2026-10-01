@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { doc, getDoc, setDoc, addDoc, collection, onSnapshot, deleteDoc, query, orderBy, limit, Timestamp, getDocs, where, serverTimestamp, writeBatch, updateDoc } from 'firebase/firestore';
 import { db, storage } from '../firebase';
 import { ref, listAll, deleteObject } from 'firebase/storage';
 import { Theme, SavedTheme, Message, Poll, WordCloud, OpenEndedQuestion, Presentation } from '../types';
-import { Palette, UserCheck, Download, ArrowLeft, Loader2, Calendar, Database, AlertCircle, Trash2, Monitor, Plus, Mail, History, Copy, Check, FileText, Send, X, Presentation as PresentationIcon } from 'lucide-react';
+import { Palette, UserCheck, Download, ArrowLeft, Loader2, Calendar, Database, AlertCircle, Trash2, Monitor, Plus, Mail, History, Copy, Check, FileText, Send, X, Presentation as PresentationIcon, ChevronDown, ChevronRight, ChevronsUpDown, User } from 'lucide-react';
 
 const formatHtmlTextWithLinks = (text: string): string => {
   if (!text) return '';
@@ -84,6 +84,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
   const [sessionSearch, setSessionSearch] = useState('');
   const [downloadingSessionId, setDownloadingSessionId] = useState<string | null>(null);
   const [downloadModalSessionId, setDownloadModalSessionId] = useState<string | null>(null);
+  const [expandedPresenters, setExpandedPresenters] = useState<Record<string, boolean>>({});
 
   // Presenter Management States
   const [selectedPresenterKeysForBulk, setSelectedPresenterKeysForBulk] = useState<string[]>([]);
@@ -180,6 +181,73 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
            email.toLowerCase().includes(queryStr) || 
            name.toLowerCase().includes(queryStr);
   });
+
+  // Group filtered sessions by presenter for the collapsable Sessions tab layout
+  const groupedSessionsByPresenter = useMemo(() => {
+    const map = new Map<string, {
+      email: string;
+      displayName: string;
+      sessions: RecentPresentationRecord[];
+      latestDate: Date | null;
+      hasActiveLiveSession: boolean;
+    }>();
+
+    filteredSessions.forEach(session => {
+      const email = (session.presenterEmail || 'Unknown Presenter').trim();
+      const key = email.toLowerCase();
+      const dateObj = session.createdAt ? new Date(session.createdAt.seconds * 1000) : null;
+      const isActive = session.id === presentationId;
+
+      if (!map.has(key)) {
+        const displayName = email.includes('@')
+          ? email.split('@')[0].replace(/[._]/g, ' ')
+          : email;
+
+        map.set(key, {
+          email,
+          displayName,
+          sessions: [],
+          latestDate: dateObj,
+          hasActiveLiveSession: isActive,
+        });
+      }
+
+      const entry = map.get(key)!;
+      entry.sessions.push(session);
+      if (isActive) entry.hasActiveLiveSession = true;
+      if (dateObj && (!entry.latestDate || dateObj > entry.latestDate)) {
+        entry.latestDate = dateObj;
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) => {
+      if (a.hasActiveLiveSession && !b.hasActiveLiveSession) return -1;
+      if (!a.hasActiveLiveSession && b.hasActiveLiveSession) return 1;
+      const timeA = a.latestDate ? a.latestDate.getTime() : 0;
+      const timeB = b.latestDate ? b.latestDate.getTime() : 0;
+      if (timeB !== timeA) return timeB - timeA;
+      return a.displayName.localeCompare(b.displayName);
+    });
+  }, [filteredSessions, presentationId]);
+
+  const togglePresenterExpanded = (key: string) => {
+    setExpandedPresenters(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  const allPresentersExpanded = groupedSessionsByPresenter.length > 0 &&
+    groupedSessionsByPresenter.every(g => Boolean(expandedPresenters[g.email.toLowerCase()]));
+
+  const handleToggleExpandAllPresenters = () => {
+    const nextState = !allPresentersExpanded;
+    const nextMap: Record<string, boolean> = {};
+    groupedSessionsByPresenter.forEach(g => {
+      nextMap[g.email.toLowerCase()] = nextState;
+    });
+    setExpandedPresenters(nextMap);
+  };
 
   // Fetch Global Settings (Institution colors/logo) and Saved Institutions (Initial Load)
   useEffect(() => {
@@ -2659,6 +2727,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                     </div>
 
                     <div className="bg-slate-950 px-4 py-1.5 border border-slate-800 rounded-xl text-center shrink-0">
+                      <span className="text-[8px] font-black uppercase tracking-widest text-slate-500 block leading-none">Presenters</span>
+                      <span className="text-sm font-black text-white leading-normal">{groupedSessionsByPresenter.length}</span>
+                    </div>
+
+                    <div className="bg-slate-950 px-4 py-1.5 border border-slate-800 rounded-xl text-center shrink-0">
                       <span className="text-[8px] font-black uppercase tracking-widest text-slate-500 block leading-none">Sessions</span>
                       <span className="text-sm font-black text-osu-orange leading-normal">{activeSessions.length}</span>
                     </div>
@@ -2666,140 +2739,261 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                 </div>
               </div>
 
-              {/* Sessions List Table Card */}
-              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 overflow-hidden">
-                <div className="border border-slate-800/80 rounded-2xl overflow-hidden bg-slate-950/40">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="bg-slate-950 border-b border-slate-800 text-[10px] uppercase font-black tracking-widest text-slate-400">
-                          <th className="py-3 px-5 text-center w-12">
-                            <input
-                              type="checkbox"
-                              checked={
-                                filteredSessions.length > 0 &&
-                                filteredSessions
-                                  .filter(s => s.id !== presentationId)
-                                  .every(s => selectedSessionIdsForBulk.includes(s.id))
-                              }
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setSelectedSessionIdsForBulk(
-                                    filteredSessions
-                                      .filter(s => s.id !== presentationId)
-                                      .map(s => s.id)
-                                  );
-                                } else {
-                                  setSelectedSessionIdsForBulk([]);
-                                }
-                              }}
-                              className="w-4 h-4 rounded border-slate-700 text-osu-orange focus:ring-osu-orange/20 bg-slate-950 cursor-pointer"
-                            />
-                          </th>
-                          <th className="py-3 px-5">Session ID</th>
-                          <th className="py-3 px-5">Presenter Name</th>
-                          <th className="py-3 px-5">Presenter Email</th>
-                          <th className="py-3 px-5">Date Hosted</th>
-                          <th className="py-3 px-5">Time Hosted</th>
-                          <th className="py-3 px-5 text-right w-48">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {loadingSessions && activeSessions.length === 0 ? (
-                          <tr>
-                            <td colSpan={7} className="py-16 text-center">
-                              <Loader2 className="w-8 h-8 text-osu-orange animate-spin mx-auto mb-2" />
-                              <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500">Loading sessions directory...</span>
-                            </td>
-                          </tr>
-                        ) : filteredSessions.length === 0 ? (
-                          <tr>
-                            <td colSpan={7} className="py-16 text-center text-slate-500 text-xs italic">
-                              No presentation sessions matched your search criteria.
-                            </td>
-                          </tr>
-                        ) : (
-                          filteredSessions.map((session, i) => {
-                            const presenterEmail = session.presenterEmail || '—';
-                            const displayHandle = session.presenterEmail 
-                              ? session.presenterEmail.split('@')[0].replace(/[._]/g, ' ') 
-                              : '—';
-                            
-                            const dateObj = session.createdAt ? new Date(session.createdAt.seconds * 1000) : null;
-                            const dateStr = dateObj ? dateObj.toLocaleDateString() : '—';
-                            const timeStr = dateObj ? dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
-                            const isDownloadingThis = downloadingSessionId === session.id;
-                            const isActiveSession = session.id === presentationId;
-
-                            return (
-                              <tr key={session.id} className="border-b border-slate-800/50 last:border-0 hover:bg-slate-900/40 text-sm transition-colors">
-                                <td className="py-4 px-5 text-center">
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedSessionIdsForBulk.includes(session.id)}
-                                    disabled={isActiveSession}
-                                    onChange={(e) => {
-                                      if (e.target.checked) {
-                                        setSelectedSessionIdsForBulk(prev => [...prev, session.id]);
-                                      } else {
-                                        setSelectedSessionIdsForBulk(prev => prev.filter(id => id !== session.id));
-                                      }
-                                    }}
-                                    className="w-4 h-4 rounded border-slate-700 text-osu-orange focus:ring-osu-orange/20 bg-slate-950 cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed"
-                                  />
-                                </td>
-                                <td className="py-4 px-5">
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-mono text-xs text-osu-orange font-bold select-all">{session.id}</span>
-                                    <button
-                                      onClick={() => {
-                                        navigator.clipboard.writeText(session.id);
-                                      }}
-                                      className="p-1 rounded text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors cursor-pointer"
-                                      title="Copy Session ID"
-                                    >
-                                      <Copy className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                </td>
-                                <td className="py-4 px-5 font-bold text-white capitalize">{displayHandle}</td>
-                                <td className="py-4 px-5 text-slate-300 font-mono text-xs">{presenterEmail}</td>
-                                <td className="py-4 px-5 text-slate-400 text-xs">{dateStr}</td>
-                                <td className="py-4 px-5 text-slate-400 text-xs font-semibold">{timeStr}</td>
-                                <td className="py-4 px-5 text-right flex items-center justify-end gap-2.5">
-                                  <button
-                                    type="button"
-                                    onClick={() => setDownloadModalSessionId(session.id)}
-                                    disabled={isDownloadingChatLog}
-                                    className="flex items-center gap-1.5 h-9 px-3.5 bg-slate-800 hover:bg-slate-750 disabled:bg-slate-900 disabled:text-slate-650 text-slate-200 text-xs font-black uppercase tracking-wider rounded-xl transition-all border border-slate-700/50 cursor-pointer"
-                                    title="Download Session Options"
-                                  >
-                                    {isDownloadingThis ? (
-                                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                    ) : (
-                                      <Download className="w-3.5 h-3.5 text-osu-orange" />
-                                    )}
-                                    Download Options
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteSession(session.id)}
-                                    disabled={isDeletingSessions || isActiveSession}
-                                    className="p-2 rounded-xl text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed"
-                                    title={isActiveSession ? "Active Live Presentation Session (Cannot Delete)" : "Delete Session"}
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </td>
-                              </tr>
+              {/* Sessions Directory Grouped by Presenter */}
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 overflow-hidden space-y-4">
+                {/* Directory Controls Bar */}
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
+                  <div className="flex items-center gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-400 hover:text-slate-200 select-none">
+                      <input
+                        type="checkbox"
+                        checked={
+                          filteredSessions.length > 0 &&
+                          filteredSessions
+                            .filter(s => s.id !== presentationId)
+                            .every(s => selectedSessionIdsForBulk.includes(s.id))
+                        }
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedSessionIdsForBulk(
+                              filteredSessions
+                                .filter(s => s.id !== presentationId)
+                                .map(s => s.id)
                             );
-                          })
-                        )}
-                      </tbody>
-                    </table>
+                          } else {
+                            setSelectedSessionIdsForBulk([]);
+                          }
+                        }}
+                        className="w-4 h-4 rounded border-slate-700 text-osu-orange focus:ring-osu-orange/20 bg-slate-950 cursor-pointer"
+                      />
+                      <span>Select All Sessions</span>
+                    </label>
+
+                    {groupedSessionsByPresenter.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleToggleExpandAllPresenters}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 text-[11px] font-black uppercase tracking-wider text-slate-300 hover:text-white rounded-xl transition-all cursor-pointer"
+                        title={allPresentersExpanded ? "Collapse all presenter sections" : "Expand all presenter sections"}
+                      >
+                        <ChevronsUpDown className="w-3.5 h-3.5 text-osu-orange" />
+                        {allPresentersExpanded ? 'Collapse All' : 'Expand All'}
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="text-xs text-slate-400 font-medium">
+                    Showing <span className="text-white font-bold">{groupedSessionsByPresenter.length}</span> {groupedSessionsByPresenter.length === 1 ? 'presenter' : 'presenters'} ({filteredSessions.length} total {filteredSessions.length === 1 ? 'session' : 'sessions'})
                   </div>
                 </div>
+
+                {loadingSessions && activeSessions.length === 0 ? (
+                  <div className="py-16 text-center border border-slate-800/80 rounded-2xl bg-slate-950/40">
+                    <Loader2 className="w-8 h-8 text-osu-orange animate-spin mx-auto mb-2" />
+                    <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500">Loading sessions directory...</span>
+                  </div>
+                ) : filteredSessions.length === 0 ? (
+                  <div className="py-16 text-center text-slate-500 text-xs italic border border-slate-800/80 rounded-2xl bg-slate-950/40">
+                    No presentation sessions matched your search criteria.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {groupedSessionsByPresenter.map((group) => {
+                      const groupKey = group.email.toLowerCase().trim();
+                      const isExpanded = Boolean(expandedPresenters[groupKey]);
+                      
+                      const groupSelectableSessions = group.sessions.filter(s => s.id !== presentationId);
+                      const isGroupAllSelected = groupSelectableSessions.length > 0 &&
+                        groupSelectableSessions.every(s => selectedSessionIdsForBulk.includes(s.id));
+                      const isGroupSomeSelected = !isGroupAllSelected &&
+                        groupSelectableSessions.some(s => selectedSessionIdsForBulk.includes(s.id));
+
+                      const latestDateStr = group.latestDate ? group.latestDate.toLocaleDateString() : '—';
+                      const latestTimeStr = group.latestDate ? group.latestDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+
+                      return (
+                        <div 
+                          key={groupKey} 
+                          className="border border-slate-800/80 rounded-2xl overflow-hidden bg-slate-950/40 transition-all hover:border-slate-700/80 shadow-sm"
+                        >
+                          {/* Presenter Collapsable Header (1 collapsed line) */}
+                          <div 
+                            onClick={() => togglePresenterExpanded(groupKey)}
+                            className="flex items-center justify-between px-5 py-3.5 bg-slate-950/70 hover:bg-slate-900/60 transition-colors cursor-pointer select-none"
+                          >
+                            {/* Left details */}
+                            <div className="flex items-center gap-3.5 min-w-0">
+                              <span 
+                                className="p-1 rounded-lg text-slate-400 hover:text-white transition-colors"
+                                aria-label={isExpanded ? "Collapse presenter" : "Expand presenter"}
+                              >
+                                {isExpanded ? (
+                                  <ChevronDown className="w-4 h-4 text-osu-orange" />
+                                ) : (
+                                  <ChevronRight className="w-4 h-4 text-osu-orange" />
+                                )}
+                              </span>
+
+                              <input
+                                type="checkbox"
+                                checked={isGroupAllSelected}
+                                ref={el => {
+                                  if (el) el.indeterminate = isGroupSomeSelected;
+                                }}
+                                disabled={groupSelectableSessions.length === 0}
+                                onClick={(e) => e.stopPropagation()}
+                                onChange={(e) => {
+                                  const ids = groupSelectableSessions.map(s => s.id);
+                                  if (e.target.checked) {
+                                    setSelectedSessionIdsForBulk(prev => Array.from(new Set([...prev, ...ids])));
+                                  } else {
+                                    setSelectedSessionIdsForBulk(prev => prev.filter(id => !ids.includes(id)));
+                                  }
+                                }}
+                                className="w-4 h-4 rounded border-slate-700 text-osu-orange focus:ring-osu-orange/20 bg-slate-950 cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed"
+                                title="Select all sessions for this presenter"
+                              />
+
+                              <div className="w-8 h-8 rounded-xl bg-slate-800/80 border border-slate-700/50 flex items-center justify-center shrink-0">
+                                <User className="w-4 h-4 text-osu-orange" />
+                              </div>
+
+                              <div className="flex items-center gap-2 truncate">
+                                <span className="font-bold text-white text-sm capitalize truncate">
+                                  {group.displayName}
+                                </span>
+                                <span className="text-slate-400 font-mono text-xs hidden sm:inline truncate">
+                                  ({group.email})
+                                </span>
+                              </div>
+
+                              {group.hasActiveLiveSession && (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 shrink-0">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                                  Active Live
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Right summary info */}
+                            <div className="flex items-center gap-3 shrink-0 ml-3">
+                              {group.latestDate && (
+                                <span className="text-slate-400 text-xs hidden md:inline">
+                                  Latest: {latestDateStr} {latestTimeStr}
+                                </span>
+                              )}
+
+                              <span className="px-3 py-1 bg-slate-900 border border-slate-800 text-osu-orange font-black text-xs rounded-xl">
+                                {group.sessions.length} {group.sessions.length === 1 ? 'Session' : 'Sessions'}
+                              </span>
+
+                              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 hover:text-slate-300 transition-colors hidden sm:inline">
+                                {isExpanded ? 'Collapse' : 'Expand'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Expanded Content: Sessions Table and Downloads */}
+                          {isExpanded && (
+                            <div className="border-t border-slate-800/80 bg-slate-950/60 p-4 animate-in fade-in duration-200">
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse">
+                                  <thead>
+                                    <tr className="border-b border-slate-800/60 text-[10px] uppercase font-black tracking-widest text-slate-400">
+                                      <th className="py-2.5 px-4 text-center w-12">
+                                        <span className="sr-only">Select</span>
+                                      </th>
+                                      <th className="py-2.5 px-4">Session ID</th>
+                                      <th className="py-2.5 px-4">Date Hosted</th>
+                                      <th className="py-2.5 px-4">Time Hosted</th>
+                                      <th className="py-2.5 px-4 text-right w-48">Actions</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {group.sessions.map((session) => {
+                                      const dateObj = session.createdAt ? new Date(session.createdAt.seconds * 1000) : null;
+                                      const dateStr = dateObj ? dateObj.toLocaleDateString() : '—';
+                                      const timeStr = dateObj ? dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+                                      const isDownloadingThis = downloadingSessionId === session.id;
+                                      const isActiveSession = session.id === presentationId;
+
+                                      return (
+                                        <tr key={session.id} className="border-b border-slate-800/40 last:border-0 hover:bg-slate-900/50 text-sm transition-colors">
+                                          <td className="py-3 px-4 text-center">
+                                            <input
+                                              type="checkbox"
+                                              checked={selectedSessionIdsForBulk.includes(session.id)}
+                                              disabled={isActiveSession}
+                                              onChange={(e) => {
+                                                if (e.target.checked) {
+                                                  setSelectedSessionIdsForBulk(prev => [...prev, session.id]);
+                                                } else {
+                                                  setSelectedSessionIdsForBulk(prev => prev.filter(id => id !== session.id));
+                                                }
+                                              }}
+                                              className="w-4 h-4 rounded border-slate-700 text-osu-orange focus:ring-osu-orange/20 bg-slate-950 cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed"
+                                            />
+                                          </td>
+                                          <td className="py-3 px-4">
+                                            <div className="flex items-center gap-2">
+                                              <span className="font-mono text-xs text-osu-orange font-bold select-all">{session.id}</span>
+                                              <button
+                                                onClick={() => {
+                                                  navigator.clipboard.writeText(session.id);
+                                                }}
+                                                className="p-1 rounded text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors cursor-pointer"
+                                                title="Copy Session ID"
+                                              >
+                                                <Copy className="w-3.5 h-3.5" />
+                                              </button>
+                                              {isActiveSession && (
+                                                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded-md border border-emerald-500/30">
+                                                  Live Now
+                                                </span>
+                                              )}
+                                            </div>
+                                          </td>
+                                          <td className="py-3 px-4 text-slate-400 text-xs">{dateStr}</td>
+                                          <td className="py-3 px-4 text-slate-400 text-xs font-semibold">{timeStr}</td>
+                                          <td className="py-3 px-4 text-right flex items-center justify-end gap-2.5">
+                                            <button
+                                              type="button"
+                                              onClick={() => setDownloadModalSessionId(session.id)}
+                                              disabled={isDownloadingChatLog}
+                                              className="flex items-center gap-1.5 h-8 px-3 bg-slate-800 hover:bg-slate-750 disabled:bg-slate-900 disabled:text-slate-650 text-slate-200 text-xs font-black uppercase tracking-wider rounded-xl transition-all border border-slate-700/50 cursor-pointer"
+                                              title="Download Session Options"
+                                            >
+                                              {isDownloadingThis ? (
+                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                              ) : (
+                                                <Download className="w-3.5 h-3.5 text-osu-orange" />
+                                              )}
+                                              Download Options
+                                            </button>
+
+                                            <button
+                                              type="button"
+                                              onClick={() => handleDeleteSession(session.id)}
+                                              disabled={isDeletingSessions || isActiveSession}
+                                              className="p-1.5 rounded-xl text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed"
+                                              title={isActiveSession ? "Active Live Presentation Session (Cannot Delete)" : "Delete Session"}
+                                            >
+                                              <Trash2 className="w-4 h-4" />
+                                            </button>
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
             </div>
