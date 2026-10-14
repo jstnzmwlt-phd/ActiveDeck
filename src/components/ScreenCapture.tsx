@@ -35,6 +35,7 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
   onSlideImageLoad
 }) => {
   const localVideoRef = useRef<HTMLVideoElement>(null);
+  const activeVideoRef = videoRef || localVideoRef;
   const activeSlideNumber = (typeof currentSlide === 'number' && currentSlide > 0) ? currentSlide : null;
 
   const bridgeSlideImgSrc = 
