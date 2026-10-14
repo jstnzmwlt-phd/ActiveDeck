@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Presentation, Message, Poll, WordCloud, OpenEndedQuestion } from '../types';
+import { Presentation, Message, Poll, WordCloud, OpenEndedQuestion, DeckItem } from '../types';
 import { ScreenCapture } from './ScreenCapture';
-import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play, X, Loader2, Tv, Minimize, Maximize, FileText, Square, Send, CheckCircle2, Check, Clock, Pen, Eraser, Highlighter, MoveRight, Type, Undo2, Redo2, Trash2, Minus, Circle, Search } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play, X, Loader2, Tv, Minimize, Maximize, FileText, Square, Send, CheckCircle2, Check, Clock, Pen, Eraser, Highlighter, MoveRight, Type, Undo2, Redo2, Trash2, Minus, Circle, Search, Plus, Layers, UploadCloud } from 'lucide-react';
 import { useBridge } from '../contexts/BridgeContext';
 import { auth, db, storage } from '../firebase';
 import { doc, getDoc, updateDoc, onSnapshot, collection, query, where } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { QRCodeSVG } from 'qrcode.react';
 import { compositeSlideWithAnnotations, createSlidePlaceholderImage } from '../utils/exportNotesDocx';
 import { PptxUploader } from './PptxUploader';
@@ -225,8 +226,170 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const [isLoadingPpt, setIsLoadingPpt] = useState(false);
   const [loadPptSuccess, setLoadPptSuccess] = useState(false);
 
+  // Multi-presentation deck management state
+  const [uploadingMulti, setUploadingMulti] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string | null>(null);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const multiFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Merge presentation.uploadedDecks with fallback to current pptxUrl
+  const effectiveDecks: DeckItem[] = React.useMemo(() => {
+    const list: DeckItem[] = [];
+    const seenUrls = new Set<string>();
+
+    if (Array.isArray(presentation?.uploadedDecks)) {
+      presentation.uploadedDecks.forEach((d) => {
+        if (d && d.url && !seenUrls.has(d.url)) {
+          seenUrls.add(d.url);
+          list.push(d);
+        }
+      });
+    }
+
+    // If pptxUrl exists but is not in list, add it as first entry
+    if (presentation?.pptxUrl && !seenUrls.has(presentation.pptxUrl)) {
+      seenUrls.add(presentation.pptxUrl);
+      list.unshift({
+        id: presentation.selectedDeckId || 'initial_deck',
+        name: presentation.pptxFileName || 'source.pptx',
+        url: presentation.pptxUrl,
+        uploadedAt: Date.now()
+      });
+    }
+
+    return list;
+  }, [presentation?.uploadedDecks, presentation?.pptxUrl, presentation?.pptxFileName, presentation?.selectedDeckId]);
+
+  const activeDeck = effectiveDecks.find(d => 
+    (presentation?.selectedDeckId && d.id === presentation.selectedDeckId) || 
+    (presentation?.pptxUrl && d.url === presentation.pptxUrl)
+  ) || effectiveDecks[0] || null;
+
+  const handleSelectDeck = async (deck: DeckItem) => {
+    if (!presentation?.id) return;
+    try {
+      await updateDoc(doc(db, 'presentations', presentation.id), {
+        pptxUrl: deck.url,
+        pptxFileName: deck.name,
+        selectedDeckId: deck.id
+      });
+    } catch (err) {
+      console.error("Failed to select presentation deck:", err);
+    }
+  };
+
+  const handleDeleteDeck = async (deckId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!presentation?.id) return;
+    const remainingDecks = effectiveDecks.filter(d => d.id !== deckId);
+    const isCurrent = (activeDeck?.id === deckId);
+    
+    const updates: any = {
+      uploadedDecks: remainingDecks
+    };
+    if (isCurrent) {
+      if (remainingDecks.length > 0) {
+        updates.pptxUrl = remainingDecks[0].url;
+        updates.pptxFileName = remainingDecks[0].name;
+        updates.selectedDeckId = remainingDecks[0].id;
+      } else {
+        updates.pptxUrl = '';
+        updates.pptxFileName = '';
+        updates.selectedDeckId = '';
+      }
+    }
+    try {
+      await updateDoc(doc(db, 'presentations', presentation.id), updates);
+    } catch (err) {
+      console.error("Failed to remove presentation deck:", err);
+    }
+  };
+
+  const uploadFilesList = async (files: FileList | File[]) => {
+    if (!files || files.length === 0 || !presentation?.id) return;
+    const pptxFiles = Array.from(files).filter(f => f.name.toLowerCase().endsWith('.pptx'));
+    if (pptxFiles.length === 0) {
+      alert("Please select valid PowerPoint (.pptx) files.");
+      return;
+    }
+
+    setUploadingMulti(true);
+    try {
+      const newDecks: DeckItem[] = [];
+      for (let i = 0; i < pptxFiles.length; i++) {
+        const file = pptxFiles[i];
+        setUploadProgress(`Uploading ${i + 1} of ${pptxFiles.length}: ${file.name}`);
+        
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const storagePath = `presentations/${presentation.id}/decks/${Date.now()}_${i}_${safeName}`;
+        const storageRef = ref(storage, storagePath);
+
+        await uploadBytes(storageRef, file, {
+          contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+        });
+
+        const downloadUrl = await getDownloadURL(storageRef);
+        newDecks.push({
+          id: `deck_${Date.now()}_${i}`,
+          name: file.name,
+          url: downloadUrl,
+          uploadedAt: Date.now(),
+          size: file.size
+        });
+      }
+
+      const combined = [...effectiveDecks, ...newDecks];
+      const updates: any = {
+        uploadedDecks: combined
+      };
+      if (!presentation.pptxUrl && newDecks.length > 0) {
+        updates.pptxUrl = newDecks[0].url;
+        updates.pptxFileName = newDecks[0].name;
+        updates.selectedDeckId = newDecks[0].id;
+      }
+      await updateDoc(doc(db, 'presentations', presentation.id), updates);
+    } catch (err) {
+      console.error("Failed to upload presentation files:", err);
+      alert("Failed to upload presentations. Please check your network and try again.");
+    } finally {
+      setUploadingMulti(false);
+      setUploadProgress(null);
+      if (multiFileInputRef.current) {
+        multiFileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+    if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
+      uploadFilesList(e.dataTransfer.files);
+    }
+  };
+
+  const formatFileSize = (bytes?: number) => {
+    if (!bytes) return '';
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
   const handleLoadPpt = () => {
-    if (!presentation?.pptxUrl) return;
+    const targetUrl = activeDeck?.url || presentation?.pptxUrl;
+    if (!targetUrl) return;
 
     // Automatically activate Projector Mode screen in a popup window
     if (!isProjectorMode) {
@@ -249,7 +412,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     setLoadPptSuccess(false);
     sendBridgeCommand({
       action: 'load',
-      url: presentation.pptxUrl
+      url: targetUrl
     });
     setTimeout(() => {
       setIsLoadingPpt(false);
@@ -3340,103 +3503,282 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           </button>
         )}
 
-        {/* Setup Bridge Card - Shown when not capturing and no error */}
+        {/* Setup Bridge & Presentations Dual Column - Shown when not capturing and no error */}
         {!isPresentationActive && !error && !isProjectorMode && (
-          <div className="absolute inset-0 z-[60] flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4">
-            <div className="bg-slate-900/90 border border-slate-800 rounded-3xl shadow-2xl p-8 max-w-sm w-full text-center flex flex-col items-center justify-center relative">
-              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 transition-all duration-500 shadow-lg ${
-                isBridgeConnected 
-                  ? 'bg-green-500/10 border border-green-500/35 text-green-400 shadow-green-500/5 animate-pulse' 
-                  : 'bg-red-500/10 border border-red-500/30 text-red-500 shadow-red-500/5'
-              }`}>
-                <PresentationIcon className="w-7 h-7" />
-              </div>
+          <div className="absolute inset-0 z-[60] flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4 md:p-6 lg:p-8 overflow-y-auto">
+            <div className="flex flex-col lg:flex-row items-stretch justify-center gap-6 max-w-5xl w-full my-auto">
               
-              <h2 className="text-xl font-black text-white mb-1 tracking-tight">Ready to Present?</h2>
-              
-              <div className="flex items-center gap-1.5 justify-center mb-6">
-                <span className={`w-2 h-2 rounded-full ${isBridgeConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
-                <span className={`text-[11px] font-black uppercase tracking-wider ${isBridgeConnected ? 'text-green-500' : 'text-red-500'}`}>
-                  {isBridgeConnected ? 'ActiveDeck Bridge Connected' : 'ActiveDeck Bridge Offline'}
-                </span>
-              </div>
-              
-              <div className="w-full space-y-3.5">
-                {presentation?.id && (
-                  <PptxUploader
-                    presentationId={presentation.id}
-                    currentPptxUrl={presentation.pptxUrl}
-                  />
-                )}
-                <button
-                  type="button"
-                  onClick={handleLoadPpt}
-                  disabled={!presentation?.pptxUrl || isLoadingPpt}
-                  className={`flex items-center justify-center gap-2.5 w-full py-3 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-black uppercase tracking-wider rounded-xl transition-all active:scale-95 shadow-lg shadow-amber-600/20 text-xs cursor-pointer ${
-                    !presentation?.pptxUrl ? 'opacity-50' : ''
-                  }`}
-                  title={
-                    presentation?.pptxUrl
-                      ? "Load and launch presentation in PowerPoint"
-                      : "Upload a .pptx file first to enable Load PPT"
-                  }
-                >
-                  {isLoadingPpt ? (
+              {/* Left Column: Ready to Present? Card */}
+              <div className="bg-slate-900/90 border border-slate-800 rounded-3xl shadow-2xl p-7 w-full lg:w-1/2 flex flex-col items-center justify-between text-center relative">
+                <div className="w-full flex flex-col items-center">
+                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-3 transition-all duration-500 shadow-lg ${
+                    isBridgeConnected 
+                      ? 'bg-green-500/10 border border-green-500/35 text-green-400 shadow-green-500/5 animate-pulse' 
+                      : 'bg-red-500/10 border border-red-500/30 text-red-500 shadow-red-500/5'
+                  }`}>
+                    <PresentationIcon className="w-7 h-7" />
+                  </div>
+                  
+                  <h2 className="text-xl font-black text-white mb-1 tracking-tight">Ready to Present?</h2>
+                  
+                  <div className="flex items-center gap-1.5 justify-center mb-5">
+                    <span className={`w-2 h-2 rounded-full ${isBridgeConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                    <span className={`text-[11px] font-black uppercase tracking-wider ${isBridgeConnected ? 'text-green-500' : 'text-red-500'}`}>
+                      {isBridgeConnected ? 'ActiveDeck Bridge Connected' : 'ActiveDeck Bridge Offline'}
+                    </span>
+                  </div>
+
+                  {/* Selected Presentation Display or Uploader */}
+                  <div className="w-full mb-4">
+                    {presentation?.id && (
+                      <PptxUploader
+                        presentationId={presentation.id}
+                        currentPptxUrl={activeDeck?.url || presentation.pptxUrl}
+                        currentFileName={activeDeck?.name || presentation.pptxFileName}
+                      />
+                    )}
+                  </div>
+                </div>
+                
+                {/* Action Buttons */}
+                <div className="w-full space-y-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={handleLoadPpt}
+                    disabled={(!activeDeck?.url && !presentation?.pptxUrl) || isLoadingPpt}
+                    className={`flex items-center justify-center gap-2.5 w-full py-3.5 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-black uppercase tracking-wider rounded-xl transition-all active:scale-95 shadow-lg shadow-amber-600/20 text-xs cursor-pointer ${
+                      (!activeDeck?.url && !presentation?.pptxUrl) ? 'opacity-50' : ''
+                    }`}
+                    title={
+                      (activeDeck?.url || presentation?.pptxUrl)
+                        ? "Load and launch presentation in PowerPoint"
+                        : "Upload or select a presentation first to enable Load PPT"
+                    }
+                  >
+                    {isLoadingPpt ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-white" />
+                        <span>Loading PowerPoint...</span>
+                      </>
+                    ) : loadPptSuccess ? (
+                      <>
+                        <Check className="w-4 h-4 text-white" />
+                        <span>PPT Sent to Bridge!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-4 h-4 fill-current" />
+                        <span>Load PPT</span>
+                      </>
+                    )}
+                  </button>
+
+                  {isBridgeConnected ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin text-white" />
-                      <span>Loading PowerPoint...</span>
-                    </>
-                  ) : loadPptSuccess ? (
-                    <>
-                      <Check className="w-4 h-4 text-white" />
-                      <span>PPT Sent to Bridge!</span>
+                      <button
+                        onClick={startCapture}
+                        className="flex items-center justify-center gap-2.5 w-full py-3.5 bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-xl shadow-green-650/20 text-sm cursor-pointer"
+                      >
+                        <Play className="w-4 h-4 fill-current" />
+                        Start Presentation
+                      </button>
+                      <p className="text-[10px] text-slate-500 leading-normal font-medium">
+                        Ensure your PowerPoint is in Slide Show mode (F5) before sharing.
+                      </p>
                     </>
                   ) : (
                     <>
-                      <Play className="w-4 h-4 fill-current" />
-                      <span>Load PPT</span>
+                      <a 
+                        href="https://github.com/jstnzmwlt-phd/ActiveDeck/releases/download/v1.0.0/activedeck_bridge.2.0.zip"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2.5 w-full py-3.5 bg-red-600 hover:bg-red-700 text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg shadow-red-500/20 text-sm"
+                      >
+                        <Download className="w-4 h-4" />
+                        Download ActiveDeck Bridge
+                      </a>
+                      
+                      <div className="pt-2">
+                        <button
+                          onClick={() => {
+                            setUseWithoutBridge(true);
+                            startCapture();
+                          }}
+                          className="text-xs text-slate-400 hover:text-white transition-colors underline font-bold cursor-pointer bg-transparent border-0 p-0"
+                        >
+                          Start Presentation in Manual Mode (No Bridge)
+                        </button>
+                      </div>
                     </>
                   )}
-                </button>
-                {isBridgeConnected ? (
-                  <>
-                    <button
-                      onClick={startCapture}
-                      className="flex items-center justify-center gap-2.5 w-full py-3.5 bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-xl shadow-green-650/20 text-sm cursor-pointer"
-                    >
-                      <Play className="w-4 h-4 fill-current" />
-                      Start Presentation
-                    </button>
-                    <p className="text-[10px] text-slate-500 leading-normal font-medium">
-                      Ensure your PowerPoint is in Slide Show mode (F5) before sharing.
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <a 
-                      href="https://github.com/jstnzmwlt-phd/ActiveDeck/releases/download/v1.0.0/activedeck_bridge.2.0.zip"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-2.5 w-full py-3.5 bg-red-600 hover:bg-red-700 text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg shadow-red-500/20 text-sm"
-                    >
-                      <Download className="w-4 h-4" />
-                      Download ActiveDeck Bridge
-                    </a>
-                    
-                    <div className="pt-2">
-                      <button
-                        onClick={() => {
-                          setUseWithoutBridge(true);
-                          startCapture();
-                        }}
-                        className="text-xs text-slate-400 hover:text-white transition-colors underline font-bold cursor-pointer bg-transparent border-0 p-0"
-                      >
-                        Start Presentation in Manual Mode (No Bridge)
-                      </button>
-                    </div>
-                  </>
-                )}
+                </div>
               </div>
+
+              {/* Right Column: Presentations Library List */}
+              <div 
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`bg-slate-900/90 border rounded-3xl shadow-2xl p-7 w-full lg:w-1/2 flex flex-col justify-between transition-all ${
+                  isDraggingOver 
+                    ? 'border-osu-orange/80 bg-slate-900 ring-2 ring-osu-orange/40' 
+                    : 'border-slate-800'
+                }`}
+              >
+                {/* Header */}
+                <div className="flex items-center justify-between pb-4 border-b border-slate-800/80 mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-osu-orange/15 border border-osu-orange/30 flex items-center justify-center text-osu-orange">
+                      <Layers className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
+                        <span>Presentations</span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black tracking-wider uppercase bg-slate-800 text-slate-300 border border-slate-700">
+                          {effectiveDecks.length}
+                        </span>
+                      </h3>
+                      <p className="text-[11px] text-slate-400">Click to choose which deck to present</p>
+                    </div>
+                  </div>
+
+                  {/* Add Presentation Button */}
+                  <div>
+                    <input 
+                      type="file" 
+                      ref={multiFileInputRef} 
+                      multiple 
+                      accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                      onChange={(e) => uploadFilesList(e.target.files ? Array.from(e.target.files) : [])}
+                      className="hidden" 
+                    />
+                    <button
+                      type="button"
+                      onClick={() => multiFileInputRef.current?.click()}
+                      disabled={uploadingMulti}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-osu-orange hover:bg-orange-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-osu-orange/20 cursor-pointer active:scale-95 disabled:opacity-50"
+                      title="Upload one or multiple .pptx files"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add PPT</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Uploading Multi Status Banner */}
+                {uploadingMulti && (
+                  <div className="mb-3 flex items-center gap-2 p-3 bg-osu-orange/10 border border-osu-orange/30 rounded-xl text-osu-orange text-xs font-medium animate-pulse">
+                    <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                    <span className="truncate">{uploadProgress || 'Uploading presentations...'}</span>
+                  </div>
+                )}
+
+                {/* Presentations List Body */}
+                <div className="flex-1 overflow-y-auto space-y-2.5 max-h-[320px] pr-1 custom-scrollbar min-h-[220px]">
+                  {effectiveDecks.length === 0 ? (
+                    <div 
+                      onClick={() => multiFileInputRef.current?.click()}
+                      className="h-full flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-slate-800 hover:border-slate-700 rounded-2xl cursor-pointer transition-colors bg-slate-950/30"
+                    >
+                      <div className="w-12 h-12 rounded-2xl bg-slate-800/80 border border-slate-700 flex items-center justify-center text-slate-400 mb-3">
+                        <UploadCloud className="w-6 h-6 text-slate-400" />
+                      </div>
+                      <p className="text-sm font-bold text-slate-300 mb-1">No presentations loaded yet</p>
+                      <p className="text-xs text-slate-500 max-w-xs mb-3">
+                        Drag and drop your PowerPoint (.pptx) files here, or click to browse multiple files.
+                      </p>
+                      <span className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold border border-slate-700">
+                        Select .pptx files
+                      </span>
+                    </div>
+                  ) : (
+                    effectiveDecks.map((deck, idx) => {
+                      const isSelected = (activeDeck?.id === deck.id) || (presentation?.pptxUrl === deck.url);
+                      return (
+                        <div
+                          key={deck.id || idx}
+                          onClick={() => handleSelectDeck(deck)}
+                          className={`group relative p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                            isSelected
+                              ? 'bg-osu-orange/10 border-osu-orange/70 shadow-lg shadow-osu-orange/10 ring-1 ring-osu-orange/50'
+                              : 'bg-slate-850/60 hover:bg-slate-800/80 border-slate-800 hover:border-slate-700'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            {/* Presentation index badge (e.g. Presentation 1, Presentation 2) */}
+                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 transition-colors ${
+                              isSelected 
+                                ? 'bg-osu-orange text-white shadow-md' 
+                                : 'bg-slate-800 text-slate-400 group-hover:text-slate-200 group-hover:bg-slate-700'
+                            }`}>
+                              {idx + 1}
+                            </div>
+
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className={`text-xs font-bold truncate ${
+                                  isSelected ? 'text-white' : 'text-slate-200 group-hover:text-white'
+                                }`} title={deck.name}>
+                                  Presentation {idx + 1}
+                                </span>
+                                {isSelected && (
+                                  <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[9px] font-black uppercase tracking-wider">
+                                    Selected
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-slate-400 truncate max-w-[220px]" title={deck.name}>
+                                {deck.name}
+                              </p>
+                              {deck.size ? (
+                                <p className="text-[10px] text-slate-500 mt-0.5">
+                                  {formatFileSize(deck.size)}
+                                </p>
+                              ) : null}
+                            </div>
+                          </div>
+
+                          {/* Right Controls: Selection Checkmark & Delete Button */}
+                          <div className="flex items-center gap-2 shrink-0">
+                            {isSelected ? (
+                              <div className="w-6 h-6 rounded-full bg-osu-orange text-white flex items-center justify-center shadow">
+                                <Check className="w-3.5 h-3.5 stroke-[3]" />
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSelectDeck(deck);
+                                }}
+                                className="opacity-0 group-hover:opacity-100 px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                              >
+                                Select
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={(e) => handleDeleteDeck(deck.id, e)}
+                              className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
+                              title="Remove from presentations list"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Footer hint */}
+                <div className="pt-3 border-t border-slate-800/80 mt-2 flex items-center justify-between text-[11px] text-slate-500">
+                  <span>Drag & drop .pptx files to add</span>
+                  <span>PowerPoint (.pptx) supported</span>
+                </div>
+              </div>
+
             </div>
           </div>
         )}

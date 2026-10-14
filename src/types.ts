@@ -77,6 +77,17 @@ export interface Presentation {
   magnifierActive?: boolean;
   isLocked?: boolean;
   pptxUrl?: string;
+  pptxFileName?: string;
+  uploadedDecks?: DeckItem[];
+  selectedDeckId?: string;
+}
+
+export interface DeckItem {
+  id: string;
+  name: string;
+  url: string;
+  uploadedAt: number;
+  size?: number;
 }
 
 export interface Message {

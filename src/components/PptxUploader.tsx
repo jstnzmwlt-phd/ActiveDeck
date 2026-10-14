@@ -1,13 +1,15 @@
 import React, { useState, useRef } from 'react';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { storage, db } from '../firebase';
+import { DeckItem } from '../types';
 import { UploadCloud, CheckCircle2, AlertCircle, Loader2, FileCheck } from 'lucide-react';
 
 interface PptxUploaderProps {
   presentationId: string;
   currentPptxUrl?: string;
-  onUploadSuccess?: (url: string) => void;
+  currentFileName?: string;
+  onUploadSuccess?: (url: string, name?: string, size?: number) => void;
   className?: string;
   compact?: boolean;
 }
@@ -15,6 +17,7 @@ interface PptxUploaderProps {
 export const PptxUploader: React.FC<PptxUploaderProps> = ({
   presentationId,
   currentPptxUrl,
+  currentFileName,
   onUploadSuccess,
   className = '',
   compact = false
@@ -40,26 +43,38 @@ export const PptxUploader: React.FC<PptxUploaderProps> = ({
     setIsSuccess(false);
 
     try {
-      // 1. Upload to Firebase Storage under /presentations/{presentationId}/source.pptx
-      const storagePath = `presentations/${presentationId}/source.pptx`;
+      // 1. Upload to Firebase Storage with unique timestamp path
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const storagePath = `presentations/${presentationId}/decks/${Date.now()}_${safeName}`;
       const storageRef = ref(storage, storagePath);
 
       await uploadBytes(storageRef, file, {
         contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
       });
 
-      // 2. Retrieve the public download URL
+      // 2. Retrieve public download URL
       const downloadUrl = await getDownloadURL(storageRef);
 
-      // 3. Save download URL to pptxUrl in the active Presentation Firestore document
+      // 3. Save download URL and append to uploadedDecks
+      const newDeck: DeckItem = {
+        id: `deck_${Date.now()}`,
+        name: file.name,
+        url: downloadUrl,
+        uploadedAt: Date.now(),
+        size: file.size
+      };
+
       const presDocRef = doc(db, 'presentations', presentationId);
       await updateDoc(presDocRef, {
-        pptxUrl: downloadUrl
+        pptxUrl: downloadUrl,
+        pptxFileName: file.name,
+        selectedDeckId: newDeck.id,
+        uploadedDecks: arrayUnion(newDeck)
       });
 
       setIsSuccess(true);
       if (onUploadSuccess) {
-        onUploadSuccess(downloadUrl);
+        onUploadSuccess(downloadUrl, file.name, file.size);
       }
     } catch (err: any) {
       console.error('PptxUploader: Upload failed:', err);
@@ -104,7 +119,7 @@ export const PptxUploader: React.FC<PptxUploaderProps> = ({
           ) : currentPptxUrl || isSuccess ? (
             <>
               <FileCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="truncate max-w-[120px]">{fileName || 'PPTX Loaded'}</span>
+              <span className="truncate max-w-[120px]">{fileName || currentFileName || 'PPTX Loaded'}</span>
             </>
           ) : (
             <>
@@ -162,7 +177,7 @@ export const PptxUploader: React.FC<PptxUploaderProps> = ({
               <div className="space-y-0.5">
                 <p className="text-xs font-bold text-emerald-300">PowerPoint Uploaded</p>
                 <p className="text-[10px] text-slate-400 truncate max-w-[220px]">
-                  {fileName || 'source.pptx'}
+                  {fileName || currentFileName || 'source.pptx'}
                 </p>
                 <p className="text-[9px] text-slate-500 underline hover:text-slate-400 pt-0.5">
                   Click to replace file
