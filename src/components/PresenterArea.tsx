@@ -210,6 +210,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     clearNotesState
   } = useBridge();
   const [activeTab, setActiveTab] = useState<'single' | 'dual' | 'manual'>('dual');
+  const [secondaryColor, setSecondaryColor] = useState<string>('#ff3e00');
   const [isCapturing, setIsCapturing] = useState(false);
   const isBridgeActivePresentation = isBridgeConnected && typeof currentSlide === 'number' && currentSlide > 0;
   const isPresentationActive = isCapturing || isBridgeActivePresentation;
