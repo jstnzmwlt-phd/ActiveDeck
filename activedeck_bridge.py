@@ -108,45 +108,65 @@ def download_and_open_ppt(url):
     if not url:
         return
     try:
-        temp_dir = tempfile.gettempdir()
-        filename = "active_deck_presentation.pptx"
-        try:
-            parsed_path = urllib.parse.urlparse(url).path
-            base_name = os.path.basename(parsed_path)
-            if base_name and base_name.lower().endswith((".pptx", ".ppt")):
-                filename = base_name
-        except Exception:
-            pass
+        global _cached_state, _cached_slide_index, _cached_total_slides, _notes_cache, _thumbnails_cache, _thumbnails_version, _last_exported_presentation
+        _cached_state = None
+        _cached_slide_index = None
+        _cached_total_slides = None
+        _notes_cache.clear()
+        _thumbnails_cache = {}
+        _thumbnails_version += 1
+        _last_exported_presentation = ""
 
-        filepath = os.path.abspath(os.path.join(temp_dir, filename))
+        import ssl
+        temp_dir = tempfile.gettempdir()
+        
+        # 1. Force a clean filename. Parsing Firebase URLs breaks Windows paths.
+        filepath = os.path.abspath(os.path.join(temp_dir, "activedeck_downloaded.pptx"))
+
+        # 2. Nuke old cached images so the frontend can't load a "pre-imaged" ghost presentation
+        slides_dir = os.path.join(temp_dir, "activedeck_slides")
+        if os.path.exists(slides_dir):
+            for f in os.listdir(slides_dir):
+                if f.lower().endswith(('.jpg', '.jpeg', '.png')):
+                    try:
+                        os.remove(os.path.join(slides_dir, f))
+                    except Exception:
+                        pass
+
+        # 3. Bypass potential local Windows SSL certificates blocking the download
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
 
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
-        with urllib.request.urlopen(req) as resp, open(filepath, "wb") as out_file:
+        with urllib.request.urlopen(req, context=ctx) as resp, open(filepath, "wb") as out_file:
             out_file.write(resp.read())
 
         if current_os == "Windows":
             pythoncom.CoInitialize()
             try:
+                import win32com.client.dynamic
                 try:
-                    ppt_app = win32com.client.GetActiveObject("PowerPoint.Application")
+                    # Use dynamic dispatch to avoid PyInstaller COM cache corruption
+                    ppt_app = win32com.client.dynamic.Dispatch("PowerPoint.Application")
                 except Exception:
                     ppt_app = win32com.client.Dispatch("PowerPoint.Application")
 
                 ppt_app.Visible = True
-                presentation = ppt_app.Presentations.Open(filepath)
+                # Open explicitly with WithWindow=True to prevent hidden background instances
+                presentation = ppt_app.Presentations.Open(filepath, False, False, True)
                 presentation.SlideShowSettings.Run()
 
                 try:
                     ppt_app.Activate()
-                    if ppt_app.SlideShowWindows.Count > 0:
-                        ppt_app.SlideShowWindows(1).Activate()
                 except Exception:
                     pass
-                print(f"[ActiveDeck Bridge] Successfully opened presentation: {filepath}")
             finally:
                 pythoncom.CoUninitialize()
     except Exception as e:
-        print(f"[ActiveDeck Bridge] Error in download_and_open_ppt: {e}")
+        # Write errors to a visible text file since the background console is hidden
+        with open(os.path.join(tempfile.gettempdir(), "activedeck_error.log"), "w") as f:
+            f.write(f"Error in download: {str(e)}")
 
 
 # ---------------------------------------------------------
