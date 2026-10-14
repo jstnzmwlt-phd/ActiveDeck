@@ -172,33 +172,48 @@ def download_and_open_ppt(url):
                     try:
                         ppt_app = win32com.client.GetActiveObject("PowerPoint.Application")
                     except Exception:
-                        ppt_app = None
+                        try:
+                            ppt_app = win32com.client.Dispatch("PowerPoint.Application")
+                        except Exception as d_err:
+                            print(f"[ActiveDeck Bridge] COM Dispatch error: {d_err}")
+                            ppt_app = None
 
                     if ppt_app is not None:
-                        # PowerPoint is already running: exit existing slideshow and run the new presentation
+                        try:
+                            ppt_app.Visible = True
+                        except Exception:
+                            pass
+
+                        # Exit any running slideshows first
                         try:
                             while ppt_app.SlideShowWindows.Count > 0:
                                 ppt_app.SlideShowWindows(1).View.Exit()
                         except Exception:
                             pass
 
-                        presentation = ppt_app.Presentations.Open(filepath)
-                        presentation.SlideShowSettings.Run()
-                    else:
-                        # PowerPoint is not running: launch it as a real, visible interactive desktop app in Slide Show mode
-                        import subprocess
-                        subprocess.Popen(['cmd', '/c', 'start', 'powerpnt', '/s', filepath], shell=True)
-                        # Wait up to 5 seconds for PowerPoint to initialize and register in COM
-                        for _ in range(10):
-                            time.sleep(0.5)
+                        # Open presentation with retry loop in case PowerPoint is busy or initializing
+                        presentation = None
+                        for attempt in range(5):
                             try:
-                                ppt_app = win32com.client.GetActiveObject("PowerPoint.Application")
-                                if ppt_app.SlideShowWindows.Count > 0:
-                                    break
-                            except Exception:
-                                pass
+                                presentation = ppt_app.Presentations.Open(filepath)
+                                break
+                            except Exception as open_err:
+                                print(f"[ActiveDeck Bridge] Open attempt {attempt+1} failed: {open_err}")
+                                time.sleep(0.5)
 
-                    print(f"[ActiveDeck Bridge] Successfully opened presentation in Slide Show mode: {filepath}")
+                        if presentation:
+                            presentation.SlideShowSettings.Run()
+
+                        try:
+                            ppt_app.Activate()
+                            if ppt_app.SlideShowWindows.Count > 0:
+                                ppt_app.SlideShowWindows(1).Activate()
+                        except Exception:
+                            pass
+
+                        print(f"[ActiveDeck Bridge] Successfully opened presentation in Slide Show mode: {filepath}")
+                    else:
+                        print("[ActiveDeck Bridge] Could not connect to or start PowerPoint via COM.")
 
                     # Trigger immediate slide export and thumbnails cache update
                     try:
