@@ -108,15 +108,6 @@ def download_and_open_ppt(url):
     if not url:
         return
     try:
-        global _cached_state, _cached_slide_index, _cached_total_slides, _notes_cache, _thumbnails_cache, _thumbnails_version, _last_exported_presentation
-        _cached_state = None
-        _cached_slide_index = None
-        _cached_total_slides = None
-        _notes_cache.clear()
-        _thumbnails_cache = {}
-        _thumbnails_version += 1
-        _last_exported_presentation = ""
-
         import ssl
         temp_dir = tempfile.gettempdir()
         
