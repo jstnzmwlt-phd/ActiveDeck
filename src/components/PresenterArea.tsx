@@ -3719,13 +3719,13 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                           }`}
                         >
                           <div className="flex items-center gap-3 min-w-0">
-                            {/* Presentation index badge (e.g. Presentation 1, Presentation 2) */}
+                            {/* File presentation icon */}
                             <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 transition-colors ${
                               isSelected 
                                 ? 'bg-osu-orange text-white shadow-md' 
                                 : 'bg-slate-800 text-slate-400 group-hover:text-slate-200 group-hover:bg-slate-700'
                             }`}>
-                              {idx + 1}
+                              <PresentationIcon className="w-4 h-4" />
                             </div>
 
                             <div className="min-w-0 flex-1">
@@ -3733,22 +3733,25 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                                 <span className={`text-xs font-bold truncate ${
                                   isSelected ? 'text-white' : 'text-slate-200 group-hover:text-white'
                                 }`} title={deck.name}>
-                                  Presentation {idx + 1}
+                                  {deck.name}
                                 </span>
                                 {isSelected && (
-                                  <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[9px] font-black uppercase tracking-wider">
+                                  <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[9px] font-black uppercase tracking-wider shrink-0">
                                     Selected
                                   </span>
                                 )}
                               </div>
-                              <p className="text-[11px] text-slate-400 truncate max-w-[220px]" title={deck.name}>
-                                {deck.name}
-                              </p>
-                              {deck.size ? (
-                                <p className="text-[10px] text-slate-500 mt-0.5">
-                                  {formatFileSize(deck.size)}
-                                </p>
-                              ) : null}
+                              <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-0.5">
+                                {deck.size ? (
+                                  <span>{formatFileSize(deck.size)}</span>
+                                ) : null}
+                                {deck.uploadedAt ? (
+                                  <>
+                                    {deck.size ? <span>•</span> : null}
+                                    <span>{new Date(deck.uploadedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+                                  </>
+                                ) : null}
+                              </div>
                             </div>
                           </div>
 
