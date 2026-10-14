@@ -227,6 +227,24 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
   const handleLoadPpt = () => {
     if (!presentation?.pptxUrl) return;
+
+    // Automatically activate Projector Mode screen in a popup window
+    if (!isProjectorMode) {
+      try {
+        const url = new URL(window.location.href);
+        if (presentation?.id) {
+          url.searchParams.set('id', presentation.id);
+        }
+        if (presentation?.pinCode) {
+          url.searchParams.set('pin', presentation.pinCode);
+        }
+        url.searchParams.set('view', 'projector');
+        window.open(url.toString(), '_blank', 'popup=yes,width=1280,height=720,resizable=yes,scrollbars=yes');
+      } catch (err) {
+        console.error('Failed to automatically open Projector Mode screen:', err);
+      }
+    }
+
     setIsLoadingPpt(true);
     setLoadPptSuccess(false);
     sendBridgeCommand({
