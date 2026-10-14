@@ -1683,7 +1683,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 ) : (
                   <>
                     <a 
-                      href="https://github.com/jstnzmwlt-phd/ActiveDeck/releases/download/v1.0.0/activedeck_bridge.2.0.zip"
+                      href="https://github.com/jstnzmwlt-phd/ActiveDeck/releases/latest/download/activedeck_bridge.zip"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center justify-center gap-2.5 w-full py-3.5 bg-osu-orange hover:bg-[#c03900] text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg shadow-orange-500/20 text-sm"
@@ -1870,7 +1870,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                       {!isBridgeConnected ? (
                         <>
                           <a 
-                            href="https://github.com/jstnzmwlt-phd/ActiveDeck/releases/download/v1.0.0/activedeck_bridge.2.0.zip"
+                            href="https://github.com/jstnzmwlt-phd/ActiveDeck/releases/latest/download/activedeck_bridge.zip"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center justify-center gap-2.5 w-full py-2.5 bg-osu-orange hover:bg-[#c03900] text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg shadow-orange-500/20 text-sm"
@@ -1941,7 +1941,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                       {!isBridgeConnected ? (
                         <>
                           <a 
-                            href="https://github.com/jstnzmwlt-phd/ActiveDeck/releases/download/v1.0.0/activedeck_bridge.2.0.zip"
+                            href="https://github.com/jstnzmwlt-phd/ActiveDeck/releases/latest/download/activedeck_bridge.zip"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center justify-center gap-2.5 w-full py-2.5 bg-osu-orange hover:bg-[#c03900] text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg shadow-orange-500/20 text-sm"
