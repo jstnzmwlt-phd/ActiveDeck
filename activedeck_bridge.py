@@ -8,6 +8,20 @@ import threading
 import base64
 import urllib.request
 import urllib.parse
+# Safe stdout/stderr redirection when running as windowless background process (pythonw / PyInstaller noconsole)
+if sys.stdout is None:
+    try:
+        log_file = os.path.join(tempfile.gettempdir(), "activedeck_bridge.log")
+        sys.stdout = open(log_file, "a", encoding="utf-8")
+    except Exception:
+        sys.stdout = open(os.devnull, "w")
+
+if sys.stderr is None:
+    try:
+        log_file = os.path.join(tempfile.gettempdir(), "activedeck_bridge.log")
+        sys.stderr = open(log_file, "a", encoding="utf-8")
+    except Exception:
+        sys.stderr = open(os.devnull, "w")
 
 current_os = platform.system()
 
