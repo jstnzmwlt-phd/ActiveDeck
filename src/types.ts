@@ -76,6 +76,7 @@ export interface Presentation {
   magnifierY?: number;
   magnifierActive?: boolean;
   isLocked?: boolean;
+  currentSlideBase64?: string | null;
   pptxUrl?: string;
   pptxFileName?: string;
   uploadedDecks?: DeckItem[];

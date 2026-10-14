@@ -1174,7 +1174,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const effectiveSlideBase64 = 
     (isProjectorMode && syncedProjectorBase64) 
       ? syncedProjectorBase64 
-      : currentSlideBase64;
+      : (currentSlideBase64 || presentation?.currentSlideBase64 || null);
 
   const mapSlidesCount = Object.keys(slidePreviewsMap).length;
   
@@ -1238,6 +1238,23 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         } catch (e) {}
       }
 
+      // Sync slide state to Firestore so remote projector screens on other devices receive slide updates
+      const updates: any = {};
+      if (typeof effectiveCurrentSlide === 'number' && effectiveCurrentSlide !== presentation.currentSlide) {
+        updates.currentSlide = effectiveCurrentSlide;
+      }
+      if (currentSlideBase64 && currentSlideBase64 !== presentation.currentSlideBase64) {
+        updates.currentSlideBase64 = currentSlideBase64;
+      }
+      if (typeof effectiveTotalSlides === 'number' && effectiveTotalSlides !== presentation.totalSlides) {
+        updates.totalSlides = effectiveTotalSlides;
+      }
+      if (Object.keys(updates).length > 0) {
+        updateDoc(doc(db, 'presentations', presentation.id), updates).catch(err => {
+          console.warn("ActiveDeck: Error updating slide state in Firebase:", err);
+        });
+      }
+
       return () => {
         channel.removeEventListener('message', handleSyncRequest);
         channel.close();
@@ -1294,9 +1311,31 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       });
     } catch (e) {}
 
+    // ALSO: Subscribe to Firestore doc for presentations/{presentation.id}
+    // This allows projector screens on completely different computers/browsers to sync current_slide_base64!
+    const unsubDoc = onSnapshot(doc(db, 'presentations', presentation.id), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.currentSlideBase64 && typeof data.currentSlideBase64 === 'string') {
+          setSyncedProjectorBase64(data.currentSlideBase64);
+          setIsCapturing(true);
+        }
+        if (typeof data.currentSlide === 'number') {
+          setSyncedProjectorSlide(data.currentSlide);
+          setIsCapturing(true);
+        }
+        if (typeof data.totalSlides === 'number') {
+          setSyncedProjectorTotal(data.totalSlides);
+        }
+      }
+    }, (err) => {
+      console.warn("ActiveDeck Projector: Firestore presentation sync listener error:", err);
+    });
+
     return () => {
       channel.removeEventListener('message', handleSync);
       channel.close();
+      unsubDoc();
     };
   }, [isProjectorMode, presentation?.id]);
 
@@ -3190,41 +3229,37 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     const channel = new BroadcastChannel('activedeck-stream');
 
     const checkParentStream = () => {
-      console.log("ActiveDeck Projector: checkParentStream invoked");
       try {
-        console.log("ActiveDeck Projector: window.opener =", window.opener);
-        if (window.opener) {
-          console.log("ActiveDeck Projector: window.opener.closed =", window.opener.closed);
-          if (!window.opener.closed) {
-            const parentStream = window.opener.activeDeckStream;
-            console.log("ActiveDeck Projector: window.opener.activeDeckStream =", parentStream);
-            if (parentStream) {
-              console.log("ActiveDeck Projector: Stream found. Active tracks:", parentStream.getTracks().map((t: any) => ({ label: t.label, enabled: t.enabled, readyState: t.readyState })));
-              
-              setStream(parentStream);
-
-              setIsCapturing(true);
-              setError(null);
-            } else {
-              setStream(null);
-              if (!isBridgeActivePresentation && syncedProjectorSlide === null) {
-                setIsCapturing(false);
-              }
-            }
-          } else {
-            setStream(null);
-            if (!isBridgeActivePresentation && syncedProjectorSlide === null) {
-              setIsCapturing(false);
+        let liveParentStream: MediaStream | null = null;
+        try {
+          if (typeof window !== 'undefined' && window.opener && !window.opener.closed) {
+            const parentStream = (window.opener as any).activeDeckStream;
+            if (
+              parentStream && 
+              typeof parentStream.getVideoTracks === 'function' &&
+              parentStream.getVideoTracks().some((t: MediaStreamTrack) => t.readyState === 'live')
+            ) {
+              liveParentStream = parentStream;
             }
           }
+        } catch (openerErr) {
+          // Cross-origin restriction or opener closed error
+          console.warn("ActiveDeck Projector: Safe check caught opener access restriction:", openerErr);
+        }
+
+        if (liveParentStream) {
+          setStream(liveParentStream);
+          setIsCapturing(true);
+          setError(null);
         } else {
           setStream(null);
-          if (!isBridgeActivePresentation && syncedProjectorSlide === null) {
+          // Preserve capturing state if bridge or slide image is active
+          if (!isBridgeActivePresentation && syncedProjectorSlide === null && !syncedProjectorBase64 && !currentSlideBase64) {
             setIsCapturing(false);
           }
         }
       } catch (err) {
-        console.error("ActiveDeck Projector: Error accessing presenter window memory:", err);
+        console.error("ActiveDeck Projector: Error during safe stream check:", err);
       }
     };
 
@@ -3239,7 +3274,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       } else if (event.data?.type === 'stream-stopped') {
         console.log("ActiveDeck Projector: Stream stopped message received");
         setStream(null);
-        if (!isBridgeActivePresentation && syncedProjectorSlide === null) {
+        if (!isBridgeActivePresentation && syncedProjectorSlide === null && !syncedProjectorBase64 && !currentSlideBase64) {
           setIsCapturing(false);
         }
       } else if (event.data?.type === 'close-projector') {
@@ -3256,7 +3291,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       channel.close();
       clearInterval(intervalId);
     };
-  }, [isProjectorMode]);
+  }, [isProjectorMode, isBridgeActivePresentation, syncedProjectorSlide, syncedProjectorBase64, currentSlideBase64]);
 
   return (
     <div className="flex flex-col h-full bg-black relative group">
@@ -4144,7 +4179,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         )}
 
         {/* Stunning Classroom Welcome & Join Hub - Shown in projector mode when offline */}
-        {!isCapturing && isProjectorMode && (
+        {!isCapturing && !stream && !effectiveSlideBase64 && isProjectorMode && (
           <div className="absolute inset-0 z-[65] flex flex-col items-center justify-center bg-slate-950 p-6 text-center text-white overflow-hidden">
             <div className="max-w-xl w-full flex flex-col items-center gap-5 md:gap-6 animate-in fade-in zoom-in-95 duration-500">
               {/* Logo / Brand Header */}
@@ -4583,7 +4618,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           className="relative w-full flex-1 bg-black border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex items-center justify-center mx-auto min-h-0"
         >
           <ScreenCapture 
-            isCapturing={isCapturing || isBridgeActivePresentation || !!syncedProjectorSlide} 
+            isCapturing={isCapturing || isBridgeActivePresentation || !!syncedProjectorSlide || !!effectiveSlideBase64} 
             stream={stream} 
             error={error} 
             onStart={startCapture} 
@@ -4593,8 +4628,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             videoRef={videoRef}
             onLoadedMetadata={handleVideoLoadedMetadata}
             onSlideImageLoad={handleSlideImageLoad}
-            isBridgeConnected={isBridgeConnected || isPresentationActive || !!syncedProjectorSlide}
-            currentSlideBase64={syncedProjectorBase64 || currentSlideBase64}
+            isBridgeConnected={isBridgeConnected || isPresentationActive || !!syncedProjectorSlide || !!effectiveSlideBase64}
+            currentSlideBase64={effectiveSlideBase64}
             currentSlide={effectiveCurrentSlide}
             currentSlidePreviewUrl={currentSlidePreviewUrl}
             deckId={activeDeckKey}

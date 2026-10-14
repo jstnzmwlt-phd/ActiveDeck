@@ -38,71 +38,32 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
 }) => {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const activeVideoRef = videoRef || localVideoRef;
-  const activeSlideNumber = (typeof currentSlide === 'number' && currentSlide > 0) ? currentSlide : null;
 
-  const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+  // 1. Live video stream detection (from Screen Sharing / Start PPT)
+  const hasVideoStream = Boolean(
+    stream &&
+    typeof stream.getVideoTracks === 'function' &&
+    stream.getVideoTracks().some(track => track.readyState === 'live')
+  );
 
-  const bridgeSlideImgSrc = 
-    (currentSlideBase64)
-      ? currentSlideBase64
-      : (currentSlidePreviewUrl)
-        ? currentSlidePreviewUrl
-        : (activeSlideNumber && !isHttps)
-          ? `http://127.0.0.1:5000/slides/${activeSlideNumber}.jpg${deckId ? `?d=${encodeURIComponent(deckId)}` : ''}`
-          : (activeSlideNumber ? `http://127.0.0.1:5000/slides/${activeSlideNumber}.jpg${deckId ? `?d=${encodeURIComponent(deckId)}` : ''}` : null);
+  // 2. Safe slide image detection (from Bridge / Load PPT / Firebase synced state)
+  // Ensure we only use valid base64 data URLs or preview URLs, avoiding broken image fallbacks
+  const validSlideSrc = (
+    currentSlideBase64 && 
+    typeof currentSlideBase64 === 'string' && 
+    (currentSlideBase64.startsWith('data:image') || currentSlideBase64.startsWith('blob:') || currentSlideBase64.startsWith('http'))
+  ) ? currentSlideBase64 : (
+    currentSlidePreviewUrl &&
+    typeof currentSlidePreviewUrl === 'string' &&
+    (currentSlidePreviewUrl.startsWith('data:image') || currentSlidePreviewUrl.startsWith('blob:') || currentSlidePreviewUrl.startsWith('http'))
+  ) ? currentSlidePreviewUrl : null;
 
-  const [displayedSlideSrc, setDisplayedSlideSrc] = useState<string | null>(bridgeSlideImgSrc);
-
-  useEffect(() => {
-    if (!bridgeSlideImgSrc) {
-      setDisplayedSlideSrc(null);
-      return;
-    }
-    if (bridgeSlideImgSrc === displayedSlideSrc) return;
-
-    if (bridgeSlideImgSrc.startsWith('data:')) {
-      setDisplayedSlideSrc(bridgeSlideImgSrc);
-      return;
-    }
-
-    let isMounted = true;
-    const img = new Image();
-    img.src = bridgeSlideImgSrc;
-
-    img.onload = () => {
-      if (isMounted) {
-        setDisplayedSlideSrc(bridgeSlideImgSrc);
-      }
-    };
-    img.onerror = () => {
-      if (isMounted) {
-        if (currentSlideBase64) {
-          setDisplayedSlideSrc(currentSlideBase64);
-        } else if (currentSlidePreviewUrl) {
-          setDisplayedSlideSrc(currentSlidePreviewUrl);
-        } else {
-          setDisplayedSlideSrc(bridgeSlideImgSrc);
-        }
-      }
-    };
-
-    const timer = setTimeout(() => {
-      if (isMounted) {
-        setDisplayedSlideSrc(bridgeSlideImgSrc);
-      }
-    }, 200);
-
-    return () => {
-      isMounted = false;
-      clearTimeout(timer);
-    };
-  }, [bridgeSlideImgSrc, currentSlideBase64, currentSlidePreviewUrl]);
-
+  // Handle video element stream attachment
   useEffect(() => {
     const videoElem = activeVideoRef.current;
     if (!videoElem) return;
 
-    if (stream && isCapturing) {
+    if (hasVideoStream && stream) {
       if (videoElem.srcObject !== stream) {
         videoElem.srcObject = stream;
       }
@@ -124,17 +85,53 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
         videoElem.onloadedmetadata = () => playVideo();
         playVideo();
       }
-    } else if (!stream || !isCapturing) {
+    } else {
       videoElem.srcObject = null;
     }
-  }, [stream, isCapturing]);
+  }, [hasVideoStream, stream]);
 
   return (
     <div className="relative w-full h-full flex flex-col bg-slate-900 overflow-hidden group">
-      {/* Video / Slide Display */}
+      {/* Video / Slide Display: Dual-Mode Rendering */}
       <div className="flex-1 relative flex items-center justify-center bg-black">
-        {/* OSU Logo Watermark - Only visible when not sharing */}
-        {!isCapturing && !bridgeSlideImgSrc && (
+        {/* Mode A: Screen Sharing Active -> Render <video> element */}
+        {hasVideoStream ? (
+          <video
+            ref={(el) => {
+              if (videoRef) {
+                (videoRef as any).current = el;
+              }
+              (localVideoRef as any).current = el;
+              if (el && stream && el.srcObject !== stream) {
+                el.srcObject = stream;
+                el.play().catch(() => {});
+              }
+            }}
+            autoPlay
+            playsInline
+            muted
+            onLoadedMetadata={(e) => {
+              e.currentTarget.play().catch(() => {});
+              if (onLoadedMetadata) onLoadedMetadata(e);
+            }}
+            className="absolute inset-0 w-full h-full object-contain z-10"
+          />
+        ) : validSlideSrc ? (
+          /* Mode B: Python Bridge / Firebase Synced Slide Active -> Render <img> element with base64 */
+          <img 
+            src={validSlideSrc} 
+            alt={`Slide ${currentSlide || 1}`}
+            className="absolute inset-0 w-full h-full object-contain z-10 select-none pointer-events-none"
+            onLoad={(e) => {
+              if (onSlideImageLoad) onSlideImageLoad(e);
+            }}
+            onError={(e) => {
+              console.warn("ActiveDeck: Slide image failed to load, hiding broken image:", e);
+              (e.currentTarget as HTMLElement).style.display = 'none';
+            }}
+          />
+        ) : (
+          /* Mode C: Standby / Offline -> Clean OSU Logo Watermark (Zero broken image tags) */
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-10 z-0">
             <img 
               src={logoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png"} 
@@ -144,48 +141,9 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
             />
           </div>
         )}
-        
-        {/* Bridge Clean Slide Fallback Image Layer (Provides crisp slide visual when not screen-capturing) */}
-        {(displayedSlideSrc || bridgeSlideImgSrc) && (!isCapturing || !stream) && (
-          <img 
-            src={(displayedSlideSrc || bridgeSlideImgSrc)!} 
-            alt={`Slide ${currentSlide || 1}`}
-            className="absolute inset-0 w-full h-full object-contain z-15"
-            onLoad={(e) => {
-              if (onSlideImageLoad) onSlideImageLoad(e);
-            }}
-            onError={(e) => {
-              if (currentSlideBase64 && e.currentTarget.src !== currentSlideBase64) {
-                e.currentTarget.src = currentSlideBase64;
-              } else if (currentSlidePreviewUrl && e.currentTarget.src !== currentSlidePreviewUrl) {
-                e.currentTarget.src = currentSlidePreviewUrl;
-              }
-            }}
-          />
-        )}
 
-        <video
-          ref={(el) => {
-            if (videoRef) {
-              (videoRef as any).current = el;
-            }
-            (localVideoRef as any).current = el;
-            if (el && stream && isCapturing && el.srcObject !== stream) {
-              el.srcObject = stream;
-              el.play().catch(() => {});
-            }
-          }}
-          autoPlay
-          playsInline
-          muted
-          onLoadedMetadata={(e) => {
-            e.currentTarget.play().catch(() => {});
-            if (onLoadedMetadata) onLoadedMetadata(e);
-          }}
-          className={`absolute inset-0 w-full h-full object-contain z-10 ${isCapturing ? 'opacity-100' : 'opacity-0'}`}
-        />
-        
-        {!isCapturing && !error && !isProjectorMode && (
+        {/* Start Presentation Prompt (Only in presenter screen when nothing is active) */}
+        {!hasVideoStream && !validSlideSrc && !isCapturing && !error && !isProjectorMode && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 p-8 text-center z-20">
             <Monitor className="w-16 h-16 mb-4 opacity-20" />
             <h3 className="text-xl font-bold text-slate-300 mb-2">Presentation Mode</h3>
