@@ -40,12 +40,16 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
   const activeVideoRef = videoRef || localVideoRef;
   const activeSlideNumber = (typeof currentSlide === 'number' && currentSlide > 0) ? currentSlide : null;
 
+  const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+
   const bridgeSlideImgSrc = 
-    activeSlideNumber
-      ? `http://127.0.0.1:5000/slides/${activeSlideNumber}.jpg${deckId ? `?d=${encodeURIComponent(deckId)}` : ''}`
-      : (isBridgeConnected && currentSlideBase64) 
-        ? currentSlideBase64 
-        : currentSlidePreviewUrl || null;
+    (currentSlideBase64)
+      ? currentSlideBase64
+      : (currentSlidePreviewUrl)
+        ? currentSlidePreviewUrl
+        : (activeSlideNumber && !isHttps)
+          ? `http://127.0.0.1:5000/slides/${activeSlideNumber}.jpg${deckId ? `?d=${encodeURIComponent(deckId)}` : ''}`
+          : (activeSlideNumber ? `http://127.0.0.1:5000/slides/${activeSlideNumber}.jpg${deckId ? `?d=${encodeURIComponent(deckId)}` : ''}` : null);
 
   const [displayedSlideSrc, setDisplayedSlideSrc] = useState<string | null>(bridgeSlideImgSrc);
 
@@ -55,6 +59,11 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
       return;
     }
     if (bridgeSlideImgSrc === displayedSlideSrc) return;
+
+    if (bridgeSlideImgSrc.startsWith('data:')) {
+      setDisplayedSlideSrc(bridgeSlideImgSrc);
+      return;
+    }
 
     let isMounted = true;
     const img = new Image();
@@ -67,7 +76,13 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
     };
     img.onerror = () => {
       if (isMounted) {
-        setDisplayedSlideSrc(bridgeSlideImgSrc);
+        if (currentSlideBase64) {
+          setDisplayedSlideSrc(currentSlideBase64);
+        } else if (currentSlidePreviewUrl) {
+          setDisplayedSlideSrc(currentSlidePreviewUrl);
+        } else {
+          setDisplayedSlideSrc(bridgeSlideImgSrc);
+        }
       }
     };
 
@@ -81,7 +96,7 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
       isMounted = false;
       clearTimeout(timer);
     };
-  }, [bridgeSlideImgSrc]);
+  }, [bridgeSlideImgSrc, currentSlideBase64, currentSlidePreviewUrl]);
 
   useEffect(() => {
     const videoElem = activeVideoRef.current;
@@ -140,7 +155,9 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
               if (onSlideImageLoad) onSlideImageLoad(e);
             }}
             onError={(e) => {
-              if (currentSlidePreviewUrl && e.currentTarget.src !== currentSlidePreviewUrl) {
+              if (currentSlideBase64 && e.currentTarget.src !== currentSlideBase64) {
+                e.currentTarget.src = currentSlideBase64;
+              } else if (currentSlidePreviewUrl && e.currentTarget.src !== currentSlidePreviewUrl) {
                 e.currentTarget.src = currentSlidePreviewUrl;
               }
             }}

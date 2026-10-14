@@ -189,6 +189,7 @@ export const useRenderedSlideBounds = (
 interface SlideThumbnailItemProps {
   sNum: number;
   imgUrl: string | null;
+  fallbackUrl?: string | null;
   isCurrent: boolean;
   isFurthest: boolean;
   isUnshown: boolean;
@@ -198,18 +199,29 @@ interface SlideThumbnailItemProps {
 const SlideThumbnailItem: React.FC<SlideThumbnailItemProps> = React.memo(({
   sNum,
   imgUrl,
+  fallbackUrl,
   isCurrent,
   isFurthest,
   isUnshown,
   onSelect
 }) => {
+  const [currentSrc, setCurrentSrc] = useState<string | null>(imgUrl);
   const [loaded, setLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
+    setCurrentSrc(imgUrl);
     setLoaded(false);
     setHasError(false);
   }, [imgUrl]);
+
+  const handleError = () => {
+    if (fallbackUrl && currentSrc !== fallbackUrl) {
+      setCurrentSrc(fallbackUrl);
+    } else {
+      setHasError(true);
+    }
+  };
 
   return (
     <button
@@ -231,16 +243,16 @@ const SlideThumbnailItem: React.FC<SlideThumbnailItemProps> = React.memo(({
         </div>
 
         {/* Slide image - fades in cleanly when ready, never flashes on slide changes or parent re-renders */}
-        {imgUrl && !hasError && (
+        {currentSrc && !hasError && (
           <img
-            src={imgUrl}
+            src={currentSrc}
             alt={`Slide ${sNum}`}
             className={`absolute inset-0 w-full h-full object-cover bg-black transition-opacity duration-200 ${
               loaded ? 'opacity-100' : 'opacity-0'
             }`}
             loading="lazy"
             onLoad={() => setLoaded(true)}
-            onError={() => setHasError(true)}
+            onError={handleError}
           />
         )}
         
@@ -1025,6 +1037,12 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     (isProjectorMode && syncedProjectorSlide !== null)
       ? syncedProjectorSlide
       : (currentSlide !== null ? currentSlide : (presentation?.currentSlide ?? 1));
+
+  const effectiveSlideBase64 = 
+    (isProjectorMode && syncedProjectorBase64) 
+      ? syncedProjectorBase64 
+      : currentSlideBase64;
+
   const mapSlidesCount = Object.keys(slidePreviewsMap).length;
   
   const explicitTotal = (syncedProjectorTotal !== null && syncedProjectorTotal > 0)
@@ -1050,20 +1068,74 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     if (isProjectorMode || !presentation?.id) return;
     try {
       const channel = new BroadcastChannel('activedeck-slide-sync');
-      channel.postMessage({
-        type: 'slide-update',
-        presentationId: presentation.id,
-        currentSlide: effectiveCurrentSlide,
-        currentSlideBase64: currentSlideBase64,
-        totalSlides: effectiveTotalSlides
-      });
-      channel.close();
+      
+      const broadcastState = () => {
+        try {
+          channel.postMessage({
+            type: 'slide-update',
+            presentationId: presentation.id,
+            deckId: activeDeckKey,
+            currentSlide: effectiveCurrentSlide,
+            currentSlideBase64: currentSlideBase64,
+            totalSlides: effectiveTotalSlides
+          });
+        } catch (e) {}
+      };
+
+      // Broadcast on state change
+      broadcastState();
+
+      // Listen for sync requests from newly opened projector windows
+      const handleSyncRequest = (e: MessageEvent) => {
+        if (e.data && e.data.type === 'request-slide-sync' && e.data.presentationId === presentation.id) {
+          broadcastState();
+        }
+      };
+      channel.addEventListener('message', handleSyncRequest);
+
+      // Save to localStorage so projector window immediately cold-starts with current deck slide
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(`activedeck_sync_${presentation.id}`, JSON.stringify({
+            currentSlide: effectiveCurrentSlide,
+            currentSlideBase64: currentSlideBase64,
+            totalSlides: effectiveTotalSlides,
+            deckId: activeDeckKey
+          }));
+        } catch (e) {}
+      }
+
+      return () => {
+        channel.removeEventListener('message', handleSyncRequest);
+        channel.close();
+      };
     } catch (e) {}
-  }, [effectiveCurrentSlide, currentSlideBase64, effectiveTotalSlides, isProjectorMode, presentation?.id]);
+  }, [effectiveCurrentSlide, currentSlideBase64, effectiveTotalSlides, isProjectorMode, presentation?.id, activeDeckKey]);
 
   // Projector window listener for instant slide updates from faculty screen
   useEffect(() => {
-    if (!isProjectorMode) return;
+    if (!isProjectorMode || !presentation?.id) return;
+
+    // Cold-start sync from localStorage (instant 0ms render without showing previous session deck!)
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem(`activedeck_sync_${presentation.id}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (typeof parsed.currentSlide === 'number') {
+            setSyncedProjectorSlide(parsed.currentSlide);
+            setIsCapturing(true);
+          }
+          if (parsed.currentSlideBase64) {
+            setSyncedProjectorBase64(parsed.currentSlideBase64);
+          }
+          if (typeof parsed.totalSlides === 'number') {
+            setSyncedProjectorTotal(parsed.totalSlides);
+          }
+        }
+      } catch (e) {}
+    }
+
     const channel = new BroadcastChannel('activedeck-slide-sync');
     const handleSync = (e: MessageEvent) => {
       if (e.data && e.data.type === 'slide-update' && e.data.presentationId === presentation?.id) {
@@ -1080,6 +1152,15 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       }
     };
     channel.addEventListener('message', handleSync);
+
+    // Actively request sync from faculty tab
+    try {
+      channel.postMessage({
+        type: 'request-slide-sync',
+        presentationId: presentation.id
+      });
+    } catch (e) {}
+
     return () => {
       channel.removeEventListener('message', handleSync);
       channel.close();
@@ -1108,6 +1189,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       return;
     }
     if (nextSlideImgUrl === displayedNextSlideUrl) return;
+
+    if (nextSlideImgUrl.startsWith('data:')) {
+      setDisplayedNextSlideUrl(nextSlideImgUrl);
+      return;
+    }
 
     let isMounted = true;
     const img = new Image();
@@ -3199,8 +3285,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         onLoadedMetadata={handleVideoLoadedMetadata}
                         onSlideImageLoad={handleSlideImageLoad}
                         isBridgeConnected={isBridgeConnected}
-                        currentSlideBase64={currentSlideBase64}
-                        currentSlide={currentSlide}
+                        currentSlideBase64={effectiveSlideBase64}
+                        currentSlide={effectiveCurrentSlide}
                         currentSlidePreviewUrl={currentSlidePreviewUrl}
                         deckId={activeDeckKey}
                       />
@@ -3434,15 +3520,25 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                                 const isFurthest = sNum === furthestSlide;
                                 const isUnshown = !visitedSlides[sNum];
                                 
-                                const localUrl = `http://127.0.0.1:5000/slides/${sNum}.jpg${activeDeckKey ? `?d=${encodeURIComponent(activeDeckKey)}` : ''}`;
-                                const firestoreUrl = slidePreviewsMap[sNum];
-                                const imgUrl = isBridgeConnected ? localUrl : (firestoreUrl || null);
+                                const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+                                const localUrl = !isHttps ? `http://127.0.0.1:5000/slides/${sNum}.jpg${activeDeckKey ? `?d=${encodeURIComponent(activeDeckKey)}` : ''}` : null;
+                                const firestoreUrl = slidePreviewsMap[sNum] || null;
+
+                                // Use real-time base64 from bridge for active and next slide (works instantly on HTTPS)
+                                const imgUrl = (isCurrent && effectiveSlideBase64)
+                                  ? effectiveSlideBase64
+                                  : (sNum === effectiveNextSlide && nextSlideBase64)
+                                    ? nextSlideBase64
+                                    : (firestoreUrl || localUrl || null);
+
+                                const fallbackUrl = firestoreUrl || localUrl || null;
 
                                 return (
                                   <SlideThumbnailItem
                                     key={`nav-slide-${sNum}`}
                                     sNum={sNum}
                                     imgUrl={imgUrl}
+                                    fallbackUrl={fallbackUrl}
                                     isCurrent={isCurrent}
                                     isFurthest={isFurthest}
                                     isUnshown={isUnshown}
@@ -3486,9 +3582,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     videoRef={videoRef}
                     onLoadedMetadata={handleVideoLoadedMetadata}
                     onSlideImageLoad={handleSlideImageLoad}
-                    isBridgeConnected={isBridgeConnected}
-                    currentSlideBase64={currentSlideBase64}
-                    currentSlide={currentSlide}
+                    isBridgeConnected={isBridgeConnected || !!effectiveSlideBase64}
+                    currentSlideBase64={effectiveSlideBase64}
+                    currentSlide={effectiveCurrentSlide}
                     currentSlidePreviewUrl={currentSlidePreviewUrl}
                     deckId={activeDeckKey}
                   />
@@ -4871,8 +4967,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               onLoadedMetadata={handleVideoLoadedMetadata}
               onSlideImageLoad={handleSlideImageLoad}
               isBridgeConnected={isBridgeConnected}
-              currentSlideBase64={currentSlideBase64}
-              currentSlide={currentSlide}
+              currentSlideBase64={effectiveSlideBase64}
+              currentSlide={effectiveCurrentSlide}
               currentSlidePreviewUrl={currentSlidePreviewUrl}
               deckId={activeDeckKey}
             />
