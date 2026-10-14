@@ -299,7 +299,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     notes,
     clearNotesState,
     slideThumbnails,
-    requestThumbnails
+    requestThumbnails,
+    clearThumbnails
   } = useBridge();
 
   const handleSelectSlide = useCallback((sNum: number) => {
@@ -420,6 +421,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   // Request all slide thumbnails from the bridge as soon as connected or deck changes
   useEffect(() => {
     if (isBridgeConnected) {
+      clearThumbnails();
       requestThumbnails();
     }
   }, [isBridgeConnected, activeDeckKey]);
@@ -1042,8 +1044,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       const map: Record<number, string> = {};
       snapshot.forEach((docSnap) => {
         const data = docSnap.data();
-        // Crucial: Discard any previews that were stored for a different deck!
-        if (data.deckId && activeDeckKey && data.deckId !== activeDeckKey) {
+        // Crucial: Discard any previews that were stored for a different deck or missing deckId when activeDeckKey is present
+        if (activeDeckKey && data.deckId && data.deckId !== activeDeckKey) {
+          return;
+        }
+        if (activeDeckKey && !data.deckId) {
           return;
         }
         if (data.slide !== undefined && data.slide !== null && data.fileUrl) {
@@ -1111,6 +1116,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     setSyncedProjectorSlide(null);
     setSyncedProjectorTotal(null);
     setDisplayedNextSlideUrl(null);
+    setVisitedSlides({ 1: true });
+    setFurthestSlide(1);
+    clearThumbnails();
   }, [activeDeckKey, presentation?.selectedDeckId, presentation?.pptxUrl]);
 
   const effectiveCurrentSlide = 
@@ -1251,13 +1259,17 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     ? nextSlide
     : (effectiveCurrentSlide < effectiveTotalSlides ? effectiveCurrentSlide + 1 : null);
 
-  const nextSlideLocalUrl = effectiveNextSlide !== null ? `http://127.0.0.1:5000/slides/${effectiveNextSlide}.jpg${activeDeckKey ? `?d=${encodeURIComponent(activeDeckKey)}` : ''}` : null;
+  const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+  const bridgeNextThumbnail = (effectiveNextSlide !== null && slideThumbnails[effectiveNextSlide]) || null;
+  const nextSlideLocalUrl = !isHttps && effectiveNextSlide !== null ? `http://127.0.0.1:5000/slides/${effectiveNextSlide}.jpg${activeDeckKey ? `?d=${encodeURIComponent(activeDeckKey)}` : ''}` : null;
   const nextSlideFirestoreUrl = effectiveNextSlide !== null ? (slidePreviewsMap[effectiveNextSlide] || null) : null;
   const nextSlideImgUrl = (isBridgeConnected && nextSlideBase64)
     ? nextSlideBase64
-    : (effectiveNextSlide !== null && !nextSlideImageError && (isBridgeConnected || localSlidesCount >= effectiveNextSlide || localSlidesCount === 0))
-      ? nextSlideLocalUrl
-      : (nextSlideFirestoreUrl || null);
+    : (bridgeNextThumbnail)
+      ? bridgeNextThumbnail
+      : (nextSlideLocalUrl && !nextSlideImageError && (isBridgeConnected || localSlidesCount >= effectiveNextSlide || localSlidesCount === 0))
+        ? nextSlideLocalUrl
+        : (nextSlideFirestoreUrl || null);
 
   useEffect(() => {
     setNextSlideImageError(false);
@@ -3543,9 +3555,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         
                         {/* Changed aspect-video to flex-1 min-h-0 to resize dynamically */}
                         <div className="relative w-full flex-1 min-h-0 bg-black border border-slate-850 rounded-2xl overflow-hidden p-1 flex items-center justify-center shadow-lg">
-                          {(displayedNextSlideUrl || nextSlideImgUrl) ? (
+                          {(displayedNextSlideUrl || nextSlideImgUrl || bridgeNextThumbnail) ? (
                             <img 
-                              src={(displayedNextSlideUrl || nextSlideImgUrl)!} 
+                              src={(displayedNextSlideUrl || nextSlideImgUrl || bridgeNextThumbnail)!} 
                               alt="Next Slide Preview" 
                               className="w-full h-full object-contain bg-black"
                               onError={() => setNextSlideImageError(true)}

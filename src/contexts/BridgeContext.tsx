@@ -15,6 +15,7 @@ interface BridgeContextType {
   clearNotesState: () => void;
   slideThumbnails: Record<number, string>;
   requestThumbnails: () => void;
+  clearThumbnails: () => void;
 }
 
 const BridgeContext = createContext<BridgeContextType | undefined>(undefined);
@@ -207,6 +208,10 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  const clearThumbnails = () => {
+    setSlideThumbnails({});
+  };
+
   return (
     <BridgeContext.Provider value={{ 
       isBridgeConnected, 
@@ -222,7 +227,8 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       notes,
       clearNotesState,
       slideThumbnails,
-      requestThumbnails
+      requestThumbnails,
+      clearThumbnails
     }}>
       {children}
     </BridgeContext.Provider>
