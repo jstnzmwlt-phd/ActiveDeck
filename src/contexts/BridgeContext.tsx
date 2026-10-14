@@ -120,6 +120,31 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
 
   const sendSlideCommand = (direction: 'next' | 'prev' | number) => {
+    // Optimistic UI update: advance the slide counter and next slide immediately for responsive feedback
+    if (typeof direction === 'number') {
+      setCurrentSlide(direction);
+      if (totalSlides !== null && direction < totalSlides) {
+        setNextSlide(direction + 1);
+      } else {
+        setNextSlide(null);
+      }
+    } else if (direction === 'next') {
+      setCurrentSlide((prev) => {
+        if (prev === null) return 1;
+        if (totalSlides !== null && prev >= totalSlides) return prev;
+        const next = prev + 1;
+        setNextSlide(totalSlides !== null && next < totalSlides ? next + 1 : null);
+        return next;
+      });
+    } else if (direction === 'prev') {
+      setCurrentSlide((prev) => {
+        if (prev === null || prev <= 1) return 1;
+        const prevNum = prev - 1;
+        setNextSlide(prev);
+        return prevNum;
+      });
+    }
+
     const cmd = String(direction);
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       console.log(`ActiveDeck: Sending '${cmd}' command via WebSocket...`);

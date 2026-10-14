@@ -32,6 +32,7 @@ def move_ppt_windows(direction):
         ppt_app = win32com.client.GetActiveObject("PowerPoint.Application")
         if ppt_app.SlideShowWindows.Count > 0:
             view = ppt_app.SlideShowWindows(1).View
+            old_pos = view.CurrentShowPosition
             if direction == "next":
                 view.Next()
             elif direction == "prev":
@@ -43,6 +44,15 @@ def move_ppt_windows(direction):
                     if 1 <= slide_num <= presentation.Slides.Count:
                         view.GotoSlide(slide_num)
                 except ValueError:
+                    pass
+
+            # Fast micro-wait for PowerPoint COM to update CurrentShowPosition (up to 150ms max, 10ms steps)
+            for _ in range(15):
+                time.sleep(0.01)
+                try:
+                    if view.CurrentShowPosition != old_pos:
+                        break
+                except Exception:
                     pass
     except Exception:
         pass
@@ -111,7 +121,12 @@ def download_and_open_ppt(url):
 # ---------------------------------------------------------
 # 2. STATE EXTRACTION COMMANDS 
 # ---------------------------------------------------------
+_cached_state = None
+_cached_slide_index = None
+_cached_total_slides = None
+
 def get_ppt_state_windows():
+    global _cached_state, _cached_slide_index, _cached_total_slides
     pythoncom.CoInitialize()
     try:
         ppt_app = win32com.client.GetActiveObject("PowerPoint.Application")
@@ -121,6 +136,16 @@ def get_ppt_state_windows():
             
             current_slide_index = view.CurrentShowPosition
             total_slides = presentation.Slides.Count
+
+            # If slide index and total_slides haven't changed, and we have base64 cached, return cache instantly
+            if (
+                _cached_state is not None 
+                and _cached_slide_index == current_slide_index 
+                and _cached_total_slides == total_slides
+                and _cached_state.get("current_slide_base64") is not None
+            ):
+                return _cached_state
+
             next_slide_index = current_slide_index + 1 if current_slide_index < total_slides else 0
             
             current_slide = presentation.Slides(current_slide_index)
@@ -161,7 +186,7 @@ def get_ppt_state_windows():
                     except Exception:
                         pass
                             
-            return {
+            state = {
                 "current_slide": current_slide_index,
                 "current_slide_base64": current_slide_base64,
                 "next_slide": next_slide_index if next_slide_index > 0 else 0,
@@ -169,6 +194,14 @@ def get_ppt_state_windows():
                 "notes": notes_text.strip(),
                 "next_slide_base64": next_slide_base64
             }
+            _cached_state = state
+            _cached_slide_index = current_slide_index
+            _cached_total_slides = total_slides
+            return state
+        else:
+            _cached_state = None
+            _cached_slide_index = None
+            _cached_total_slides = None
     except Exception:
         pass 
     finally:
@@ -298,8 +331,10 @@ def handle_direction_http(direction):
 def handle_ws(ws):
     last_state = None
     while True:
+        force_send = False
         try:
-            message = ws.receive(timeout=0.5)
+            # Short 50ms timeout for near-instant responsiveness without busy-waiting
+            message = ws.receive(timeout=0.05)
             if message:
                 try:
                     payload = json.loads(message)
@@ -308,20 +343,29 @@ def handle_ws(ws):
                         if action == 'move':
                             direction = payload.get('direction', 'next')
                             move_ppt_silently(direction)
+                            force_send = True
                         elif action == 'load':
                             url = payload.get('url')
                             if url:
                                 download_and_open_ppt(url)
+                                force_send = True
+                        elif action == 'status':
+                            force_send = True
                     else:
                         move_ppt_silently(str(payload))
+                        force_send = True
                 except (json.JSONDecodeError, TypeError):
-                    move_ppt_silently(message)
+                    if message == 'status':
+                        force_send = True
+                    else:
+                        move_ppt_silently(message)
+                        force_send = True
         except Exception:
             pass
 
         state = get_ppt_state_silently()
 
-        if state and state != last_state:
+        if state and (state != last_state or force_send):
             try:
                 ws.send(json.dumps(state))
                 last_state = state
