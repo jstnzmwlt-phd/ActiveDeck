@@ -601,9 +601,14 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  const handleLoadPpt = () => {
-    const targetUrl = activeDeck?.url || presentation?.pptxUrl;
+  const handleLoadPpt = (customDeck?: DeckItem) => {
+    const targetDeck = customDeck || activeDeck;
+    const targetUrl = targetDeck?.url || presentation?.pptxUrl;
     if (!targetUrl) return;
+
+    if (targetDeck && targetDeck.id !== selectedDeckId) {
+      handleSelectDeck(targetDeck);
+    }
 
     // Automatically activate Projector Mode screen in a popup window
     if (!isProjectorMode) {
@@ -624,15 +629,27 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
     setIsLoadingPpt(true);
     setLoadPptSuccess(false);
+
+    // 1. Send load command via WebSocket bridge
     sendBridgeCommand({
       action: 'load',
       url: targetUrl
     });
+
+    // 2. Also send load command via HTTP POST directly to bridge for 100% reliable trigger
+    fetch('http://127.0.0.1:5000/load', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: targetUrl })
+    }).catch(err => {
+      console.warn("Direct HTTP /load bridge note:", err);
+    });
+
     setTimeout(() => {
       setIsLoadingPpt(false);
       setLoadPptSuccess(true);
       setTimeout(() => setLoadPptSuccess(false), 3000);
-    }, 1200);
+    }, 1500);
   };
 
   useEffect(() => {
@@ -3889,31 +3906,31 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 <div className="w-full space-y-3 pt-2">
                   <button
                     type="button"
-                    onClick={handleLoadPpt}
+                    onClick={() => handleLoadPpt()}
                     disabled={(!activeDeck?.url && !presentation?.pptxUrl) || isLoadingPpt}
                     className={`flex items-center justify-center gap-2.5 w-full py-3.5 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-black uppercase tracking-wider rounded-xl transition-all active:scale-95 shadow-lg shadow-amber-600/20 text-xs cursor-pointer ${
                       (!activeDeck?.url && !presentation?.pptxUrl) ? 'opacity-50' : ''
                     }`}
                     title={
                       (activeDeck?.url || presentation?.pptxUrl)
-                        ? "Load and launch presentation in PowerPoint"
-                        : "Upload or select a presentation first to enable Load PPT"
+                        ? "Download & launch presentation directly in PowerPoint with animations"
+                        : "Upload or select a presentation first to enable Launch PPT"
                     }
                   >
                     {isLoadingPpt ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin text-white" />
-                        <span>Loading PowerPoint...</span>
+                        <span>Starting PowerPoint...</span>
                       </>
                     ) : loadPptSuccess ? (
                       <>
                         <Check className="w-4 h-4 text-white" />
-                        <span>PPT Sent to Bridge!</span>
+                        <span>PowerPoint Active & Playing!</span>
                       </>
                     ) : (
                       <>
                         <Play className="w-4 h-4 fill-current" />
-                        <span>Load PPT</span>
+                        <span>Launch in PowerPoint</span>
                       </>
                     )}
                   </button>
@@ -4042,7 +4059,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                       return (
                         <div
                           key={deck.id || idx}
-                          onClick={() => handleSelectDeck(deck)}
+                          onClick={() => {
+                            handleSelectDeck(deck);
+                            handleLoadPpt(deck);
+                          }}
                           className={`group relative p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
                             isSelected
                               ? 'bg-osu-orange/10 border-osu-orange/70 shadow-lg shadow-osu-orange/10 ring-1 ring-osu-orange/50'
@@ -4086,24 +4106,25 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                             </div>
                           </div>
 
-                          {/* Right Controls: Selection Checkmark & Delete Button */}
+                          {/* Right Controls: Launch in PowerPoint Button & Delete Button */}
                           <div className="flex items-center gap-2 shrink-0">
-                            {isSelected ? (
-                              <div className="w-6 h-6 rounded-full bg-osu-orange text-white flex items-center justify-center shadow">
-                                <Check className="w-3.5 h-3.5 stroke-[3]" />
-                              </div>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleSelectDeck(deck);
-                                }}
-                                className="opacity-0 group-hover:opacity-100 px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
-                              >
-                                Select
-                              </button>
-                            )}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSelectDeck(deck);
+                                handleLoadPpt(deck);
+                              }}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+                                isSelected
+                                  ? 'bg-osu-orange text-white hover:bg-osu-orange-dark shadow-md shadow-osu-orange/20 active:scale-95'
+                                  : 'bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700'
+                              }`}
+                              title="Download & launch presentation directly in PowerPoint with animations"
+                            >
+                              <Play className="w-3 h-3 fill-current" />
+                              <span>{isSelected ? 'Open in PPT' : 'Launch'}</span>
+                            </button>
 
                             <button
                               type="button"

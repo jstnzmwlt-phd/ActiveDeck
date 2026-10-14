@@ -179,7 +179,24 @@ def download_and_open_ppt(url):
                     pass
 
                 presentation = ppt_app.Presentations.Open(filepath)
-                presentation.SlideShowSettings.Run()
+                ssw = presentation.SlideShowSettings.Run()
+
+                # Actively bring PowerPoint SlideShow window directly to the front so presenter sees animations
+                try:
+                    import ctypes
+                    import win32gui
+                    time.sleep(0.3)
+                    def enum_activate_cb(hwnd, _):
+                        if win32gui.IsWindowVisible(hwnd) and win32gui.GetClassName(hwnd) == 'screenClass':
+                            try:
+                                ctypes.windll.user32.ShowWindow(hwnd, 3) # SW_MAXIMIZE
+                                ctypes.windll.user32.SwitchToThisWindow(hwnd, True)
+                                ctypes.windll.user32.SetForegroundWindow(hwnd)
+                            except Exception:
+                                pass
+                    win32gui.EnumWindows(enum_activate_cb, None)
+                except Exception as e:
+                    print(f"Error bringing slideshow to front: {e}")
 
                 # Trigger immediate export so thumbnails and notes are ready instantly
                 try:
