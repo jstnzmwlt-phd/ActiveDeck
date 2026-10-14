@@ -266,6 +266,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     (presentation?.pptxUrl && d.url === presentation.pptxUrl)
   ) || effectiveDecks[0] || null;
 
+  const activeDeckKey = activeDeck?.id || activeDeck?.url || presentation?.selectedDeckId || presentation?.pptxUrl || presentation?.id || '';
+
   const handleSelectDeck = async (deck: DeckItem) => {
     if (!presentation?.id) return;
     try {
@@ -868,6 +870,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       const map: Record<number, string> = {};
       snapshot.forEach((docSnap) => {
         const data = docSnap.data();
+        // Crucial: Discard any previews that were stored for a different deck!
+        if (data.deckId && activeDeckKey && data.deckId !== activeDeckKey) {
+          return;
+        }
         if (data.slide !== undefined && data.slide !== null && data.fileUrl) {
           map[data.slide] = data.fileUrl;
         }
@@ -877,7 +883,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       console.warn("ActiveDeck: Error loading all slide previews:", err);
     });
     return () => unsub();
-  }, [presentation?.id]);
+  }, [presentation?.id, activeDeckKey]);
 
   useEffect(() => {
     if (!presentation?.id || currentSlide === null) {
@@ -915,20 +921,23 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     return () => unsub();
   }, [presentation?.id, nextSlide]);
 
-  // Clear slide previews and image errors when switching presentations/decks
-  useEffect(() => {
-    setSlidePreviewsMap({});
-    setLocalImageErrors({});
-    setCurrentSlidePreviewUrl(null);
-    setNextSlidePreviewUrl(null);
-    setSyncedProjectorBase64(null);
-  }, [presentation?.selectedDeckId, presentation?.pptxUrl]);
-
   const [localSlidesCount, setLocalSlidesCount] = useState<number>(0);
   const [nextSlideImageError, setNextSlideImageError] = useState<boolean>(false);
   const [syncedProjectorSlide, setSyncedProjectorSlide] = useState<number | null>(null);
   const [syncedProjectorBase64, setSyncedProjectorBase64] = useState<string | null>(null);
   const [syncedProjectorTotal, setSyncedProjectorTotal] = useState<number | null>(null);
+
+  // Clear slide previews, errors, and counts when switching presentations/decks
+  useEffect(() => {
+    setSlidePreviewsMap({});
+    setLocalImageErrors({});
+    setLocalSlidesCount(0);
+    setCurrentSlidePreviewUrl(null);
+    setNextSlidePreviewUrl(null);
+    setSyncedProjectorBase64(null);
+    setSyncedProjectorSlide(null);
+    setSyncedProjectorTotal(null);
+  }, [activeDeckKey, presentation?.selectedDeckId, presentation?.pptxUrl]);
 
   const effectiveCurrentSlide = 
     (isProjectorMode && syncedProjectorSlide !== null)
@@ -995,8 +1004,6 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     };
   }, [isProjectorMode, presentation?.id]);
 
-  const activeDeckKey = activeDeck?.id || presentation?.selectedDeckId || presentation?.pptxUrl || presentation?.id || '';
-
   const effectiveNextSlide = (nextSlide !== null && nextSlide > 0)
     ? nextSlide
     : (effectiveCurrentSlide < effectiveTotalSlides ? effectiveCurrentSlide + 1 : null);
@@ -1024,6 +1031,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             if (data && data.success && typeof data.count === 'number' && data.count > 0) {
               console.log(`ActiveDeck: Successfully pre-exported ${data.count} slide previews locally.`);
               setLocalSlidesCount(data.count);
+              setLocalImageErrors({});
             }
           })
           .catch(err => {
@@ -1036,14 +1044,14 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
     checkLocalExport();
 
-    if (isBridgeConnected && localSlidesCount === 0 && totalSlides === null) {
+    if (isBridgeConnected && (localSlidesCount === 0 || (effectiveTotalSlides > 0 && localSlidesCount < effectiveTotalSlides))) {
       intervalId = setInterval(checkLocalExport, 2000);
     }
 
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-  }, [isBridgeConnected, localSlidesCount, totalSlides]);
+  }, [isBridgeConnected, localSlidesCount, totalSlides, effectiveTotalSlides, activeDeckKey]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -1365,6 +1373,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           const docId = `${presentation.id}_preview_slide_${activeSlideNum}`;
           await setDoc(doc(db, 'messages', docId), {
             presentationId: presentation.id,
+            deckId: activeDeckKey,
             slide: activeSlideNum,
             fileUrl: downloadUrl,
             isBackgroundPreview: true,
@@ -1471,6 +1480,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           const previewDocId = `${presentation.id}_preview_slide_${currentSlideNum}`;
           await setDoc(doc(db, 'messages', previewDocId), {
             presentationId: presentation.id,
+            deckId: activeDeckKey,
             slide: currentSlideNum,
             fileUrl: downloadUrl,
             isBackgroundPreview: true,
@@ -3311,7 +3321,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                                 const hasLocalError = localImageErrors[sNum];
                                 const localUrl = `http://127.0.0.1:5000/slides/${sNum}.jpg${activeDeckKey ? `?d=${encodeURIComponent(activeDeckKey)}` : ''}`;
                                 const firestoreUrl = slidePreviewsMap[sNum];
-                                const imgUrl = (isBridgeConnected || localSlidesCount >= sNum) && !hasLocalError ? localUrl : (firestoreUrl || null);
+                                // When bridge is active, only show the local presentation slides. Never fall back to stale Firestore previews from previous presentations!
+                                const imgUrl = isBridgeConnected
+                                  ? (!hasLocalError ? localUrl : null)
+                                  : (localSlidesCount >= sNum && !hasLocalError ? localUrl : (firestoreUrl || null));
 
                                 return (
                                   <button
@@ -3334,7 +3347,19 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                                           alt={`Slide ${sNum}`}
                                           className="w-full h-full object-cover bg-black"
                                           loading="lazy"
-                                          onError={() => setLocalImageErrors(prev => ({ ...prev, [sNum]: true }))}
+                                          onError={() => {
+                                            setLocalImageErrors(prev => ({ ...prev, [sNum]: true }));
+                                            if (isBridgeConnected) {
+                                              setTimeout(() => {
+                                                setLocalImageErrors(prev => {
+                                                  if (!prev[sNum]) return prev;
+                                                  const updated = { ...prev };
+                                                  delete updated[sNum];
+                                                  return updated;
+                                                });
+                                              }, 2000);
+                                            }
+                                          }}
                                         />
                                       ) : (
                                         <div className="absolute inset-0 flex items-center justify-center text-slate-700 bg-slate-950">

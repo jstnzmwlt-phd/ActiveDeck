@@ -350,6 +350,13 @@ def export_slides_now():
             if ppt_app.SlideShowWindows.Count > 0:
                 pres = ppt_app.SlideShowWindows(1).Presentation
                 os.makedirs(temp_dir, exist_ok=True)
+                # Wipe any old leftover slides from a previous presentation
+                for f in os.listdir(temp_dir):
+                    if f.lower().endswith(('.jpg', '.jpeg', '.png')):
+                        try:
+                            os.remove(os.path.join(temp_dir, f))
+                        except Exception:
+                            pass
                 count = pres.Slides.Count
                 for i in range(1, count + 1):
                     slide = pres.Slides(i)
