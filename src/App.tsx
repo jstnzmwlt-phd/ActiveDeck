@@ -3,7 +3,7 @@ import { AuthProvider, useAuth } from './components/AuthProvider';
 import { PresenterArea, useRenderedSlideBounds } from './components/PresenterArea';
 import { ChatSidebar } from './components/ChatSidebar';
 import { Header } from './components/Header';
-import { Presentation, GlobalSettings, DrawingStroke } from './types';
+import { Presentation, GlobalSettings, DrawingStroke, DeckItem } from './types';
 import { db } from './firebase';
 import { collection, query, orderBy, limit, onSnapshot, doc, addDoc, serverTimestamp, updateDoc, getDoc, setDoc, increment, where } from 'firebase/firestore';
 import { Presentation as PresentationIcon, Loader2, AlertCircle, Maximize, Minimize, Lock, Keyboard, Pen, Tv, ArrowLeftRight, MessageSquare, NotebookPen, Plus, FileText, X } from 'lucide-react';
@@ -203,23 +203,72 @@ function AppContent() {
       : (sessionStorage.getItem('activePresenterPresentationId') || urlParams.get('id'));
   });
 
-  const createNewPresentation = async () => {
+  const createNewPresentation = async (
+    initialDecks: DeckItem[] = [],
+    initialPptxUrl: string | null = null,
+    initialPptxFileName: string | null = null,
+    initialSelectedDeckId: string | null = null
+  ) => {
     console.log('AppContent - Creating new presentation for user:', user?.uid);
     if (!user) return '';
     try {
       const pinCode = await generateUniquePin();
       const isAttendanceActive = settings?.showAttendance !== false;
-      const docRef = await addDoc(collection(db, 'presentations'), {
+      const effectiveEmail = (
+        sessionStorage.getItem('activePresenterEmail') || 
+        presenterEmail || 
+        localStorage.getItem('activeDeckLastPresenterEmail') || 
+        ''
+      ).trim().toLowerCase();
+
+      let decksToSave: DeckItem[] = Array.isArray(initialDecks) ? initialDecks : [];
+      let pptxUrlToSave: string | null = initialPptxUrl;
+      let pptxFileNameToSave: string | null = initialPptxFileName;
+      let selectedDeckIdToSave: string | null = initialSelectedDeckId;
+
+      // If initialDecks is empty, attempt to pre-load permanent saved decks from whitelistedPresenters
+      if (effectiveEmail && decksToSave.length === 0) {
+        try {
+          const presenterSnap = await getDoc(doc(db, 'whitelistedPresenters', effectiveEmail));
+          if (presenterSnap.exists() && Array.isArray(presenterSnap.data().savedDecks)) {
+            decksToSave = presenterSnap.data().savedDecks;
+            if (decksToSave.length > 0 && !pptxUrlToSave) {
+              pptxUrlToSave = decksToSave[0].url;
+              pptxFileNameToSave = decksToSave[0].name;
+              selectedDeckIdToSave = decksToSave[0].id;
+            }
+          }
+        } catch (e) {
+          console.warn('AppContent - Could not pre-fetch savedDecks from whitelistedPresenters:', e);
+        }
+      }
+
+      const docData: any = {
         presenterId: user.uid,
         embedUrl: '',
         createdAt: serverTimestamp(),
         allowAnonymousChat: false,
         disableAttendance: !isAttendanceActive,
         hideComments: false,
-        presenterEmail: sessionStorage.getItem('activePresenterEmail') || '',
+        presenterEmail: effectiveEmail,
         pinCode: pinCode,
         hasActivity: false
-      });
+      };
+
+      if (decksToSave.length > 0) {
+        docData.uploadedDecks = decksToSave;
+      }
+      if (pptxUrlToSave) {
+        docData.pptxUrl = pptxUrlToSave;
+      }
+      if (pptxFileNameToSave) {
+        docData.pptxFileName = pptxFileNameToSave;
+      }
+      if (selectedDeckIdToSave) {
+        docData.selectedDeckId = selectedDeckIdToSave;
+      }
+
+      const docRef = await addDoc(collection(db, 'presentations'), docData);
       
       try {
         await setDoc(doc(db, 'sessionPins', pinCode), {
@@ -231,7 +280,7 @@ function AppContent() {
         console.error('Failed to register PIN in sessionPins during creation:', err);
       }
       
-      console.log('AppContent - New presentation created:', docRef.id, 'with PIN:', pinCode);
+      console.log('AppContent - New presentation created:', docRef.id, 'with PIN:', pinCode, 'and decks:', decksToSave.length);
       sessionStorage.setItem('activePresenterPresentationId', docRef.id);
       
       return docRef.id;
@@ -299,16 +348,26 @@ function AppContent() {
     }
 
     if (mode === 'same') {
-      // Keep presenterEmail, remove old presentation cache, and generate a fresh session
+      // Keep presenterEmail, carry over decks, and generate a fresh session
+      const existingDecks = presentation?.uploadedDecks || [];
+      const existingPptxUrl = presentation?.pptxUrl || null;
+      const existingPptxFileName = presentation?.pptxFileName || null;
+      const existingSelectedDeckId = presentation?.selectedDeckId || null;
+
       sessionStorage.removeItem('activePresenterPresentationId');
       sessionStorage.removeItem('activeDeckForceNewSession');
       setPresentation(null);
       setPresentationLoaded(false);
 
       try {
-        const newId = await createNewPresentation();
+        const newId = await createNewPresentation(
+          existingDecks,
+          existingPptxUrl,
+          existingPptxFileName,
+          existingSelectedDeckId
+        );
         if (newId) {
-          console.log('AppContent - Successfully created new session for same presenter:', newId);
+          console.log('AppContent - Successfully created new session for same presenter with carried-over decks:', newId);
           setActivePresentationId(newId);
         }
       } catch (err) {
@@ -319,6 +378,7 @@ function AppContent() {
       sessionStorage.removeItem('activePresenterEmail');
       sessionStorage.removeItem('activePresenterPresentationId');
       sessionStorage.removeItem('activeDeckForceNewSession');
+      localStorage.removeItem('activeDeckLastPresenterEmail');
 
       // 4. Clear local states
       setPresenterEmail('');
@@ -866,6 +926,7 @@ function AppContent() {
     setEmailDomainError(null);
     setCheckingEmailDomain(true);
 
+    let savedDecksFromPresenter: DeckItem[] = [];
     try {
       // Step 1: Check Whitelisted Presenters
       const presenterRef = doc(db, 'whitelistedPresenters', trimmed);
@@ -874,6 +935,10 @@ function AppContent() {
         setEmailDomainError("Access Denied: Your email is not registered as an authorized presenter. Please contact justin.zumwalt@okstate.edu to be whitelisted.");
         setCheckingEmailDomain(false);
         return;
+      }
+
+      if (Array.isArray(presenterSnap.data().savedDecks)) {
+        savedDecksFromPresenter = presenterSnap.data().savedDecks;
       }
 
       // Step 2: Auto-match institution domain (Optional - do not block if not found)
@@ -917,16 +982,27 @@ function AppContent() {
     }
 
     sessionStorage.setItem('activePresenterEmail', trimmed);
+    localStorage.setItem('activeDeckLastPresenterEmail', trimmed);
     setPresenterEmail(trimmed);
     setCheckingEmailDomain(false);
 
-    if (presentation?.id) {
+    const targetPresentationId = presentation?.id || activePresentationId;
+    if (targetPresentationId) {
       try {
-        await updateDoc(doc(db, 'presentations', presentation.id), {
+        const updates: any = {
           presenterEmail: trimmed
-        });
+        };
+        if (savedDecksFromPresenter.length > 0 && (!presentation?.uploadedDecks || presentation.uploadedDecks.length === 0)) {
+          updates.uploadedDecks = savedDecksFromPresenter;
+          if (!presentation?.pptxUrl) {
+            updates.pptxUrl = savedDecksFromPresenter[0].url;
+            updates.pptxFileName = savedDecksFromPresenter[0].name;
+            updates.selectedDeckId = savedDecksFromPresenter[0].id;
+          }
+        }
+        await updateDoc(doc(db, 'presentations', targetPresentationId), updates);
       } catch (err) {
-        console.error('Failed to update presenter email in presentation document:', err);
+        console.error('Failed to update presenter email and sync decks in presentation document:', err);
       }
     }
   };

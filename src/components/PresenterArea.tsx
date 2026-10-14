@@ -4,7 +4,7 @@ import { ScreenCapture } from './ScreenCapture';
 import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play, X, Loader2, Tv, Minimize, Maximize, FileText, Square, Send, CheckCircle2, Check, Clock, Pen, Eraser, Highlighter, MoveRight, Type, Undo2, Redo2, Trash2, Minus, Circle, Search, Plus, Layers, UploadCloud } from 'lucide-react';
 import { useBridge } from '../contexts/BridgeContext';
 import { auth, db, storage } from '../firebase';
-import { doc, getDoc, updateDoc, onSnapshot, collection, query, where } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, setDoc, onSnapshot, collection, query, where } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { QRCodeSVG } from 'qrcode.react';
 import { compositeSlideWithAnnotations, createSlidePlaceholderImage } from '../utils/exportNotesDocx';
@@ -325,11 +325,44 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const multiFileInputRef = useRef<HTMLInputElement>(null);
 
-  // Merge presentation.uploadedDecks with fallback to current pptxUrl
+  const effectivePresenterEmail = (
+    presentation?.presenterEmail || 
+    sessionStorage.getItem('activePresenterEmail') || 
+    localStorage.getItem('activeDeckLastPresenterEmail') || 
+    ''
+  ).trim().toLowerCase();
+
+  const [presenterSavedDecks, setPresenterSavedDecks] = useState<DeckItem[]>([]);
+
+  // Listen to presenter's permanent saved decks in Firestore (accessible on ANY computer/browser)
+  useEffect(() => {
+    if (!effectivePresenterEmail) return;
+    const unsub = onSnapshot(doc(db, 'whitelistedPresenters', effectivePresenterEmail), (snap) => {
+      if (snap.exists() && Array.isArray(snap.data().savedDecks)) {
+        setPresenterSavedDecks(snap.data().savedDecks);
+      }
+    }, (err) => {
+      console.warn("ActiveDeck: Could not load presenter savedDecks from Firestore:", err);
+    });
+    return () => unsub();
+  }, [effectivePresenterEmail]);
+
+  // Merge permanent presenterSavedDecks, presentation.uploadedDecks with fallback to current pptxUrl
   const effectiveDecks: DeckItem[] = React.useMemo(() => {
     const list: DeckItem[] = [];
     const seenUrls = new Set<string>();
 
+    // 1. Permanent saved presentations for this faculty member
+    if (Array.isArray(presenterSavedDecks)) {
+      presenterSavedDecks.forEach((d) => {
+        if (d && d.url && !seenUrls.has(d.url)) {
+          seenUrls.add(d.url);
+          list.push(d);
+        }
+      });
+    }
+
+    // 2. Presentations uploaded to the current session
     if (Array.isArray(presentation?.uploadedDecks)) {
       presentation.uploadedDecks.forEach((d) => {
         if (d && d.url && !seenUrls.has(d.url)) {
@@ -339,7 +372,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       });
     }
 
-    // If pptxUrl exists but is not in list, add it as first entry
+    // 3. If pptxUrl exists but is not in list, add it as first entry
     if (presentation?.pptxUrl && !seenUrls.has(presentation.pptxUrl)) {
       seenUrls.add(presentation.pptxUrl);
       list.unshift({
@@ -351,7 +384,27 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     }
 
     return list;
-  }, [presentation?.uploadedDecks, presentation?.pptxUrl, presentation?.pptxFileName, presentation?.selectedDeckId]);
+  }, [presenterSavedDecks, presentation?.uploadedDecks, presentation?.pptxUrl, presentation?.pptxFileName, presentation?.selectedDeckId]);
+
+  // Automatically sync permanent saved presentations to current presentation document if not present
+  useEffect(() => {
+    if (!presentation?.id || effectiveDecks.length === 0) return;
+    const currentUrls = new Set((presentation.uploadedDecks || []).map(d => d.url));
+    const hasUnsyncedDecks = effectiveDecks.some(d => !currentUrls.has(d.url));
+    if (hasUnsyncedDecks) {
+      const updates: any = {
+        uploadedDecks: effectiveDecks
+      };
+      if (!presentation.pptxUrl && effectiveDecks.length > 0) {
+        updates.pptxUrl = effectiveDecks[0].url;
+        updates.pptxFileName = effectiveDecks[0].name;
+        updates.selectedDeckId = effectiveDecks[0].id;
+      }
+      updateDoc(doc(db, 'presentations', presentation.id), updates).catch(err => {
+        console.warn("ActiveDeck: Failed to sync permanent decks to presentation:", err);
+      });
+    }
+  }, [presentation?.id, presentation?.uploadedDecks, presentation?.pptxUrl, effectiveDecks]);
 
   const activeDeck = effectiveDecks.find(d => 
     (presentation?.selectedDeckId && d.id === presentation.selectedDeckId) || 
@@ -395,6 +448,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     }
     try {
       await updateDoc(doc(db, 'presentations', presentation.id), updates);
+      if (effectivePresenterEmail) {
+        await setDoc(doc(db, 'whitelistedPresenters', effectivePresenterEmail), {
+          savedDecks: remainingDecks
+        }, { merge: true });
+      }
     } catch (err) {
       console.error("Failed to remove presentation deck:", err);
     }
@@ -443,6 +501,17 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         updates.selectedDeckId = newDecks[0].id;
       }
       await updateDoc(doc(db, 'presentations', presentation.id), updates);
+
+      // Save permanently to whitelistedPresenters in Firestore so faculty can access on ANY computer or browser
+      if (effectivePresenterEmail) {
+        try {
+          await setDoc(doc(db, 'whitelistedPresenters', effectivePresenterEmail), {
+            savedDecks: combined
+          }, { merge: true });
+        } catch (err) {
+          console.warn("ActiveDeck: Failed to save decks permanently to whitelistedPresenters:", err);
+        }
+      }
     } catch (err) {
       console.error("Failed to upload presentation files:", err);
       alert("Failed to upload presentations. Please check your network and try again.");
