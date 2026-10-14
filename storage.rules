@@ -25,13 +25,23 @@ service firebase.storage {
     // Match the path for presentation documents & pushed slides
     match /presentations/{presentationId}/{folder}/{fileName} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null && (folder == 'documents' || folder == 'pushed_slides' || folder == 'slide_previews' || folder == 'pushed_notes');
+      allow write: if request.auth != null && (
+        folder == 'documents' || 
+        folder == 'pushed_slides' || 
+        folder == 'slide_previews' || 
+        folder == 'pushed_notes' || 
+        folder == 'source' ||
+        fileName.matches('.*\\.pptx')
+      );
     }
 
-    // Match root presentation files (e.g., source.pptx)
+    // Match root presentation files directly in presentation directory (e.g., source.pptx)
     match /presentations/{presentationId}/{fileName} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if request.auth != null && (
+        fileName == 'source.pptx' || 
+        fileName.matches('.*\\.pptx')
+      );
     }
   }
 }
