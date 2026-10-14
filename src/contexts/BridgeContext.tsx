@@ -29,6 +29,7 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [notes, setNotes] = useState<string | null>(null);
 
   const clearNotesState = () => {
+    setCurrentSlide(null);
     setCurrentSlideBase64(null);
     setNextSlide(null);
     setNextSlideBase64(null);

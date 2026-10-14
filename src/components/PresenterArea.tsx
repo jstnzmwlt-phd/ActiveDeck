@@ -209,8 +209,18 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     clearNotesState
   } = useBridge();
   const [activeTab, setActiveTab] = useState<'single' | 'dual' | 'manual'>('dual');
-  const [secondaryColor, setSecondaryColor] = useState<string>('#ff3e00');
   const [isCapturing, setIsCapturing] = useState(false);
+  const isBridgeActivePresentation = isBridgeConnected && typeof currentSlide === 'number' && currentSlide > 0;
+  const isPresentationActive = isCapturing || isBridgeActivePresentation;
+
+  // Automatically activate presentation mode when the bridge sends a valid slide (> 0)
+  useEffect(() => {
+    if (isBridgeActivePresentation && !isCapturing) {
+      console.log(`ActiveDeck: Bridge active with slide ${currentSlide}. Automatically transitioning to presenter controls.`);
+      setIsCapturing(true);
+    }
+  }, [isBridgeActivePresentation, isCapturing, currentSlide]);
+
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isLoadingPpt, setIsLoadingPpt] = useState(false);
   const [loadPptSuccess, setLoadPptSuccess] = useState(false);
@@ -2521,6 +2531,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       setStream(null);
     }
     setIsCapturing(false);
+    clearNotesState();
     (window as any).activeDeckStream = null;
 
     // Reset drawings locally and exit pen mode
@@ -2653,7 +2664,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   return (
     <div className="flex flex-col h-full bg-black relative group">
       {/* Presenter Control Bar - Displays off the slide area */}
-      {isCapturing && !isProjectorMode && (
+      {isPresentationActive && !isProjectorMode && (
         <div className="bg-slate-900 border-b border-slate-800 px-4 py-2 flex items-center justify-between z-[70] shrink-0 select-none relative">
           <div className="flex items-center gap-2">
             <button
@@ -2772,8 +2783,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         className="flex-1 relative bg-black overflow-hidden flex items-center justify-center transition-all duration-300"
       >
         {!isProjectorMode ? (
-          <div className={`w-full h-full p-4 flex flex-col ${isCapturing ? 'md:flex-row gap-0 items-stretch justify-between max-w-[1650px]' : 'items-center justify-center max-w-[1450px]'} mx-auto select-none overflow-y-auto custom-scrollbar`}>
-            {isCapturing ? (
+          <div className={`w-full h-full p-4 flex flex-col ${isPresentationActive ? 'md:flex-row gap-0 items-stretch justify-between max-w-[1650px]' : 'items-center justify-center max-w-[1450px]'} mx-auto select-none overflow-y-auto custom-scrollbar`}>
+            {isPresentationActive ? (
               <>
                 {/* SPLIT SCREEN LAYOUT */}
                 {/* Left Column (Current Slide + Optional Presenter Notes below it) */}
@@ -3229,7 +3240,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               </div>
 
             {/* Unobtrusive Centered Slide Number under slide display in Projector Mode */}
-            {isCapturing && (
+            {isPresentationActive && (
               <div className="mt-2.5 flex items-center justify-center shrink-0 z-20">
                 <div className="px-3.5 py-1 rounded-full bg-slate-900/80 backdrop-blur-md border border-slate-800/80 text-slate-300 shadow-xl flex items-center gap-1.5 text-xs font-semibold tracking-wide select-none">
                   <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400">Slide</span>
@@ -3246,7 +3257,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         )}
         
         {/* Floating Setup Instructions Bubble - Shown in the top-left when not capturing */}
-        {!isCapturing && !error && !isProjectorMode && (
+        {!isPresentationActive && !error && !isProjectorMode && (
           <button 
             onClick={() => setShowInstructions(true)}
             className="absolute top-4 left-4 z-[70] flex items-center gap-2 px-3 py-1.5 bg-slate-900/90 hover:bg-slate-800 border border-slate-700/50 text-white text-xs font-bold rounded-full shadow-lg transition-all hover:scale-105 active:scale-95 cursor-pointer backdrop-blur-sm"
@@ -3258,7 +3269,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         )}
 
         {/* Setup Bridge Card - Shown when not capturing and no error */}
-        {!isCapturing && !error && !isProjectorMode && (
+        {!isPresentationActive && !error && !isProjectorMode && (
           <div className="absolute inset-0 z-[60] flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4">
             <div className="bg-slate-900/90 border border-slate-800 rounded-3xl shadow-2xl p-8 max-w-sm w-full text-center flex flex-col items-center justify-center relative">
               <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 transition-all duration-500 shadow-lg ${
@@ -3921,7 +3932,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
 
       {/* Footer Navigation Bar - Always visible when presenting */}
-      {isCapturing && !isProjectorMode && (
+      {isPresentationActive && !isProjectorMode && (
         <div className="bg-slate-900 border-t border-slate-800 px-4 py-3 flex items-center justify-center z-[70] shrink-0 select-none relative">
           
           {/* Left Side: Decoupled Fullscreen Toggle */}
