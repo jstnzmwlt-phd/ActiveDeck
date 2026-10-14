@@ -16,6 +16,7 @@ interface ScreenCaptureProps {
   currentSlide?: number | null;
   currentSlidePreviewUrl?: string | null;
   onSlideImageLoad?: (e: React.SyntheticEvent<HTMLImageElement>) => void;
+  deckId?: string | null;
 }
 
 export const ScreenCapture: React.FC<ScreenCaptureProps> = ({ 
@@ -32,7 +33,8 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
   currentSlideBase64,
   currentSlide,
   currentSlidePreviewUrl,
-  onSlideImageLoad
+  onSlideImageLoad,
+  deckId
 }) => {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const activeVideoRef = videoRef || localVideoRef;
@@ -40,7 +42,7 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
 
   const bridgeSlideImgSrc = 
     activeSlideNumber
-      ? `http://127.0.0.1:5000/slides/${activeSlideNumber}.jpg`
+      ? `http://127.0.0.1:5000/slides/${activeSlideNumber}.jpg${deckId ? `?d=${encodeURIComponent(deckId)}` : ''}`
       : (isBridgeConnected && currentSlideBase64) 
         ? currentSlideBase64 
         : currentSlidePreviewUrl || null;

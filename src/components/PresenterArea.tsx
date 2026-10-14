@@ -915,6 +915,15 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     return () => unsub();
   }, [presentation?.id, nextSlide]);
 
+  // Clear slide previews and image errors when switching presentations/decks
+  useEffect(() => {
+    setSlidePreviewsMap({});
+    setLocalImageErrors({});
+    setCurrentSlidePreviewUrl(null);
+    setNextSlidePreviewUrl(null);
+    setSyncedProjectorBase64(null);
+  }, [presentation?.selectedDeckId, presentation?.pptxUrl]);
+
   const [localSlidesCount, setLocalSlidesCount] = useState<number>(0);
   const [nextSlideImageError, setNextSlideImageError] = useState<boolean>(false);
   const [syncedProjectorSlide, setSyncedProjectorSlide] = useState<number | null>(null);
@@ -986,11 +995,13 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     };
   }, [isProjectorMode, presentation?.id]);
 
+  const activeDeckKey = activeDeck?.id || presentation?.selectedDeckId || presentation?.pptxUrl || presentation?.id || '';
+
   const effectiveNextSlide = (nextSlide !== null && nextSlide > 0)
     ? nextSlide
     : (effectiveCurrentSlide < effectiveTotalSlides ? effectiveCurrentSlide + 1 : null);
 
-  const nextSlideLocalUrl = effectiveNextSlide !== null ? `http://127.0.0.1:5000/slides/${effectiveNextSlide}.jpg` : null;
+  const nextSlideLocalUrl = effectiveNextSlide !== null ? `http://127.0.0.1:5000/slides/${effectiveNextSlide}.jpg${activeDeckKey ? `?d=${encodeURIComponent(activeDeckKey)}` : ''}` : null;
   const nextSlideFirestoreUrl = effectiveNextSlide !== null ? (slidePreviewsMap[effectiveNextSlide] || null) : null;
   const nextSlideImgUrl = (isBridgeConnected && nextSlideBase64)
     ? nextSlideBase64
@@ -3064,6 +3075,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         currentSlideBase64={currentSlideBase64}
                         currentSlide={currentSlide}
                         currentSlidePreviewUrl={currentSlidePreviewUrl}
+                        deckId={activeDeckKey}
                       />
 
                       {/* Real-time Presenter Live Slide Content Layer (Drawings + Laser Dot) */}
@@ -3297,7 +3309,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                                 const isUnshown = !visitedSlides[sNum];
                                 
                                 const hasLocalError = localImageErrors[sNum];
-                                const localUrl = `http://127.0.0.1:5000/slides/${sNum}.jpg`;
+                                const localUrl = `http://127.0.0.1:5000/slides/${sNum}.jpg${activeDeckKey ? `?d=${encodeURIComponent(activeDeckKey)}` : ''}`;
                                 const firestoreUrl = slidePreviewsMap[sNum];
                                 const imgUrl = (isBridgeConnected || localSlidesCount >= sNum) && !hasLocalError ? localUrl : (firestoreUrl || null);
 
@@ -3387,6 +3399,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     currentSlideBase64={currentSlideBase64}
                     currentSlide={currentSlide}
                     currentSlidePreviewUrl={currentSlidePreviewUrl}
+                    deckId={activeDeckKey}
                   />
 
                   {/* Real-time Presenter Live Slide Content Layer for Projector Screen (Drawings + Laser Dot) */}
@@ -4238,6 +4251,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             currentSlideBase64={syncedProjectorBase64 || currentSlideBase64}
             currentSlide={effectiveCurrentSlide}
             currentSlidePreviewUrl={currentSlidePreviewUrl}
+            deckId={activeDeckKey}
           />
 
           {/* Real-time Presenter Live Slide Content Layer for Projector Screen (Drawings + Laser Dot) */}
@@ -4348,10 +4362,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
       {/* Footer Navigation Bar - Always visible when presenting */}
       {isPresentationActive && !isProjectorMode && (
-        <div className="bg-slate-900 border-t border-slate-800 px-4 py-2.5 flex items-center justify-between gap-3 z-[70] shrink-0 select-none w-full">
+        <div className="relative bg-slate-900 border-t border-slate-800 px-4 py-2.5 flex items-center justify-between gap-3 z-[70] shrink-0 select-none w-full min-h-[64px]">
           
           {/* Left Column: Decoupled Fullscreen & PPT Controls */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 z-0">
             <button
               onClick={toggleFullscreen}
               className="flex items-center justify-center w-9 h-9 bg-slate-950/40 hover:bg-slate-850 text-slate-400 hover:text-white rounded-xl transition-all active:scale-95 border border-slate-800 cursor-pointer shadow-lg hover:scale-105 shrink-0"
@@ -4421,8 +4435,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             </button>
           </div>
 
-          {/* Center Column: Slide Navigation Cluster */}
-          <div className="flex items-center justify-center shrink-0 z-10">
+          {/* Center Column: Slide Navigation Cluster - Pinned Static in Center */}
+          <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center shrink-0 z-10 pointer-events-auto">
             <div className="flex items-center gap-2.5 p-1 bg-slate-950/60 rounded-xl border border-slate-800 shadow-inner">
               <button
                 onClick={() => handleSlideMove('prev')}
@@ -4458,7 +4472,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           </div>
 
           {/* Right Column: Audience Slide Preview Pushed Status Indicator & Push Action */}
-          <div className="flex items-center justify-end gap-2 shrink-0">
+          <div className="flex items-center justify-end gap-2 shrink-0 z-0">
             {/* Push Image to Notes Button */}
             <button
               onClick={handlePushImageToNotes}
@@ -4752,6 +4766,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               currentSlideBase64={currentSlideBase64}
               currentSlide={currentSlide}
               currentSlidePreviewUrl={currentSlidePreviewUrl}
+              deckId={activeDeckKey}
             />
 
             {/* Interactive SVG Drawing Layer */}

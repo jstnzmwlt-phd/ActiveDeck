@@ -85,6 +85,19 @@ def download_and_open_ppt(url):
     if not url:
         return
     try:
+        global _cached_state, _cached_slide_index, _cached_total_slides
+        _cached_state = None
+        _cached_slide_index = None
+        _cached_total_slides = None
+        slides_dir = os.path.join(tempfile.gettempdir(), "activedeck_slides")
+        if os.path.exists(slides_dir):
+            for f in os.listdir(slides_dir):
+                if f.lower().endswith(('.jpg', '.jpeg', '.png')):
+                    try:
+                        os.remove(os.path.join(slides_dir, f))
+                    except Exception:
+                        pass
+
         temp_dir = tempfile.gettempdir()
         filename = "active_deck_presentation.pptx"
         try:
@@ -231,7 +244,17 @@ def background_slide_exporter():
                     pres = ppt_app.SlideShowWindows(1).Presentation
                     
                     if pres.Name != last_exported_presentation:
+                        global _cached_state, _cached_slide_index, _cached_total_slides
+                        _cached_state = None
+                        _cached_slide_index = None
+                        _cached_total_slides = None
                         os.makedirs(temp_dir, exist_ok=True)
+                        for f in os.listdir(temp_dir):
+                            if f.lower().endswith(('.jpg', '.jpeg', '.png')):
+                                try:
+                                    os.remove(os.path.join(temp_dir, f))
+                                except Exception:
+                                    pass
                         count = pres.Slides.Count
                         for i in range(1, count + 1):
                             slide = pres.Slides(i)
@@ -292,7 +315,11 @@ def handle_load_http():
 @app.route('/slides/<path:filename>')
 def serve_slide(filename):
     temp_dir = os.path.join(tempfile.gettempdir(), "activedeck_slides")
-    return send_from_directory(temp_dir, filename)
+    response = make_response(send_from_directory(temp_dir, filename))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 def export_slides_now():
     temp_dir = os.path.join(tempfile.gettempdir(), "activedeck_slides")
