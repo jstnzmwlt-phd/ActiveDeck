@@ -205,15 +205,17 @@ const SlideThumbnailItem: React.FC<SlideThumbnailItemProps> = React.memo(({
   isUnshown,
   onSelect
 }) => {
-  const [currentSrc, setCurrentSrc] = useState<string | null>(imgUrl);
+  const [currentSrc, setCurrentSrc] = useState<string | null>(imgUrl || fallbackUrl || null);
   const [loaded, setLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
-    setCurrentSrc(imgUrl);
-    setLoaded(false);
-    setHasError(false);
-  }, [imgUrl]);
+    const nextSrc = imgUrl || fallbackUrl || null;
+    if (nextSrc && nextSrc !== currentSrc) {
+      setCurrentSrc(nextSrc);
+      setHasError(false);
+    }
+  }, [imgUrl, fallbackUrl, currentSrc]);
 
   const handleError = () => {
     if (fallbackUrl && currentSrc !== fallbackUrl) {
@@ -295,7 +297,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     nextSlideBase64,
     totalSlides,
     notes,
-    clearNotesState
+    clearNotesState,
+    slideThumbnails,
+    requestThumbnails
   } = useBridge();
 
   const handleSelectSlide = useCallback((sNum: number) => {
@@ -412,6 +416,13 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   ) || effectiveDecks[0] || null;
 
   const activeDeckKey = activeDeck?.id || activeDeck?.url || presentation?.selectedDeckId || presentation?.pptxUrl || presentation?.id || '';
+
+  // Request all slide thumbnails from the bridge as soon as connected or deck changes
+  useEffect(() => {
+    if (isBridgeConnected) {
+      requestThumbnails();
+    }
+  }, [isBridgeConnected, activeDeckKey]);
 
   const handleSelectDeck = async (deck: DeckItem) => {
     if (!presentation?.id) return;
@@ -3592,15 +3603,16 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                                 const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
                                 const localUrl = !isHttps ? `http://127.0.0.1:5000/slides/${sNum}.jpg${activeDeckKey ? `?d=${encodeURIComponent(activeDeckKey)}` : ''}` : null;
                                 const firestoreUrl = slidePreviewsMap[sNum] || null;
+                                const bridgeThumbnail = slideThumbnails[sNum] || null;
 
-                                // Use real-time base64 from bridge for active and next slide (works instantly on HTTPS)
+                                // Use real-time base64 from bridge for active, next slide, and all bridge slide thumbnails (works instantly on HTTPS)
                                 const imgUrl = (isCurrent && effectiveSlideBase64)
                                   ? effectiveSlideBase64
                                   : (sNum === effectiveNextSlide && nextSlideBase64)
                                     ? nextSlideBase64
-                                    : (firestoreUrl || localUrl || null);
+                                    : (bridgeThumbnail || firestoreUrl || localUrl || null);
 
-                                const fallbackUrl = firestoreUrl || localUrl || null;
+                                const fallbackUrl = bridgeThumbnail || firestoreUrl || localUrl || null;
 
                                 return (
                                   <SlideThumbnailItem

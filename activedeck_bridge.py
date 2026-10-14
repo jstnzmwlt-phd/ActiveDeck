@@ -6,6 +6,8 @@ import os
 import tempfile
 import threading
 import base64
+import io
+import shutil
 import urllib.request
 import urllib.parse
 # Safe stdout/stderr redirection when running as windowless background process (pythonw / PyInstaller noconsole)
@@ -104,10 +106,12 @@ def download_and_open_ppt(url):
     if not url:
         return
     try:
-        global _cached_state, _cached_slide_index, _cached_total_slides
+        global _cached_state, _cached_slide_index, _cached_total_slides, _thumbnails_cache, _thumbnails_version
         _cached_state = None
         _cached_slide_index = None
         _cached_total_slides = None
+        _thumbnails_cache = {}
+        _thumbnails_version += 1
         slides_dir = os.path.join(tempfile.gettempdir(), "activedeck_slides")
         if os.path.exists(slides_dir):
             for f in os.listdir(slides_dir):
@@ -157,6 +161,37 @@ _cached_state = None
 _cached_slide_index = None
 _cached_total_slides = None
 _notes_cache = {}
+_thumbnails_cache = {}
+_thumbnails_version = 0
+
+def update_thumbnails_cache(temp_dir):
+    global _thumbnails_cache, _thumbnails_version
+    thumbs = {}
+    if os.path.exists(temp_dir):
+        for f in sorted(os.listdir(temp_dir)):
+            if f.endswith('.jpg') and f.replace('.jpg', '').isdigit():
+                s_num = int(f.replace('.jpg', ''))
+                fpath = os.path.join(temp_dir, f)
+                try:
+                    data_bytes = None
+                    try:
+                        from PIL import Image
+                        im = Image.open(fpath)
+                        im.thumbnail((320, 180))
+                        buf = io.BytesIO()
+                        im.save(buf, format='JPEG', quality=65)
+                        data_bytes = buf.getvalue()
+                    except Exception:
+                        with open(fpath, 'rb') as fp:
+                            data_bytes = fp.read()
+                    if data_bytes:
+                        thumbs[s_num] = 'data:image/jpeg;base64,' + base64.b64encode(data_bytes).decode('utf-8')
+                except Exception:
+                    pass
+    if thumbs:
+        _thumbnails_cache = thumbs
+        _thumbnails_version += 1
+        print(f"[ActiveDeck Bridge] Cached {len(thumbs)} slide thumbnails (version {_thumbnails_version})")
 
 def get_slide_notes(presentation, slide_index):
     global _notes_cache
@@ -315,18 +350,32 @@ def background_slide_exporter():
                         except Exception:
                             pass
 
-                        if not exported_all:
+                        if exported_all:
+                            for i in range(1, count + 1):
+                                slide_jpg = os.path.join(temp_dir, f"Slide{i}.JPG")
+                                num_jpg = os.path.join(temp_dir, f"{i}.jpg")
+                                if os.path.exists(slide_jpg) and not os.path.exists(num_jpg):
+                                    try:
+                                        shutil.copyfile(slide_jpg, num_jpg)
+                                    except Exception:
+                                        pass
+                                elif os.path.exists(num_jpg) and not os.path.exists(slide_jpg):
+                                    try:
+                                        shutil.copyfile(num_jpg, slide_jpg)
+                                    except Exception:
+                                        pass
+                        else:
                             for i in range(1, count + 1):
                                 slide = pres.Slides(i)
                                 target_jpg = os.path.join(temp_dir, f"{i}.jpg")
                                 slide.Export(target_jpg, "JPG")
                                 try:
-                                    import shutil
                                     shutil.copyfile(target_jpg, os.path.join(temp_dir, f"Slide{i}.JPG"))
                                 except Exception:
                                     pass
                                 time.sleep(0.005)
                             
+                        update_thumbnails_cache(temp_dir)
                         last_exported_presentation = pres.Name
                 else:
                     last_exported_presentation = ""
@@ -444,6 +493,7 @@ def handle_direction_http(direction):
 @sock.route('/ws')
 def handle_ws(ws):
     last_state = None
+    last_sent_thumbnails_version = 0
     while True:
         force_send = False
         try:
@@ -463,6 +513,14 @@ def handle_ws(ws):
                             if url:
                                 download_and_open_ppt(url)
                                 force_send = True
+                        elif action == 'get_thumbnails':
+                            if _thumbnails_cache:
+                                ws.send(json.dumps({
+                                    "type": "THUMBNAILS",
+                                    "version": _thumbnails_version,
+                                    "thumbnails": _thumbnails_cache
+                                }))
+                                last_sent_thumbnails_version = _thumbnails_version
                         elif action == 'status':
                             force_send = True
                     else:
@@ -471,6 +529,14 @@ def handle_ws(ws):
                 except (json.JSONDecodeError, TypeError):
                     if message == 'status':
                         force_send = True
+                    elif message == 'get_thumbnails':
+                        if _thumbnails_cache:
+                            ws.send(json.dumps({
+                                "type": "THUMBNAILS",
+                                "version": _thumbnails_version,
+                                "thumbnails": _thumbnails_cache
+                            }))
+                            last_sent_thumbnails_version = _thumbnails_version
                     else:
                         move_ppt_silently(message)
                         force_send = True
@@ -486,7 +552,21 @@ def handle_ws(ws):
             except Exception:
                 break
 
+        # Send slide thumbnails as soon as they are ready
+        if _thumbnails_cache and _thumbnails_version != last_sent_thumbnails_version:
+            try:
+                ws.send(json.dumps({
+                    "type": "THUMBNAILS",
+                    "version": _thumbnails_version,
+                    "thumbnails": _thumbnails_cache
+                }))
+                last_sent_thumbnails_version = _thumbnails_version
+            except Exception:
+                break
+
 if __name__ == '__main__':
+    temp_dir = os.path.join(tempfile.gettempdir(), "activedeck_slides")
+    update_thumbnails_cache(temp_dir)
     exporter_thread = threading.Thread(target=background_slide_exporter, daemon=True)
     exporter_thread.start()
     print("=" * 60)

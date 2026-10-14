@@ -13,6 +13,8 @@ interface BridgeContextType {
   totalSlides: number | null;
   notes: string | null;
   clearNotesState: () => void;
+  slideThumbnails: Record<number, string>;
+  requestThumbnails: () => void;
 }
 
 const BridgeContext = createContext<BridgeContextType | undefined>(undefined);
@@ -27,6 +29,7 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [nextSlideBase64, setNextSlideBase64] = useState<string | null>(null);
   const [totalSlides, setTotalSlides] = useState<number | null>(null);
   const [notes, setNotes] = useState<string | null>(null);
+  const [slideThumbnails, setSlideThumbnails] = useState<Record<number, string>>({});
 
   const clearNotesState = () => {
     setCurrentSlide(null);
@@ -35,6 +38,7 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setNextSlideBase64(null);
     setTotalSlides(null);
     setNotes(null);
+    setSlideThumbnails({});
   };
 
   useEffect(() => {
@@ -52,6 +56,7 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           setIsBridgeConnected(true);
           try {
             socket.send('status');
+            socket.send(JSON.stringify({ action: 'get_thumbnails' }));
           } catch (e) {}
         };
 
@@ -73,12 +78,31 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           // Parse JSON format from bridge
           try {
             const data = JSON.parse(messageData);
-            if (data && typeof data.current_slide === 'number') {
+            if (data && data.type === 'THUMBNAILS' && data.thumbnails) {
+              console.log('ActiveDeck: Received all slide thumbnails from bridge:', Object.keys(data.thumbnails).length);
+              const formatted: Record<number, string> = {};
+              for (const [k, v] of Object.entries(data.thumbnails)) {
+                const num = parseInt(k, 10);
+                if (!isNaN(num) && typeof v === 'string') {
+                  formatted[num] = v;
+                }
+              }
+              setSlideThumbnails((prev) => ({ ...prev, ...formatted }));
+            } else if (data && typeof data.current_slide === 'number') {
               console.log('ActiveDeck: Rich payload received (JSON):', data);
               setCurrentSlide(data.current_slide);
-              setCurrentSlideBase64(typeof data.current_slide_base64 === 'string' ? data.current_slide_base64 : null);
-              setNextSlide(typeof data.next_slide === 'number' && data.next_slide > 0 ? data.next_slide : null);
-              setNextSlideBase64(typeof data.next_slide_base64 === 'string' ? data.next_slide_base64 : null);
+              const currentB64 = typeof data.current_slide_base64 === 'string' ? data.current_slide_base64 : null;
+              setCurrentSlideBase64(currentB64);
+              if (currentB64) {
+                setSlideThumbnails((prev) => ({ ...prev, [data.current_slide]: currentB64 }));
+              }
+              const nextSlideNum = typeof data.next_slide === 'number' && data.next_slide > 0 ? data.next_slide : null;
+              setNextSlide(nextSlideNum);
+              const nextB64 = typeof data.next_slide_base64 === 'string' ? data.next_slide_base64 : null;
+              setNextSlideBase64(nextB64);
+              if (nextSlideNum && nextB64) {
+                setSlideThumbnails((prev) => ({ ...prev, [nextSlideNum]: nextB64 }));
+              }
               setTotalSlides(typeof data.total_slides === 'number' ? data.total_slides : null);
               setNotes(typeof data.notes === 'string' ? data.notes.replace(/\r/g, '\n') : null);
             } else if (data && data.type === 'SLIDE_UPDATE' && typeof data.slide === 'number') {
@@ -175,6 +199,14 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  const requestThumbnails = () => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      try {
+        wsRef.current.send(JSON.stringify({ action: 'get_thumbnails' }));
+      } catch (e) {}
+    }
+  };
+
   return (
     <BridgeContext.Provider value={{ 
       isBridgeConnected, 
@@ -188,7 +220,9 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       nextSlideBase64,
       totalSlides,
       notes,
-      clearNotesState
+      clearNotesState,
+      slideThumbnails,
+      requestThumbnails
     }}>
       {children}
     </BridgeContext.Provider>
