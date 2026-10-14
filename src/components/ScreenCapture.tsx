@@ -38,10 +38,10 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
   const activeVideoRef = videoRef || localVideoRef;
 
   const bridgeSlideImgSrc = 
-    (isBridgeConnected && currentSlideBase64) 
-      ? currentSlideBase64 
-      : (isBridgeConnected && currentSlide) 
-        ? `http://127.0.0.1:5000/slides/${currentSlide}.jpg` 
+    (isBridgeConnected && currentSlide) 
+      ? `http://127.0.0.1:5000/slides/${currentSlide}.jpg`
+      : (isBridgeConnected && currentSlideBase64) 
+        ? currentSlideBase64 
         : currentSlidePreviewUrl || null;
 
   useEffect(() => {

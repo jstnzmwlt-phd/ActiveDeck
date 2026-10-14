@@ -123,6 +123,7 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // Optimistic UI update: advance the slide counter and next slide immediately for responsive feedback
     if (typeof direction === 'number') {
       setCurrentSlide(direction);
+      setCurrentSlideBase64(null);
       if (totalSlides !== null && direction < totalSlides) {
         setNextSlide(direction + 1);
       } else {
@@ -134,6 +135,12 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (totalSlides !== null && prev >= totalSlides) return prev;
         const next = prev + 1;
         setNextSlide(totalSlides !== null && next < totalSlides ? next + 1 : null);
+        if (nextSlideBase64) {
+          setCurrentSlideBase64(nextSlideBase64);
+          setNextSlideBase64(null);
+        } else {
+          setCurrentSlideBase64(null);
+        }
         return next;
       });
     } else if (direction === 'prev') {
@@ -141,6 +148,7 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (prev === null || prev <= 1) return 1;
         const prevNum = prev - 1;
         setNextSlide(prev);
+        setCurrentSlideBase64(null);
         return prevNum;
       });
     }

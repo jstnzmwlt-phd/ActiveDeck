@@ -3951,21 +3951,20 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
       {/* Footer Navigation Bar - Always visible when presenting */}
       {isPresentationActive && !isProjectorMode && (
-        <div className="bg-slate-900 border-t border-slate-800 px-4 py-3 flex items-center justify-center z-[70] shrink-0 select-none relative">
+        <div className="bg-slate-900 border-t border-slate-800 px-4 py-2.5 flex items-center justify-between gap-3 z-[70] shrink-0 select-none w-full">
           
-          {/* Left Side: Decoupled Fullscreen Toggle */}
-          <div className="absolute left-4">
+          {/* Left Column: Decoupled Fullscreen & PPT Controls */}
+          <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={toggleFullscreen}
-              className="flex items-center justify-center w-10 h-10 bg-slate-950/40 hover:bg-slate-850 text-slate-400 hover:text-white rounded-xl transition-all active:scale-95 border border-slate-800 cursor-pointer shadow-lg hover:scale-105"
+              className="flex items-center justify-center w-9 h-9 bg-slate-950/40 hover:bg-slate-850 text-slate-400 hover:text-white rounded-xl transition-all active:scale-95 border border-slate-800 cursor-pointer shadow-lg hover:scale-105 shrink-0"
               title={isFullscreen ? "Exit Full Screen" : "Enter Full Screen"}
             >
               {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
             </button>
-          </div>
 
-          {/* Mid-Left: Download, Upload & Load Presentation Buttons */}
-          <div className="absolute left-[25%] -translate-x-1/2 flex items-center gap-2">
+            <div className="w-px h-6 bg-slate-800 shrink-0" />
+
             {presentation?.id && (
               <PptxUploader
                 presentationId={presentation.id}
@@ -3977,7 +3976,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               type="button"
               onClick={handleLoadPpt}
               disabled={!presentation?.pptxUrl || isLoadingPpt}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border shadow-lg ${
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border shadow-lg shrink-0 ${
                 presentation?.pptxUrl
                   ? 'bg-amber-600 hover:bg-amber-500 text-white border-amber-500/40 cursor-pointer active:scale-95 shadow-amber-600/20'
                   : 'bg-slate-900/40 text-slate-600 border-slate-800 cursor-not-allowed opacity-50'
@@ -4008,7 +4007,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             <button
               onClick={() => setShowDownloadModal(true)}
               disabled={isDownloadingPresentation}
-              className="flex items-center gap-2 px-3.5 py-2 bg-slate-955/40 hover:bg-slate-850 disabled:bg-slate-800/20 disabled:text-slate-600 text-slate-400 hover:text-white rounded-xl transition-all active:scale-95 border border-slate-800 cursor-pointer shadow-lg hover:scale-105 text-[10px] font-black uppercase tracking-wider whitespace-nowrap"
+              className="flex items-center gap-2 px-3 py-2 bg-slate-955/40 hover:bg-slate-850 disabled:bg-slate-800/20 disabled:text-slate-600 text-slate-400 hover:text-white rounded-xl transition-all active:scale-95 border border-slate-800 cursor-pointer shadow-lg hover:scale-105 text-[10px] font-black uppercase tracking-wider whitespace-nowrap shrink-0"
               title="Download presentation or session logs"
             >
               {isDownloadingPresentation ? (
@@ -4019,53 +4018,55 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               ) : (
                 <>
                   <Download className="w-3.5 h-3.5" />
-                  <span>Download Presentation</span>
+                  <span>Download</span>
                 </>
               )}
             </button>
           </div>
 
-          {/* Center: Slide Navigation Cluster */}
-          <div className="flex items-center gap-3 p-1 bg-slate-950/60 rounded-xl border border-slate-800 shadow-inner">
-            <button
-              onClick={() => handleSlideMove('prev')}
-              className="flex items-center justify-center w-10 h-10 bg-slate-900/80 hover:bg-slate-800 text-white rounded-lg transition-all active:scale-95 border border-slate-800 group/btn cursor-pointer"
-              title="Previous Slide"
-            >
-              <ChevronLeft className="w-5 h-5 group-hover/btn:-translate-x-0.5 transition-transform" />
-            </button>
-            
-            {totalSlides !== null && currentSlide !== null ? (
-              <>
-                <div className="w-px h-6 bg-slate-800/80" />
-                <div
-                  className="px-5 py-1 text-xs font-black uppercase tracking-wider text-slate-400 bg-slate-950/40 rounded-lg border border-slate-850/30 min-w-[180px] text-center font-mono select-none flex items-center justify-center gap-2"
-                >
-                  <span className="text-slate-400">Slide</span>
-                  <span className="text-osu-orange text-xl md:text-2xl font-black leading-none">{currentSlide}</span>
-                  <span className="text-slate-500 font-bold">of</span>
-                  <span className="text-slate-200 text-base md:text-lg font-black leading-none">{totalSlides}</span>
-                </div>
-                <div className="w-px h-6 bg-slate-800/80" />
-              </>
-            ) : null}
+          {/* Center Column: Slide Navigation Cluster */}
+          <div className="flex items-center justify-center shrink-0 z-10">
+            <div className="flex items-center gap-2.5 p-1 bg-slate-950/60 rounded-xl border border-slate-800 shadow-inner">
+              <button
+                onClick={() => handleSlideMove('prev')}
+                className="flex items-center justify-center w-10 h-10 bg-slate-900/80 hover:bg-slate-800 text-white rounded-lg transition-all active:scale-95 border border-slate-800 group/btn cursor-pointer shrink-0"
+                title="Previous Slide"
+              >
+                <ChevronLeft className="w-5 h-5 group-hover/btn:-translate-x-0.5 transition-transform" />
+              </button>
+              
+              {totalSlides !== null && currentSlide !== null ? (
+                <>
+                  <div className="w-px h-6 bg-slate-800/80 shrink-0" />
+                  <div
+                    className="px-4 py-1 text-xs font-black uppercase tracking-wider text-slate-400 bg-slate-950/40 rounded-lg border border-slate-850/30 min-w-[160px] text-center font-mono select-none flex items-center justify-center gap-2 shrink-0"
+                  >
+                    <span className="text-slate-400">Slide</span>
+                    <span className="text-osu-orange text-xl md:text-2xl font-black leading-none">{currentSlide}</span>
+                    <span className="text-slate-500 font-bold">of</span>
+                    <span className="text-slate-200 text-base md:text-lg font-black leading-none">{totalSlides}</span>
+                  </div>
+                  <div className="w-px h-6 bg-slate-800/80 shrink-0" />
+                </>
+              ) : null}
 
-            <button
-              onClick={() => handleSlideMove('next')}
-              className="flex items-center justify-center w-10 h-10 bg-osu-orange hover:bg-[#c03900] text-white rounded-lg transition-all active:scale-95 border border-orange-600/30 group/btn shadow-lg shadow-orange-500/10 cursor-pointer"
-              title="Next Slide"
-            >
-              <ChevronRight className="w-5 h-5 group-hover/btn:translate-x-0.5 transition-transform" />
-            </button>
+              <button
+                onClick={() => handleSlideMove('next')}
+                className="flex items-center justify-center w-10 h-10 bg-osu-orange hover:bg-[#c03900] text-white rounded-lg transition-all active:scale-95 border border-orange-600/30 group/btn shadow-lg shadow-orange-500/10 cursor-pointer shrink-0"
+                title="Next Slide"
+              >
+                <ChevronRight className="w-5 h-5 group-hover/btn:translate-x-0.5 transition-transform" />
+              </button>
+            </div>
           </div>
 
-          {/* Right Side: Audience Slide Preview Pushed Status Indicator & Push Action */}
-          <div className="absolute right-4 flex items-center gap-2">
+          {/* Right Column: Audience Slide Preview Pushed Status Indicator & Push Action */}
+          <div className="flex items-center justify-end gap-2 shrink-0">
             {/* Push Image to Notes Button */}
             <button
               onClick={handlePushImageToNotes}
               disabled={isPushingToNotes}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-500 text-white text-[11px] font-bold uppercase tracking-wider rounded-xl border border-orange-500/30 shadow-lg shadow-orange-500/15 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-500 text-white text-[11px] font-bold uppercase tracking-wider rounded-xl border border-orange-500/30 shadow-lg shadow-orange-500/15 transition-all hover:scale-105 active:scale-95 cursor-pointer shrink-0"
               title="Push current display window image to audience notes as a new note tab"
             >
               {isPushingToNotes ? (
@@ -4077,7 +4078,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             </button>
             {currentSlidePreviewUrl ? (
               <div 
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 text-[11px] font-bold rounded-xl shadow-lg animate-in fade-in duration-200"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 text-[11px] font-bold rounded-xl shadow-lg animate-in fade-in duration-200 shrink-0"
                 title="Current slide image preview is live and displayed on audience chat/notes page"
               >
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />

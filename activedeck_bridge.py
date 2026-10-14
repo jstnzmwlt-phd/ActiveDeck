@@ -232,14 +232,17 @@ def background_slide_exporter():
                     
                     if pres.Name != last_exported_presentation:
                         os.makedirs(temp_dir, exist_ok=True)
-                        
-                        # EXPORT BOTH FORMATS: 
-                        # We save slide as both '{i}.jpg' (for frontend requests) and 'Slide{i}.JPG' (legacy backup)
-                        # This fixes the filename casing and prefix mismatch perfectly!
-                        for i in range(1, pres.Slides.Count + 1):
+                        count = pres.Slides.Count
+                        for i in range(1, count + 1):
                             slide = pres.Slides(i)
-                            slide.Export(os.path.join(temp_dir, f"{i}.jpg"), "JPG")
-                            slide.Export(os.path.join(temp_dir, f"Slide{i}.JPG"), "JPG")
+                            target_jpg = os.path.join(temp_dir, f"{i}.jpg")
+                            slide.Export(target_jpg, "JPG")
+                            try:
+                                import shutil
+                                shutil.copyfile(target_jpg, os.path.join(temp_dir, f"Slide{i}.JPG"))
+                            except Exception:
+                                pass
+                            time.sleep(0.01)  # Yield COM STA thread so navigation calls execute instantly!
                             
                         last_exported_presentation = pres.Name
                 else:
@@ -304,8 +307,14 @@ def export_slides_now():
                 count = pres.Slides.Count
                 for i in range(1, count + 1):
                     slide = pres.Slides(i)
-                    slide.Export(os.path.join(temp_dir, f"{i}.jpg"), "JPG")
-                    slide.Export(os.path.join(temp_dir, f"Slide{i}.JPG"), "JPG")
+                    target_jpg = os.path.join(temp_dir, f"{i}.jpg")
+                    slide.Export(target_jpg, "JPG")
+                    try:
+                        import shutil
+                        shutil.copyfile(target_jpg, os.path.join(temp_dir, f"Slide{i}.JPG"))
+                    except Exception:
+                        pass
+                    time.sleep(0.01)
         except Exception:
             pass
         finally:
