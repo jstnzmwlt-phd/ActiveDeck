@@ -377,10 +377,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       });
     }
 
-    // 3. If pptxUrl exists but is not in list, add it as first entry
+    // 3. If pptxUrl exists but is not in list, add it as fallback entry
     if (presentation?.pptxUrl && !seenUrls.has(presentation.pptxUrl)) {
       seenUrls.add(presentation.pptxUrl);
-      list.unshift({
+      list.push({
         id: presentation.selectedDeckId || 'initial_deck',
         name: presentation.pptxFileName || 'source.pptx',
         url: presentation.pptxUrl,
@@ -390,6 +390,19 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
     return list;
   }, [presenterSavedDecks, presentation?.uploadedDecks, presentation?.pptxUrl, presentation?.pptxFileName, presentation?.selectedDeckId]);
+
+  const [selectedDeckId, setSelectedDeckId] = useState<string | null>(() => {
+    return sessionStorage.getItem('activeDeckSelectedId') || 
+           presentation?.selectedDeckId || 
+           null;
+  });
+
+  useEffect(() => {
+    if (presentation?.selectedDeckId && presentation.selectedDeckId !== selectedDeckId) {
+      setSelectedDeckId(presentation.selectedDeckId);
+      sessionStorage.setItem('activeDeckSelectedId', presentation.selectedDeckId);
+    }
+  }, [presentation?.selectedDeckId]);
 
   // Automatically sync permanent saved presentations to current presentation document if not present
   useEffect(() => {
@@ -401,20 +414,32 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         uploadedDecks: effectiveDecks
       };
       if (!presentation.pptxUrl && effectiveDecks.length > 0) {
-        updates.pptxUrl = effectiveDecks[0].url;
-        updates.pptxFileName = effectiveDecks[0].name;
-        updates.selectedDeckId = effectiveDecks[0].id;
+        const preferredDeck = (selectedDeckId && effectiveDecks.find(d => d.id === selectedDeckId)) || effectiveDecks[0];
+        updates.pptxUrl = preferredDeck.url;
+        updates.pptxFileName = preferredDeck.name;
+        updates.selectedDeckId = preferredDeck.id;
       }
       updateDoc(doc(db, 'presentations', presentation.id), updates).catch(err => {
         console.warn("ActiveDeck: Failed to sync permanent decks to presentation:", err);
       });
     }
-  }, [presentation?.id, presentation?.uploadedDecks, presentation?.pptxUrl, effectiveDecks]);
+  }, [presentation?.id, presentation?.uploadedDecks, presentation?.pptxUrl, effectiveDecks, selectedDeckId]);
 
-  const activeDeck = effectiveDecks.find(d => 
-    (presentation?.selectedDeckId && d.id === presentation.selectedDeckId) || 
-    (presentation?.pptxUrl && d.url === presentation.pptxUrl)
-  ) || effectiveDecks[0] || null;
+  const activeDeck = React.useMemo(() => {
+    if (selectedDeckId) {
+      const match = effectiveDecks.find(d => d.id === selectedDeckId);
+      if (match) return match;
+    }
+    if (presentation?.selectedDeckId) {
+      const match = effectiveDecks.find(d => d.id === presentation.selectedDeckId);
+      if (match) return match;
+    }
+    if (presentation?.pptxUrl) {
+      const match = effectiveDecks.find(d => d.url === presentation.pptxUrl);
+      if (match) return match;
+    }
+    return effectiveDecks[0] || null;
+  }, [effectiveDecks, selectedDeckId, presentation?.selectedDeckId, presentation?.pptxUrl]);
 
   const activeDeckKey = activeDeck?.id || activeDeck?.url || presentation?.selectedDeckId || presentation?.pptxUrl || presentation?.id || '';
 
@@ -427,6 +452,13 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   }, [isBridgeConnected, activeDeckKey]);
 
   const handleSelectDeck = async (deck: DeckItem) => {
+    setSelectedDeckId(deck.id);
+    sessionStorage.setItem('activeDeckSelectedId', deck.id);
+    if (effectivePresenterEmail) {
+      try {
+        localStorage.setItem(`activeDeckLastSelectedDeckId_${effectivePresenterEmail}`, deck.id);
+      } catch (e) {}
+    }
     if (!presentation?.id) return;
     try {
       await updateDoc(doc(db, 'presentations', presentation.id), {
@@ -434,6 +466,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         pptxFileName: deck.name,
         selectedDeckId: deck.id
       });
+      if (effectivePresenterEmail) {
+        await setDoc(doc(db, 'whitelistedPresenters', effectivePresenterEmail), {
+          lastSelectedDeckId: deck.id
+        }, { merge: true });
+      }
     } catch (err) {
       console.error("Failed to select presentation deck:", err);
     }

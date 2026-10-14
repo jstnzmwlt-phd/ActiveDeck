@@ -230,12 +230,17 @@ function AppContent() {
       if (effectiveEmail && decksToSave.length === 0) {
         try {
           const presenterSnap = await getDoc(doc(db, 'whitelistedPresenters', effectiveEmail));
-          if (presenterSnap.exists() && Array.isArray(presenterSnap.data().savedDecks)) {
-            decksToSave = presenterSnap.data().savedDecks;
-            if (decksToSave.length > 0 && !pptxUrlToSave) {
-              pptxUrlToSave = decksToSave[0].url;
-              pptxFileNameToSave = decksToSave[0].name;
-              selectedDeckIdToSave = decksToSave[0].id;
+          if (presenterSnap.exists()) {
+            const data = presenterSnap.data();
+            if (Array.isArray(data.savedDecks)) {
+              decksToSave = data.savedDecks;
+              if (decksToSave.length > 0 && !pptxUrlToSave) {
+                const lastSelectedId = data.lastSelectedDeckId || sessionStorage.getItem('activeDeckSelectedId') || (effectiveEmail ? localStorage.getItem(`activeDeckLastSelectedDeckId_${effectiveEmail}`) : null);
+                const targetDeck = (lastSelectedId && decksToSave.find((d: any) => d.id === lastSelectedId)) || decksToSave[0];
+                pptxUrlToSave = targetDeck.url;
+                pptxFileNameToSave = targetDeck.name;
+                selectedDeckIdToSave = targetDeck.id;
+              }
             }
           }
         } catch (e) {
@@ -995,9 +1000,11 @@ function AppContent() {
         if (savedDecksFromPresenter.length > 0 && (!presentation?.uploadedDecks || presentation.uploadedDecks.length === 0)) {
           updates.uploadedDecks = savedDecksFromPresenter;
           if (!presentation?.pptxUrl) {
-            updates.pptxUrl = savedDecksFromPresenter[0].url;
-            updates.pptxFileName = savedDecksFromPresenter[0].name;
-            updates.selectedDeckId = savedDecksFromPresenter[0].id;
+            const lastSelectedId = sessionStorage.getItem('activeDeckSelectedId') || (trimmed ? localStorage.getItem(`activeDeckLastSelectedDeckId_${trimmed}`) : null);
+            const targetDeck = (lastSelectedId && savedDecksFromPresenter.find((d: any) => d.id === lastSelectedId)) || savedDecksFromPresenter[0];
+            updates.pptxUrl = targetDeck.url;
+            updates.pptxFileName = targetDeck.name;
+            updates.selectedDeckId = targetDeck.id;
           }
         }
         await updateDoc(doc(db, 'presentations', targetPresentationId), updates);

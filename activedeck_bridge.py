@@ -10,6 +10,8 @@ import io
 import shutil
 import urllib.request
 import urllib.parse
+import re
+import hashlib
 # Safe stdout/stderr redirection when running as windowless background process (pythonw / PyInstaller noconsole)
 if sys.stdout is None:
     try:
@@ -106,12 +108,15 @@ def download_and_open_ppt(url):
     if not url:
         return
     try:
-        global _cached_state, _cached_slide_index, _cached_total_slides, _thumbnails_cache, _thumbnails_version
+        global _cached_state, _cached_slide_index, _cached_total_slides, _notes_cache, _thumbnails_cache, _thumbnails_version, _last_exported_presentation
         _cached_state = None
         _cached_slide_index = None
         _cached_total_slides = None
+        _notes_cache.clear()
         _thumbnails_cache = {}
         _thumbnails_version += 1
+        _last_exported_presentation = ""
+
         slides_dir = os.path.join(tempfile.gettempdir(), "activedeck_slides")
         if os.path.exists(slides_dir):
             for f in os.listdir(slides_dir):
@@ -124,10 +129,18 @@ def download_and_open_ppt(url):
         temp_dir = tempfile.gettempdir()
         filename = "active_deck_presentation.pptx"
         try:
-            parsed_path = urllib.parse.urlparse(url).path
+            unquoted = urllib.parse.unquote(url)
+            parsed_path = urllib.parse.urlparse(unquoted).path
             base_name = os.path.basename(parsed_path)
-            if base_name and base_name.lower().endswith((".pptx", ".ppt")):
-                filename = base_name
+            # Remove any path traversal or invalid characters
+            base_name = os.path.basename(base_name.replace('\\', '/'))
+            # Filter out characters invalid in Windows filenames
+            clean_name = re.sub(r'[<>:"/\\|?*]', '_', base_name)
+            if clean_name and clean_name.lower().endswith((".pptx", ".ppt")):
+                filename = clean_name
+            else:
+                url_hash = hashlib.md5(url.encode('utf-8')).hexdigest()[:8]
+                filename = f"presentation_{url_hash}.pptx"
         except Exception:
             pass
 
@@ -146,8 +159,34 @@ def download_and_open_ppt(url):
                     ppt_app = win32com.client.Dispatch("PowerPoint.Application")
 
                 ppt_app.Visible = True
+
+                # Exit all running slideshow windows first so SlideShowWindows(1) is guaranteed to be the new presentation
+                try:
+                    while ppt_app.SlideShowWindows.Count > 0:
+                        ppt_app.SlideShowWindows(1).View.Exit()
+                except Exception as e:
+                    print(f"Error exiting previous slideshows: {e}")
+
+                # Close any previously opened presentations that aren't the target presentation
+                try:
+                    for pres in list(ppt_app.Presentations):
+                        try:
+                            if os.path.normpath(pres.FullName).lower() != os.path.normpath(filepath).lower():
+                                pres.Close()
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+
                 presentation = ppt_app.Presentations.Open(filepath)
                 presentation.SlideShowSettings.Run()
+
+                # Trigger immediate export so thumbnails and notes are ready instantly
+                try:
+                    export_slides_now()
+                    update_thumbnails_cache(slides_dir)
+                except Exception:
+                    pass
             finally:
                 pythoncom.CoUninitialize()
     except Exception as e:
@@ -163,6 +202,7 @@ _cached_total_slides = None
 _notes_cache = {}
 _thumbnails_cache = {}
 _thumbnails_version = 0
+_last_exported_presentation = ""
 
 def update_thumbnails_cache(temp_dir):
     global _thumbnails_cache, _thumbnails_version
@@ -314,11 +354,11 @@ def get_ppt_state_silently():
 # 3. BACKGROUND SLIDE EXPORTER (Fixed for Subfolders & Frontend Mismatches)
 # ---------------------------------------------------------
 def background_slide_exporter():
-    last_exported_presentation = ""
+    global _last_exported_presentation, _cached_state, _cached_slide_index, _cached_total_slides, _notes_cache
     temp_dir = os.path.join(tempfile.gettempdir(), "activedeck_slides")
     
     while True:
-        time.sleep(2)
+        time.sleep(1)
         if current_os == "Windows":
             try:
                 pythoncom.CoInitialize()
@@ -327,8 +367,7 @@ def background_slide_exporter():
                 if ppt_app.SlideShowWindows.Count > 0:
                     pres = ppt_app.SlideShowWindows(1).Presentation
                     
-                    if pres.Name != last_exported_presentation:
-                        global _cached_state, _cached_slide_index, _cached_total_slides, _notes_cache
+                    if pres.Name != _last_exported_presentation:
                         _cached_state = None
                         _cached_slide_index = None
                         _cached_total_slides = None
@@ -376,9 +415,12 @@ def background_slide_exporter():
                                 time.sleep(0.005)
                             
                         update_thumbnails_cache(temp_dir)
-                        last_exported_presentation = pres.Name
+                        _last_exported_presentation = pres.Name
                 else:
-                    last_exported_presentation = ""
+                    _last_exported_presentation = ""
+                    _cached_state = None
+                    _cached_slide_index = None
+                    _cached_total_slides = None
             except Exception:
                 pass
             finally:
