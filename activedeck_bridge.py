@@ -17,7 +17,7 @@ if current_os == "Windows":
 elif current_os == "Darwin":
     import subprocess
 
-from flask import Flask, send_from_directory, make_response
+from flask import Flask, send_from_directory, make_response, request, jsonify
 from flask_sock import Sock
 
 app = Flask(__name__)
@@ -217,14 +217,82 @@ def background_slide_exporter():
                 pythoncom.CoUninitialize()
 
 # ---------------------------------------------------------
-# 4. WEBSERVER ROUTES (Images & WebSockets)
+# 4. WEBSERVER ROUTES (Images, HTTP Commands & WebSockets)
 # ---------------------------------------------------------
+@app.before_request
+def handle_preflight():
+    if request.method == 'OPTIONS':
+        response = make_response()
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = '*'
+        response.headers['Access-Control-Max-Age'] = '86400'
+        return response
+
+@app.after_request
+def add_cors_headers(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = '*'
+    return response
+
+@app.route('/status', methods=['GET', 'OPTIONS'])
+def handle_status():
+    state = get_ppt_state_silently() or {}
+    return jsonify(state)
+
+@app.route('/load', methods=['POST', 'GET', 'OPTIONS'])
+def handle_load_http():
+    if request.method == 'POST':
+        data = request.get_json(silent=True) or {}
+        url = data.get('url') or request.args.get('url')
+    else:
+        url = request.args.get('url')
+    if url:
+        download_and_open_ppt(url)
+        return jsonify({'status': 'success', 'message': 'Presentation loaded'})
+    return jsonify({'status': 'error', 'message': 'Missing URL'}), 400
+
 @app.route('/slides/<path:filename>')
 def serve_slide(filename):
     temp_dir = os.path.join(tempfile.gettempdir(), "activedeck_slides")
-    response = make_response(send_from_directory(temp_dir, filename))
-    response.headers['Access-Control-Allow-Origin'] = '*'
-    return response
+    return send_from_directory(temp_dir, filename)
+
+def export_slides_now():
+    temp_dir = os.path.join(tempfile.gettempdir(), "activedeck_slides")
+    count = 0
+    if current_os == "Windows":
+        pythoncom.CoInitialize()
+        try:
+            ppt_app = win32com.client.GetActiveObject("PowerPoint.Application")
+            if ppt_app.SlideShowWindows.Count > 0:
+                pres = ppt_app.SlideShowWindows(1).Presentation
+                os.makedirs(temp_dir, exist_ok=True)
+                count = pres.Slides.Count
+                for i in range(1, count + 1):
+                    slide = pres.Slides(i)
+                    slide.Export(os.path.join(temp_dir, f"{i}.jpg"), "JPG")
+                    slide.Export(os.path.join(temp_dir, f"Slide{i}.JPG"), "JPG")
+        except Exception:
+            pass
+        finally:
+            pythoncom.CoUninitialize()
+    if count == 0 and os.path.exists(temp_dir):
+        jpgs = [f for f in os.listdir(temp_dir) if f.endswith('.jpg') and not f.startswith('Slide')]
+        count = len(jpgs)
+    return count
+
+@app.route('/export', methods=['GET', 'POST', 'OPTIONS'])
+def handle_export_route():
+    count = export_slides_now()
+    return jsonify({'success': True, 'count': count})
+
+@app.route('/<direction>', methods=['GET', 'POST', 'OPTIONS'])
+def handle_direction_http(direction):
+    if direction not in ['slides', 'ws', 'status', 'load', 'export']:
+        move_ppt_silently(direction)
+        return jsonify({'status': 'success', 'direction': direction})
+    return jsonify({'status': 'ignored'})
 
 @sock.route('/ws')
 def handle_ws(ws):
