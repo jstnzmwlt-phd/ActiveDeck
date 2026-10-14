@@ -7,6 +7,7 @@ import { auth, db, storage } from '../firebase';
 import { doc, getDoc, updateDoc, onSnapshot, collection, query, where } from 'firebase/firestore';
 import { QRCodeSVG } from 'qrcode.react';
 import { compositeSlideWithAnnotations, createSlidePlaceholderImage } from '../utils/exportNotesDocx';
+import { PptxUploader } from './PptxUploader';
 
 export interface DrawingPoint {
   x: number;
@@ -196,6 +197,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const { 
     currentSlide, 
     sendSlideCommand, 
+    sendBridgeCommand,
     isBridgeConnected, 
     useWithoutBridge, 
     setUseWithoutBridge,
@@ -210,6 +212,23 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const [secondaryColor, setSecondaryColor] = useState<string>('#ff3e00');
   const [isCapturing, setIsCapturing] = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
+  const [isLoadingPpt, setIsLoadingPpt] = useState(false);
+  const [loadPptSuccess, setLoadPptSuccess] = useState(false);
+
+  const handleLoadPpt = () => {
+    if (!presentation?.pptxUrl) return;
+    setIsLoadingPpt(true);
+    setLoadPptSuccess(false);
+    sendBridgeCommand({
+      action: 'load',
+      url: presentation.pptxUrl
+    });
+    setTimeout(() => {
+      setIsLoadingPpt(false);
+      setLoadPptSuccess(true);
+      setTimeout(() => setLoadPptSuccess(false), 3000);
+    }, 1200);
+  };
 
   useEffect(() => {
     onStreamStateChange?.(isCapturing && !!stream);
@@ -3260,6 +3279,42 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               </div>
               
               <div className="w-full space-y-3.5">
+                {presentation?.id && (
+                  <PptxUploader
+                    presentationId={presentation.id}
+                    currentPptxUrl={presentation.pptxUrl}
+                  />
+                )}
+                <button
+                  type="button"
+                  onClick={handleLoadPpt}
+                  disabled={!presentation?.pptxUrl || isLoadingPpt}
+                  className={`flex items-center justify-center gap-2.5 w-full py-3 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-black uppercase tracking-wider rounded-xl transition-all active:scale-95 shadow-lg shadow-amber-600/20 text-xs cursor-pointer ${
+                    !presentation?.pptxUrl ? 'opacity-50' : ''
+                  }`}
+                  title={
+                    presentation?.pptxUrl
+                      ? "Load and launch presentation in PowerPoint"
+                      : "Upload a .pptx file first to enable Load PPT"
+                  }
+                >
+                  {isLoadingPpt ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-white" />
+                      <span>Loading PowerPoint...</span>
+                    </>
+                  ) : loadPptSuccess ? (
+                    <>
+                      <Check className="w-4 h-4 text-white" />
+                      <span>PPT Sent to Bridge!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-4 h-4 fill-current" />
+                      <span>Load PPT</span>
+                    </>
+                  )}
+                </button>
                 {isBridgeConnected ? (
                   <>
                     <button
@@ -3880,8 +3935,47 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             </button>
           </div>
 
-          {/* Mid-Left: Download Presentation Button */}
-          <div className="absolute left-[25%] -translate-x-1/2">
+          {/* Mid-Left: Download, Upload & Load Presentation Buttons */}
+          <div className="absolute left-[25%] -translate-x-1/2 flex items-center gap-2">
+            {presentation?.id && (
+              <PptxUploader
+                presentationId={presentation.id}
+                currentPptxUrl={presentation.pptxUrl}
+                compact={true}
+              />
+            )}
+            <button
+              type="button"
+              onClick={handleLoadPpt}
+              disabled={!presentation?.pptxUrl || isLoadingPpt}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border shadow-lg ${
+                presentation?.pptxUrl
+                  ? 'bg-amber-600 hover:bg-amber-500 text-white border-amber-500/40 cursor-pointer active:scale-95 shadow-amber-600/20'
+                  : 'bg-slate-900/40 text-slate-600 border-slate-800 cursor-not-allowed opacity-50'
+              }`}
+              title={
+                presentation?.pptxUrl
+                  ? "Load PowerPoint presentation via bridge"
+                  : "Upload a .pptx file first to enable Load PPT"
+              }
+            >
+              {isLoadingPpt ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Loading...</span>
+                </>
+              ) : loadPptSuccess ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-white" />
+                  <span>Loaded!</span>
+                </>
+              ) : (
+                <>
+                  <Play className="w-3.5 h-3.5 fill-current" />
+                  <span>Load PPT</span>
+                </>
+              )}
+            </button>
             <button
               onClick={() => setShowDownloadModal(true)}
               disabled={isDownloadingPresentation}

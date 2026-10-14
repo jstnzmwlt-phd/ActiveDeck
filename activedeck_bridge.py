@@ -6,6 +6,8 @@ import os
 import tempfile
 import threading
 import base64
+import urllib.request
+import urllib.parse
 
 current_os = platform.system()
 
@@ -68,6 +70,43 @@ def move_ppt_silently(direction):
         move_ppt_windows(direction)
     elif current_os == "Darwin":
         move_ppt_mac(direction)
+
+def download_and_open_ppt(url):
+    if not url:
+        return
+    try:
+        temp_dir = tempfile.gettempdir()
+        filename = "active_deck_presentation.pptx"
+        try:
+            parsed_path = urllib.parse.urlparse(url).path
+            base_name = os.path.basename(parsed_path)
+            if base_name and base_name.lower().endswith((".pptx", ".ppt")):
+                filename = base_name
+        except Exception:
+            pass
+
+        filepath = os.path.abspath(os.path.join(temp_dir, filename))
+
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+        with urllib.request.urlopen(req) as resp, open(filepath, "wb") as out_file:
+            out_file.write(resp.read())
+
+        if current_os == "Windows":
+            pythoncom.CoInitialize()
+            try:
+                try:
+                    ppt_app = win32com.client.GetActiveObject("PowerPoint.Application")
+                except Exception:
+                    ppt_app = win32com.client.Dispatch("PowerPoint.Application")
+
+                ppt_app.Visible = True
+                presentation = ppt_app.Presentations.Open(filepath)
+                presentation.SlideShowSettings.Run()
+            finally:
+                pythoncom.CoUninitialize()
+    except Exception as e:
+        print(f"Error in download_and_open_ppt: {e}")
+
 
 # ---------------------------------------------------------
 # 2. STATE EXTRACTION COMMANDS 
@@ -194,7 +233,21 @@ def handle_ws(ws):
         try:
             message = ws.receive(timeout=0.5)
             if message:
-                move_ppt_silently(message)
+                try:
+                    payload = json.loads(message)
+                    if isinstance(payload, dict):
+                        action = payload.get('action')
+                        if action == 'move':
+                            direction = payload.get('direction', 'next')
+                            move_ppt_silently(direction)
+                        elif action == 'load':
+                            url = payload.get('url')
+                            if url:
+                                download_and_open_ppt(url)
+                    else:
+                        move_ppt_silently(str(payload))
+                except (json.JSONDecodeError, TypeError):
+                    move_ppt_silently(message)
         except Exception:
             pass
 

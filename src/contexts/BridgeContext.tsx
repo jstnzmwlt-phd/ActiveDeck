@@ -5,6 +5,7 @@ interface BridgeContextType {
   useWithoutBridge: boolean;
   setUseWithoutBridge: (value: boolean) => void;
   sendSlideCommand: (direction: 'next' | 'prev' | number) => void;
+  sendBridgeCommand: (payload: any) => void;
   currentSlide: number | null;
   currentSlideBase64: string | null;
   nextSlide: number | null;
@@ -121,12 +122,22 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const cmd = String(direction);
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       console.log(`ActiveDeck: Sending '${cmd}' command via WebSocket...`);
-      wsRef.current.send(cmd);
+      wsRef.current.send(JSON.stringify({ action: 'move', direction: cmd }));
     } else {
       console.warn(`ActiveDeck: WebSocket not connected. Falling back to background trigger for ${cmd}...`);
       // Fallback to Image trick if WebSocket is unavailable
       const img = new Image();
       img.src = `http://127.0.0.1:5000/${cmd}?t=${new Date().getTime()}`;
+    }
+  };
+
+  const sendBridgeCommand = (payload: any) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      const msg = typeof payload === 'string' ? payload : JSON.stringify(payload);
+      console.log('ActiveDeck: Sending command to bridge via WebSocket:', msg);
+      wsRef.current.send(msg);
+    } else {
+      console.warn('ActiveDeck: WebSocket bridge not connected. Cannot send payload:', payload);
     }
   };
 
@@ -136,6 +147,7 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       useWithoutBridge, 
       setUseWithoutBridge, 
       sendSlideCommand,
+      sendBridgeCommand,
       currentSlide,
       currentSlideBase64,
       nextSlide,

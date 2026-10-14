@@ -76,6 +76,7 @@ export interface Presentation {
   magnifierY?: number;
   magnifierActive?: boolean;
   isLocked?: boolean;
+  pptxUrl?: string;
 }
 
 export interface Message {
