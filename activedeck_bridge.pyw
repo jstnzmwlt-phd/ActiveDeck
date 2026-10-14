@@ -104,127 +104,49 @@ def move_ppt_silently(direction):
     elif current_os == "Darwin":
         move_ppt_mac(direction)
 
-_load_lock = threading.Lock()
-
 def download_and_open_ppt(url):
     if not url:
         return
-    with _load_lock:
+    try:
+        temp_dir = tempfile.gettempdir()
+        filename = "active_deck_presentation.pptx"
         try:
-            global _cached_state, _cached_slide_index, _cached_total_slides, _notes_cache, _thumbnails_cache, _thumbnails_version, _last_exported_presentation
-            _cached_state = None
-            _cached_slide_index = None
-            _cached_total_slides = None
-            _notes_cache.clear()
-            _thumbnails_cache = {}
-            _thumbnails_version += 1
-            _last_exported_presentation = ""
+            parsed_path = urllib.parse.urlparse(url).path
+            base_name = os.path.basename(parsed_path)
+            if base_name and base_name.lower().endswith((".pptx", ".ppt")):
+                filename = base_name
+        except Exception:
+            pass
 
-            slides_dir = os.path.join(tempfile.gettempdir(), "activedeck_slides")
-            if os.path.exists(slides_dir):
-                for f in os.listdir(slides_dir):
-                    if f.lower().endswith(('.jpg', '.jpeg', '.png')):
-                        try:
-                            os.remove(os.path.join(slides_dir, f))
-                        except Exception:
-                            pass
+        filepath = os.path.abspath(os.path.join(temp_dir, filename))
 
-            temp_dir = tempfile.gettempdir()
-            filename = "active_deck_presentation.pptx"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+        with urllib.request.urlopen(req) as resp, open(filepath, "wb") as out_file:
+            out_file.write(resp.read())
+
+        if current_os == "Windows":
+            pythoncom.CoInitialize()
             try:
-                unquoted = urllib.parse.unquote(url)
-                parsed_path = urllib.parse.urlparse(unquoted).path
-                base_name = os.path.basename(parsed_path)
-                # Remove any path traversal or invalid characters
-                base_name = os.path.basename(base_name.replace('\\', '/'))
-                # Filter out characters invalid in Windows filenames
-                clean_name = re.sub(r'[<>:"/\\|?*]', '_', base_name)
-                if clean_name and clean_name.lower().endswith((".pptx", ".ppt")):
-                    filename = clean_name
-                else:
-                    url_hash = hashlib.md5(url.encode('utf-8')).hexdigest()[:8]
-                    filename = f"presentation_{url_hash}.pptx"
-            except Exception:
-                pass
-
-            filepath = os.path.abspath(os.path.join(temp_dir, filename))
-
-            # Download presentation safely (handles file locking by creating timestamped file if needed)
-            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
-            try:
-                with urllib.request.urlopen(req) as resp:
-                    ppt_bytes = resp.read()
                 try:
-                    with open(filepath, "wb") as out_file:
-                        out_file.write(ppt_bytes)
+                    ppt_app = win32com.client.GetActiveObject("PowerPoint.Application")
                 except Exception:
-                    filepath = os.path.abspath(os.path.join(temp_dir, f"{int(time.time())}_{filename}"))
-                    with open(filepath, "wb") as out_file:
-                        out_file.write(ppt_bytes)
-            except Exception as e:
-                print(f"[ActiveDeck Bridge] Error downloading PPT: {e}")
-                return
+                    ppt_app = win32com.client.Dispatch("PowerPoint.Application")
 
-            if current_os == "Windows":
-                pythoncom.CoInitialize()
+                ppt_app.Visible = True
+                presentation = ppt_app.Presentations.Open(filepath)
+                presentation.SlideShowSettings.Run()
+
                 try:
-                    ppt_app = None
-                    try:
-                        ppt_app = win32com.client.GetActiveObject("PowerPoint.Application")
-                    except Exception:
-                        try:
-                            ppt_app = win32com.client.Dispatch("PowerPoint.Application")
-                        except Exception as d_err:
-                            print(f"[ActiveDeck Bridge] COM Dispatch error: {d_err}")
-                            ppt_app = None
-
-                    if ppt_app is not None:
-                        try:
-                            ppt_app.Visible = True
-                        except Exception:
-                            pass
-
-                        # Exit any running slideshows first
-                        try:
-                            while ppt_app.SlideShowWindows.Count > 0:
-                                ppt_app.SlideShowWindows(1).View.Exit()
-                        except Exception:
-                            pass
-
-                        # Open presentation with retry loop in case PowerPoint is busy or initializing
-                        presentation = None
-                        for attempt in range(5):
-                            try:
-                                presentation = ppt_app.Presentations.Open(filepath)
-                                break
-                            except Exception as open_err:
-                                print(f"[ActiveDeck Bridge] Open attempt {attempt+1} failed: {open_err}")
-                                time.sleep(0.5)
-
-                        if presentation:
-                            presentation.SlideShowSettings.Run()
-
-                        try:
-                            ppt_app.Activate()
-                            if ppt_app.SlideShowWindows.Count > 0:
-                                ppt_app.SlideShowWindows(1).Activate()
-                        except Exception:
-                            pass
-
-                        print(f"[ActiveDeck Bridge] Successfully opened presentation in Slide Show mode: {filepath}")
-                    else:
-                        print("[ActiveDeck Bridge] Could not connect to or start PowerPoint via COM.")
-
-                    # Trigger immediate slide export and thumbnails cache update
-                    try:
-                        export_slides_now()
-                        update_thumbnails_cache(slides_dir)
-                    except Exception:
-                        pass
-                finally:
-                    pythoncom.CoUninitialize()
-        except Exception as e:
-            print(f"[ActiveDeck Bridge] Error in download_and_open_ppt: {e}")
+                    ppt_app.Activate()
+                    if ppt_app.SlideShowWindows.Count > 0:
+                        ppt_app.SlideShowWindows(1).Activate()
+                except Exception:
+                    pass
+                print(f"[ActiveDeck Bridge] Successfully opened presentation: {filepath}")
+            finally:
+                pythoncom.CoUninitialize()
+    except Exception as e:
+        print(f"[ActiveDeck Bridge] Error in download_and_open_ppt: {e}")
 
 
 # ---------------------------------------------------------
@@ -493,8 +415,8 @@ def handle_load_http():
     else:
         url = request.args.get('url')
     if url:
-        download_and_open_ppt(url)
-        return jsonify({'status': 'success', 'message': 'Presentation loaded'})
+        threading.Thread(target=download_and_open_ppt, args=(url,), daemon=True).start()
+        return jsonify({'status': 'success', 'message': 'Presentation loading initiated'})
     return jsonify({'status': 'error', 'message': 'Missing URL'}), 400
 
 @app.route('/slides/<path:filename>')
@@ -587,7 +509,7 @@ def handle_ws(ws):
                         elif action == 'load':
                             url = payload.get('url')
                             if url:
-                                download_and_open_ppt(url)
+                                threading.Thread(target=download_and_open_ppt, args=(url,), daemon=True).start()
                                 force_send = True
                         elif action == 'get_thumbnails':
                             if _thumbnails_cache:
