@@ -307,16 +307,25 @@ def background_slide_exporter():
                                 except Exception:
                                     pass
                         count = pres.Slides.Count
-                        for i in range(1, count + 1):
-                            slide = pres.Slides(i)
-                            target_jpg = os.path.join(temp_dir, f"{i}.jpg")
-                            slide.Export(target_jpg, "JPG")
-                            try:
-                                import shutil
-                                shutil.copyfile(target_jpg, os.path.join(temp_dir, f"Slide{i}.JPG"))
-                            except Exception:
-                                pass
-                            time.sleep(0.01)  # Yield COM STA thread so navigation calls execute instantly!
+                        # Try fast whole-presentation export first (~1s in native C++)
+                        exported_all = False
+                        try:
+                            pres.Export(temp_dir, "JPG")
+                            exported_all = True
+                        except Exception:
+                            pass
+
+                        if not exported_all:
+                            for i in range(1, count + 1):
+                                slide = pres.Slides(i)
+                                target_jpg = os.path.join(temp_dir, f"{i}.jpg")
+                                slide.Export(target_jpg, "JPG")
+                                try:
+                                    import shutil
+                                    shutil.copyfile(target_jpg, os.path.join(temp_dir, f"Slide{i}.JPG"))
+                                except Exception:
+                                    pass
+                                time.sleep(0.005)
                             
                         last_exported_presentation = pres.Name
                 else:
@@ -366,6 +375,14 @@ def handle_load_http():
 @app.route('/slides/<path:filename>')
 def serve_slide(filename):
     temp_dir = os.path.join(tempfile.gettempdir(), "activedeck_slides")
+    target = os.path.join(temp_dir, filename)
+    if not os.path.exists(target):
+        base, ext = os.path.splitext(filename)
+        candidates = [f"Slide{base}.JPG", f"Slide{base}.jpg", f"{base}.JPG", f"{base}.jpeg", f"slide{base}.jpg"]
+        for c in candidates:
+            if os.path.exists(os.path.join(temp_dir, c)):
+                filename = c
+                break
     response = make_response(send_from_directory(temp_dir, filename))
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
     response.headers['Pragma'] = 'no-cache'

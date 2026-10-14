@@ -3327,13 +3327,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                                 const isFurthest = sNum === furthestSlide;
                                 const isUnshown = !visitedSlides[sNum];
                                 
-                                const hasLocalError = localImageErrors[sNum];
-                                const localUrl = `http://127.0.0.1:5000/slides/${sNum}.jpg${activeDeckKey ? `?d=${encodeURIComponent(activeDeckKey)}` : ''}`;
+                                const localUrl = `http://127.0.0.1:5000/slides/${sNum}.jpg`;
                                 const firestoreUrl = slidePreviewsMap[sNum];
-                                // When bridge is active, only show the local presentation slides. Never fall back to stale Firestore previews from previous presentations!
-                                const imgUrl = isBridgeConnected
-                                  ? (!hasLocalError ? localUrl : null)
-                                  : (localSlidesCount >= sNum && !hasLocalError ? localUrl : (firestoreUrl || null));
+                                const imgUrl = isBridgeConnected ? localUrl : (firestoreUrl || null);
 
                                 return (
                                   <button
@@ -3350,30 +3346,27 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                                         ? 'border-osu-orange ring-2 ring-osu-orange/20 scale-[1.03]'
                                         : 'border-slate-800 group-hover/tile:border-slate-600'
                                     }`}>
-                                      {imgUrl ? (
+                                      {/* Steady background placeholder icon - never flickers or unmounts */}
+                                      <div className="absolute inset-0 flex items-center justify-center text-slate-700 bg-slate-950 pointer-events-none">
+                                        <Monitor className="w-4 h-4 opacity-30" />
+                                      </div>
+
+                                      {/* Slide image - fades in cleanly when ready, never flashes on slide changes */}
+                                      {imgUrl && (
                                         <img
                                           src={imgUrl}
                                           alt={`Slide ${sNum}`}
-                                          className="w-full h-full object-cover bg-black"
+                                          className="absolute inset-0 w-full h-full object-cover bg-black transition-opacity duration-300 opacity-0"
                                           loading="lazy"
-                                          onError={() => {
-                                            setLocalImageErrors(prev => ({ ...prev, [sNum]: true }));
-                                            if (isBridgeConnected) {
-                                              setTimeout(() => {
-                                                setLocalImageErrors(prev => {
-                                                  if (!prev[sNum]) return prev;
-                                                  const updated = { ...prev };
-                                                  delete updated[sNum];
-                                                  return updated;
-                                                });
-                                              }, 2000);
-                                            }
+                                          onLoad={(e) => {
+                                            (e.currentTarget as HTMLElement).classList.remove('opacity-0');
+                                            (e.currentTarget as HTMLElement).classList.add('opacity-100');
+                                          }}
+                                          onError={(e) => {
+                                            (e.currentTarget as HTMLElement).classList.remove('opacity-100');
+                                            (e.currentTarget as HTMLElement).classList.add('opacity-0');
                                           }}
                                         />
-                                      ) : (
-                                        <div className="absolute inset-0 flex items-center justify-center text-slate-700 bg-slate-950">
-                                          <Monitor className="w-4 h-4 opacity-30" />
-                                        </div>
                                       )}
                                       
                                       {/* Slide Number Badge */}
