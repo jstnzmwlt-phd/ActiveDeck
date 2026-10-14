@@ -1707,9 +1707,6 @@ function AppContent() {
           >
             {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
           </button>
-          <span className="text-[11px] font-semibold text-slate-400 bg-slate-900/90 border border-slate-800 px-3 py-1.5 rounded-full backdrop-blur-md shadow-lg select-none">
-            Tip: Press <kbd className="px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-osu-orange font-bold text-[10px]">F11</kbd> for locked Full Screen
-          </span>
         </div>
       </div>
     );
