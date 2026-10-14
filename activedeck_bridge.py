@@ -17,8 +17,13 @@ if current_os == "Windows":
 elif current_os == "Darwin":
     import subprocess
 
-from flask import Flask, send_from_directory, make_response, request, jsonify
+import logging
+from flask import Flask, send_from_directory, make_response, request, jsonify, cli
 from flask_sock import Sock
+
+# Silence development server warning from werkzeug/Flask
+cli.show_server_banner = lambda *args: None
+logging.getLogger('werkzeug').addFilter(lambda record: 'development server' not in record.getMessage())
 
 app = Flask(__name__)
 sock = Sock(app)
@@ -411,4 +416,11 @@ def handle_ws(ws):
 if __name__ == '__main__':
     exporter_thread = threading.Thread(target=background_slide_exporter, daemon=True)
     exporter_thread.start()
+    print("=" * 60)
+    print("  ActiveDeck Bridge v3.0 - Running")
+    print("  Local Server: http://127.0.0.1:5000")
+    print("  WebSocket:    ws://127.0.0.1:5000/ws")
+    print("  PowerPoint:   COM Auto-Detection Active")
+    print("  Keep this window open while presenting.")
+    print("=" * 60)
     app.run(host='127.0.0.1', port=5000)

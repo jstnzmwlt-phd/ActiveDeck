@@ -3542,14 +3542,28 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     </span>
                   </div>
 
-                  {/* Selected Presentation Display or Uploader */}
+                  {/* Selected Presentation Summary (Upload handled in Presentations box) */}
                   <div className="w-full mb-4">
-                    {presentation?.id && (
-                      <PptxUploader
-                        presentationId={presentation.id}
-                        currentPptxUrl={activeDeck?.url || presentation.pptxUrl}
-                        currentFileName={activeDeck?.name || presentation.pptxFileName}
-                      />
+                    {(activeDeck?.name || presentation?.pptxFileName) ? (
+                      <div className="p-3.5 bg-slate-800/60 border border-slate-700/60 rounded-2xl flex items-center gap-3 text-left">
+                        <div className="w-10 h-10 rounded-xl bg-osu-orange/15 border border-osu-orange/30 flex items-center justify-center flex-shrink-0 text-osu-orange">
+                          <PresentationIcon className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Selected Deck</p>
+                          <p className="text-sm font-bold text-white truncate" title={activeDeck?.name || presentation?.pptxFileName}>
+                            {activeDeck?.name || presentation?.pptxFileName}
+                          </p>
+                        </div>
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-green-500/15 border border-green-500/30 text-green-400 flex-shrink-0">
+                          <Check className="w-3 h-3" /> Selected
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="p-4 bg-slate-800/30 border border-dashed border-slate-700/40 rounded-2xl text-center">
+                        <p className="text-xs text-slate-400 font-medium">No presentation selected</p>
+                        <p className="text-[11px] text-slate-500 mt-0.5">Click a presentation on the right or add a new one.</p>
+                      </div>
                     )}
                   </div>
                 </div>
