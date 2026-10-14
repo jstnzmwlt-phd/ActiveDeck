@@ -753,15 +753,23 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
   const [localSlidesCount, setLocalSlidesCount] = useState<number>(0);
   const [nextSlideImageError, setNextSlideImageError] = useState<boolean>(false);
+  const [syncedProjectorSlide, setSyncedProjectorSlide] = useState<number | null>(null);
+  const [syncedProjectorBase64, setSyncedProjectorBase64] = useState<string | null>(null);
+  const [syncedProjectorTotal, setSyncedProjectorTotal] = useState<number | null>(null);
 
-  const effectiveCurrentSlide = currentSlide !== null ? currentSlide : (presentation?.currentSlide ?? 1);
+  const effectiveCurrentSlide = 
+    (isProjectorMode && syncedProjectorSlide !== null)
+      ? syncedProjectorSlide
+      : (currentSlide !== null ? currentSlide : (presentation?.currentSlide ?? 1));
   const mapSlidesCount = Object.keys(slidePreviewsMap).length;
   
-  const explicitTotal = (totalSlides !== null && totalSlides > 0) 
-    ? totalSlides 
-    : (presentation?.totalSlides && presentation.totalSlides > 0) 
-      ? presentation.totalSlides 
-      : 0;
+  const explicitTotal = (syncedProjectorTotal !== null && syncedProjectorTotal > 0)
+    ? syncedProjectorTotal
+    : (totalSlides !== null && totalSlides > 0) 
+      ? totalSlides 
+      : (presentation?.totalSlides && presentation.totalSlides > 0) 
+        ? presentation.totalSlides 
+        : 0;
 
   const knownTotal = Math.max(explicitTotal, localSlidesCount, mapSlidesCount);
 
@@ -772,6 +780,47 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     : (knownTotal > 0 
       ? knownTotal 
       : Math.max(effectiveCurrentSlide + 3, 20));
+
+  // Instant local multi-window slide broadcast (Presenter -> Projector popup window < 2ms)
+  useEffect(() => {
+    if (isProjectorMode || !presentation?.id) return;
+    try {
+      const channel = new BroadcastChannel('activedeck-slide-sync');
+      channel.postMessage({
+        type: 'slide-update',
+        presentationId: presentation.id,
+        currentSlide: effectiveCurrentSlide,
+        currentSlideBase64: currentSlideBase64,
+        totalSlides: effectiveTotalSlides
+      });
+      channel.close();
+    } catch (e) {}
+  }, [effectiveCurrentSlide, currentSlideBase64, effectiveTotalSlides, isProjectorMode, presentation?.id]);
+
+  // Projector window listener for instant slide updates from faculty screen
+  useEffect(() => {
+    if (!isProjectorMode) return;
+    const channel = new BroadcastChannel('activedeck-slide-sync');
+    const handleSync = (e: MessageEvent) => {
+      if (e.data && e.data.type === 'slide-update' && e.data.presentationId === presentation?.id) {
+        if (typeof e.data.currentSlide === 'number') {
+          setSyncedProjectorSlide(e.data.currentSlide);
+          setIsCapturing(true);
+        }
+        if (e.data.currentSlideBase64) {
+          setSyncedProjectorBase64(e.data.currentSlideBase64);
+        }
+        if (typeof e.data.totalSlides === 'number') {
+          setSyncedProjectorTotal(e.data.totalSlides);
+        }
+      }
+    };
+    channel.addEventListener('message', handleSync);
+    return () => {
+      channel.removeEventListener('message', handleSync);
+      channel.close();
+    };
+  }, [isProjectorMode, presentation?.id]);
 
   const effectiveNextSlide = (nextSlide !== null && nextSlide > 0)
     ? nextSlide
@@ -2632,19 +2681,22 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               setIsCapturing(true);
               setError(null);
             } else {
-              console.log("ActiveDeck Projector: Opener exists but activeDeckStream is null or undefined");
               setStream(null);
-              setIsCapturing(false);
+              if (!isBridgeActivePresentation && syncedProjectorSlide === null) {
+                setIsCapturing(false);
+              }
             }
           } else {
-            console.log("ActiveDeck Projector: window.opener is closed");
             setStream(null);
-            setIsCapturing(false);
+            if (!isBridgeActivePresentation && syncedProjectorSlide === null) {
+              setIsCapturing(false);
+            }
           }
         } else {
-          console.log("ActiveDeck Projector: window.opener is NULL/undefined");
           setStream(null);
-          setIsCapturing(false);
+          if (!isBridgeActivePresentation && syncedProjectorSlide === null) {
+            setIsCapturing(false);
+          }
         }
       } catch (err) {
         console.error("ActiveDeck Projector: Error accessing presenter window memory:", err);
@@ -2662,7 +2714,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       } else if (event.data?.type === 'stream-stopped') {
         console.log("ActiveDeck Projector: Stream stopped message received");
         setStream(null);
-        setIsCapturing(false);
+        if (!isBridgeActivePresentation && syncedProjectorSlide === null) {
+          setIsCapturing(false);
+        }
       } else if (event.data?.type === 'close-projector') {
         console.log("ActiveDeck Projector: Close projector message received. Closing window.");
         window.close();
@@ -3827,7 +3881,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           className="relative w-full flex-1 bg-black border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex items-center justify-center mx-auto min-h-0"
         >
           <ScreenCapture 
-            isCapturing={isCapturing} 
+            isCapturing={isCapturing || isBridgeActivePresentation || !!syncedProjectorSlide} 
             stream={stream} 
             error={error} 
             onStart={startCapture} 
@@ -3837,9 +3891,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             videoRef={videoRef}
             onLoadedMetadata={handleVideoLoadedMetadata}
             onSlideImageLoad={handleSlideImageLoad}
-            isBridgeConnected={isBridgeConnected}
-            currentSlideBase64={currentSlideBase64}
-            currentSlide={currentSlide}
+            isBridgeConnected={isBridgeConnected || isPresentationActive || !!syncedProjectorSlide}
+            currentSlideBase64={syncedProjectorBase64 || currentSlideBase64}
+            currentSlide={effectiveCurrentSlide}
             currentSlidePreviewUrl={currentSlidePreviewUrl}
           />
 
@@ -3929,15 +3983,15 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         </div>
 
         {/* Unobtrusive Centered Slide Number under slide display in Projector Mode */}
-        {isCapturing && (
+        {(isPresentationActive || !!syncedProjectorSlide) && (
           <div className="mt-2.5 flex items-center justify-center shrink-0 z-20">
             <div className="px-3.5 py-1 rounded-full bg-slate-900/80 backdrop-blur-md border border-slate-800/80 text-slate-300 shadow-xl flex items-center gap-1.5 text-xs font-semibold tracking-wide select-none">
               <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400">Slide</span>
               <span className="font-mono font-bold text-osu-orange text-sm">
-                {currentSlide !== null ? currentSlide : (presentation?.currentSlide ?? 1)}
+                {effectiveCurrentSlide}
               </span>
-              {totalSlides ? (
-                <span className="text-slate-500 text-xs font-mono">/ {totalSlides}</span>
+              {effectiveTotalSlides ? (
+                <span className="text-slate-500 text-xs font-mono">/ {effectiveTotalSlides}</span>
               ) : null}
             </div>
           </div>
