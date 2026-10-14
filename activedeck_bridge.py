@@ -104,110 +104,112 @@ def move_ppt_silently(direction):
     elif current_os == "Darwin":
         move_ppt_mac(direction)
 
+_load_lock = threading.Lock()
+
 def download_and_open_ppt(url):
     if not url:
         return
-    try:
-        global _cached_state, _cached_slide_index, _cached_total_slides, _notes_cache, _thumbnails_cache, _thumbnails_version, _last_exported_presentation
-        _cached_state = None
-        _cached_slide_index = None
-        _cached_total_slides = None
-        _notes_cache.clear()
-        _thumbnails_cache = {}
-        _thumbnails_version += 1
-        _last_exported_presentation = ""
-
-        slides_dir = os.path.join(tempfile.gettempdir(), "activedeck_slides")
-        if os.path.exists(slides_dir):
-            for f in os.listdir(slides_dir):
-                if f.lower().endswith(('.jpg', '.jpeg', '.png')):
-                    try:
-                        os.remove(os.path.join(slides_dir, f))
-                    except Exception:
-                        pass
-
-        temp_dir = tempfile.gettempdir()
-        filename = "active_deck_presentation.pptx"
+    with _load_lock:
         try:
-            unquoted = urllib.parse.unquote(url)
-            parsed_path = urllib.parse.urlparse(unquoted).path
-            base_name = os.path.basename(parsed_path)
-            # Remove any path traversal or invalid characters
-            base_name = os.path.basename(base_name.replace('\\', '/'))
-            # Filter out characters invalid in Windows filenames
-            clean_name = re.sub(r'[<>:"/\\|?*]', '_', base_name)
-            if clean_name and clean_name.lower().endswith((".pptx", ".ppt")):
-                filename = clean_name
-            else:
-                url_hash = hashlib.md5(url.encode('utf-8')).hexdigest()[:8]
-                filename = f"presentation_{url_hash}.pptx"
-        except Exception:
-            pass
+            global _cached_state, _cached_slide_index, _cached_total_slides, _notes_cache, _thumbnails_cache, _thumbnails_version, _last_exported_presentation
+            _cached_state = None
+            _cached_slide_index = None
+            _cached_total_slides = None
+            _notes_cache.clear()
+            _thumbnails_cache = {}
+            _thumbnails_version += 1
+            _last_exported_presentation = ""
 
-        filepath = os.path.abspath(os.path.join(temp_dir, filename))
-
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
-        with urllib.request.urlopen(req) as resp, open(filepath, "wb") as out_file:
-            out_file.write(resp.read())
-
-        if current_os == "Windows":
-            pythoncom.CoInitialize()
-            try:
-                try:
-                    ppt_app = win32com.client.GetActiveObject("PowerPoint.Application")
-                except Exception:
-                    ppt_app = win32com.client.Dispatch("PowerPoint.Application")
-
-                ppt_app.Visible = True
-
-                # Exit all running slideshow windows first so SlideShowWindows(1) is guaranteed to be the new presentation
-                try:
-                    while ppt_app.SlideShowWindows.Count > 0:
-                        ppt_app.SlideShowWindows(1).View.Exit()
-                except Exception as e:
-                    print(f"Error exiting previous slideshows: {e}")
-
-                # Close any previously opened presentations that aren't the target presentation
-                try:
-                    for pres in list(ppt_app.Presentations):
+            slides_dir = os.path.join(tempfile.gettempdir(), "activedeck_slides")
+            if os.path.exists(slides_dir):
+                for f in os.listdir(slides_dir):
+                    if f.lower().endswith(('.jpg', '.jpeg', '.png')):
                         try:
-                            if os.path.normpath(pres.FullName).lower() != os.path.normpath(filepath).lower():
-                                pres.Close()
+                            os.remove(os.path.join(slides_dir, f))
                         except Exception:
                             pass
-                except Exception:
-                    pass
 
-                presentation = ppt_app.Presentations.Open(filepath)
-                ssw = presentation.SlideShowSettings.Run()
+            temp_dir = tempfile.gettempdir()
+            filename = "active_deck_presentation.pptx"
+            try:
+                unquoted = urllib.parse.unquote(url)
+                parsed_path = urllib.parse.urlparse(unquoted).path
+                base_name = os.path.basename(parsed_path)
+                # Remove any path traversal or invalid characters
+                base_name = os.path.basename(base_name.replace('\\', '/'))
+                # Filter out characters invalid in Windows filenames
+                clean_name = re.sub(r'[<>:"/\\|?*]', '_', base_name)
+                if clean_name and clean_name.lower().endswith((".pptx", ".ppt")):
+                    filename = clean_name
+                else:
+                    url_hash = hashlib.md5(url.encode('utf-8')).hexdigest()[:8]
+                    filename = f"presentation_{url_hash}.pptx"
+            except Exception:
+                pass
 
-                # Actively bring PowerPoint SlideShow window directly to the front so presenter sees animations
+            filepath = os.path.abspath(os.path.join(temp_dir, filename))
+
+            # Download presentation safely (handles file locking by creating timestamped file if needed)
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+            try:
+                with urllib.request.urlopen(req) as resp:
+                    ppt_bytes = resp.read()
                 try:
-                    import ctypes
-                    import win32gui
-                    time.sleep(0.3)
-                    def enum_activate_cb(hwnd, _):
-                        if win32gui.IsWindowVisible(hwnd) and win32gui.GetClassName(hwnd) == 'screenClass':
+                    with open(filepath, "wb") as out_file:
+                        out_file.write(ppt_bytes)
+                except Exception:
+                    filepath = os.path.abspath(os.path.join(temp_dir, f"{int(time.time())}_{filename}"))
+                    with open(filepath, "wb") as out_file:
+                        out_file.write(ppt_bytes)
+            except Exception as e:
+                print(f"[ActiveDeck Bridge] Error downloading PPT: {e}")
+                return
+
+            if current_os == "Windows":
+                pythoncom.CoInitialize()
+                try:
+                    ppt_app = None
+                    try:
+                        ppt_app = win32com.client.GetActiveObject("PowerPoint.Application")
+                    except Exception:
+                        ppt_app = None
+
+                    if ppt_app is not None:
+                        # PowerPoint is already running: exit existing slideshow and run the new presentation
+                        try:
+                            while ppt_app.SlideShowWindows.Count > 0:
+                                ppt_app.SlideShowWindows(1).View.Exit()
+                        except Exception:
+                            pass
+
+                        presentation = ppt_app.Presentations.Open(filepath)
+                        presentation.SlideShowSettings.Run()
+                    else:
+                        # PowerPoint is not running: launch it as a real, visible interactive desktop app in Slide Show mode
+                        import subprocess
+                        subprocess.Popen(['cmd', '/c', 'start', 'powerpnt', '/s', filepath], shell=True)
+                        # Wait up to 5 seconds for PowerPoint to initialize and register in COM
+                        for _ in range(10):
+                            time.sleep(0.5)
                             try:
-                                ctypes.windll.user32.ShowWindow(hwnd, 3) # SW_MAXIMIZE
-                                ctypes.windll.user32.SwitchToThisWindow(hwnd, True)
-                                ctypes.windll.user32.SetForegroundWindow(hwnd)
+                                ppt_app = win32com.client.GetActiveObject("PowerPoint.Application")
+                                if ppt_app.SlideShowWindows.Count > 0:
+                                    break
                             except Exception:
                                 pass
-                    win32gui.EnumWindows(enum_activate_cb, None)
-                except Exception as e:
-                    print(f"Error bringing slideshow to front: {e}")
 
-                # Trigger immediate export so thumbnails and notes are ready instantly
-                try:
-                    export_slides_now()
-                    update_thumbnails_cache(slides_dir)
-                except Exception:
-                    pass
-            finally:
-                pythoncom.CoUninitialize()
-    except Exception as e:
-        print(f"Error in download_and_open_ppt: {e}")
+                    print(f"[ActiveDeck Bridge] Successfully opened presentation in Slide Show mode: {filepath}")
+
+                    # Trigger immediate slide export and thumbnails cache update
+                    try:
+                        export_slides_now()
+                        update_thumbnails_cache(slides_dir)
+                    except Exception:
+                        pass
+                finally:
+                    pythoncom.CoUninitialize()
+        except Exception as e:
+            print(f"[ActiveDeck Bridge] Error in download_and_open_ppt: {e}")
 
 
 # ---------------------------------------------------------

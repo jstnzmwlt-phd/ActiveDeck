@@ -630,19 +630,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     setIsLoadingPpt(true);
     setLoadPptSuccess(false);
 
-    // 1. Send load command via WebSocket bridge
+    // Send load command via WebSocket bridge
     sendBridgeCommand({
       action: 'load',
       url: targetUrl
-    });
-
-    // 2. Also send load command via HTTP POST directly to bridge for 100% reliable trigger
-    fetch('http://127.0.0.1:5000/load', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: targetUrl })
-    }).catch(err => {
-      console.warn("Direct HTTP /load bridge note:", err);
     });
 
     setTimeout(() => {
