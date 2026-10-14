@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Presentation, Message, Poll, WordCloud, OpenEndedQuestion, DeckItem } from '../types';
 import { ScreenCapture } from './ScreenCapture';
 import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play, X, Loader2, Tv, Minimize, Maximize, FileText, Square, Send, CheckCircle2, Check, Clock, Pen, Eraser, Highlighter, MoveRight, Type, Undo2, Redo2, Trash2, Minus, Circle, Search, Plus, Layers, UploadCloud } from 'lucide-react';
@@ -186,6 +186,82 @@ export const useRenderedSlideBounds = (
   return bounds;
 };
 
+interface SlideThumbnailItemProps {
+  sNum: number;
+  imgUrl: string | null;
+  isCurrent: boolean;
+  isFurthest: boolean;
+  isUnshown: boolean;
+  onSelect: (sNum: number) => void;
+}
+
+const SlideThumbnailItem: React.FC<SlideThumbnailItemProps> = React.memo(({
+  sNum,
+  imgUrl,
+  isCurrent,
+  isFurthest,
+  isUnshown,
+  onSelect
+}) => {
+  const [loaded, setLoaded] = useState(false);
+  const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    setLoaded(false);
+    setHasError(false);
+  }, [imgUrl]);
+
+  return (
+    <button
+      id={`nav-slide-${sNum}`}
+      onClick={() => onSelect(sNum)}
+      className={`flex flex-col items-center gap-1 group/tile cursor-pointer transition-opacity duration-150 ${
+        isUnshown ? 'opacity-40 hover:opacity-80' : 'opacity-100'
+      }`}
+      title={isFurthest ? "Where you left off (furthest slide)" : isUnshown ? "Slide not yet shown to audience (Click to jump)" : `Jump to Slide ${sNum}`}
+    >
+      <div className={`relative w-full aspect-video bg-slate-950 rounded-lg overflow-hidden flex items-center justify-center border transition-all ${
+        isCurrent
+          ? 'border-osu-orange ring-2 ring-osu-orange/20 scale-[1.03]'
+          : 'border-slate-800 group-hover/tile:border-slate-600'
+      }`}>
+        {/* Steady background placeholder icon - never flickers or unmounts */}
+        <div className="absolute inset-0 flex items-center justify-center text-slate-700 bg-slate-950 pointer-events-none">
+          <Monitor className="w-4 h-4 opacity-30" />
+        </div>
+
+        {/* Slide image - fades in cleanly when ready, never flashes on slide changes or parent re-renders */}
+        {imgUrl && !hasError && (
+          <img
+            src={imgUrl}
+            alt={`Slide ${sNum}`}
+            className={`absolute inset-0 w-full h-full object-cover bg-black transition-opacity duration-200 ${
+              loaded ? 'opacity-100' : 'opacity-0'
+            }`}
+            loading="lazy"
+            onLoad={() => setLoaded(true)}
+            onError={() => setHasError(true)}
+          />
+        )}
+        
+        {/* Slide Number Badge */}
+        <span className={`absolute bottom-1 left-1 px-1.5 py-0.5 rounded font-mono font-black text-[9px] border leading-none ${
+          isCurrent
+            ? 'bg-osu-orange text-white border-orange-500/30 shadow-md'
+            : 'bg-slate-950/85 text-slate-300 border-slate-850'
+        }`}>
+          {sNum}
+        </span>
+
+        {/* Furthest slide dot */}
+        {isFurthest && (
+          <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+        )}
+      </div>
+    </button>
+  );
+});
+
 interface PresenterAreaProps {
   presentation: Presentation | null;
   logoUrl?: string;
@@ -209,6 +285,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     notes,
     clearNotesState
   } = useBridge();
+
+  const handleSelectSlide = useCallback((sNum: number) => {
+    sendSlideCommand(sNum);
+  }, [sendSlideCommand]);
   const [activeTab, setActiveTab] = useState<'single' | 'dual' | 'manual'>('dual');
   const [secondaryColor, setSecondaryColor] = useState<string>('#ff3e00');
   const [isCapturing, setIsCapturing] = useState(false);
@@ -926,6 +1006,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const [syncedProjectorSlide, setSyncedProjectorSlide] = useState<number | null>(null);
   const [syncedProjectorBase64, setSyncedProjectorBase64] = useState<string | null>(null);
   const [syncedProjectorTotal, setSyncedProjectorTotal] = useState<number | null>(null);
+  const [displayedNextSlideUrl, setDisplayedNextSlideUrl] = useState<string | null>(null);
 
   // Clear slide previews, errors, and counts when switching presentations/decks
   useEffect(() => {
@@ -937,6 +1018,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     setSyncedProjectorBase64(null);
     setSyncedProjectorSlide(null);
     setSyncedProjectorTotal(null);
+    setDisplayedNextSlideUrl(null);
   }, [activeDeckKey, presentation?.selectedDeckId, presentation?.pptxUrl]);
 
   const effectiveCurrentSlide = 
@@ -1019,6 +1101,32 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   useEffect(() => {
     setNextSlideImageError(false);
   }, [effectiveNextSlide]);
+
+  useEffect(() => {
+    if (!nextSlideImgUrl) {
+      setDisplayedNextSlideUrl(null);
+      return;
+    }
+    if (nextSlideImgUrl === displayedNextSlideUrl) return;
+
+    let isMounted = true;
+    const img = new Image();
+    img.src = nextSlideImgUrl;
+    img.onload = () => {
+      if (isMounted) setDisplayedNextSlideUrl(nextSlideImgUrl);
+    };
+    img.onerror = () => {
+      if (isMounted) setDisplayedNextSlideUrl(nextSlideImgUrl);
+    };
+    const timer = setTimeout(() => {
+      if (isMounted) setDisplayedNextSlideUrl(nextSlideImgUrl);
+    }, 200);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, [nextSlideImgUrl]);
 
   useEffect(() => {
     let intervalId: any;
@@ -3269,12 +3377,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         
                         {/* Changed aspect-video to flex-1 min-h-0 to resize dynamically */}
                         <div className="relative w-full flex-1 min-h-0 bg-black border border-slate-850 rounded-2xl overflow-hidden p-1 flex items-center justify-center shadow-lg">
-                          {nextSlideImgUrl ? (
+                          {(displayedNextSlideUrl || nextSlideImgUrl) ? (
                             <img 
-                              src={nextSlideImgUrl} 
+                              src={(displayedNextSlideUrl || nextSlideImgUrl)!} 
                               alt="Next Slide Preview" 
-                              className="w-full h-full object-contain bg-black animate-in fade-in duration-300"
-                              key={`next-preview-${effectiveNextSlide}-${nextSlideImgUrl}`}
+                              className="w-full h-full object-contain bg-black"
                               onError={() => setNextSlideImageError(true)}
                             />
                           ) : (
@@ -3327,63 +3434,20 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                                 const isFurthest = sNum === furthestSlide;
                                 const isUnshown = !visitedSlides[sNum];
                                 
-                                const localUrl = `http://127.0.0.1:5000/slides/${sNum}.jpg`;
+                                const localUrl = `http://127.0.0.1:5000/slides/${sNum}.jpg${activeDeckKey ? `?d=${encodeURIComponent(activeDeckKey)}` : ''}`;
                                 const firestoreUrl = slidePreviewsMap[sNum];
                                 const imgUrl = isBridgeConnected ? localUrl : (firestoreUrl || null);
 
                                 return (
-                                  <button
-                                    id={`nav-slide-${sNum}`}
+                                  <SlideThumbnailItem
                                     key={`nav-slide-${sNum}`}
-                                    onClick={() => sendSlideCommand(sNum)}
-                                    className={`flex flex-col items-center gap-1 group/tile cursor-pointer transition-opacity duration-150 ${
-                                      isUnshown ? 'opacity-40 hover:opacity-80' : 'opacity-100'
-                                    }`}
-                                    title={isFurthest ? "Where you left off (furthest slide)" : isUnshown ? "Slide not yet shown to audience (Click to jump)" : `Jump to Slide ${sNum}`}
-                                  >
-                                    <div className={`relative w-full aspect-video bg-slate-950 rounded-lg overflow-hidden flex items-center justify-center border transition-all ${
-                                      isCurrent
-                                        ? 'border-osu-orange ring-2 ring-osu-orange/20 scale-[1.03]'
-                                        : 'border-slate-800 group-hover/tile:border-slate-600'
-                                    }`}>
-                                      {/* Steady background placeholder icon - never flickers or unmounts */}
-                                      <div className="absolute inset-0 flex items-center justify-center text-slate-700 bg-slate-950 pointer-events-none">
-                                        <Monitor className="w-4 h-4 opacity-30" />
-                                      </div>
-
-                                      {/* Slide image - fades in cleanly when ready, never flashes on slide changes */}
-                                      {imgUrl && (
-                                        <img
-                                          src={imgUrl}
-                                          alt={`Slide ${sNum}`}
-                                          className="absolute inset-0 w-full h-full object-cover bg-black transition-opacity duration-300 opacity-0"
-                                          loading="lazy"
-                                          onLoad={(e) => {
-                                            (e.currentTarget as HTMLElement).classList.remove('opacity-0');
-                                            (e.currentTarget as HTMLElement).classList.add('opacity-100');
-                                          }}
-                                          onError={(e) => {
-                                            (e.currentTarget as HTMLElement).classList.remove('opacity-100');
-                                            (e.currentTarget as HTMLElement).classList.add('opacity-0');
-                                          }}
-                                        />
-                                      )}
-                                      
-                                      {/* Slide Number Badge */}
-                                      <span className={`absolute bottom-1 left-1 px-1.5 py-0.5 rounded font-mono font-black text-[9px] border leading-none ${
-                                        isCurrent
-                                          ? 'bg-osu-orange text-white border-orange-500/30 shadow-md'
-                                          : 'bg-slate-950/85 text-slate-300 border-slate-850'
-                                      }`}>
-                                        {sNum}
-                                      </span>
-
-                                      {/* Furthest slide dot */}
-                                      {isFurthest && (
-                                        <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                      )}
-                                    </div>
-                                  </button>
+                                    sNum={sNum}
+                                    imgUrl={imgUrl}
+                                    isCurrent={isCurrent}
+                                    isFurthest={isFurthest}
+                                    isUnshown={isUnshown}
+                                    onSelect={handleSelectSlide}
+                                  />
                                 );
                               })}
                             </div>
@@ -4533,7 +4597,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             </button>
             {currentSlidePreviewUrl ? (
               <div 
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 text-[11px] font-bold rounded-xl shadow-lg animate-in fade-in duration-200 shrink-0"
+                className="flex items-center justify-center gap-1.5 px-3 py-1.5 min-w-[185px] bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 text-[11px] font-bold rounded-xl shadow-lg shrink-0"
                 title="Current slide image preview is live and displayed on audience chat/notes page"
               >
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -4541,7 +4605,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               </div>
             ) : isUploadingPreview || isPushingToNotes ? (
               <div 
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-950/80 border border-amber-500/40 text-amber-400 text-[11px] font-bold rounded-xl shadow-lg animate-pulse"
+                className="flex items-center justify-center gap-1.5 px-3 py-1.5 min-w-[185px] bg-amber-950/80 border border-amber-500/40 text-amber-400 text-[11px] font-bold rounded-xl shadow-lg shrink-0"
                 title="Capturing and pushing slide image preview to audience page..."
               >
                 <Loader2 className="w-4 h-4 text-amber-400 animate-spin shrink-0" />
@@ -4549,7 +4613,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               </div>
             ) : (
               <div 
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-950/80 border border-slate-800 text-slate-400 text-[11px] font-medium rounded-xl shadow-sm"
+                className="flex items-center justify-center gap-1.5 px-3 py-1.5 min-w-[185px] bg-slate-950/80 border border-slate-800 text-slate-400 text-[11px] font-medium rounded-xl shadow-sm shrink-0"
                 title="Waiting for slide image preview to push to audience page"
               >
                 <Clock className="w-4 h-4 text-slate-400 shrink-0" />

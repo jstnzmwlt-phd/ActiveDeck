@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { Monitor, Play, Square, AlertCircle } from 'lucide-react';
 
 interface ScreenCaptureProps {
@@ -46,6 +46,42 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
       : (isBridgeConnected && currentSlideBase64) 
         ? currentSlideBase64 
         : currentSlidePreviewUrl || null;
+
+  const [displayedSlideSrc, setDisplayedSlideSrc] = useState<string | null>(bridgeSlideImgSrc);
+
+  useEffect(() => {
+    if (!bridgeSlideImgSrc) {
+      setDisplayedSlideSrc(null);
+      return;
+    }
+    if (bridgeSlideImgSrc === displayedSlideSrc) return;
+
+    let isMounted = true;
+    const img = new Image();
+    img.src = bridgeSlideImgSrc;
+
+    img.onload = () => {
+      if (isMounted) {
+        setDisplayedSlideSrc(bridgeSlideImgSrc);
+      }
+    };
+    img.onerror = () => {
+      if (isMounted) {
+        setDisplayedSlideSrc(bridgeSlideImgSrc);
+      }
+    };
+
+    const timer = setTimeout(() => {
+      if (isMounted) {
+        setDisplayedSlideSrc(bridgeSlideImgSrc);
+      }
+    }, 200);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, [bridgeSlideImgSrc]);
 
   useEffect(() => {
     const videoElem = activeVideoRef.current;
@@ -95,9 +131,9 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
         )}
         
         {/* Bridge Clean Slide Fallback Image Layer (Provides crisp slide visual when not screen-capturing) */}
-        {bridgeSlideImgSrc && (!isCapturing || !stream) && (
+        {(displayedSlideSrc || bridgeSlideImgSrc) && (!isCapturing || !stream) && (
           <img 
-            src={bridgeSlideImgSrc} 
+            src={(displayedSlideSrc || bridgeSlideImgSrc)!} 
             alt={`Slide ${currentSlide || 1}`}
             className="absolute inset-0 w-full h-full object-contain z-15"
             onLoad={(e) => {
