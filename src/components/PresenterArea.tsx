@@ -1022,6 +1022,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
   useEffect(() => {
     let intervalId: any;
+    let attempts = 0;
 
     const checkLocalExport = () => {
       if (isBridgeConnected) {
@@ -1032,6 +1033,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               console.log(`ActiveDeck: Successfully pre-exported ${data.count} slide previews locally.`);
               setLocalSlidesCount(data.count);
               setLocalImageErrors({});
+              if (intervalId) clearInterval(intervalId);
             }
           })
           .catch(err => {
@@ -1044,14 +1046,21 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
     checkLocalExport();
 
-    if (isBridgeConnected && (localSlidesCount === 0 || (effectiveTotalSlides > 0 && localSlidesCount < effectiveTotalSlides))) {
-      intervalId = setInterval(checkLocalExport, 2000);
+    if (isBridgeConnected && localSlidesCount === 0) {
+      intervalId = setInterval(() => {
+        attempts++;
+        if (attempts > 3) {
+          clearInterval(intervalId);
+          return;
+        }
+        checkLocalExport();
+      }, 3000);
     }
 
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-  }, [isBridgeConnected, localSlidesCount, totalSlides, effectiveTotalSlides, activeDeckKey]);
+  }, [isBridgeConnected, activeDeckKey]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);

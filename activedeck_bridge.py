@@ -156,6 +156,44 @@ def download_and_open_ppt(url):
 _cached_state = None
 _cached_slide_index = None
 _cached_total_slides = None
+_notes_cache = {}
+
+def get_slide_notes(presentation, slide_index):
+    global _notes_cache
+    try:
+        pres_name = getattr(presentation, 'Name', '')
+    except Exception:
+        pres_name = ''
+    cache_key = (pres_name, slide_index)
+    if cache_key in _notes_cache:
+        return _notes_cache[cache_key]
+
+    notes_text = ""
+    try:
+        current_slide = presentation.Slides(slide_index)
+        if current_slide.HasNotesPage:
+            notes_page = current_slide.NotesPage
+            for shape in notes_page.Shapes:
+                if shape.Type == 14 and shape.PlaceholderFormat.Type == 2: 
+                    if shape.HasTextFrame and shape.TextFrame.HasText:
+                        notes_text = shape.TextFrame.TextRange.Text.strip()
+                        break
+    except Exception:
+        pass
+
+    _notes_cache[cache_key] = notes_text
+    return notes_text
+
+def preload_all_notes(presentation):
+    global _notes_cache
+    try:
+        pres_name = getattr(presentation, 'Name', '')
+        for idx in range(1, presentation.Slides.Count + 1):
+            cache_key = (pres_name, idx)
+            if cache_key not in _notes_cache:
+                get_slide_notes(presentation, idx)
+    except Exception:
+        pass
 
 def get_ppt_state_windows():
     global _cached_state, _cached_slide_index, _cached_total_slides
@@ -180,16 +218,8 @@ def get_ppt_state_windows():
 
             next_slide_index = current_slide_index + 1 if current_slide_index < total_slides else 0
             
-            current_slide = presentation.Slides(current_slide_index)
-            notes_text = ""
-            
-            if current_slide.HasNotesPage:
-                notes_page = current_slide.NotesPage
-                for shape in notes_page.Shapes:
-                    if shape.Type == 14 and shape.PlaceholderFormat.Type == 2: 
-                        if shape.HasTextFrame and shape.TextFrame.HasText:
-                            notes_text = shape.TextFrame.TextRange.Text
-                            break
+            # Fetch slide notes instantly from memory cache
+            notes_text = get_slide_notes(presentation, current_slide_index)
             # Fetch current slide image as base64 securely
             current_slide_base64 = None
             if current_slide_index > 0:
@@ -263,10 +293,12 @@ def background_slide_exporter():
                     pres = ppt_app.SlideShowWindows(1).Presentation
                     
                     if pres.Name != last_exported_presentation:
-                        global _cached_state, _cached_slide_index, _cached_total_slides
+                        global _cached_state, _cached_slide_index, _cached_total_slides, _notes_cache
                         _cached_state = None
                         _cached_slide_index = None
                         _cached_total_slides = None
+                        _notes_cache.clear()
+                        preload_all_notes(pres)
                         os.makedirs(temp_dir, exist_ok=True)
                         for f in os.listdir(temp_dir):
                             if f.lower().endswith(('.jpg', '.jpeg', '.png')):
@@ -350,24 +382,27 @@ def export_slides_now():
             if ppt_app.SlideShowWindows.Count > 0:
                 pres = ppt_app.SlideShowWindows(1).Presentation
                 os.makedirs(temp_dir, exist_ok=True)
-                # Wipe any old leftover slides from a previous presentation
-                for f in os.listdir(temp_dir):
-                    if f.lower().endswith(('.jpg', '.jpeg', '.png')):
+                count = pres.Slides.Count
+                
+                # Preload all slide notes into memory so navigation notes are instant
+                preload_all_notes(pres)
+
+                # Check if all slides already exist on disk to prevent blocking COM
+                existing = [f for f in os.listdir(temp_dir) if f.endswith('.jpg') and not f.startswith('Slide')]
+                if len(existing) >= count:
+                    return count
+
+                for i in range(1, count + 1):
+                    target_jpg = os.path.join(temp_dir, f"{i}.jpg")
+                    if not os.path.exists(target_jpg):
+                        slide = pres.Slides(i)
+                        slide.Export(target_jpg, "JPG")
                         try:
-                            os.remove(os.path.join(temp_dir, f))
+                            import shutil
+                            shutil.copyfile(target_jpg, os.path.join(temp_dir, f"Slide{i}.JPG"))
                         except Exception:
                             pass
-                count = pres.Slides.Count
-                for i in range(1, count + 1):
-                    slide = pres.Slides(i)
-                    target_jpg = os.path.join(temp_dir, f"{i}.jpg")
-                    slide.Export(target_jpg, "JPG")
-                    try:
-                        import shutil
-                        shutil.copyfile(target_jpg, os.path.join(temp_dir, f"Slide{i}.JPG"))
-                    except Exception:
-                        pass
-                    time.sleep(0.01)
+                        time.sleep(0.005)
         except Exception:
             pass
         finally:
