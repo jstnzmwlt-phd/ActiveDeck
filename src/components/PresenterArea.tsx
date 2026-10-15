@@ -4096,53 +4096,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                   </div>
                 </div>
                 
-                {/* Action Buttons */}
+                {/* Action Buttons - Smart Dynamic Highlighting (Option C) */}
                 <div className="w-full space-y-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => handleLoadPpt(activeDeck || undefined)}
-                    disabled={(!activeDeck?.url && !presentation?.pptxUrl) || isLoadingPpt}
-                    className={`flex items-center justify-center gap-2.5 w-full py-3.5 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-black uppercase tracking-wider rounded-xl transition-all active:scale-95 shadow-lg shadow-amber-600/20 text-xs cursor-pointer ${
-                      (!activeDeck?.url && !presentation?.pptxUrl) ? 'opacity-50' : ''
-                    }`}
-                    title={
-                      (activeDeck?.url || presentation?.pptxUrl)
-                        ? `Download & launch ${activeDeck?.name || presentation?.pptxFileName || 'presentation'} directly in PowerPoint with animations`
-                        : "Upload a presentation first to enable Load PPT"
-                    }
-                  >
-                    {isLoadingPpt ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin text-white" />
-                        <span>Starting PowerPoint...</span>
-                      </>
-                    ) : loadPptSuccess ? (
-                      <>
-                        <Check className="w-4 h-4 text-white" />
-                        <span>PowerPoint Active & Playing!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Play className="w-4 h-4 fill-current" />
-                        <span>Load PPT</span>
-                      </>
-                    )}
-                  </button>
-
-                  {isBridgeConnected ? (
-                    <>
-                      <button
-                        onClick={startCapture}
-                        className="flex items-center justify-center gap-2.5 w-full py-3.5 bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-xl shadow-green-650/20 text-sm cursor-pointer"
-                      >
-                        <Play className="w-4 h-4 fill-current" />
-                        Start Presentation
-                      </button>
-                      <p className="text-[10px] text-slate-500 leading-normal font-medium">
-                        Ensure your PowerPoint is in Slide Show mode (F5) before sharing.
-                      </p>
-                    </>
-                  ) : (
+                  {!isBridgeConnected ? (
                     <>
                       <a 
                         href="https://github.com/jstnzmwlt-phd/ActiveDeck/releases/latest/download/activedeck_bridge.zip"
@@ -4156,6 +4112,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                       
                       <div className="pt-2">
                         <button
+                          type="button"
                           onClick={() => {
                             setUseWithoutBridge(true);
                             startCapture();
@@ -4164,6 +4121,76 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         >
                           Start Presentation in Manual Mode (No Bridge)
                         </button>
+                      </div>
+                    </>
+                  ) : (activeDeck?.url || presentation?.pptxUrl) ? (
+                    <>
+                      {/* Primary Action: Pre-loaded Deck is Selected */}
+                      <button
+                        type="button"
+                        onClick={() => handleLoadPpt(activeDeck || undefined)}
+                        disabled={isLoadingPpt}
+                        className="flex items-center justify-center gap-2.5 w-full py-3.5 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-black uppercase tracking-wider rounded-xl transition-all active:scale-95 shadow-lg shadow-amber-600/20 text-xs sm:text-sm cursor-pointer"
+                        title={`Download & launch ${activeDeck?.name || presentation?.pptxFileName || 'presentation'} directly in PowerPoint with animations`}
+                      >
+                        {isLoadingPpt ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin text-white shrink-0" />
+                            <span>Starting PowerPoint...</span>
+                          </>
+                        ) : loadPptSuccess ? (
+                          <>
+                            <Check className="w-4 h-4 text-white shrink-0" />
+                            <span>PowerPoint Active & Playing!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Play className="w-4 h-4 fill-current shrink-0" />
+                            <span className="truncate">
+                              Launch & Present: {activeDeck?.name || presentation?.pptxFileName || 'Selected PPT'}
+                            </span>
+                          </>
+                        )}
+                      </button>
+                      <p className="text-[10px] text-slate-400 leading-tight font-medium">
+                        Auto-downloads & opens this deck in PowerPoint with animations
+                      </p>
+
+                      {/* Secondary Choice: Present a different window already open */}
+                      <div className="pt-2.5 border-t border-slate-800 flex flex-col items-center gap-1.5">
+                        <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500">
+                          Not using an uploaded file?
+                        </span>
+                        <button
+                          type="button"
+                          onClick={startCapture}
+                          className="flex items-center justify-center gap-2 w-full py-2.5 bg-slate-850 hover:bg-slate-800 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition-all border border-slate-750 shadow cursor-pointer active:scale-95"
+                          title="Share whatever window or presentation is already running on your computer"
+                        >
+                          <ScreenShare className="w-3.5 h-3.5 text-slate-400" />
+                          <span>Share Screen Directly (Already Open)</span>
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {/* No presentation selected: Primary Action is Direct Screen Share */}
+                      <button
+                        type="button"
+                        onClick={startCapture}
+                        className="flex items-center justify-center gap-2.5 w-full py-3.5 bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-xl shadow-green-650/20 text-sm cursor-pointer"
+                      >
+                        <ScreenShare className="w-4 h-4 shrink-0" />
+                        <span>Share Screen to Present</span>
+                      </button>
+                      <p className="text-[10px] text-slate-400 leading-normal font-medium">
+                        For presentations, Keynote, or apps already open on your computer.
+                      </p>
+
+                      <div className="pt-2.5 border-t border-slate-800">
+                        <p className="text-[11px] text-slate-400">
+                          Want to launch a pre-loaded deck? <span className="text-osu-orange font-bold">Select or upload a presentation on the right</span>.
+                        </p>
                       </div>
                     </>
                   )}
