@@ -8,10 +8,10 @@ import threading
 import base64
 import io
 import shutil
+import ssl
 import urllib.request
 import urllib.parse
 import re
-import hashlib
 
 # Safe stdout/stderr redirection when running as windowless background process (pythonw / PyInstaller noconsole)
 if sys.stdout is None:
@@ -50,12 +50,13 @@ sock = Sock(app)
 # Re-entrant lock for ALL COM operations to prevent multithreaded combase.dll 0xc0000005 crashes
 com_lock = threading.RLock()
 
-# Shared presentation state and active slides directory
-_active_slides_dir = None
+# Shared presentation state and slides directory
+SLIDES_DIR = os.path.join(tempfile.gettempdir(), "activedeck_slides")
 _cached_state = None
 _cached_slide_index = None
 _cached_total_slides = None
 _notes_cache = {}
+_thumbnails_cache = {}
 _last_exported_presentation = ""
 _last_presentation_name = None
 
@@ -119,29 +120,35 @@ def move_ppt_silently(direction="next"):
         move_ppt_mac(direction)
 
 def download_and_open_ppt(url):
-    global _active_slides_dir, _last_exported_presentation, _cached_state, _cached_slide_index, _cached_total_slides, _notes_cache
+    global _last_exported_presentation, _cached_state, _cached_slide_index, _cached_total_slides, _thumbnails_cache, _notes_cache
     if not url:
         return
     try:
-        import ssl
-        temp_dir = tempfile.gettempdir()
+        # Reset state & clear caches
+        _last_exported_presentation = ''
+        _cached_state = None
+        _cached_slide_index = None
+        _cached_total_slides = None
+        _thumbnails_cache.clear()
+        _notes_cache.clear()
 
-        try:
-            ctx = ssl.create_default_context(ssl.CERT_NONE)
-        except TypeError:
-            ctx = ssl.create_default_context()
-            ctx.check_hostname = False
-            ctx.verify_mode = ssl.CERT_NONE
+        # Delete all .jpg/.JPG files inside activedeck_slides
+        os.makedirs(SLIDES_DIR, exist_ok=True)
+        for f in os.listdir(SLIDES_DIR):
+            if f.lower().endswith(('.jpg', '.jpeg')):
+                try:
+                    os.remove(os.path.join(SLIDES_DIR, f))
+                except Exception:
+                    pass
 
-        filepath = os.path.abspath(os.path.join(temp_dir, f"activedeck_downloaded_{int(time.time())}.pptx"))
+        # Use an unverified SSL context (ssl._create_unverified_context()) with urllib.request to download the url to a timestamped file (activedeck_pres_<timestamp>.pptx) in the temp directory
+        ctx = ssl._create_unverified_context()
+        timestamp = int(time.time())
+        filepath = os.path.abspath(os.path.join(tempfile.gettempdir(), f"activedeck_pres_{timestamp}.pptx"))
 
-        try:
-            with urllib.request.urlopen(url, context=ctx) as resp, open(filepath, "wb") as out_file:
-                out_file.write(resp.read())
-        except Exception:
-            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
-            with urllib.request.urlopen(req, context=ctx) as resp, open(filepath, "wb") as out_file:
-                out_file.write(resp.read())
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, context=ctx) as resp, open(filepath, "wb") as out_file:
+            out_file.write(resp.read())
 
         if current_os == "Windows":
             with com_lock:
@@ -149,63 +156,37 @@ def download_and_open_ppt(url):
                 try:
                     ppt_app = win32com.client.Dispatch("PowerPoint.Application")
                     ppt_app.Visible = True
-                    try:
-                        while ppt_app.SlideShowWindows.Count > 0:
-                            ppt_app.SlideShowWindows(1).View.Exit()
-                    except Exception:
-                        pass
+
+                    # Close any existing presentations
                     try:
                         for i in range(ppt_app.Presentations.Count, 0, -1):
                             ppt_app.Presentations(i).Close()
                     except Exception:
                         pass
 
-                    presentation = ppt_app.Presentations.Open(filepath)
+                    # Open the newly downloaded file with WithWindow=True and immediately start the slideshow
+                    presentation = ppt_app.Presentations.Open(filepath, WithWindow=True)
                     presentation.SlideShowSettings.Run()
+
                     try:
                         ppt_app.Activate()
                     except Exception:
                         pass
 
-                    # Setup dedicated directory for this presentation
-                    pres_name = presentation.Name
-                    pres_hash = hashlib.md5(pres_name.encode('utf-8')).hexdigest()
-                    slides_dir = os.path.join(temp_dir, f"activedeck_slides_{pres_hash}")
-                    os.makedirs(slides_dir, exist_ok=True)
-                    _active_slides_dir = slides_dir
-
-                    # Reset caches
-                    _cached_state = None
-                    _cached_slide_index = None
-                    _cached_total_slides = None
-                    _notes_cache.clear()
-
-                    # 1. Ultra-fast Slide 1 export (<0.25s) so the faculty display renders Slide 1 immediately!
+                    # Ultra-fast Slide 1 export (<0.25s) so the faculty display renders Slide 1 immediately!
                     if presentation.Slides.Count > 0:
                         try:
-                            presentation.Slides(1).Export(os.path.join(slides_dir, "Slide1.JPG"), "JPG", 1280, 720)
+                            presentation.Slides(1).Export(os.path.join(SLIDES_DIR, "Slide1.JPG"), "JPG", 1280, 720)
                         except Exception:
                             pass
-
-                    # 2. Fast whole-presentation native C++ export (~2-3s for 150 slides)
-                    try:
-                        presentation.Export(slides_dir, "JPG", 1280, 720)
-                        _last_exported_presentation = pres_name
-                    except Exception:
-                        for i in range(1, presentation.Slides.Count + 1):
-                            target_jpg = os.path.join(slides_dir, f"Slide{i}.JPG")
-                            if not os.path.exists(target_jpg):
-                                try:
-                                    presentation.Slides(i).Export(target_jpg, "JPG", 1280, 720)
-                                except Exception:
-                                    pass
-                        _last_exported_presentation = pres_name
-
                 finally:
                     pythoncom.CoUninitialize()
     except Exception as e:
-        with open(os.path.join(tempfile.gettempdir(), "activedeck_error.log"), "w") as f:
-            f.write(f"Error in download_and_open_ppt: {str(e)}")
+        try:
+            with open(os.path.join(tempfile.gettempdir(), "activedeck_error.log"), "w") as f:
+                f.write(f"Error in download_and_open_ppt: {str(e)}")
+        except Exception:
+            pass
 
 # ---------------------------------------------------------
 # 2. STATE EXTRACTION COMMANDS 
@@ -237,7 +218,7 @@ def get_slide_notes(presentation, slide_index):
     return notes_text
 
 def get_ppt_state_windows():
-    global _cached_state, _cached_slide_index, _cached_total_slides, _notes_cache, _last_presentation_name, _active_slides_dir
+    global _cached_state, _cached_slide_index, _cached_total_slides, _notes_cache, _last_presentation_name
     with com_lock:
         pythoncom.CoInitialize()
         try:
@@ -270,19 +251,15 @@ def get_ppt_state_windows():
                 
                 # Fetch slide notes from memory cache (or on-demand for current slide)
                 notes_text = get_slide_notes(presentation, current_slide_index)
-                
-                # Active directory for slides
-                temp_dir = _active_slides_dir or os.path.join(tempfile.gettempdir(), f"activedeck_slides_{hashlib.md5(pres_name.encode('utf-8')).hexdigest()}")
-                _active_slides_dir = temp_dir
 
-                # Fetch current slide image as base64 securely
+                # Fetch current slide image as base64 securely from SLIDES_DIR
                 current_slide_base64 = None
                 if current_slide_index > 0:
                     candidates = [
-                        os.path.join(temp_dir, f"Slide{current_slide_index}.JPG"),
-                        os.path.join(temp_dir, f"{current_slide_index}.jpg"),
-                        os.path.join(temp_dir, f"Slide{current_slide_index}.jpg"),
-                        os.path.join(temp_dir, f"{current_slide_index}.JPG")
+                        os.path.join(SLIDES_DIR, f"Slide{current_slide_index}.JPG"),
+                        os.path.join(SLIDES_DIR, f"{current_slide_index}.jpg"),
+                        os.path.join(SLIDES_DIR, f"Slide{current_slide_index}.jpg"),
+                        os.path.join(SLIDES_DIR, f"{current_slide_index}.JPG")
                     ]
                     for c in candidates:
                         if os.path.exists(c):
@@ -297,10 +274,10 @@ def get_ppt_state_windows():
                 next_slide_base64 = None
                 if next_slide_index > 0:
                     candidates = [
-                        os.path.join(temp_dir, f"Slide{next_slide_index}.JPG"),
-                        os.path.join(temp_dir, f"{next_slide_index}.jpg"),
-                        os.path.join(temp_dir, f"Slide{next_slide_index}.jpg"),
-                        os.path.join(temp_dir, f"{next_slide_index}.JPG")
+                        os.path.join(SLIDES_DIR, f"Slide{next_slide_index}.JPG"),
+                        os.path.join(SLIDES_DIR, f"{next_slide_index}.jpg"),
+                        os.path.join(SLIDES_DIR, f"Slide{next_slide_index}.jpg"),
+                        os.path.join(SLIDES_DIR, f"{next_slide_index}.JPG")
                     ]
                     for c in candidates:
                         if os.path.exists(c):
@@ -343,7 +320,7 @@ def get_ppt_state_silently():
 # 3. BACKGROUND SLIDE EXPORTER
 # ---------------------------------------------------------
 def background_slide_exporter():
-    global _last_exported_presentation, _cached_state, _cached_slide_index, _cached_total_slides, _notes_cache, _active_slides_dir
+    global _last_exported_presentation, _cached_state, _cached_slide_index, _cached_total_slides, _notes_cache
     
     while True:
         time.sleep(1)
@@ -356,31 +333,29 @@ def background_slide_exporter():
                         if ppt_app.SlideShowWindows.Count > 0:
                             pres = ppt_app.SlideShowWindows(1).Presentation
                             pres_name = pres.Name
-                            temp_dir = os.path.join(tempfile.gettempdir(), f"activedeck_slides_{hashlib.md5(pres_name.encode('utf-8')).hexdigest()}")
-                            _active_slides_dir = temp_dir
                             
                             if pres_name != _last_exported_presentation:
                                 _cached_state = None
                                 _cached_slide_index = None
                                 _cached_total_slides = None
                                 _notes_cache.clear()
-                                os.makedirs(temp_dir, exist_ok=True)
+                                os.makedirs(SLIDES_DIR, exist_ok=True)
                                 
                                 count = pres.Slides.Count
                                 # Fast Slide 1 export first so faculty display shows slide immediately
                                 if count > 0:
                                     try:
-                                        pres.Slides(1).Export(os.path.join(temp_dir, "Slide1.JPG"), "JPG", 1280, 720)
+                                        pres.Slides(1).Export(os.path.join(SLIDES_DIR, "Slide1.JPG"), "JPG", 1280, 720)
                                     except Exception:
                                         pass
                                 
                                 # Fast native whole-presentation export
                                 try:
-                                    pres.Export(temp_dir, "JPG", 1280, 720)
+                                    pres.Export(SLIDES_DIR, "JPG", 1280, 720)
                                     _last_exported_presentation = pres_name
                                 except Exception:
                                     for i in range(1, count + 1):
-                                        target_jpg = os.path.join(temp_dir, f"Slide{i}.JPG")
+                                        target_jpg = os.path.join(SLIDES_DIR, f"Slide{i}.JPG")
                                         if not os.path.exists(target_jpg):
                                             try:
                                                 pres.Slides(i).Export(target_jpg, "JPG", 1280, 720)
@@ -436,29 +411,8 @@ def handle_load_http():
 
 @app.route('/slides/<path:filename>')
 def serve_slide(filename):
-    global _active_slides_dir
-    # Check _active_slides_dir or fallback directories - strictly WITHOUT touching COM
-    search_dirs = []
-    if _active_slides_dir and os.path.exists(_active_slides_dir):
-        search_dirs.append(_active_slides_dir)
-        
-    temp_root = tempfile.gettempdir()
-    default_dir = os.path.join(temp_root, "activedeck_slides")
-    if default_dir not in search_dirs and os.path.exists(default_dir):
-        search_dirs.append(default_dir)
-        
-    # Also find recently modified activedeck_slides_* directories in temp
-    try:
-        recent_dirs = sorted(
-            [os.path.join(temp_root, d) for d in os.listdir(temp_root) if d.startswith("activedeck_slides_")],
-            key=lambda p: os.path.getmtime(p),
-            reverse=True
-        )
-        for rd in recent_dirs:
-            if rd not in search_dirs:
-                search_dirs.append(rd)
-    except Exception:
-        pass
+    if not os.path.exists(SLIDES_DIR):
+        return jsonify({'error': 'Slides directory not found'}), 404
 
     base, ext = os.path.splitext(filename)
     candidates = [filename]
@@ -472,22 +426,20 @@ def serve_slide(filename):
             f"slide{base}.jpg"
         ]
 
-    for sdir in search_dirs:
-        for c in candidates:
-            target = os.path.join(sdir, c)
-            if os.path.exists(target):
-                response = make_response(send_from_directory(sdir, c))
-                response.headers['Cache-Control'] = 'public, max-age=86400'
-                response.headers['Access-Control-Allow-Origin'] = '*'
-                return response
+    for c in candidates:
+        target = os.path.join(SLIDES_DIR, c)
+        if os.path.exists(target):
+            response = make_response(send_from_directory(SLIDES_DIR, c))
+            response.headers['Cache-Control'] = 'public, max-age=86400'
+            response.headers['Access-Control-Allow-Origin'] = '*'
+            return response
 
     return jsonify({'error': 'Slide not found'}), 404
 
 def export_slides_now():
-    global _active_slides_dir, _last_exported_presentation
-    # If slides are already exported in _active_slides_dir, count and return immediately
-    if _active_slides_dir and os.path.exists(_active_slides_dir):
-        files = [f for f in os.listdir(_active_slides_dir) if f.lower().endswith(('.jpg', '.jpeg'))]
+    global _last_exported_presentation
+    if os.path.exists(SLIDES_DIR):
+        files = [f for f in os.listdir(SLIDES_DIR) if f.lower().endswith(('.jpg', '.jpeg'))]
         if files:
             return len(files)
 
@@ -500,28 +452,26 @@ def export_slides_now():
                     if ppt_app.SlideShowWindows.Count > 0:
                         pres = ppt_app.SlideShowWindows(1).Presentation
                         pres_name = pres.Name
-                        temp_dir = os.path.join(tempfile.gettempdir(), f"activedeck_slides_{hashlib.md5(pres_name.encode('utf-8')).hexdigest()}")
-                        os.makedirs(temp_dir, exist_ok=True)
-                        _active_slides_dir = temp_dir
+                        os.makedirs(SLIDES_DIR, exist_ok=True)
                         
-                        files = [f for f in os.listdir(temp_dir) if f.lower().endswith(('.jpg', '.jpeg'))]
+                        files = [f for f in os.listdir(SLIDES_DIR) if f.lower().endswith(('.jpg', '.jpeg'))]
                         if len(files) >= pres.Slides.Count:
                             return len(files)
                             
                         # Quick export Slide 1 first
                         if pres.Slides.Count > 0:
                             try:
-                                pres.Slides(1).Export(os.path.join(temp_dir, "Slide1.JPG"), "JPG", 1280, 720)
+                                pres.Slides(1).Export(os.path.join(SLIDES_DIR, "Slide1.JPG"), "JPG", 1280, 720)
                             except Exception:
                                 pass
                         
                         # Whole-presentation native C++ export (~2s)
                         try:
-                            pres.Export(temp_dir, "JPG", 1280, 720)
+                            pres.Export(SLIDES_DIR, "JPG", 1280, 720)
                             _last_exported_presentation = pres_name
                         except Exception:
                             for i in range(1, pres.Slides.Count + 1):
-                                target_jpg = os.path.join(temp_dir, f"Slide{i}.JPG")
+                                target_jpg = os.path.join(SLIDES_DIR, f"Slide{i}.JPG")
                                 if not os.path.exists(target_jpg):
                                     try:
                                         pres.Slides(i).Export(target_jpg, "JPG", 1280, 720)
@@ -529,7 +479,7 @@ def export_slides_now():
                                         pass
                             _last_exported_presentation = pres_name
                             
-                        files = [f for f in os.listdir(temp_dir) if f.lower().endswith(('.jpg', '.jpeg'))]
+                        files = [f for f in os.listdir(SLIDES_DIR) if f.lower().endswith(('.jpg', '.jpeg'))]
                         return len(files)
                 finally:
                     pythoncom.CoUninitialize()
