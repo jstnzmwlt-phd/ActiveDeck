@@ -4807,7 +4807,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             )}
             <button
               type="button"
-              onClick={handleLoadPpt}
+              onClick={() => handleLoadPpt()}
               disabled={!presentation?.pptxUrl || isLoadingPpt}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border shadow-lg shrink-0 ${
                 presentation?.pptxUrl
