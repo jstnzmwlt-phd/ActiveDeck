@@ -4145,35 +4145,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                             </div>
                           </div>
 
-                          {/* Right Controls: Launch in PowerPoint Button & Delete Button */}
+                          {/* Right Controls: Delete Button */}
                           <div className="flex items-center gap-2 shrink-0">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (!isSelected) {
-                                  handleSelectDeck(deck);
-                                } else {
-                                  handleLoadPpt(deck);
-                                }
-                              }}
-                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
-                                isSelected
-                                  ? 'bg-osu-orange text-white hover:bg-osu-orange-dark shadow-md shadow-osu-orange/20 active:scale-95'
-                                  : 'bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700'
-                              }`}
-                              title={isSelected ? "Download & launch presentation directly in PowerPoint with animations" : "Select this presentation"}
-                            >
-                              {isSelected ? (
-                                <>
-                                  <Play className="w-3 h-3 fill-current" />
-                                  <span>Open in PPT</span>
-                                </>
-                              ) : (
-                                <span>Select</span>
-                              )}
-                            </button>
-
                             <button
                               type="button"
                               onClick={(e) => handleDeleteDeck(deck.id, e)}
@@ -4786,38 +4759,6 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 compact={true}
               />
             )}
-            <button
-              type="button"
-              onClick={() => handleLoadPpt(activeDeck || undefined)}
-              disabled={(!activeDeck?.url && !presentation?.pptxUrl) || isLoadingPpt}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border shadow-lg shrink-0 ${
-                (activeDeck?.url || presentation?.pptxUrl)
-                  ? 'bg-amber-600 hover:bg-amber-500 text-white border-amber-500/40 cursor-pointer active:scale-95 shadow-amber-600/20'
-                  : 'bg-slate-900/40 text-slate-600 border-slate-800 cursor-not-allowed opacity-50'
-              }`}
-              title={
-                (activeDeck?.url || presentation?.pptxUrl)
-                  ? `Load ${activeDeck?.name || presentation?.pptxFileName || 'PowerPoint'} presentation via bridge`
-                  : "Upload a .pptx file first to enable Load PPT"
-              }
-            >
-              {isLoadingPpt ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Loading...</span>
-                </>
-              ) : loadPptSuccess ? (
-                <>
-                  <Check className="w-3.5 h-3.5 text-white" />
-                  <span>Loaded!</span>
-                </>
-              ) : (
-                <>
-                  <Play className="w-3.5 h-3.5 fill-current" />
-                  <span>Load PPT</span>
-                </>
-              )}
-            </button>
             <button
               onClick={() => setShowDownloadModal(true)}
               disabled={isDownloadingPresentation}
