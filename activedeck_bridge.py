@@ -121,6 +121,7 @@ def download_and_open_ppt(url):
 
         # 2. Download the file using urllib.request and save it with a unique timestamp in the filename
         filepath = os.path.abspath(os.path.join(temp_dir, f"activedeck_downloaded_{int(time.time())}.pptx"))
+        print(f"[ActiveDeck Bridge] Downloading PPT from: {url}")
 
         try:
             with urllib.request.urlopen(url, context=ctx) as resp, open(filepath, "wb") as out_file:
@@ -129,6 +130,8 @@ def download_and_open_ppt(url):
             req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
             with urllib.request.urlopen(req, context=ctx) as resp, open(filepath, "wb") as out_file:
                 out_file.write(resp.read())
+
+        print(f"[ActiveDeck Bridge] Successfully downloaded ({os.path.getsize(filepath)} bytes) to {filepath}")
 
         # 3. Delete all existing .jpg files in the activedeck_slides temp folder to prevent serving old cached presentations
         slides_dir = os.path.join(temp_dir, "activedeck_slides")
@@ -158,6 +161,7 @@ def download_and_open_ppt(url):
                     pass
                 presentation = ppt_app.Presentations.Open(filepath)
                 presentation.SlideShowSettings.Run()
+                print(f"[ActiveDeck Bridge] Launched presentation in PowerPoint: {presentation.Name} ({presentation.Slides.Count} slides)")
                 try:
                     ppt_app.Activate()
                 except Exception:

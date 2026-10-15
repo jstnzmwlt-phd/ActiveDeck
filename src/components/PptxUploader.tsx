@@ -43,8 +43,9 @@ export const PptxUploader: React.FC<PptxUploaderProps> = ({
     setIsSuccess(false);
 
     try {
-      // 1. Upload to Firebase Storage under /presentations/{presentationId}/source.pptx
-      const storagePath = `presentations/${presentationId}/source.pptx`;
+      // 1. Upload to Firebase Storage with a unique timestamped path to prevent collisions
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const storagePath = `presentations/${presentationId}/decks/${Date.now()}_${safeName}`;
       const storageRef = ref(storage, storagePath);
 
       await uploadBytes(storageRef, file, {
@@ -68,6 +69,10 @@ export const PptxUploader: React.FC<PptxUploaderProps> = ({
         pptxUrl: downloadUrl,
         pptxFileName: file.name,
         selectedDeckId: newDeck.id,
+        currentSlideBase64: null,
+        current_slide_base64: null,
+        currentSlide: 0,
+        totalSlides: 0,
         uploadedDecks: arrayUnion(newDeck)
       });
 

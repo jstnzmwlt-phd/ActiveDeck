@@ -698,20 +698,57 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  const handleLoadPpt = (customDeck?: DeckItem) => {
-    const targetUrl = presentation?.pptxUrl || customDeck?.url || activeDeck?.url;
-    if (!targetUrl) return;
-
-    const targetDeck = customDeck || activeDeck;
-    if (targetDeck && targetDeck.id !== selectedDeckId) {
-      handleSelectDeck(targetDeck);
+  const handleLoadPpt = async (customDeck?: DeckItem) => {
+    // 1. Prioritize explicitly provided deck, then currently selected activeDeck, then fallback
+    const targetDeck = customDeck || activeDeck || effectiveDecks[0] || null;
+    const targetUrl = customDeck?.url || targetDeck?.url || presentation?.pptxUrl;
+    if (!targetUrl) {
+      console.warn("ActiveDeck: No presentation URL available to load.");
+      return;
     }
 
-    // Immediately clear slide state in Firestore and locally so Projector View immediately goes blank
-    clearLocalAndBroadcastSlideState();
-    clearPresentationSlideStateInFirestore();
+    const targetDeckName = customDeck?.name || targetDeck?.name || presentation?.pptxFileName || 'presentation.pptx';
+    const targetDeckId = customDeck?.id || targetDeck?.id || selectedDeckId;
 
-    // Automatically activate Projector Mode screen in a popup window
+    console.log("ActiveDeck: Launching presentation:", targetDeckName, targetUrl);
+
+    // 2. Update local deck selection immediately
+    if (targetDeckId) {
+      setSelectedDeckId(targetDeckId);
+      sessionStorage.setItem('activeDeckSelectedId', targetDeckId);
+      if (effectivePresenterEmail) {
+        try {
+          localStorage.setItem(`activeDeckLastSelectedDeckId_${effectivePresenterEmail}`, targetDeckId);
+        } catch (e) {}
+      }
+    }
+
+    // 3. Immediately clear slide state in Firestore and locally so Projector View immediately goes blank
+    clearLocalAndBroadcastSlideState();
+
+    // 4. Immediately update Firestore presentation document with the chosen deck and clear slide state
+    if (presentation?.id) {
+      try {
+        await updateDoc(doc(db, 'presentations', presentation.id), {
+          pptxUrl: targetUrl,
+          pptxFileName: targetDeckName,
+          selectedDeckId: targetDeckId || null,
+          currentSlideBase64: null,
+          current_slide_base64: null,
+          currentSlide: 0,
+          totalSlides: 0
+        });
+        if (effectivePresenterEmail && targetDeckId) {
+          await setDoc(doc(db, 'whitelistedPresenters', effectivePresenterEmail), {
+            lastSelectedDeckId: targetDeckId
+          }, { merge: true });
+        }
+      } catch (err) {
+        console.error("ActiveDeck: Error updating presentation deck in Firestore:", err);
+      }
+    }
+
+    // 5. Automatically activate Projector Mode screen in a popup window
     if (!isProjectorMode) {
       try {
         const url = new URL(window.location.href);
@@ -731,11 +768,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     setIsLoadingPpt(true);
     setLoadPptSuccess(false);
 
-    // Send JSON payload strictly over local WebSocket connection to the Python bridge
-    const pptxUrl = presentation?.pptxUrl || targetUrl;
+    // 6. Send JSON payload strictly over local WebSocket connection to the Python bridge with targetUrl
     sendBridgeCommand({
       action: 'load',
-      url: pptxUrl
+      url: targetUrl
     });
 
     setTimeout(() => {
@@ -4049,14 +4085,14 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 <div className="w-full space-y-3 pt-2">
                   <button
                     type="button"
-                    onClick={() => handleLoadPpt()}
-                    disabled={!presentation?.pptxUrl || isLoadingPpt}
+                    onClick={() => handleLoadPpt(activeDeck || undefined)}
+                    disabled={(!activeDeck?.url && !presentation?.pptxUrl) || isLoadingPpt}
                     className={`flex items-center justify-center gap-2.5 w-full py-3.5 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-black uppercase tracking-wider rounded-xl transition-all active:scale-95 shadow-lg shadow-amber-600/20 text-xs cursor-pointer ${
-                      !presentation?.pptxUrl ? 'opacity-50' : ''
+                      (!activeDeck?.url && !presentation?.pptxUrl) ? 'opacity-50' : ''
                     }`}
                     title={
-                      presentation?.pptxUrl
-                        ? "Download & launch presentation directly in PowerPoint with animations"
+                      (activeDeck?.url || presentation?.pptxUrl)
+                        ? `Download & launch ${activeDeck?.name || presentation?.pptxFileName || 'presentation'} directly in PowerPoint with animations`
                         : "Upload a presentation first to enable Load PPT"
                     }
                   >
@@ -4198,7 +4234,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     </div>
                   ) : (
                     effectiveDecks.map((deck, idx) => {
-                      const isSelected = (activeDeck?.id === deck.id) || (presentation?.pptxUrl === deck.url);
+                      const isSelected = activeDeck ? (activeDeck.id === deck.id) : (presentation?.pptxUrl === deck.url);
                       return (
                         <div
                           key={deck.id || idx}
@@ -4883,16 +4919,16 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             )}
             <button
               type="button"
-              onClick={() => handleLoadPpt()}
-              disabled={!presentation?.pptxUrl || isLoadingPpt}
+              onClick={() => handleLoadPpt(activeDeck || undefined)}
+              disabled={(!activeDeck?.url && !presentation?.pptxUrl) || isLoadingPpt}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border shadow-lg shrink-0 ${
-                presentation?.pptxUrl
+                (activeDeck?.url || presentation?.pptxUrl)
                   ? 'bg-amber-600 hover:bg-amber-500 text-white border-amber-500/40 cursor-pointer active:scale-95 shadow-amber-600/20'
                   : 'bg-slate-900/40 text-slate-600 border-slate-800 cursor-not-allowed opacity-50'
               }`}
               title={
-                presentation?.pptxUrl
-                  ? "Load PowerPoint presentation via bridge"
+                (activeDeck?.url || presentation?.pptxUrl)
+                  ? `Load ${activeDeck?.name || presentation?.pptxFileName || 'PowerPoint'} presentation via bridge`
                   : "Upload a .pptx file first to enable Load PPT"
               }
             >
