@@ -4667,17 +4667,17 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       </div>
     ) : (
       /* PROJECTOR MODE SCREEN VIEW */
-      <div className="w-full flex flex-col h-full p-4 gap-3 bg-black">
-        {/* Header space above slide area for Join URL */}
-        <div className="w-full flex items-center px-2 shrink-0 select-none">
+      <div className="w-full flex flex-col h-full px-2 py-1 gap-1 bg-black">
+        {/* Header space above slide area for Join URL - 25% smaller */}
+        <div className="w-full flex items-center px-1 shrink-0 select-none">
           {/* Left: Logo */}
           <div className="flex-1 flex items-center justify-start min-w-0">
-            {logoUrl && <img src={logoUrl} alt="Logo" className="h-6 md:h-7 object-contain" />}
+            {logoUrl && <img src={logoUrl} alt="Logo" className="h-5 md:h-5.5 object-contain" />}
           </div>
           
           {/* Center: Centered Faded ActiveDeck Label */}
-          <div className="flex-shrink-0 flex items-center justify-center px-4">
-            <span className="text-sm md:text-base font-black uppercase tracking-[0.25em] text-white opacity-20 select-none">
+          <div className="flex-shrink-0 flex items-center justify-center px-3">
+            <span className="text-xs md:text-sm font-black uppercase tracking-[0.2em] text-white opacity-20 select-none">
               ActiveDeck
             </span>
           </div>
@@ -4685,9 +4685,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           {/* Right: Join URL */}
           <div className="flex-1 flex items-center justify-end min-w-0">
             {presentation?.chatEnabled !== false && (
-              <div className="flex items-center gap-2 md:gap-3.5">
-                <span className="text-[10px] md:text-xs font-black tracking-widest text-slate-500 uppercase">JOIN CHAT AT:</span>
-                <span className="text-lg sm:text-xl md:text-2xl font-mono font-black text-osu-orange select-all bg-osu-orange/10 border border-osu-orange/25 px-4 py-1.5 rounded-xl shadow-lg shadow-orange-500/5">
+              <div className="flex items-center gap-2 md:gap-2.5">
+                <span className="text-[9px] md:text-[10px] font-black tracking-wider text-slate-500 uppercase">JOIN CHAT AT:</span>
+                <span className="text-sm sm:text-base md:text-lg font-mono font-black text-osu-orange select-all bg-osu-orange/10 border border-osu-orange/25 px-2.5 py-0.5 rounded-lg shadow-md shadow-orange-500/5">
                   https://active-deck.app/chat
                 </span>
               </div>
@@ -4697,7 +4697,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
         <div 
           ref={actualProjectorFrameRef}
-          className="relative w-full flex-1 bg-black border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex items-center justify-center mx-auto min-h-0"
+          className="relative w-full flex-1 bg-black border border-slate-800/80 rounded-xl overflow-hidden shadow-2xl flex items-center justify-center mx-auto min-h-0"
         >
           <ScreenCapture 
             isCapturing={isCapturing} 
@@ -4802,16 +4802,16 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           </div>
         </div>
 
-        {/* Unobtrusive Centered Slide Number under slide display in Projector Mode */}
+        {/* Unobtrusive Centered Slide Number under slide display in Projector Mode - 50% smaller */}
         {(isCapturing || !!stream) && (
-          <div className="mt-2.5 flex items-center justify-center shrink-0 z-20">
-            <div className="px-3.5 py-1 rounded-full bg-slate-900/80 backdrop-blur-md border border-slate-800/80 text-slate-300 shadow-xl flex items-center gap-1.5 text-xs font-semibold tracking-wide select-none">
-              <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400">Slide</span>
-              <span className="font-mono font-bold text-osu-orange text-sm">
+          <div className="my-0.5 flex items-center justify-center shrink-0 z-20">
+            <div className="px-2.5 py-0.5 rounded-full bg-slate-900/80 backdrop-blur-md border border-slate-800/80 text-slate-300 shadow flex items-center gap-1 text-[11px] font-semibold tracking-wide select-none">
+              <span className="text-[9px] uppercase font-bold tracking-wider text-slate-400">Slide</span>
+              <span className="font-mono font-bold text-osu-orange text-xs">
                 {effectiveCurrentSlide}
               </span>
               {effectiveTotalSlides ? (
-                <span className="text-slate-500 text-xs font-mono">/ {effectiveTotalSlides}</span>
+                <span className="text-slate-500 text-[10px] font-mono">/ {effectiveTotalSlides}</span>
               ) : null}
             </div>
           </div>
