@@ -46,10 +46,12 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
     stream.getVideoTracks().some(track => track.readyState === 'live')
   );
 
-  // 2. Safe slide image detection (from Bridge / Load PPT / Firebase synced state)
-  // When currentSlideBase64 is null, the renderer strictly falls back to the default dark theme without preserving stale images
+  // 2. Safe slide image detection (from Bridge in Presenter Dashboard)
+  // In Projector Mode, static slide images are strictly disabled (live screen share only).
+  // When currentSlideBase64 is null, the renderer strictly falls back to the default dark theme without preserving stale images.
   const validSlideSrc = (
-    (isBridgeConnected || isCapturing || isProjectorMode) &&
+    !isProjectorMode &&
+    (isBridgeConnected || isCapturing) &&
     currentSlideBase64 && 
     typeof currentSlideBase64 === 'string' && 
     (currentSlideBase64.startsWith('data:image') || currentSlideBase64.startsWith('blob:') || currentSlideBase64.startsWith('http'))

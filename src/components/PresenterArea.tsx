@@ -207,17 +207,15 @@ const SlideThumbnailItem: React.FC<SlideThumbnailItemProps> = React.memo(({
 }) => {
   const [loaded, setLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
 
-  const handleError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+  const handleError = () => {
     setHasError(true);
     setLoaded(false);
-    // Periodically retry in case the background Python exporter is still actively processing a large presentation
-    const target = e.currentTarget;
+    // Periodically retry in case the background export is completing
     setTimeout(() => {
-      if (target) {
-        target.src = `http://127.0.0.1:5000/slides/${slideNumber}.jpg?v=${Date.now()}`;
-      }
-    }, 2500);
+      setRetryKey(prev => prev + 1);
+    }, 1200);
   };
 
   return (
@@ -246,9 +244,9 @@ const SlideThumbnailItem: React.FC<SlideThumbnailItemProps> = React.memo(({
           </div>
         ) : null}
 
-        {/* Slide image pointing to local Python bridge with cache-buster */}
+        {/* Slide image pointing to local Python bridge with cache-friendly URL */}
         <img
-          src={`http://127.0.0.1:5000/slides/${slideNumber}.jpg?v=${Date.now()}`}
+          src={`http://127.0.0.1:5000/slides/${slideNumber}.jpg${retryKey > 0 ? `?r=${retryKey}` : ''}`}
           alt={`Slide ${slideNumber}`}
           className={`absolute inset-0 w-full h-full object-cover bg-black transition-opacity duration-200 ${
             loaded && !hasError ? 'opacity-100' : 'opacity-0'
@@ -317,6 +315,102 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const isPresentationActive = isCapturing || isBridgeActivePresentation;
 
   const [stream, setStream] = useState<MediaStream | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const projectorWindowRef = useRef<Window | null>(null);
+
+  const openProjectorWindow = useCallback(() => {
+    if (isProjectorMode) return;
+    try {
+      if (projectorWindowRef.current && !projectorWindowRef.current.closed) {
+        projectorWindowRef.current.focus();
+        return;
+      }
+      const url = new URL(window.location.href);
+      if (presentation?.id) {
+        url.searchParams.set('id', presentation.id);
+      }
+      if (presentation?.pinCode) {
+        url.searchParams.set('pin', presentation.pinCode);
+      }
+      url.searchParams.set('view', 'projector');
+      projectorWindowRef.current = window.open(url.toString(), '_blank', 'popup=yes,width=1280,height=720,resizable=yes,scrollbars=yes');
+    } catch (err) {
+      console.error('Failed to automatically open Projector Mode screen:', err);
+    }
+  }, [isProjectorMode, presentation?.id, presentation?.pinCode]);
+
+  const startCapture = useCallback(() => {
+    setError(null);
+    if (!isProjectorMode) {
+      openProjectorWindow();
+    }
+    navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
+      .then(async (mediaStream) => {
+        setError(null);
+        setStream(mediaStream);
+        setIsCapturing(true);
+
+        // Expose mediaStream globally so the projector window can access it
+        (window as any).activeDeckStream = mediaStream;
+
+        // Broadcast that stream has started
+        try {
+          const channel = new BroadcastChannel('activedeck-stream');
+          channel.postMessage({ type: 'stream-started' });
+          channel.close();
+        } catch (bcErr) {
+          console.error("ActiveDeck: Error broadcasting stream-started:", bcErr);
+        }
+        window.dispatchEvent(new CustomEvent('activedeck-stream-started'));
+        // Only create a new presentation session if one doesn't exist yet
+        let activePresentationId = presentation?.id;
+        if (!presentation && onCreatePresentation) {
+          try {
+            activePresentationId = await onCreatePresentation();
+          } catch (createErr) {
+            console.error("ActiveDeck: Error creating presentation session:", createErr);
+            mediaStream.getTracks().forEach(track => track.stop());
+            setStream(null);
+            setIsCapturing(false);
+            window.dispatchEvent(new CustomEvent('activedeck-stream-stopped'));
+            setError("Failed to initialize presentation session in database.");
+            return;
+          }
+        }
+
+        // Set the current slide in database to 1 as soon as the presentation starts
+        if (activePresentationId) {
+          try {
+            await updateDoc(doc(db, 'presentations', activePresentationId), {
+              currentSlide: 1
+            });
+            console.log("ActiveDeck: Automatically set currentSlide to 1 in Firebase upon starting presentation.");
+          } catch (updateErr) {
+            console.error("ActiveDeck: Failed to set initial slide to 1 in Firebase:", updateErr);
+          }
+        }
+
+        mediaStream.getVideoTracks()[0].onended = () => {
+          console.warn("ActiveDeck: Screen capture video track ended. Preserving presentation mode and slide preview.");
+          setStream(null);
+          window.dispatchEvent(new CustomEvent('activedeck-stream-stopped'));
+          // Do not call stopCapture() here so the presentation session, timer, slide navigator, and notes remain active!
+        };
+      })
+      .catch((err: any) => {
+        console.error("ActiveDeck: Error starting screen capture:", err);
+        if (err.name === 'NotAllowedError' && err.message.includes('permissions policy')) {
+          setError("Browser Security: Screen capture is blocked inside the editor's preview window. Please use the 'Shared App URL' or the 'Open in New Tab' icon in the top right to present.");
+        } else if (err.name === 'NotAllowedError' || err.name === 'AbortError') {
+          // Gracefully return to the main instructions screen if the user cancels or denies the request
+          setError(null);
+        } else {
+          setError("Failed to start screen capture. Please ensure your browser supports screen sharing.");
+        }
+        setIsCapturing(false);
+        window.dispatchEvent(new CustomEvent('activedeck-stream-stopped'));
+      });
+  }, [isProjectorMode, openProjectorWindow, presentation, onCreatePresentation]);
 
   // Automatically activate presentation mode when the bridge sends a valid slide (> 0)
   useEffect(() => {
@@ -331,9 +425,6 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     if (!isBridgeConnected) {
       resetPresentationState();
       clearThumbnails();
-      setSyncedProjectorBase64(null);
-      setSyncedProjectorSlide(null);
-      setSyncedProjectorTotal(null);
       setCurrentSlidePreviewUrl(null);
       setNextSlidePreviewUrl(null);
       setDisplayedNextSlideUrl(null);
@@ -355,9 +446,6 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       setIsCapturing(false);
       resetPresentationState();
       clearThumbnails();
-      setSyncedProjectorBase64(null);
-      setSyncedProjectorSlide(null);
-      setSyncedProjectorTotal(null);
       setCurrentSlidePreviewUrl(null);
       setNextSlidePreviewUrl(null);
       setDisplayedNextSlideUrl(null);
@@ -516,29 +604,12 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const clearLocalAndBroadcastSlideState = () => {
     resetPresentationState();
     clearThumbnails();
-    setSyncedProjectorBase64(null);
-    setSyncedProjectorSlide(null);
-    setSyncedProjectorTotal(null);
     setCurrentSlidePreviewUrl(null);
     setNextSlidePreviewUrl(null);
     setDisplayedNextSlideUrl(null);
     if (presentation?.id && typeof window !== 'undefined') {
       try {
         localStorage.removeItem(`activedeck_sync_${presentation.id}`);
-      } catch (e) {}
-    }
-    if (presentation?.id) {
-      try {
-        const channel = new BroadcastChannel('activedeck-slide-sync');
-        channel.postMessage({
-          type: 'slide-update',
-          presentationId: presentation.id,
-          deckId: activeDeckKey,
-          currentSlide: 0,
-          currentSlideBase64: null,
-          totalSlides: 0
-        });
-        channel.close();
       } catch (e) {}
     }
   };
@@ -723,10 +794,27 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       }
     }
 
-    // 3. Immediately clear slide state in Firestore and locally so Projector View immediately goes blank
+    // 3. Immediately clear slide state locally
     clearLocalAndBroadcastSlideState();
 
-    // 4. Immediately update Firestore presentation document with the chosen deck and clear slide state
+    // 4. Send JSON payload strictly over local WebSocket connection to the Python bridge with targetUrl
+    sendBridgeCommand({
+      action: 'load',
+      url: targetUrl
+    });
+
+    setIsLoadingPpt(true);
+    setLoadPptSuccess(false);
+
+    // 5. Open Projector Mode window and trigger screen sharing immediately in user gesture
+    if (!isProjectorMode) {
+      openProjectorWindow();
+    }
+    if (!stream) {
+      startCapture();
+    }
+
+    // 6. Update Firestore presentation document with the chosen deck and clear slide state
     if (presentation?.id) {
       try {
         await updateDoc(doc(db, 'presentations', presentation.id), {
@@ -735,7 +823,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           selectedDeckId: targetDeckId || null,
           currentSlideBase64: null,
           current_slide_base64: null,
-          currentSlide: 0,
+          currentSlide: 1,
           totalSlides: 0
         });
         if (effectivePresenterEmail && targetDeckId) {
@@ -748,32 +836,6 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       }
     }
 
-    // 5. Automatically activate Projector Mode screen in a popup window
-    if (!isProjectorMode) {
-      try {
-        const url = new URL(window.location.href);
-        if (presentation?.id) {
-          url.searchParams.set('id', presentation.id);
-        }
-        if (presentation?.pinCode) {
-          url.searchParams.set('pin', presentation.pinCode);
-        }
-        url.searchParams.set('view', 'projector');
-        window.open(url.toString(), '_blank', 'popup=yes,width=1280,height=720,resizable=yes,scrollbars=yes');
-      } catch (err) {
-        console.error('Failed to automatically open Projector Mode screen:', err);
-      }
-    }
-
-    setIsLoadingPpt(true);
-    setLoadPptSuccess(false);
-
-    // 6. Send JSON payload strictly over local WebSocket connection to the Python bridge with targetUrl
-    sendBridgeCommand({
-      action: 'load',
-      url: targetUrl
-    });
-
     setTimeout(() => {
       setIsLoadingPpt(false);
       setLoadPptSuccess(true);
@@ -784,7 +846,6 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   useEffect(() => {
     onStreamStateChange?.(isCapturing && !!stream);
   }, [isCapturing, stream, onStreamStateChange]);
-  const [error, setError] = useState<string | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
   const [laserEnabled, setLaserEnabled] = useState(true);
   const [presentWithNotes, setPresentWithNotes] = useState(false);
@@ -1283,9 +1344,6 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
   const [localSlidesCount, setLocalSlidesCount] = useState<number>(0);
   const [nextSlideImageError, setNextSlideImageError] = useState<boolean>(false);
-  const [syncedProjectorSlide, setSyncedProjectorSlide] = useState<number | null>(null);
-  const [syncedProjectorBase64, setSyncedProjectorBase64] = useState<string | null>(null);
-  const [syncedProjectorTotal, setSyncedProjectorTotal] = useState<number | null>(null);
   const [displayedNextSlideUrl, setDisplayedNextSlideUrl] = useState<string | null>(null);
 
   // Clear slide previews, errors, and counts when switching presentations/decks
@@ -1295,38 +1353,28 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     setLocalSlidesCount(0);
     setCurrentSlidePreviewUrl(null);
     setNextSlidePreviewUrl(null);
-    setSyncedProjectorBase64(null);
-    setSyncedProjectorSlide(null);
-    setSyncedProjectorTotal(null);
     setDisplayedNextSlideUrl(null);
     setVisitedSlides({ 1: true });
     setFurthestSlide(1);
     clearThumbnails();
   }, [activeDeckKey, presentation?.selectedDeckId, presentation?.pptxUrl]);
 
-  const effectiveCurrentSlide = 
-    (isProjectorMode && syncedProjectorSlide !== null)
-      ? syncedProjectorSlide
-      : (currentSlide !== null ? currentSlide : (presentation?.currentSlide ?? 1));
+  const effectiveCurrentSlide = currentSlide !== null ? currentSlide : (presentation?.currentSlide ?? 1);
 
+  // Statically rendered slide preview strictly for faculty presenter dashboard.
+  // In Projector Mode or when presentation is inactive, effectiveSlideBase64 is strictly null to prevent stale background retention.
   const effectiveSlideBase64 = 
-    (isProjectorMode && syncedProjectorBase64) 
-      ? syncedProjectorBase64 
-      : (isProjectorMode && (presentation?.currentSlideBase64 || (presentation as any)?.current_slide_base64))
-        ? (presentation?.currentSlideBase64 || (presentation as any)?.current_slide_base64)
-        : (isBridgeConnected && (isPresentationActive || isBridgeActivePresentation) && currentSlideBase64)
-          ? currentSlideBase64
-          : null;
+    (!isProjectorMode && isPresentationActive && currentSlideBase64)
+      ? currentSlideBase64
+      : null;
 
   const mapSlidesCount = Object.keys(slidePreviewsMap).length;
   
-  const explicitTotal = (syncedProjectorTotal !== null && syncedProjectorTotal > 0)
-    ? syncedProjectorTotal
-    : (totalSlides !== null && totalSlides > 0) 
-      ? totalSlides 
-      : (presentation?.totalSlides && presentation.totalSlides > 0) 
-        ? presentation.totalSlides 
-        : 0;
+  const explicitTotal = (totalSlides !== null && totalSlides > 0) 
+    ? totalSlides 
+    : (presentation?.totalSlides && presentation.totalSlides > 0) 
+      ? presentation.totalSlides 
+      : 0;
 
   const knownTotal = Math.max(explicitTotal, localSlidesCount, mapSlidesCount);
 
@@ -1338,183 +1386,22 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       ? knownTotal 
       : Math.max(effectiveCurrentSlide + 3, 20));
 
-  // Instant local multi-window slide broadcast (Presenter -> Projector popup window < 2ms)
+  // Sync slide numbers to Firestore so students in chat know current slide
   useEffect(() => {
     if (isProjectorMode || !presentation?.id) return;
-    try {
-      const channel = new BroadcastChannel('activedeck-slide-sync');
-      
-      const broadcastState = () => {
-        try {
-          channel.postMessage({
-            type: 'slide-update',
-            presentationId: presentation.id,
-            deckId: activeDeckKey,
-            currentSlide: effectiveCurrentSlide,
-            currentSlideBase64: currentSlideBase64,
-            totalSlides: effectiveTotalSlides
-          });
-        } catch (e) {}
-      };
-
-      // Broadcast on state change
-      broadcastState();
-
-      // Listen for sync requests from newly opened projector windows
-      const handleSyncRequest = (e: MessageEvent) => {
-        if (e.data && e.data.type === 'request-slide-sync' && e.data.presentationId === presentation.id) {
-          broadcastState();
-        }
-      };
-      channel.addEventListener('message', handleSyncRequest);
-
-      // Save to localStorage so projector window immediately cold-starts with current deck slide
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem(`activedeck_sync_${presentation.id}`, JSON.stringify({
-            currentSlide: effectiveCurrentSlide,
-            currentSlideBase64: currentSlideBase64,
-            totalSlides: effectiveTotalSlides,
-            deckId: activeDeckKey
-          }));
-        } catch (e) {}
-      }
-
-      // Sync slide state to Firestore so remote projector screens on other devices receive slide updates
-      const updates: any = {};
-      if (typeof effectiveCurrentSlide === 'number' && effectiveCurrentSlide !== presentation.currentSlide) {
-        updates.currentSlide = effectiveCurrentSlide;
-      }
-      if (currentSlideBase64 && currentSlideBase64 !== presentation.currentSlideBase64) {
-        updates.currentSlideBase64 = currentSlideBase64;
-      }
-      if (typeof effectiveTotalSlides === 'number' && effectiveTotalSlides !== presentation.totalSlides) {
-        updates.totalSlides = effectiveTotalSlides;
-      }
-      if (Object.keys(updates).length > 0) {
-        updateDoc(doc(db, 'presentations', presentation.id), updates).catch(err => {
-          console.warn("ActiveDeck: Error updating slide state in Firebase:", err);
-        });
-      }
-
-      return () => {
-        channel.removeEventListener('message', handleSyncRequest);
-        channel.close();
-      };
-    } catch (e) {}
-  }, [effectiveCurrentSlide, currentSlideBase64, effectiveTotalSlides, isProjectorMode, presentation?.id, activeDeckKey]);
-
-  // Projector window listener for instant slide updates from faculty screen
-  useEffect(() => {
-    if (!isProjectorMode || !presentation?.id) return;
-
-    // Cold-start sync from localStorage (instant 0ms render without showing previous session deck!)
-    if (typeof window !== 'undefined') {
-      try {
-        const cached = localStorage.getItem(`activedeck_sync_${presentation.id}`);
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          const slideBase64 = parsed.currentSlideBase64 || parsed.current_slide_base64;
-          const slideNum = parsed.currentSlide;
-          if (typeof slideNum === 'number' && slideNum > 0) {
-            setSyncedProjectorSlide(slideNum);
-            setIsCapturing(true);
-          } else {
-            setSyncedProjectorSlide(null);
-          }
-          if (slideBase64 && typeof slideBase64 === 'string') {
-            setSyncedProjectorBase64(slideBase64);
-            setIsCapturing(true);
-          } else {
-            setSyncedProjectorBase64(null);
-          }
-          if (!slideBase64 && (!slideNum || slideNum <= 0)) {
-            setIsCapturing(false);
-          }
-          if (typeof parsed.totalSlides === 'number' && parsed.totalSlides > 0) {
-            setSyncedProjectorTotal(parsed.totalSlides);
-          } else {
-            setSyncedProjectorTotal(null);
-          }
-        }
-      } catch (e) {}
+    const updates: any = {};
+    if (typeof effectiveCurrentSlide === 'number' && effectiveCurrentSlide !== presentation.currentSlide) {
+      updates.currentSlide = effectiveCurrentSlide;
     }
-
-    const channel = new BroadcastChannel('activedeck-slide-sync');
-    const handleSync = (e: MessageEvent) => {
-      if (e.data && e.data.type === 'slide-update' && e.data.presentationId === presentation?.id) {
-        const slideBase64 = e.data.currentSlideBase64 || e.data.current_slide_base64;
-        const slideNum = e.data.currentSlide;
-        if (typeof slideNum === 'number' && slideNum > 0) {
-          setSyncedProjectorSlide(slideNum);
-          setIsCapturing(true);
-        } else {
-          setSyncedProjectorSlide(null);
-        }
-        if (slideBase64 && typeof slideBase64 === 'string') {
-          setSyncedProjectorBase64(slideBase64);
-          setIsCapturing(true);
-        } else {
-          setSyncedProjectorBase64(null);
-        }
-        if (!slideBase64 && (!slideNum || slideNum <= 0)) {
-          setIsCapturing(false);
-        }
-        if (typeof e.data.totalSlides === 'number' && e.data.totalSlides > 0) {
-          setSyncedProjectorTotal(e.data.totalSlides);
-        } else {
-          setSyncedProjectorTotal(null);
-        }
-      }
-    };
-    channel.addEventListener('message', handleSync);
-
-    // Actively request sync from faculty tab
-    try {
-      channel.postMessage({
-        type: 'request-slide-sync',
-        presentationId: presentation.id
+    if (typeof effectiveTotalSlides === 'number' && effectiveTotalSlides !== presentation.totalSlides) {
+      updates.totalSlides = effectiveTotalSlides;
+    }
+    if (Object.keys(updates).length > 0) {
+      updateDoc(doc(db, 'presentations', presentation.id), updates).catch(err => {
+        console.warn("ActiveDeck: Error updating slide numbers in Firebase:", err);
       });
-    } catch (e) {}
-
-    // ALSO: Subscribe to Firestore doc for presentations/{presentation.id}
-    // This allows projector screens on completely different computers/browsers to sync current_slide_base64!
-    const unsubDoc = onSnapshot(doc(db, 'presentations', presentation.id), (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        const slideBase64 = data.currentSlideBase64 || data.current_slide_base64;
-        const slideNum = data.currentSlide;
-        if (slideBase64 && typeof slideBase64 === 'string') {
-          setSyncedProjectorBase64(slideBase64);
-          setIsCapturing(true);
-        } else {
-          setSyncedProjectorBase64(null);
-        }
-        if (typeof slideNum === 'number' && slideNum > 0) {
-          setSyncedProjectorSlide(slideNum);
-          setIsCapturing(true);
-        } else {
-          setSyncedProjectorSlide(null);
-        }
-        if (!slideBase64 && (!slideNum || slideNum <= 0)) {
-          setIsCapturing(false);
-        }
-        if (typeof data.totalSlides === 'number' && data.totalSlides > 0) {
-          setSyncedProjectorTotal(data.totalSlides);
-        } else {
-          setSyncedProjectorTotal(null);
-        }
-      }
-    }, (err) => {
-      console.warn("ActiveDeck Projector: Firestore presentation sync listener error:", err);
-    });
-
-    return () => {
-      channel.removeEventListener('message', handleSync);
-      channel.close();
-      unsubDoc();
-    };
-  }, [isProjectorMode, presentation?.id]);
+    }
+  }, [effectiveCurrentSlide, effectiveTotalSlides, isProjectorMode, presentation?.id, presentation?.currentSlide, presentation?.totalSlides]);
 
   const effectiveNextSlide = (nextSlide !== null && nextSlide > 0)
     ? nextSlide
@@ -3259,75 +3146,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     }
   };
 
-  const startCapture = () => {
-    setError(null);
-    navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
-      .then(async (mediaStream) => {
-        setError(null);
-        setStream(mediaStream);
-        setIsCapturing(true);
 
-        // Expose mediaStream globally so the projector window can access it
-        (window as any).activeDeckStream = mediaStream;
-
-        // Broadcast that stream has started
-        try {
-          const channel = new BroadcastChannel('activedeck-stream');
-          channel.postMessage({ type: 'stream-started' });
-          channel.close();
-        } catch (bcErr) {
-          console.error("ActiveDeck: Error broadcasting stream-started:", bcErr);
-        }
-        window.dispatchEvent(new CustomEvent('activedeck-stream-started'));
-        // Only create a new presentation session if one doesn't exist yet
-        let activePresentationId = presentation?.id;
-        if (!presentation && onCreatePresentation) {
-          try {
-            activePresentationId = await onCreatePresentation();
-          } catch (createErr) {
-            console.error("ActiveDeck: Error creating presentation session:", createErr);
-            mediaStream.getTracks().forEach(track => track.stop());
-            setStream(null);
-            setIsCapturing(false);
-            window.dispatchEvent(new CustomEvent('activedeck-stream-stopped'));
-            setError("Failed to initialize presentation session in database.");
-            return;
-          }
-        }
-
-        // Set the current slide in database to 1 as soon as the presentation starts
-        if (activePresentationId) {
-          try {
-            await updateDoc(doc(db, 'presentations', activePresentationId), {
-              currentSlide: 1
-            });
-            console.log("ActiveDeck: Automatically set currentSlide to 1 in Firebase upon starting presentation.");
-          } catch (updateErr) {
-            console.error("ActiveDeck: Failed to set initial slide to 1 in Firebase:", updateErr);
-          }
-        }
-
-        mediaStream.getVideoTracks()[0].onended = () => {
-          console.warn("ActiveDeck: Screen capture video track ended. Preserving presentation mode and slide preview.");
-          setStream(null);
-          window.dispatchEvent(new CustomEvent('activedeck-stream-stopped'));
-          // Do not call stopCapture() here so the presentation session, timer, slide navigator, and notes remain active!
-        };
-      })
-      .catch((err: any) => {
-        console.error("ActiveDeck: Error starting screen capture:", err);
-        if (err.name === 'NotAllowedError' && err.message.includes('permissions policy')) {
-          setError("Browser Security: Screen capture is blocked inside the editor's preview window. Please use the 'Shared App URL' or the 'Open in New Tab' icon in the top right to present.");
-        } else if (err.name === 'NotAllowedError' || err.name === 'AbortError') {
-          // Gracefully return to the main instructions screen if the user cancels or denies the request
-          setError(null);
-        } else {
-          setError("Failed to start screen capture. Please ensure your browser supports screen sharing.");
-        }
-        setIsCapturing(false);
-        window.dispatchEvent(new CustomEvent('activedeck-stream-stopped'));
-      });
-  };
 
   const stopCapture = () => {
     if (stream) {
@@ -3398,7 +3217,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     };
   }, [stream]);
 
-  // Synchronize stream for projector mode
+  // Synchronize stream for projector mode (Strictly live screen share stream)
   useEffect(() => {
     if (!isProjectorMode) return;
 
@@ -3430,10 +3249,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           setError(null);
         } else {
           setStream(null);
-          // Preserve capturing state if bridge or slide image is active
-          if (!isBridgeActivePresentation && syncedProjectorSlide === null && !syncedProjectorBase64 && !currentSlideBase64) {
-            setIsCapturing(false);
-          }
+          setIsCapturing(false);
         }
       } catch (err) {
         console.error("ActiveDeck Projector: Error during safe stream check:", err);
@@ -3451,9 +3267,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       } else if (event.data?.type === 'stream-stopped') {
         console.log("ActiveDeck Projector: Stream stopped message received");
         setStream(null);
-        if (!isBridgeActivePresentation && syncedProjectorSlide === null && !syncedProjectorBase64 && !currentSlideBase64) {
-          setIsCapturing(false);
-        }
+        setIsCapturing(false);
       } else if (event.data?.type === 'close-projector') {
         console.log("ActiveDeck Projector: Close projector message received. Closing window.");
         window.close();
@@ -3468,7 +3282,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       channel.close();
       clearInterval(intervalId);
     };
-  }, [isProjectorMode, isBridgeActivePresentation, syncedProjectorSlide, syncedProjectorBase64, currentSlideBase64]);
+  }, [isProjectorMode]);
 
   return (
     <div className="flex flex-col h-full bg-black relative group">
@@ -4332,7 +4146,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         )}
 
         {/* Stunning Classroom Welcome & Join Hub - Shown in projector mode when offline */}
-        {!isCapturing && !stream && !effectiveSlideBase64 && isProjectorMode && (
+        {!isCapturing && !stream && isProjectorMode && (
           <div className="absolute inset-0 z-[65] flex flex-col items-center justify-center bg-slate-950 p-6 text-center text-white overflow-hidden">
             <div className="max-w-xl w-full flex flex-col items-center gap-5 md:gap-6 animate-in fade-in zoom-in-95 duration-500">
               {/* Logo / Brand Header */}
@@ -4771,7 +4585,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           className="relative w-full flex-1 bg-black border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex items-center justify-center mx-auto min-h-0"
         >
           <ScreenCapture 
-            isCapturing={isCapturing || isBridgeActivePresentation || !!syncedProjectorSlide || !!effectiveSlideBase64} 
+            isCapturing={isCapturing} 
             stream={stream} 
             error={error} 
             onStart={startCapture} 
@@ -4781,10 +4595,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             videoRef={videoRef}
             onLoadedMetadata={handleVideoLoadedMetadata}
             onSlideImageLoad={handleSlideImageLoad}
-            isBridgeConnected={isBridgeConnected || isPresentationActive || !!syncedProjectorSlide || !!effectiveSlideBase64}
-            currentSlideBase64={effectiveSlideBase64}
+            isBridgeConnected={false}
+            currentSlideBase64={null}
             currentSlide={effectiveCurrentSlide}
-            currentSlidePreviewUrl={currentSlidePreviewUrl}
+            currentSlidePreviewUrl={null}
             deckId={activeDeckKey}
           />
 
@@ -4874,7 +4688,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         </div>
 
         {/* Unobtrusive Centered Slide Number under slide display in Projector Mode */}
-        {(isPresentationActive || !!syncedProjectorSlide) && (
+        {(isCapturing || !!stream) && (
           <div className="mt-2.5 flex items-center justify-center shrink-0 z-20">
             <div className="px-3.5 py-1 rounded-full bg-slate-900/80 backdrop-blur-md border border-slate-800/80 text-slate-300 shadow-xl flex items-center gap-1.5 text-xs font-semibold tracking-wide select-none">
               <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400">Slide</span>
