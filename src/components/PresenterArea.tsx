@@ -188,7 +188,8 @@ export const useRenderedSlideBounds = (
 
 interface SlideThumbnailItemProps {
   sNum: number;
-  imgUrl: string | null;
+  slideNumber?: number;
+  imgUrl?: string | null;
   fallbackUrl?: string | null;
   isCurrent: boolean;
   isFurthest: boolean;
@@ -198,31 +199,25 @@ interface SlideThumbnailItemProps {
 
 const SlideThumbnailItem: React.FC<SlideThumbnailItemProps> = React.memo(({
   sNum,
-  imgUrl,
-  fallbackUrl,
+  slideNumber = sNum,
   isCurrent,
   isFurthest,
   isUnshown,
   onSelect
 }) => {
-  const [currentSrc, setCurrentSrc] = useState<string | null>(imgUrl || fallbackUrl || null);
   const [loaded, setLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
 
-  useEffect(() => {
-    const nextSrc = imgUrl || fallbackUrl || null;
-    if (nextSrc && nextSrc !== currentSrc) {
-      setCurrentSrc(nextSrc);
-      setHasError(false);
-    }
-  }, [imgUrl, fallbackUrl, currentSrc]);
-
-  const handleError = () => {
-    if (fallbackUrl && currentSrc !== fallbackUrl) {
-      setCurrentSrc(fallbackUrl);
-    } else {
-      setHasError(true);
-    }
+  const handleError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    setHasError(true);
+    setLoaded(false);
+    // Periodically retry in case the background Python exporter is still actively processing a large presentation
+    const target = e.currentTarget;
+    setTimeout(() => {
+      if (target) {
+        target.src = `http://127.0.0.1:5000/slides/${slideNumber}.jpg?t=${Date.now()}`;
+      }
+    }, 2500);
   };
 
   return (
@@ -239,27 +234,35 @@ const SlideThumbnailItem: React.FC<SlideThumbnailItemProps> = React.memo(({
           ? 'border-osu-orange ring-2 ring-osu-orange/20 scale-[1.03]'
           : 'border-slate-800 group-hover/tile:border-slate-600'
       }`}>
-        {/* Steady background placeholder icon - never flickers or unmounts */}
-        <div className="absolute inset-0 flex items-center justify-center text-slate-700 bg-slate-950 pointer-events-none">
-          <Monitor className="w-4 h-4 opacity-30" />
-        </div>
+        {/* Loading spinner or placeholder fallback if the background Python exporter is still actively processing */}
+        {hasError ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-slate-400 bg-slate-950 p-1 z-10">
+            <Loader2 className="w-4 h-4 text-osu-orange animate-spin" />
+            <span className="text-[8px] font-mono text-slate-500">Processing...</span>
+          </div>
+        ) : !loaded ? (
+          <div className="absolute inset-0 flex items-center justify-center text-slate-700 bg-slate-950 pointer-events-none">
+            <Monitor className="w-4 h-4 opacity-30" />
+          </div>
+        ) : null}
 
-        {/* Slide image - fades in cleanly when ready, never flashes on slide changes or parent re-renders */}
-        {currentSrc && !hasError && (
-          <img
-            src={currentSrc}
-            alt={`Slide ${sNum}`}
-            className={`absolute inset-0 w-full h-full object-cover bg-black transition-opacity duration-200 ${
-              loaded ? 'opacity-100' : 'opacity-0'
-            }`}
-            loading="lazy"
-            onLoad={() => setLoaded(true)}
-            onError={handleError}
-          />
-        )}
+        {/* Slide image pointing to local Python bridge */}
+        <img
+          src={`http://127.0.0.1:5000/slides/${slideNumber}.jpg`}
+          alt={`Slide ${slideNumber}`}
+          className={`absolute inset-0 w-full h-full object-cover bg-black transition-opacity duration-200 ${
+            loaded && !hasError ? 'opacity-100' : 'opacity-0'
+          }`}
+          loading="lazy"
+          onLoad={() => {
+            setLoaded(true);
+            setHasError(false);
+          }}
+          onError={handleError}
+        />
         
         {/* Slide Number Badge */}
-        <span className={`absolute bottom-1 left-1 px-1.5 py-0.5 rounded font-mono font-black text-[9px] border leading-none ${
+        <span className={`absolute bottom-1 left-1 px-1.5 py-0.5 rounded font-mono font-black text-[9px] border leading-none z-20 ${
           isCurrent
             ? 'bg-osu-orange text-white border-orange-500/30 shadow-md'
             : 'bg-slate-950/85 text-slate-300 border-slate-850'
@@ -269,7 +272,7 @@ const SlideThumbnailItem: React.FC<SlideThumbnailItemProps> = React.memo(({
 
         {/* Furthest slide dot */}
         {isFurthest && (
-          <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse z-20" />
         )}
       </div>
     </button>
@@ -3691,27 +3694,13 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                                 const isCurrent = sNum === effectiveCurrentSlide;
                                 const isFurthest = sNum === furthestSlide;
                                 const isUnshown = !visitedSlides[sNum];
-                                
-                                const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
-                                const localUrl = !isHttps ? `http://127.0.0.1:5000/slides/${sNum}.jpg${activeDeckKey ? `?d=${encodeURIComponent(activeDeckKey)}` : ''}` : null;
-                                const firestoreUrl = slidePreviewsMap[sNum] || null;
-                                const bridgeThumbnail = slideThumbnails[sNum] || null;
-
-                                // Use real-time base64 from bridge for active, next slide, and all bridge slide thumbnails (works instantly on HTTPS)
-                                const imgUrl = (isCurrent && effectiveSlideBase64)
-                                  ? effectiveSlideBase64
-                                  : (sNum === effectiveNextSlide && nextSlideBase64)
-                                    ? nextSlideBase64
-                                    : (bridgeThumbnail || firestoreUrl || localUrl || null);
-
-                                const fallbackUrl = bridgeThumbnail || firestoreUrl || localUrl || null;
+                                const slideNumber = sNum;
 
                                 return (
                                   <SlideThumbnailItem
                                     key={`nav-slide-${sNum}`}
                                     sNum={sNum}
-                                    imgUrl={imgUrl}
-                                    fallbackUrl={fallbackUrl}
+                                    slideNumber={slideNumber}
                                     isCurrent={isCurrent}
                                     isFurthest={isFurthest}
                                     isUnshown={isUnshown}
