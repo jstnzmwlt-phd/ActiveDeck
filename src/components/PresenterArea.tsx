@@ -3926,19 +3926,22 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     </span>
                   </div>
 
-                  {/* Selected Presentation Summary / Upload Component */}
-                  <div className="w-full mb-4">
-                    {presentation?.id ? (
-                      <PptxUploader
-                        presentationId={presentation.id}
-                        currentPptxUrl={presentation.pptxUrl}
-                        currentFileName={presentation.pptxFileName || activeDeck?.name}
-                      />
-                    ) : (
-                      <div className="h-[120px] min-h-[120px] max-h-[120px] flex flex-col items-center justify-center p-4 bg-slate-800/30 border border-dashed border-slate-700/40 rounded-2xl text-center">
-                        <p className="text-xs text-slate-400 font-medium">No presentation session active</p>
-                      </div>
-                    )}
+                  {/* Selected Presentation Title Display */}
+                  <div className="w-full h-[76px] min-h-[76px] mb-4 px-4 bg-slate-850/60 border border-slate-800 rounded-2xl flex flex-col items-center justify-center text-center">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
+                      Selected Presentation
+                    </span>
+                    <div className="flex items-center justify-center gap-2 max-w-full min-w-0">
+                      <PresentationIcon className="w-4 h-4 text-osu-orange shrink-0" />
+                      <p 
+                        className="text-sm font-bold text-white truncate max-w-[340px]" 
+                        title={activeDeck?.name || presentation?.pptxFileName || undefined}
+                      >
+                        {activeDeck?.name || presentation?.pptxFileName || (
+                          <span className="text-slate-500 font-normal italic text-xs">No presentation selected</span>
+                        )}
+                      </p>
+                    </div>
                   </div>
                 </div>
                 
