@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Presentation, Message, Poll, WordCloud, OpenEndedQuestion, DeckItem } from '../types';
 import { ScreenCapture } from './ScreenCapture';
-import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play, X, Loader2, Tv, Minimize, Maximize, FileText, Square, Send, CheckCircle2, Check, Clock, Pen, Eraser, Highlighter, MoveRight, Type, Undo2, Redo2, Trash2, Minus, Circle, Search, Plus, Layers, UploadCloud } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play, X, Loader2, Tv, Minimize, Maximize, FileText, Square, Send, CheckCircle2, Check, Clock, Pen, Eraser, Highlighter, MoveRight, Type, Undo2, Redo2, Trash2, Minus, Circle, Search, Plus, Layers, UploadCloud, ScreenShare } from 'lucide-react';
 import { useBridge } from '../contexts/BridgeContext';
 import { auth, db, storage } from '../firebase';
 import { doc, getDoc, updateDoc, setDoc, onSnapshot, collection, query, where } from 'firebase/firestore';
@@ -330,6 +330,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const [error, setError] = useState<string | null>(null);
   const [isProjectorBlocked, setIsProjectorBlocked] = useState<boolean>(false);
   const [showProjectorSlideTip, setShowProjectorSlideTip] = useState<boolean>(true);
+  const [showPptLoadShareModal, setShowPptLoadShareModal] = useState<boolean>(false);
   const projectorWindowRef = useRef<Window | null>(null);
   const projectorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -879,9 +880,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     setIsLoadingPpt(true);
     setLoadPptSuccess(false);
 
-    // 5. Trigger screen sharing immediately so faculty can select PowerPoint
+    // 5. Prompt presenter with the download info popup before triggering screen share
     if (!stream) {
-      startCapture();
+      setShowPptLoadShareModal(true);
     }
 
     // 6. Update Firestore presentation document with the chosen deck and clear slide state
@@ -3412,6 +3413,52 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           >
             <X className="w-3.5 h-3.5" />
           </button>
+        </div>
+      )}
+
+      {/* PowerPoint Download & Share Screen Notice Modal */}
+      {showPptLoadShareModal && !isProjectorMode && (
+        <div 
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/75 backdrop-blur-md p-4 animate-in fade-in duration-200"
+          onClick={() => setShowPptLoadShareModal(false)}
+        >
+          <div 
+            className="bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl p-6 sm:p-7 max-w-md w-full text-center relative animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button 
+              type="button"
+              onClick={() => setShowPptLoadShareModal(false)}
+              className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer border-0 bg-transparent"
+              title="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Icon */}
+            <div className="w-12 h-12 bg-amber-500/15 border border-amber-500/30 rounded-2xl flex items-center justify-center mx-auto mb-4 text-amber-500 shadow-lg shadow-amber-500/10">
+              <ScreenShare className="w-6 h-6" />
+            </div>
+            
+            <h2 className="text-lg font-black text-white mb-2">PowerPoint Starting</h2>
+            <p className="text-slate-300 text-sm mb-6 leading-relaxed text-center font-medium">
+              Please wait for your PowerPoint to download and start, then share screen of the presentation window you want the audience to see.
+            </p>
+            
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPptLoadShareModal(false);
+                  startCapture();
+                }}
+                className="flex-1 flex items-center justify-center gap-2 py-3 bg-amber-600 hover:bg-amber-500 active:scale-95 text-white font-black uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-amber-600/20 text-sm cursor-pointer"
+              >
+                <span>OK</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
