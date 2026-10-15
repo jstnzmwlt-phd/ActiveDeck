@@ -4130,22 +4130,22 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         type="button"
                         onClick={() => handleLoadPpt(activeDeck || undefined)}
                         disabled={isLoadingPpt}
-                        className="flex items-center justify-center gap-2.5 w-full py-3.5 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-black uppercase tracking-wider rounded-xl transition-all active:scale-95 shadow-lg shadow-amber-600/20 text-xs sm:text-sm cursor-pointer"
+                        className="flex items-center justify-center gap-2 w-full py-3 px-4 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all active:scale-95 shadow-lg shadow-amber-600/20 text-xs cursor-pointer min-w-0"
                         title={`Download & launch ${activeDeck?.name || presentation?.pptxFileName || 'presentation'} directly in PowerPoint with animations`}
                       >
                         {isLoadingPpt ? (
                           <>
-                            <Loader2 className="w-4 h-4 animate-spin text-white shrink-0" />
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-white shrink-0" />
                             <span>Starting PowerPoint...</span>
                           </>
                         ) : loadPptSuccess ? (
                           <>
-                            <Check className="w-4 h-4 text-white shrink-0" />
+                            <Check className="w-3.5 h-3.5 text-white shrink-0" />
                             <span>PowerPoint Active & Playing!</span>
                           </>
                         ) : (
                           <>
-                            <Play className="w-4 h-4 fill-current shrink-0" />
+                            <Play className="w-3.5 h-3.5 fill-current shrink-0" />
                             <span className="truncate">
                               Launch & Present: {activeDeck?.name || presentation?.pptxFileName || 'Selected PPT'}
                             </span>
@@ -4178,9 +4178,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                       <button
                         type="button"
                         onClick={startCapture}
-                        className="flex items-center justify-center gap-2.5 w-full py-3.5 bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-xl shadow-green-650/20 text-sm cursor-pointer"
+                        className="flex items-center justify-center gap-2 w-full py-3 px-4 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl transition-all active:scale-95 shadow-xl shadow-green-650/20 text-xs cursor-pointer min-w-0"
                       >
-                        <ScreenShare className="w-4 h-4 shrink-0" />
+                        <ScreenShare className="w-3.5 h-3.5 shrink-0" />
                         <span>Share Screen to Present</span>
                       </button>
                       <p className="text-[10px] text-slate-400 leading-normal font-medium">
