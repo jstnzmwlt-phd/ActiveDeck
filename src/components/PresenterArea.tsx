@@ -375,7 +375,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     }
   }, [isProjectorMode, presentation?.id, presentation?.pinCode]);
 
-  const scheduleProjectorWindow = useCallback((delayMs = 10000) => {
+  const scheduleProjectorWindow = useCallback((delayMs = 20000) => {
     if (isProjectorMode) return;
     if (projectorTimeoutRef.current) {
       clearTimeout(projectorTimeoutRef.current);
@@ -430,7 +430,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const startCapture = useCallback(() => {
     setError(null);
     if (!isProjectorMode && !projectorTimeoutRef.current && (!projectorWindowRef.current || projectorWindowRef.current.closed)) {
-      scheduleProjectorWindow(10000);
+      scheduleProjectorWindow(20000);
     }
     const displayMediaOptions: any = {
       video: {
@@ -908,9 +908,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     setIsLoadingPpt(true);
     setLoadPptSuccess(false);
 
-    // 5. Trigger screen sharing immediately, and schedule Projector Mode popup with a 10s delay
+    // 5. Trigger screen sharing immediately, and schedule Projector Mode popup with a 20s delay
     if (!isProjectorMode) {
-      scheduleProjectorWindow(10000);
+      scheduleProjectorWindow(20000);
     }
     if (!stream) {
       startCapture();
