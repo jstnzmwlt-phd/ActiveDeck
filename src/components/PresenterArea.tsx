@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as
 import { useBridge } from '../contexts/BridgeContext';
 import { auth, db, storage } from '../firebase';
 import { doc, getDoc, updateDoc, setDoc, onSnapshot, collection, query, where } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { QRCodeSVG } from 'qrcode.react';
 import { compositeSlideWithAnnotations, createSlidePlaceholderImage } from '../utils/exportNotesDocx';
 import { PptxUploader } from './PptxUploader';
@@ -536,6 +536,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   // Multi-presentation deck management state
   const [uploadingMulti, setUploadingMulti] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
+  const [uploadProgressPercent, setUploadProgressPercent] = useState<number>(0);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const multiFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -759,21 +760,39 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     }
 
     setUploadingMulti(true);
+    setUploadProgressPercent(0);
     try {
       const newDecks: DeckItem[] = [];
       for (let i = 0; i < pptxFiles.length; i++) {
         const file = pptxFiles[i];
-        setUploadProgress(`Uploading ${i + 1} of ${pptxFiles.length}: ${file.name}`);
+        const prefix = pptxFiles.length > 1 ? `[${i + 1}/${pptxFiles.length}] ` : '';
+        setUploadProgressPercent(0);
+        setUploadProgress(`${prefix}Uploading: 0% (0 MB / ${formatFileSize(file.size)})`);
         
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
         const storagePath = `presentations/${presentation.id}/decks/${Date.now()}_${i}_${safeName}`;
         const storageRef = ref(storage, storagePath);
 
-        await uploadBytes(storageRef, file, {
+        const uploadTask = uploadBytesResumable(storageRef, file, {
           contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
         });
 
-        const downloadUrl = await getDownloadURL(storageRef);
+        await new Promise<void>((resolve, reject) => {
+          uploadTask.on(
+            'state_changed',
+            (snapshot) => {
+              const progress = snapshot.totalBytes > 0
+                ? Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100)
+                : 0;
+              setUploadProgressPercent(progress);
+              setUploadProgress(`${prefix}Uploading: ${progress}% (${formatFileSize(snapshot.bytesTransferred)} / ${formatFileSize(snapshot.totalBytes)})`);
+            },
+            (error) => reject(error),
+            () => resolve()
+          );
+        });
+
+        const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
         newDecks.push({
           id: `deck_${Date.now()}_${i}`,
           name: file.name,
@@ -810,6 +829,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     } finally {
       setUploadingMulti(false);
       setUploadProgress(null);
+      setUploadProgressPercent(0);
       if (multiFileInputRef.current) {
         multiFileInputRef.current.value = '';
       }
@@ -838,9 +858,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   };
 
   const formatFileSize = (bytes?: number) => {
-    if (!bytes) return '';
+    if (!bytes) return '0 MB';
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(bytes / (1024 * 1024)).toFixed(0)} MB`;
   };
 
   const handleLoadPpt = async (customDeck?: DeckItem) => {
@@ -4201,11 +4221,25 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                   </div>
                 </div>
 
-                {/* Uploading Multi Status Banner */}
+                {/* Uploading Multi Status Banner with Real-time Progress Bar */}
                 {uploadingMulti && (
-                  <div className="mb-3 flex items-center gap-2 p-3 bg-osu-orange/10 border border-osu-orange/30 rounded-xl text-osu-orange text-xs font-medium animate-pulse">
-                    <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-                    <span className="truncate">{uploadProgress || 'Uploading presentations...'}</span>
+                  <div className="mb-3 flex flex-col gap-2 p-3 bg-slate-850/90 border border-osu-orange/40 rounded-xl text-white text-xs shadow-lg animate-in fade-in">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Loader2 className="w-4 h-4 text-osu-orange animate-spin shrink-0" />
+                        <span className="font-bold text-osu-orange truncate">{uploadProgress || 'Uploading presentation...'}</span>
+                      </div>
+                      <span className="font-mono font-bold text-white shrink-0 text-[11px] bg-slate-900 px-2 py-0.5 rounded-md border border-slate-700">
+                        {uploadProgressPercent}%
+                      </span>
+                    </div>
+                    {/* Visual Progress Bar */}
+                    <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-750 p-0.5">
+                      <div 
+                        className="bg-gradient-to-r from-amber-500 to-osu-orange h-full rounded-full transition-all duration-150 shadow"
+                        style={{ width: `${Math.max(4, uploadProgressPercent)}%` }}
+                      />
+                    </div>
                   </div>
                 )}
 

@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { storage, db } from '../firebase';
 import { DeckItem } from '../types';
@@ -14,6 +14,12 @@ interface PptxUploaderProps {
   compact?: boolean;
 }
 
+const formatMB = (bytes?: number) => {
+  if (!bytes) return '0 MB';
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(0)} MB`;
+};
+
 export const PptxUploader: React.FC<PptxUploaderProps> = ({
   presentationId,
   currentPptxUrl,
@@ -23,6 +29,8 @@ export const PptxUploader: React.FC<PptxUploaderProps> = ({
   compact = false
 }) => {
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadPercent, setUploadPercent] = useState<number>(0);
+  const [uploadProgressText, setUploadProgressText] = useState<string>('');
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -39,6 +47,8 @@ export const PptxUploader: React.FC<PptxUploaderProps> = ({
 
     setUploadError(null);
     setIsUploading(true);
+    setUploadPercent(0);
+    setUploadProgressText(`Uploading: 0% (0 MB / ${formatMB(file.size)})`);
     setFileName(file.name);
     setIsSuccess(false);
 
@@ -48,12 +58,27 @@ export const PptxUploader: React.FC<PptxUploaderProps> = ({
       const storagePath = `presentations/${presentationId}/decks/${Date.now()}_${safeName}`;
       const storageRef = ref(storage, storagePath);
 
-      await uploadBytes(storageRef, file, {
+      const uploadTask = uploadBytesResumable(storageRef, file, {
         contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
       });
 
+      await new Promise<void>((resolve, reject) => {
+        uploadTask.on(
+          'state_changed',
+          (snapshot) => {
+            const progress = snapshot.totalBytes > 0
+              ? Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100)
+              : 0;
+            setUploadPercent(progress);
+            setUploadProgressText(`Uploading: ${progress}% (${formatMB(snapshot.bytesTransferred)} / ${formatMB(snapshot.totalBytes)})`);
+          },
+          (error) => reject(error),
+          () => resolve()
+        );
+      });
+
       // 2. Retrieve public download URL
-      const downloadUrl = await getDownloadURL(storageRef);
+      const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
 
       // 3. Save download URL and append to uploadedDecks
       const newDeck: DeckItem = {
@@ -118,7 +143,7 @@ export const PptxUploader: React.FC<PptxUploaderProps> = ({
           {isUploading ? (
             <>
               <Loader2 className="w-3.5 h-3.5 animate-spin text-osu-orange" />
-              <span>Uploading PPTX...</span>
+              <span>{uploadPercent > 0 ? `${uploadPercent}%` : 'Uploading...'}</span>
             </>
           ) : currentPptxUrl || isSuccess ? (
             <>
@@ -164,15 +189,26 @@ export const PptxUploader: React.FC<PptxUploaderProps> = ({
       >
         <div className="flex flex-col items-center justify-center gap-1.5 w-full min-w-0">
           {isUploading ? (
-            <>
-              <div className="w-8 h-8 rounded-full bg-osu-orange/10 flex items-center justify-center shrink-0">
-                <Loader2 className="w-4 h-4 text-osu-orange animate-spin" />
+            <div className="w-full flex flex-col items-center justify-center gap-2 px-3">
+              <div className="w-full flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Loader2 className="w-3.5 h-3.5 text-osu-orange animate-spin shrink-0" />
+                  <span className="font-bold text-white truncate text-[11px] sm:text-xs">
+                    {uploadProgressText || `Uploading: ${uploadPercent}%`}
+                  </span>
+                </div>
+                <span className="font-mono text-[11px] text-osu-orange font-black bg-slate-900 px-2 py-0.5 rounded border border-slate-750 shrink-0">
+                  {uploadPercent}%
+                </span>
               </div>
-              <div className="w-full min-w-0 space-y-0.5">
-                <p className="text-xs font-bold text-white truncate">Uploading PowerPoint (.pptx)...</p>
-                <p className="text-[10px] text-slate-400 truncate max-w-[280px] mx-auto block">{fileName}</p>
+              <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800 p-0.5">
+                <div 
+                  className="bg-gradient-to-r from-amber-500 to-osu-orange h-full rounded-full transition-all duration-150 shadow"
+                  style={{ width: `${Math.max(4, uploadPercent)}%` }}
+                />
               </div>
-            </>
+              <p className="text-[10px] text-slate-400 truncate max-w-[280px] mx-auto block">{fileName}</p>
+            </div>
           ) : currentPptxUrl || isSuccess ? (
             <>
               <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/30 shrink-0">
