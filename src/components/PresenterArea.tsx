@@ -190,8 +190,6 @@ interface SlideThumbnailItemProps {
   sNum: number;
   slideNumber?: number;
   deckId?: string;
-  imgUrl?: string | null;
-  fallbackUrl?: string | null;
   isCurrent: boolean;
   isFurthest: boolean;
   isUnshown: boolean;
@@ -202,8 +200,6 @@ const SlideThumbnailItem: React.FC<SlideThumbnailItemProps> = React.memo(({
   sNum,
   slideNumber = sNum,
   deckId,
-  imgUrl,
-  fallbackUrl,
   isCurrent,
   isFurthest,
   isUnshown,
@@ -217,7 +213,7 @@ const SlideThumbnailItem: React.FC<SlideThumbnailItemProps> = React.memo(({
     setLoaded(false);
     setHasError(false);
     setRetryKey(0);
-  }, [deckId, imgUrl]);
+  }, [deckId]);
 
   const handleError = () => {
     setHasError(true);
@@ -233,7 +229,7 @@ const SlideThumbnailItem: React.FC<SlideThumbnailItemProps> = React.memo(({
   if (retryKey > 0) queryParams.set('r', retryKey.toString());
   const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
 
-  const imageSrc = imgUrl || `http://127.0.0.1:5000/slides/${slideNumber}.jpg${queryString}`;
+  const imageSrc = `http://127.0.0.1:5000/slides/${slideNumber}.jpg${queryString}`;
 
   return (
     <button
@@ -263,13 +259,11 @@ const SlideThumbnailItem: React.FC<SlideThumbnailItemProps> = React.memo(({
 
         {/* Slide image pointing to local Python bridge with cache-friendly URL */}
         <img
-          key={imageSrc}
           src={imageSrc}
           alt={`Slide ${slideNumber}`}
           className={`absolute inset-0 w-full h-full object-cover bg-black transition-opacity duration-200 ${
             loaded && !hasError ? 'opacity-100' : 'opacity-0'
           }`}
-          loading="lazy"
           onLoad={() => {
             setLoaded(true);
             setHasError(false);
@@ -362,7 +356,16 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     if (!isProjectorMode) {
       openProjectorWindow();
     }
-    navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
+    const displayMediaOptions: any = {
+      video: {
+        displaySurface: 'window',
+      },
+      audio: false,
+      selfBrowserSurface: 'exclude',
+      surfaceSwitching: 'include',
+      systemAudio: 'exclude'
+    };
+    navigator.mediaDevices.getDisplayMedia(displayMediaOptions)
       .then(async (mediaStream) => {
         setError(null);
         setStream(mediaStream);
@@ -3708,7 +3711,6 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                                     sNum={sNum}
                                     slideNumber={slideNumber}
                                     deckId={activeDeckKey}
-                                    imgUrl={slideThumbnails[sNum] || null}
                                     isCurrent={isCurrent}
                                     isFurthest={isFurthest}
                                     isUnshown={isUnshown}
