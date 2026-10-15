@@ -215,7 +215,7 @@ const SlideThumbnailItem: React.FC<SlideThumbnailItemProps> = React.memo(({
     const target = e.currentTarget;
     setTimeout(() => {
       if (target) {
-        target.src = `http://127.0.0.1:5000/slides/${slideNumber}.jpg?t=${Date.now()}`;
+        target.src = `http://127.0.0.1:5000/slides/${slideNumber}.jpg?v=${Date.now()}`;
       }
     }, 2500);
   };
@@ -246,9 +246,9 @@ const SlideThumbnailItem: React.FC<SlideThumbnailItemProps> = React.memo(({
           </div>
         ) : null}
 
-        {/* Slide image pointing to local Python bridge */}
+        {/* Slide image pointing to local Python bridge with cache-buster */}
         <img
-          src={`http://127.0.0.1:5000/slides/${slideNumber}.jpg`}
+          src={`http://127.0.0.1:5000/slides/${slideNumber}.jpg?v=${Date.now()}`}
           alt={`Slide ${slideNumber}`}
           className={`absolute inset-0 w-full h-full object-cover bg-black transition-opacity duration-200 ${
             loaded && !hasError ? 'opacity-100' : 'opacity-0'
@@ -301,6 +301,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     totalSlides,
     notes,
     clearNotesState,
+    resetPresentationState,
     slideThumbnails,
     requestThumbnails,
     clearThumbnails
@@ -315,6 +316,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const isBridgeActivePresentation = isBridgeConnected && typeof currentSlide === 'number' && currentSlide > 0;
   const isPresentationActive = isCapturing || isBridgeActivePresentation;
 
+  const [stream, setStream] = useState<MediaStream | null>(null);
+
   // Automatically activate presentation mode when the bridge sends a valid slide (> 0)
   useEffect(() => {
     if (isBridgeActivePresentation && !isCapturing) {
@@ -323,7 +326,38 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     }
   }, [isBridgeActivePresentation, isCapturing, currentSlide]);
 
-  const [stream, setStream] = useState<MediaStream | null>(null);
+  // When bridge status becomes offline, explicitly reset presentation state
+  useEffect(() => {
+    if (!isBridgeConnected) {
+      resetPresentationState();
+      clearThumbnails();
+      setSyncedProjectorBase64(null);
+      setSyncedProjectorSlide(null);
+      setSyncedProjectorTotal(null);
+      setCurrentSlidePreviewUrl(null);
+      setNextSlidePreviewUrl(null);
+      setDisplayedNextSlideUrl(null);
+      if (!stream) {
+        setIsCapturing(false);
+      }
+    }
+  }, [isBridgeConnected, stream, resetPresentationState, clearThumbnails]);
+
+  // When bridge presentation ends or is idle, reset capturing and slide states
+  useEffect(() => {
+    if (!isProjectorMode && !stream && isCapturing && !isBridgeActivePresentation && (currentSlide === 0 || currentSlide === null)) {
+      console.log("ActiveDeck: Bridge presentation ended, resetting capturing state and preview URLs.");
+      setIsCapturing(false);
+      resetPresentationState();
+      clearThumbnails();
+      setSyncedProjectorBase64(null);
+      setSyncedProjectorSlide(null);
+      setSyncedProjectorTotal(null);
+      setCurrentSlidePreviewUrl(null);
+      setNextSlidePreviewUrl(null);
+      setDisplayedNextSlideUrl(null);
+    }
+  }, [isCapturing, stream, isBridgeActivePresentation, currentSlide, isProjectorMode, resetPresentationState, clearThumbnails]);
   const [isLoadingPpt, setIsLoadingPpt] = useState(false);
   const [loadPptSuccess, setLoadPptSuccess] = useState(false);
 
@@ -1177,7 +1211,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const effectiveSlideBase64 = 
     (isProjectorMode && syncedProjectorBase64) 
       ? syncedProjectorBase64 
-      : (currentSlideBase64 || presentation?.currentSlideBase64 || null);
+      : (isProjectorMode && presentation?.currentSlideBase64)
+        ? presentation.currentSlideBase64
+        : (isBridgeConnected && (isPresentationActive || isBridgeActivePresentation) && currentSlideBase64)
+          ? currentSlideBase64
+          : null;
 
   const mapSlidesCount = Object.keys(slidePreviewsMap).length;
   
@@ -3165,7 +3203,14 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       setStream(null);
     }
     setIsCapturing(false);
-    clearNotesState();
+    resetPresentationState();
+    clearThumbnails();
+    setSyncedProjectorBase64(null);
+    setSyncedProjectorSlide(null);
+    setSyncedProjectorTotal(null);
+    setCurrentSlidePreviewUrl(null);
+    setNextSlidePreviewUrl(null);
+    setDisplayedNextSlideUrl(null);
     (window as any).activeDeckStream = null;
 
     // Reset drawings locally and exit pen mode
@@ -3176,13 +3221,16 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     setDrawingUndoStack({});
     setDrawingRedoStack({});
 
-    // Erase drawings in Firebase and broadcast clear-all-drawings to student & projector screens
+    // Erase drawings & presentation slide state in Firebase and broadcast to student & projector screens
     if (presentation?.id) {
       updateDoc(doc(db, 'presentations', presentation.id), {
         presenterDrawings: {},
-        activeDrawingStrokeJSON: null
+        activeDrawingStrokeJSON: null,
+        currentSlideBase64: null,
+        currentSlide: null,
+        totalSlides: null
       }).catch(err => {
-        console.error("ActiveDeck: Error clearing drawings in Firebase on stop capture:", err);
+        console.error("ActiveDeck: Error clearing presentation state in Firebase on stop capture:", err);
       });
     }
 
@@ -3191,6 +3239,20 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       channel.postMessage({
         type: 'clear-all-drawings',
         presentationId: presentation?.id
+      });
+      channel.close();
+    } catch (e) {}
+
+    // Broadcast that slide state has cleared
+    try {
+      const channel = new BroadcastChannel('activedeck-slide-sync');
+      channel.postMessage({
+        type: 'slide-update',
+        presentationId: presentation?.id,
+        deckId: activeDeckKey,
+        currentSlide: null,
+        currentSlideBase64: null,
+        totalSlides: null
       });
       channel.close();
     } catch (e) {}

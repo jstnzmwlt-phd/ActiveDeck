@@ -13,6 +13,7 @@ interface BridgeContextType {
   totalSlides: number | null;
   notes: string | null;
   clearNotesState: () => void;
+  resetPresentationState: () => void;
   slideThumbnails: Record<number, string>;
   requestThumbnails: () => void;
   clearThumbnails: () => void;
@@ -32,7 +33,7 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [notes, setNotes] = useState<string | null>(null);
   const [slideThumbnails, setSlideThumbnails] = useState<Record<number, string>>({});
 
-  const clearNotesState = () => {
+  const resetPresentationState = () => {
     setCurrentSlide(null);
     setCurrentSlideBase64(null);
     setNextSlide(null);
@@ -41,6 +42,8 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setNotes(null);
     setSlideThumbnails({});
   };
+
+  const clearNotesState = resetPresentationState;
 
   useEffect(() => {
     let socket: WebSocket | null = null;
@@ -79,6 +82,12 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           // Parse JSON format from bridge
           try {
             const data = JSON.parse(messageData);
+            if (data && (data.status === 'offline' || data.status === 'idle' || (typeof data.current_slide === 'number' && data.current_slide <= 0))) {
+              console.log('ActiveDeck: Presentation ended or bridge idle, clearing presentation state.');
+              resetPresentationState();
+              return;
+            }
+
             if (data && data.type === 'THUMBNAILS' && data.thumbnails) {
               console.log('ActiveDeck: Received all slide thumbnails from bridge:', Object.keys(data.thumbnails).length);
               const formatted: Record<number, string> = {};
@@ -118,17 +127,21 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         socket.onclose = () => {
           console.log('ActiveDeck: WebSocket connection closed. Attempting to reconnect in 3s...');
           setIsBridgeConnected(false);
+          resetPresentationState();
           reconnectTimeout = setTimeout(connect, 3000);
         };
 
         socket.onerror = (error) => {
-          // Use warn instead of error to reduce console noise when bridge isn't running
           console.warn('ActiveDeck: WebSocket connection error. Ensure your bridge is running.');
+          setIsBridgeConnected(false);
+          resetPresentationState();
         };
 
         wsRef.current = socket;
       } catch (err) {
         console.error('ActiveDeck: Failed to initialize WebSocket:', err);
+        setIsBridgeConnected(false);
+        resetPresentationState();
         reconnectTimeout = setTimeout(connect, 3000);
       }
     };
@@ -239,6 +252,7 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       totalSlides,
       notes,
       clearNotesState,
+      resetPresentationState,
       slideThumbnails,
       requestThumbnails,
       clearThumbnails
