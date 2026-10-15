@@ -98,7 +98,7 @@ def move_ppt_mac(direction):
     except Exception:
         pass
 
-def move_ppt_silently(direction):
+def move_ppt_silently(direction="next"):
     if current_os == "Windows":
         move_ppt_windows(direction)
     elif current_os == "Darwin":
@@ -110,54 +110,62 @@ def download_and_open_ppt(url):
     try:
         import ssl
         temp_dir = tempfile.gettempdir()
-        
-        # 1. Force a clean filename. Parsing Firebase URLs breaks Windows paths.
+
+        # 1. Bypass SSL verification using ssl.create_default_context(ssl.CERT_NONE)
+        try:
+            ctx = ssl.create_default_context(ssl.CERT_NONE)
+        except TypeError:
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+
+        # 2. Download the file using urllib.request and save it explicitly as activedeck_downloaded.pptx in the OS temp directory
         filepath = os.path.abspath(os.path.join(temp_dir, "activedeck_downloaded.pptx"))
 
-        # 2. Nuke old cached images so the frontend can't load a "pre-imaged" ghost presentation
+        try:
+            with urllib.request.urlopen(url, context=ctx) as resp, open(filepath, "wb") as out_file:
+                out_file.write(resp.read())
+        except Exception:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+            with urllib.request.urlopen(req, context=ctx) as resp, open(filepath, "wb") as out_file:
+                out_file.write(resp.read())
+
+        # 3. Delete all existing .jpg files in the activedeck_slides temp folder to prevent serving old cached presentations
         slides_dir = os.path.join(temp_dir, "activedeck_slides")
         if os.path.exists(slides_dir):
             for f in os.listdir(slides_dir):
-                if f.lower().endswith(('.jpg', '.jpeg', '.png')):
+                if f.lower().endswith(('.jpg', '.jpeg')):
                     try:
                         os.remove(os.path.join(slides_dir, f))
                     except Exception:
                         pass
 
-        # 3. Bypass potential local Windows SSL certificates blocking the download
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
-        with urllib.request.urlopen(req, context=ctx) as resp, open(filepath, "wb") as out_file:
-            out_file.write(resp.read())
-
+        # 4. Use win32com.client.Dispatch("PowerPoint.Application") to set Visible = True, open the presentation, and execute SlideShowSettings.Run()
         if current_os == "Windows":
             pythoncom.CoInitialize()
             try:
-                import win32com.client.dynamic
-                try:
-                    # Use dynamic dispatch to avoid PyInstaller COM cache corruption
-                    ppt_app = win32com.client.dynamic.Dispatch("PowerPoint.Application")
-                except Exception:
-                    ppt_app = win32com.client.Dispatch("PowerPoint.Application")
-
+                ppt_app = win32com.client.Dispatch("PowerPoint.Application")
                 ppt_app.Visible = True
-                # Open explicitly with WithWindow=True to prevent hidden background instances
-                presentation = ppt_app.Presentations.Open(filepath, False, False, True)
+                presentation = ppt_app.Presentations.Open(filepath)
                 presentation.SlideShowSettings.Run()
-
                 try:
                     ppt_app.Activate()
                 except Exception:
                     pass
             finally:
                 pythoncom.CoUninitialize()
+        else:
+            try:
+                ppt_app = win32com.client.Dispatch("PowerPoint.Application")
+                ppt_app.Visible = True
+                presentation = ppt_app.Presentations.Open(filepath)
+                presentation.SlideShowSettings.Run()
+            except Exception:
+                pass
     except Exception as e:
         # Write errors to a visible text file since the background console is hidden
         with open(os.path.join(tempfile.gettempdir(), "activedeck_error.log"), "w") as f:
-            f.write(f"Error in download: {str(e)}")
+            f.write(f"Error in download_and_open_ppt: {str(e)}")
 
 
 # ---------------------------------------------------------
@@ -499,7 +507,6 @@ def handle_direction_http(direction):
         return jsonify({'status': 'success', 'direction': direction})
     return jsonify({'status': 'ignored'})
 
-@sock.route('/ws')
 def handle_ws(ws):
     last_state = None
     last_sent_thumbnails_version = 0
@@ -520,7 +527,7 @@ def handle_ws(ws):
                         elif action == 'load':
                             url = payload.get('url')
                             if url:
-                                threading.Thread(target=download_and_open_ppt, args=(url,), daemon=True).start()
+                                download_and_open_ppt(url)
                                 force_send = True
                         elif action == 'get_thumbnails':
                             if _thumbnails_cache:
@@ -572,6 +579,10 @@ def handle_ws(ws):
                 last_sent_thumbnails_version = _thumbnails_version
             except Exception:
                 break
+
+@sock.route('/ws')
+def _handle_ws_route(ws):
+    handle_ws(ws)
 
 if __name__ == '__main__':
     temp_dir = os.path.join(tempfile.gettempdir(), "activedeck_slides")

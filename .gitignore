@@ -11,3 +11,4 @@ __pycache__/
 activedeck_codebase.txt
 bridge_dist/
 *.zip
+*.exe

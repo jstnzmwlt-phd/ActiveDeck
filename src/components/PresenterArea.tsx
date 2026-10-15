@@ -602,10 +602,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   };
 
   const handleLoadPpt = (customDeck?: DeckItem) => {
-    const targetDeck = customDeck || activeDeck;
-    const targetUrl = targetDeck?.url || presentation?.pptxUrl;
+    const targetUrl = presentation?.pptxUrl || customDeck?.url || activeDeck?.url;
     if (!targetUrl) return;
 
+    const targetDeck = customDeck || activeDeck;
     if (targetDeck && targetDeck.id !== selectedDeckId) {
       handleSelectDeck(targetDeck);
     }
@@ -630,10 +630,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     setIsLoadingPpt(true);
     setLoadPptSuccess(false);
 
-    // Send load command via WebSocket bridge
+    // Send JSON payload over local WebSocket connection to the Python bridge
     sendBridgeCommand({
       action: 'load',
-      url: targetUrl
+      url: presentation?.pptxUrl || targetUrl
     });
 
     setTimeout(() => {
@@ -3902,27 +3902,17 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     </span>
                   </div>
 
-                  {/* Selected Presentation Summary (Upload handled in Presentations box) */}
+                  {/* Selected Presentation Summary / Upload Component */}
                   <div className="w-full mb-4">
-                    {(activeDeck?.name || presentation?.pptxFileName) ? (
-                      <div className="p-3.5 bg-slate-800/60 border border-slate-700/60 rounded-2xl flex items-center gap-3 text-left">
-                        <div className="w-10 h-10 rounded-xl bg-osu-orange/15 border border-osu-orange/30 flex items-center justify-center flex-shrink-0 text-osu-orange">
-                          <PresentationIcon className="w-5 h-5" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Selected Deck</p>
-                          <p className="text-sm font-bold text-white truncate" title={activeDeck?.name || presentation?.pptxFileName}>
-                            {activeDeck?.name || presentation?.pptxFileName}
-                          </p>
-                        </div>
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-green-500/15 border border-green-500/30 text-green-400 flex-shrink-0">
-                          <Check className="w-3 h-3" /> Selected
-                        </span>
-                      </div>
+                    {presentation?.id ? (
+                      <PptxUploader
+                        presentationId={presentation.id}
+                        currentPptxUrl={presentation.pptxUrl}
+                        currentFileName={presentation.pptxFileName || activeDeck?.name}
+                      />
                     ) : (
                       <div className="p-4 bg-slate-800/30 border border-dashed border-slate-700/40 rounded-2xl text-center">
-                        <p className="text-xs text-slate-400 font-medium">No presentation selected</p>
-                        <p className="text-[11px] text-slate-500 mt-0.5">Click a presentation on the right or add a new one.</p>
+                        <p className="text-xs text-slate-400 font-medium">No presentation session active</p>
                       </div>
                     )}
                   </div>
@@ -3933,14 +3923,14 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                   <button
                     type="button"
                     onClick={() => handleLoadPpt()}
-                    disabled={(!activeDeck?.url && !presentation?.pptxUrl) || isLoadingPpt}
+                    disabled={!presentation?.pptxUrl || isLoadingPpt}
                     className={`flex items-center justify-center gap-2.5 w-full py-3.5 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-black uppercase tracking-wider rounded-xl transition-all active:scale-95 shadow-lg shadow-amber-600/20 text-xs cursor-pointer ${
-                      (!activeDeck?.url && !presentation?.pptxUrl) ? 'opacity-50' : ''
+                      !presentation?.pptxUrl ? 'opacity-50' : ''
                     }`}
                     title={
-                      (activeDeck?.url || presentation?.pptxUrl)
+                      presentation?.pptxUrl
                         ? "Download & launch presentation directly in PowerPoint with animations"
-                        : "Upload or select a presentation first to enable Launch PPT"
+                        : "Upload a presentation first to enable Load PPT"
                     }
                   >
                     {isLoadingPpt ? (
@@ -3956,7 +3946,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     ) : (
                       <>
                         <Play className="w-4 h-4 fill-current" />
-                        <span>Launch in PowerPoint</span>
+                        <span>Load PPT</span>
                       </>
                     )}
                   </button>
