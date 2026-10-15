@@ -328,11 +328,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [projectorCountdown, setProjectorCountdown] = useState<number | null>(null);
   const [isProjectorBlocked, setIsProjectorBlocked] = useState<boolean>(false);
   const projectorWindowRef = useRef<Window | null>(null);
   const projectorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const projectorIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const openProjectorWindow = useCallback(() => {
     if (isProjectorMode) return;
@@ -340,11 +338,6 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       clearTimeout(projectorTimeoutRef.current);
       projectorTimeoutRef.current = null;
     }
-    if (projectorIntervalRef.current) {
-      clearInterval(projectorIntervalRef.current);
-      projectorIntervalRef.current = null;
-    }
-    setProjectorCountdown(null);
 
     try {
       if (projectorWindowRef.current && !projectorWindowRef.current.closed) {
@@ -375,42 +368,16 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     }
   }, [isProjectorMode, presentation?.id, presentation?.pinCode]);
 
-  const scheduleProjectorWindow = useCallback((delayMs = 20000) => {
+  const scheduleProjectorWindow = useCallback((delayMs = 5000) => {
     if (isProjectorMode) return;
     if (projectorTimeoutRef.current) {
       clearTimeout(projectorTimeoutRef.current);
       projectorTimeoutRef.current = null;
     }
-    if (projectorIntervalRef.current) {
-      clearInterval(projectorIntervalRef.current);
-      projectorIntervalRef.current = null;
-    }
-
-    const totalSeconds = Math.round(delayMs / 1000);
-    setProjectorCountdown(totalSeconds);
     setIsProjectorBlocked(false);
 
-    console.log(`ActiveDeck: Scheduling Projector Mode popup in ${totalSeconds}s to allow PowerPoint and screen share to initialize.`);
-
-    let remaining = totalSeconds;
-    projectorIntervalRef.current = setInterval(() => {
-      remaining -= 1;
-      if (remaining > 0) {
-        setProjectorCountdown(remaining);
-      } else {
-        if (projectorIntervalRef.current) {
-          clearInterval(projectorIntervalRef.current);
-          projectorIntervalRef.current = null;
-        }
-      }
-    }, 1000);
-
+    console.log(`ActiveDeck: Screen share initiated. Projector window will pop up in ${delayMs / 1000}s.`);
     projectorTimeoutRef.current = setTimeout(() => {
-      if (projectorIntervalRef.current) {
-        clearInterval(projectorIntervalRef.current);
-        projectorIntervalRef.current = null;
-      }
-      setProjectorCountdown(null);
       openProjectorWindow();
       projectorTimeoutRef.current = null;
     }, delayMs);
@@ -421,17 +388,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       if (projectorTimeoutRef.current) {
         clearTimeout(projectorTimeoutRef.current);
       }
-      if (projectorIntervalRef.current) {
-        clearInterval(projectorIntervalRef.current);
-      }
     };
   }, []);
 
   const startCapture = useCallback(() => {
     setError(null);
-    if (!isProjectorMode && !projectorTimeoutRef.current && (!projectorWindowRef.current || projectorWindowRef.current.closed)) {
-      scheduleProjectorWindow(20000);
-    }
     const displayMediaOptions: any = {
       video: {
         displaySurface: 'window',
@@ -460,9 +421,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         }
         window.dispatchEvent(new CustomEvent('activedeck-stream-started'));
 
-        // Automatically open or focus the projector window now that the live stream is active
+        // When user clicks the Share button to share screen, wait 5 seconds before opening Projector Mode window
         if (!isProjectorMode && (!projectorWindowRef.current || projectorWindowRef.current.closed)) {
-          openProjectorWindow();
+          scheduleProjectorWindow(5000);
         }
         // Only create a new presentation session if one doesn't exist yet
         let activePresentationId = presentation?.id;
@@ -908,10 +869,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     setIsLoadingPpt(true);
     setLoadPptSuccess(false);
 
-    // 5. Trigger screen sharing immediately, and schedule Projector Mode popup with a 20s delay
-    if (!isProjectorMode) {
-      scheduleProjectorWindow(20000);
-    }
+    // 5. Trigger screen sharing immediately so faculty can select PowerPoint
     if (!stream) {
       startCapture();
     }
@@ -3944,31 +3902,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             )}
           </div>
         )}
-        
-        {/* Projector Window Countdown Banner */}
-        {projectorCountdown !== null && !isProjectorMode && (
-          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 bg-slate-900/95 border border-osu-orange/60 text-white px-5 py-2.5 rounded-2xl shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-top-4 duration-300">
-            <div className="w-7 h-7 rounded-lg bg-osu-orange/20 border border-osu-orange/30 flex items-center justify-center text-osu-orange shrink-0">
-              <Tv className="w-4 h-4 animate-pulse" />
-            </div>
-            <div className="flex items-center gap-2 text-xs">
-              <span className="font-semibold text-slate-300">Projector Mode opening in</span>
-              <span className="font-black text-osu-orange text-sm font-mono">{projectorCountdown}s</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                if (projectorIntervalRef.current) clearInterval(projectorIntervalRef.current);
-                if (projectorTimeoutRef.current) clearTimeout(projectorTimeoutRef.current);
-                setProjectorCountdown(null);
-                openProjectorWindow();
-              }}
-              className="ml-2 px-3 py-1 bg-osu-orange hover:bg-orange-500 text-white font-black text-[11px] uppercase tracking-wider rounded-lg transition-all active:scale-95 cursor-pointer shadow-sm"
-            >
-              Open Now
-            </button>
-          </div>
-        )}
+
 
         {/* Projector Window Blocked Banner */}
         {isProjectorBlocked && !isProjectorMode && (
