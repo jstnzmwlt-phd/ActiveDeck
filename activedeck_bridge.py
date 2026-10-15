@@ -108,6 +108,16 @@ def move_ppt_silently(direction="next"):
     elif current_os == "Darwin":
         move_ppt_mac(direction)
 
+def com_retry(func, max_attempts=5, delay=0.5):
+    last_err = None
+    for attempt in range(max_attempts):
+        try:
+            return func()
+        except Exception as e:
+            last_err = e
+            time.sleep(delay)
+    raise last_err
+
 def download_and_open_ppt(url):
     if not url:
         return
@@ -153,7 +163,11 @@ def download_and_open_ppt(url):
                 pythoncom.CoInitialize()
                 try:
                     ppt_app = win32com.client.Dispatch("PowerPoint.Application")
-                    ppt_app.Visible = True
+                    try:
+                        ppt_app.Visible = True
+                    except Exception:
+                        pass
+                    time.sleep(0.3)
                     try:
                         ppt_app.DisplayAlerts = 1  # ppAlertsNone - prevents blocking modal dialogs
                     except Exception:
@@ -163,7 +177,8 @@ def download_and_open_ppt(url):
                             try:
                                 ppt_app.SlideShowWindows(1).View.Exit()
                             except Exception:
-                                pass
+                                break
+                            time.sleep(0.2)
                     except Exception:
                         pass
                     try:
@@ -174,10 +189,13 @@ def download_and_open_ppt(url):
                                 p.Close()
                             except Exception:
                                 pass
+                            time.sleep(0.1)
                     except Exception:
                         pass
-                    presentation = ppt_app.Presentations.Open(filepath)
-                    presentation.SlideShowSettings.Run()
+                    time.sleep(0.3)
+                    presentation = com_retry(lambda: ppt_app.Presentations.Open(filepath), max_attempts=6, delay=0.6)
+                    time.sleep(0.3)
+                    com_retry(lambda: presentation.SlideShowSettings.Run(), max_attempts=6, delay=0.6)
                     print(f"[ActiveDeck Bridge] Launched presentation in PowerPoint: {presentation.Name} ({presentation.Slides.Count} slides)")
                     global _current_slides_dir, _last_presentation_name
                     _last_presentation_name = presentation.Name
@@ -207,9 +225,11 @@ def download_and_open_ppt(url):
             except Exception:
                 pass
     except Exception as e:
-        # Write errors to a visible text file since the background console is hidden
+        import traceback
+        err_msg = f"Error in download_and_open_ppt: {str(e)}\n{traceback.format_exc()}"
+        print(f"[ActiveDeck Bridge] {err_msg}")
         with open(os.path.join(tempfile.gettempdir(), "activedeck_error.log"), "w") as f:
-            f.write(f"Error in download_and_open_ppt: {str(e)}")
+            f.write(err_msg)
 
 
 # ---------------------------------------------------------
