@@ -430,7 +430,9 @@ def serve_slide(filename):
         target = os.path.join(SLIDES_DIR, c)
         if os.path.exists(target):
             response = make_response(send_from_directory(SLIDES_DIR, c))
-            response.headers['Cache-Control'] = 'public, max-age=86400'
+            response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = '0'
             response.headers['Access-Control-Allow-Origin'] = '*'
             return response
 

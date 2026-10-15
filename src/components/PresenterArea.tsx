@@ -189,6 +189,7 @@ export const useRenderedSlideBounds = (
 interface SlideThumbnailItemProps {
   sNum: number;
   slideNumber?: number;
+  deckId?: string;
   imgUrl?: string | null;
   fallbackUrl?: string | null;
   isCurrent: boolean;
@@ -200,6 +201,9 @@ interface SlideThumbnailItemProps {
 const SlideThumbnailItem: React.FC<SlideThumbnailItemProps> = React.memo(({
   sNum,
   slideNumber = sNum,
+  deckId,
+  imgUrl,
+  fallbackUrl,
   isCurrent,
   isFurthest,
   isUnshown,
@@ -209,6 +213,12 @@ const SlideThumbnailItem: React.FC<SlideThumbnailItemProps> = React.memo(({
   const [hasError, setHasError] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
 
+  useEffect(() => {
+    setLoaded(false);
+    setHasError(false);
+    setRetryKey(0);
+  }, [deckId, imgUrl]);
+
   const handleError = () => {
     setHasError(true);
     setLoaded(false);
@@ -217,6 +227,13 @@ const SlideThumbnailItem: React.FC<SlideThumbnailItemProps> = React.memo(({
       setRetryKey(prev => prev + 1);
     }, 1200);
   };
+
+  const queryParams = new URLSearchParams();
+  if (deckId) queryParams.set('d', deckId);
+  if (retryKey > 0) queryParams.set('r', retryKey.toString());
+  const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
+
+  const imageSrc = imgUrl || `http://127.0.0.1:5000/slides/${slideNumber}.jpg${queryString}`;
 
   return (
     <button
@@ -246,7 +263,8 @@ const SlideThumbnailItem: React.FC<SlideThumbnailItemProps> = React.memo(({
 
         {/* Slide image pointing to local Python bridge with cache-friendly URL */}
         <img
-          src={`http://127.0.0.1:5000/slides/${slideNumber}.jpg${retryKey > 0 ? `?r=${retryKey}` : ''}`}
+          key={imageSrc}
+          src={imageSrc}
           alt={`Slide ${slideNumber}`}
           className={`absolute inset-0 w-full h-full object-cover bg-black transition-opacity duration-200 ${
             loaded && !hasError ? 'opacity-100' : 'opacity-0'
@@ -1781,7 +1799,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         // 3. Fallback to clean, static slide image exported by the PowerPoint bridge if video was unavailable
         if (!blob && isBridgeConnected) {
           try {
-            const slideUrl = `http://127.0.0.1:5000/slides/${activeSlideNum}.jpg`;
+            const slideUrl = `http://127.0.0.1:5000/slides/${activeSlideNum}.jpg${activeDeckKey ? `?d=${encodeURIComponent(activeDeckKey)}` : ''}`;
             const response = await fetch(slideUrl);
             if (response.ok) {
               blob = await response.blob();
@@ -3686,9 +3704,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
                                 return (
                                   <SlideThumbnailItem
-                                    key={`nav-slide-${sNum}`}
+                                    key={`nav-slide-${sNum}-${activeDeckKey}`}
                                     sNum={sNum}
                                     slideNumber={slideNumber}
+                                    deckId={activeDeckKey}
+                                    imgUrl={slideThumbnails[sNum] || null}
                                     isCurrent={isCurrent}
                                     isFurthest={isFurthest}
                                     isUnshown={isUnshown}
