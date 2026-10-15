@@ -327,6 +327,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const isPresentationActive = isCapturing || isBridgeActivePresentation;
 
   const [stream, setStream] = useState<MediaStream | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const projectorWindowRef = useRef<Window | null>(null);
   const projectorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
