@@ -3907,7 +3907,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             <div className="flex flex-col lg:flex-row items-stretch justify-center gap-6 max-w-5xl w-full my-auto">
               
               {/* Left Column: Ready to Present? Card */}
-              <div className="bg-slate-900/90 border border-slate-800 rounded-3xl shadow-2xl p-7 w-full lg:w-1/2 flex flex-col items-center justify-between text-center relative">
+              <div className="bg-slate-900/90 border border-slate-800 rounded-3xl shadow-2xl p-7 w-full lg:w-1/2 lg:flex-1 lg:min-w-0 min-h-[500px] flex flex-col items-center justify-between text-center relative">
                 <div className="w-full flex flex-col items-center">
                   <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-3 transition-all duration-500 shadow-lg ${
                     isBridgeConnected 
@@ -3935,7 +3935,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         currentFileName={presentation.pptxFileName || activeDeck?.name}
                       />
                     ) : (
-                      <div className="p-4 bg-slate-800/30 border border-dashed border-slate-700/40 rounded-2xl text-center">
+                      <div className="h-[120px] min-h-[120px] max-h-[120px] flex flex-col items-center justify-center p-4 bg-slate-800/30 border border-dashed border-slate-700/40 rounded-2xl text-center">
                         <p className="text-xs text-slate-400 font-medium">No presentation session active</p>
                       </div>
                     )}
@@ -4021,7 +4021,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
-                className={`bg-slate-900/90 border rounded-3xl shadow-2xl p-7 w-full lg:w-1/2 flex flex-col justify-between transition-all ${
+                className={`bg-slate-900/90 border rounded-3xl shadow-2xl p-7 w-full lg:w-1/2 lg:flex-1 lg:min-w-0 min-h-[500px] flex flex-col justify-between transition-all ${
                   isDraggingOver 
                     ? 'border-osu-orange/80 bg-slate-900 ring-2 ring-osu-orange/40' 
                     : 'border-slate-800'
@@ -4076,7 +4076,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 )}
 
                 {/* Presentations List Body */}
-                <div className="flex-1 overflow-y-auto space-y-2.5 max-h-[320px] pr-1 custom-scrollbar min-h-[220px]">
+                <div className="flex-1 overflow-y-auto space-y-2.5 h-[320px] max-h-[320px] pr-1 custom-scrollbar">
                   {effectiveDecks.length === 0 ? (
                     <div 
                       onClick={() => multiFileInputRef.current?.click()}
@@ -4102,13 +4102,13 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                           onClick={() => {
                             handleSelectDeck(deck);
                           }}
-                          className={`group relative p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                          className={`group relative px-3.5 py-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 h-[68px] min-h-[68px] shrink-0 ${
                             isSelected
                               ? 'bg-osu-orange/10 border-osu-orange/70 shadow-lg shadow-osu-orange/10 ring-1 ring-osu-orange/50'
                               : 'bg-slate-850/60 hover:bg-slate-800/80 border-slate-800 hover:border-slate-700'
                           }`}
                         >
-                          <div className="flex items-center gap-3 min-w-0">
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
                             {/* File presentation icon */}
                             <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 transition-colors ${
                               isSelected 
@@ -4119,8 +4119,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                             </div>
 
                             <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2">
-                                <span className={`text-xs font-bold truncate ${
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className={`text-xs font-bold truncate block min-w-0 ${
                                   isSelected ? 'text-white' : 'text-slate-200 group-hover:text-white'
                                 }`} title={deck.name}>
                                   {deck.name}
@@ -4131,7 +4131,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                                   </span>
                                 )}
                               </div>
-                              <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-0.5">
+                              <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-0.5 truncate">
                                 {deck.size ? (
                                   <span>{formatFileSize(deck.size)}</span>
                                 ) : null}

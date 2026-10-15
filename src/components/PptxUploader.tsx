@@ -154,7 +154,7 @@ export const PptxUploader: React.FC<PptxUploaderProps> = ({
 
       <div
         onClick={() => !isUploading && presentationId && fileInputRef.current?.click()}
-        className={`group relative border-2 border-dashed rounded-2xl p-4 text-center transition-all cursor-pointer select-none ${
+        className={`group relative border-2 border-dashed rounded-2xl p-4 text-center transition-all cursor-pointer select-none h-[120px] min-h-[120px] max-h-[120px] flex items-center justify-center ${
           isUploading
             ? 'border-osu-orange/50 bg-osu-orange/5 cursor-wait'
             : currentPptxUrl || isSuccess
@@ -162,42 +162,42 @@ export const PptxUploader: React.FC<PptxUploaderProps> = ({
             : 'border-slate-700 hover:border-osu-orange/60 bg-slate-850/60 hover:bg-slate-800/60'
         }`}
       >
-        <div className="flex flex-col items-center justify-center gap-2">
+        <div className="flex flex-col items-center justify-center gap-1.5 w-full min-w-0">
           {isUploading ? (
             <>
-              <div className="w-10 h-10 rounded-full bg-osu-orange/10 flex items-center justify-center">
-                <Loader2 className="w-5 h-5 text-osu-orange animate-spin" />
+              <div className="w-8 h-8 rounded-full bg-osu-orange/10 flex items-center justify-center shrink-0">
+                <Loader2 className="w-4 h-4 text-osu-orange animate-spin" />
               </div>
-              <div className="space-y-0.5">
-                <p className="text-xs font-bold text-white">Uploading PowerPoint (.pptx)...</p>
-                <p className="text-[10px] text-slate-400 truncate max-w-[220px]">{fileName}</p>
+              <div className="w-full min-w-0 space-y-0.5">
+                <p className="text-xs font-bold text-white truncate">Uploading PowerPoint (.pptx)...</p>
+                <p className="text-[10px] text-slate-400 truncate max-w-[280px] mx-auto block">{fileName}</p>
               </div>
             </>
           ) : currentPptxUrl || isSuccess ? (
             <>
-              <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/30">
-                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+              <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/30 shrink-0">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
               </div>
-              <div className="space-y-0.5">
-                <p className="text-xs font-bold text-emerald-300">PowerPoint Uploaded</p>
-                <p className="text-[10px] text-slate-400 truncate max-w-[220px]">
+              <div className="w-full min-w-0 space-y-0.5">
+                <p className="text-xs font-bold text-emerald-300 truncate">PowerPoint Uploaded</p>
+                <p className="text-[10px] text-slate-400 truncate max-w-[280px] mx-auto block" title={fileName || currentFileName || 'source.pptx'}>
                   {fileName || currentFileName || 'source.pptx'}
                 </p>
-                <p className="text-[9px] text-slate-500 underline hover:text-slate-400 pt-0.5">
+                <p className="text-[9px] text-slate-500 underline hover:text-slate-400">
                   Click to replace file
                 </p>
               </div>
             </>
           ) : (
             <>
-              <div className="w-10 h-10 rounded-full bg-slate-800 group-hover:bg-osu-orange/10 flex items-center justify-center border border-slate-700 group-hover:border-osu-orange/40 transition-colors">
-                <UploadCloud className="w-5 h-5 text-slate-400 group-hover:text-osu-orange transition-colors" />
+              <div className="w-8 h-8 rounded-full bg-slate-800 group-hover:bg-osu-orange/10 flex items-center justify-center border border-slate-700 group-hover:border-osu-orange/40 transition-colors shrink-0">
+                <UploadCloud className="w-4 h-4 text-slate-400 group-hover:text-osu-orange transition-colors" />
               </div>
-              <div className="space-y-0.5">
-                <p className="text-xs font-bold text-slate-200 group-hover:text-white transition-colors">
+              <div className="w-full min-w-0 space-y-0.5">
+                <p className="text-xs font-bold text-slate-200 group-hover:text-white transition-colors truncate">
                   Upload PowerPoint (.pptx)
                 </p>
-                <p className="text-[10px] text-slate-400">
+                <p className="text-[10px] text-slate-400 truncate max-w-[280px] mx-auto block">
                   Select your presentation file to sync with ActiveDeck
                 </p>
               </div>
