@@ -328,8 +328,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [projectorCountdown, setProjectorCountdown] = useState<number | null>(null);
+  const [isProjectorBlocked, setIsProjectorBlocked] = useState<boolean>(false);
   const projectorWindowRef = useRef<Window | null>(null);
   const projectorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const projectorIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const openProjectorWindow = useCallback(() => {
     if (isProjectorMode) return;
@@ -337,9 +340,16 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       clearTimeout(projectorTimeoutRef.current);
       projectorTimeoutRef.current = null;
     }
+    if (projectorIntervalRef.current) {
+      clearInterval(projectorIntervalRef.current);
+      projectorIntervalRef.current = null;
+    }
+    setProjectorCountdown(null);
+
     try {
       if (projectorWindowRef.current && !projectorWindowRef.current.closed) {
         projectorWindowRef.current.focus();
+        setIsProjectorBlocked(false);
         return;
       }
       const url = new URL(window.location.href);
@@ -350,9 +360,18 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         url.searchParams.set('pin', presentation.pinCode);
       }
       url.searchParams.set('view', 'projector');
-      projectorWindowRef.current = window.open(url.toString(), '_blank', 'popup=yes,width=1280,height=720,resizable=yes,scrollbars=yes');
+      const win = window.open(url.toString(), '_blank', 'popup=yes,width=1280,height=720,resizable=yes,scrollbars=yes');
+      
+      if (!win || win.closed || typeof win.closed === 'undefined') {
+        console.warn('ActiveDeck: Projector window popup was blocked by the browser.');
+        setIsProjectorBlocked(true);
+      } else {
+        projectorWindowRef.current = win;
+        setIsProjectorBlocked(false);
+      }
     } catch (err) {
       console.error('Failed to automatically open Projector Mode screen:', err);
+      setIsProjectorBlocked(true);
     }
   }, [isProjectorMode, presentation?.id, presentation?.pinCode]);
 
@@ -360,9 +379,38 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     if (isProjectorMode) return;
     if (projectorTimeoutRef.current) {
       clearTimeout(projectorTimeoutRef.current);
+      projectorTimeoutRef.current = null;
     }
-    console.log(`ActiveDeck: Scheduling Projector Mode popup in ${delayMs / 1000}s to allow PowerPoint and screen share to initialize.`);
+    if (projectorIntervalRef.current) {
+      clearInterval(projectorIntervalRef.current);
+      projectorIntervalRef.current = null;
+    }
+
+    const totalSeconds = Math.round(delayMs / 1000);
+    setProjectorCountdown(totalSeconds);
+    setIsProjectorBlocked(false);
+
+    console.log(`ActiveDeck: Scheduling Projector Mode popup in ${totalSeconds}s to allow PowerPoint and screen share to initialize.`);
+
+    let remaining = totalSeconds;
+    projectorIntervalRef.current = setInterval(() => {
+      remaining -= 1;
+      if (remaining > 0) {
+        setProjectorCountdown(remaining);
+      } else {
+        if (projectorIntervalRef.current) {
+          clearInterval(projectorIntervalRef.current);
+          projectorIntervalRef.current = null;
+        }
+      }
+    }, 1000);
+
     projectorTimeoutRef.current = setTimeout(() => {
+      if (projectorIntervalRef.current) {
+        clearInterval(projectorIntervalRef.current);
+        projectorIntervalRef.current = null;
+      }
+      setProjectorCountdown(null);
       openProjectorWindow();
       projectorTimeoutRef.current = null;
     }, delayMs);
@@ -372,6 +420,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     return () => {
       if (projectorTimeoutRef.current) {
         clearTimeout(projectorTimeoutRef.current);
+      }
+      if (projectorIntervalRef.current) {
+        clearInterval(projectorIntervalRef.current);
       }
     };
   }, []);
@@ -408,6 +459,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           console.error("ActiveDeck: Error broadcasting stream-started:", bcErr);
         }
         window.dispatchEvent(new CustomEvent('activedeck-stream-started'));
+
+        // Automatically open or focus the projector window now that the live stream is active
+        if (!isProjectorMode && (!projectorWindowRef.current || projectorWindowRef.current.closed)) {
+          openProjectorWindow();
+        }
         // Only create a new presentation session if one doesn't exist yet
         let activePresentationId = presentation?.id;
         if (!presentation && onCreatePresentation) {
@@ -3889,6 +3945,62 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           </div>
         )}
         
+        {/* Projector Window Countdown Banner */}
+        {projectorCountdown !== null && !isProjectorMode && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 bg-slate-900/95 border border-osu-orange/60 text-white px-5 py-2.5 rounded-2xl shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-top-4 duration-300">
+            <div className="w-7 h-7 rounded-lg bg-osu-orange/20 border border-osu-orange/30 flex items-center justify-center text-osu-orange shrink-0">
+              <Tv className="w-4 h-4 animate-pulse" />
+            </div>
+            <div className="flex items-center gap-2 text-xs">
+              <span className="font-semibold text-slate-300">Projector Mode opening in</span>
+              <span className="font-black text-osu-orange text-sm font-mono">{projectorCountdown}s</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (projectorIntervalRef.current) clearInterval(projectorIntervalRef.current);
+                if (projectorTimeoutRef.current) clearTimeout(projectorTimeoutRef.current);
+                setProjectorCountdown(null);
+                openProjectorWindow();
+              }}
+              className="ml-2 px-3 py-1 bg-osu-orange hover:bg-orange-500 text-white font-black text-[11px] uppercase tracking-wider rounded-lg transition-all active:scale-95 cursor-pointer shadow-sm"
+            >
+              Open Now
+            </button>
+          </div>
+        )}
+
+        {/* Projector Window Blocked Banner */}
+        {isProjectorBlocked && !isProjectorMode && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 bg-slate-900/95 border-2 border-osu-orange text-white px-5 py-2.5 rounded-2xl shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-top-4 duration-300">
+            <div className="w-7 h-7 rounded-lg bg-osu-orange/20 border border-osu-orange/30 flex items-center justify-center text-osu-orange shrink-0">
+              <Tv className="w-4 h-4" />
+            </div>
+            <div className="flex flex-col text-left">
+              <span className="text-xs font-bold text-white">Projector Mode Screen Ready</span>
+              <span className="text-[10px] text-slate-400">Pop-up was blocked by browser. Click to launch.</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                openProjectorWindow();
+                setIsProjectorBlocked(false);
+              }}
+              className="ml-2 px-3 py-1.5 bg-osu-orange hover:bg-orange-500 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 cursor-pointer shrink-0"
+            >
+              Open Projector
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsProjectorBlocked(false)}
+              className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer"
+              title="Dismiss"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
         {/* Floating Setup Instructions Bubble - Shown in the top-left when not capturing */}
         {!isPresentationActive && !error && !isProjectorMode && (
           <button 
