@@ -146,6 +146,16 @@ def download_and_open_ppt(url):
             try:
                 ppt_app = win32com.client.Dispatch("PowerPoint.Application")
                 ppt_app.Visible = True
+                try:
+                    while ppt_app.SlideShowWindows.Count > 0:
+                        ppt_app.SlideShowWindows(1).View.Exit()
+                except Exception:
+                    pass
+                try:
+                    for i in range(ppt_app.Presentations.Count, 0, -1):
+                        ppt_app.Presentations(i).Close()
+                except Exception:
+                    pass
                 presentation = ppt_app.Presentations.Open(filepath)
                 presentation.SlideShowSettings.Run()
                 try:
@@ -158,6 +168,16 @@ def download_and_open_ppt(url):
             try:
                 ppt_app = win32com.client.Dispatch("PowerPoint.Application")
                 ppt_app.Visible = True
+                try:
+                    while ppt_app.SlideShowWindows.Count > 0:
+                        ppt_app.SlideShowWindows(1).View.Exit()
+                except Exception:
+                    pass
+                try:
+                    for i in range(ppt_app.Presentations.Count, 0, -1):
+                        ppt_app.Presentations(i).Close()
+                except Exception:
+                    pass
                 presentation = ppt_app.Presentations.Open(filepath)
                 presentation.SlideShowSettings.Run()
             except Exception:
