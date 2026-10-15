@@ -204,25 +204,16 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const sendBridgeCommand = (payload: any) => {
-    let wsSent = false;
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       try {
         const msg = typeof payload === 'string' ? payload : JSON.stringify(payload);
         console.log('ActiveDeck: Sending command to bridge via WebSocket:', msg);
         wsRef.current.send(msg);
-        wsSent = true;
       } catch (e) {
         console.warn('ActiveDeck: WebSocket bridge send error:', e);
       }
     } else {
-      console.warn('ActiveDeck: WebSocket bridge not connected. Falling back to background triggers for payload:', payload);
-    }
-
-    // Direct HTTP ping fallback for 'load' action (immune to CORS & mixed content)
-    if (payload && payload.action === 'load' && payload.url) {
-      console.log('ActiveDeck: Triggering HTTP /load bridge fallback...');
-      const img = new Image();
-      img.src = `http://127.0.0.1:5000/load?url=${encodeURIComponent(payload.url)}&t=${Date.now()}`;
+      console.warn('ActiveDeck: WebSocket bridge not connected for payload:', payload);
     }
   };
 

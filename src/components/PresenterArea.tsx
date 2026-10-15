@@ -498,6 +498,51 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     }
   }, [isBridgeConnected, activeDeckKey]);
 
+  const clearPresentationSlideStateInFirestore = async () => {
+    if (!presentation?.id) return;
+    try {
+      await updateDoc(doc(db, 'presentations', presentation.id), {
+        currentSlideBase64: null,
+        current_slide_base64: null,
+        currentSlide: 0,
+        totalSlides: 0
+      });
+      console.log("ActiveDeck: Cleared active presentation slide state in Firestore.");
+    } catch (err) {
+      console.error("ActiveDeck: Error clearing presentation slide state in Firestore:", err);
+    }
+  };
+
+  const clearLocalAndBroadcastSlideState = () => {
+    resetPresentationState();
+    clearThumbnails();
+    setSyncedProjectorBase64(null);
+    setSyncedProjectorSlide(null);
+    setSyncedProjectorTotal(null);
+    setCurrentSlidePreviewUrl(null);
+    setNextSlidePreviewUrl(null);
+    setDisplayedNextSlideUrl(null);
+    if (presentation?.id && typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem(`activedeck_sync_${presentation.id}`);
+      } catch (e) {}
+    }
+    if (presentation?.id) {
+      try {
+        const channel = new BroadcastChannel('activedeck-slide-sync');
+        channel.postMessage({
+          type: 'slide-update',
+          presentationId: presentation.id,
+          deckId: activeDeckKey,
+          currentSlide: 0,
+          currentSlideBase64: null,
+          totalSlides: 0
+        });
+        channel.close();
+      } catch (e) {}
+    }
+  };
+
   const handleSelectDeck = async (deck: DeckItem) => {
     setSelectedDeckId(deck.id);
     sessionStorage.setItem('activeDeckSelectedId', deck.id);
@@ -506,12 +551,17 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         localStorage.setItem(`activeDeckLastSelectedDeckId_${effectivePresenterEmail}`, deck.id);
       } catch (e) {}
     }
+    clearLocalAndBroadcastSlideState();
     if (!presentation?.id) return;
     try {
       await updateDoc(doc(db, 'presentations', presentation.id), {
         pptxUrl: deck.url,
         pptxFileName: deck.name,
-        selectedDeckId: deck.id
+        selectedDeckId: deck.id,
+        currentSlideBase64: null,
+        current_slide_base64: null,
+        currentSlide: 0,
+        totalSlides: 0
       });
       if (effectivePresenterEmail) {
         await setDoc(doc(db, 'whitelistedPresenters', effectivePresenterEmail), {
@@ -657,6 +707,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       handleSelectDeck(targetDeck);
     }
 
+    // Immediately clear slide state in Firestore and locally so Projector View immediately goes blank
+    clearLocalAndBroadcastSlideState();
+    clearPresentationSlideStateInFirestore();
+
     // Automatically activate Projector Mode screen in a popup window
     if (!isProjectorMode) {
       try {
@@ -677,10 +731,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     setIsLoadingPpt(true);
     setLoadPptSuccess(false);
 
-    // Send JSON payload over local WebSocket connection to the Python bridge
+    // Send JSON payload strictly over local WebSocket connection to the Python bridge
+    const pptxUrl = presentation?.pptxUrl || targetUrl;
     sendBridgeCommand({
       action: 'load',
-      url: presentation?.pptxUrl || targetUrl
+      url: pptxUrl
     });
 
     setTimeout(() => {
@@ -1221,8 +1276,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const effectiveSlideBase64 = 
     (isProjectorMode && syncedProjectorBase64) 
       ? syncedProjectorBase64 
-      : (isProjectorMode && presentation?.currentSlideBase64)
-        ? presentation.currentSlideBase64
+      : (isProjectorMode && (presentation?.currentSlideBase64 || (presentation as any)?.current_slide_base64))
+        ? (presentation?.currentSlideBase64 || (presentation as any)?.current_slide_base64)
         : (isBridgeConnected && (isPresentationActive || isBridgeActivePresentation) && currentSlideBase64)
           ? currentSlideBase64
           : null;
@@ -1323,15 +1378,27 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         const cached = localStorage.getItem(`activedeck_sync_${presentation.id}`);
         if (cached) {
           const parsed = JSON.parse(cached);
-          if (typeof parsed.currentSlide === 'number') {
-            setSyncedProjectorSlide(parsed.currentSlide);
+          const slideBase64 = parsed.currentSlideBase64 || parsed.current_slide_base64;
+          const slideNum = parsed.currentSlide;
+          if (typeof slideNum === 'number' && slideNum > 0) {
+            setSyncedProjectorSlide(slideNum);
             setIsCapturing(true);
+          } else {
+            setSyncedProjectorSlide(null);
           }
-          if (parsed.currentSlideBase64) {
-            setSyncedProjectorBase64(parsed.currentSlideBase64);
+          if (slideBase64 && typeof slideBase64 === 'string') {
+            setSyncedProjectorBase64(slideBase64);
+            setIsCapturing(true);
+          } else {
+            setSyncedProjectorBase64(null);
           }
-          if (typeof parsed.totalSlides === 'number') {
+          if (!slideBase64 && (!slideNum || slideNum <= 0)) {
+            setIsCapturing(false);
+          }
+          if (typeof parsed.totalSlides === 'number' && parsed.totalSlides > 0) {
             setSyncedProjectorTotal(parsed.totalSlides);
+          } else {
+            setSyncedProjectorTotal(null);
           }
         }
       } catch (e) {}
@@ -1340,16 +1407,22 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     const channel = new BroadcastChannel('activedeck-slide-sync');
     const handleSync = (e: MessageEvent) => {
       if (e.data && e.data.type === 'slide-update' && e.data.presentationId === presentation?.id) {
-        if (typeof e.data.currentSlide === 'number' && e.data.currentSlide > 0) {
-          setSyncedProjectorSlide(e.data.currentSlide);
+        const slideBase64 = e.data.currentSlideBase64 || e.data.current_slide_base64;
+        const slideNum = e.data.currentSlide;
+        if (typeof slideNum === 'number' && slideNum > 0) {
+          setSyncedProjectorSlide(slideNum);
           setIsCapturing(true);
         } else {
           setSyncedProjectorSlide(null);
         }
-        if (e.data.currentSlideBase64 && typeof e.data.currentSlideBase64 === 'string') {
-          setSyncedProjectorBase64(e.data.currentSlideBase64);
+        if (slideBase64 && typeof slideBase64 === 'string') {
+          setSyncedProjectorBase64(slideBase64);
+          setIsCapturing(true);
         } else {
           setSyncedProjectorBase64(null);
+        }
+        if (!slideBase64 && (!slideNum || slideNum <= 0)) {
+          setIsCapturing(false);
         }
         if (typeof e.data.totalSlides === 'number' && e.data.totalSlides > 0) {
           setSyncedProjectorTotal(e.data.totalSlides);
@@ -1373,17 +1446,22 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     const unsubDoc = onSnapshot(doc(db, 'presentations', presentation.id), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        if (data.currentSlideBase64 && typeof data.currentSlideBase64 === 'string') {
-          setSyncedProjectorBase64(data.currentSlideBase64);
+        const slideBase64 = data.currentSlideBase64 || data.current_slide_base64;
+        const slideNum = data.currentSlide;
+        if (slideBase64 && typeof slideBase64 === 'string') {
+          setSyncedProjectorBase64(slideBase64);
           setIsCapturing(true);
         } else {
           setSyncedProjectorBase64(null);
         }
-        if (typeof data.currentSlide === 'number' && data.currentSlide > 0) {
-          setSyncedProjectorSlide(data.currentSlide);
+        if (typeof slideNum === 'number' && slideNum > 0) {
+          setSyncedProjectorSlide(slideNum);
           setIsCapturing(true);
         } else {
           setSyncedProjectorSlide(null);
+        }
+        if (!slideBase64 && (!slideNum || slideNum <= 0)) {
+          setIsCapturing(false);
         }
         if (typeof data.totalSlides === 'number' && data.totalSlides > 0) {
           setSyncedProjectorTotal(data.totalSlides);
@@ -3221,19 +3299,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       setStream(null);
     }
     setIsCapturing(false);
-    resetPresentationState();
-    clearThumbnails();
-    setSyncedProjectorBase64(null);
-    setSyncedProjectorSlide(null);
-    setSyncedProjectorTotal(null);
-    setCurrentSlidePreviewUrl(null);
-    setNextSlidePreviewUrl(null);
-    setDisplayedNextSlideUrl(null);
-    if (presentation?.id && typeof window !== 'undefined') {
-      try {
-        localStorage.removeItem(`activedeck_sync_${presentation.id}`);
-      } catch (e) {}
-    }
+    clearLocalAndBroadcastSlideState();
     (window as any).activeDeckStream = null;
 
     // Reset drawings locally and exit pen mode
@@ -3250,8 +3316,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         presenterDrawings: {},
         activeDrawingStrokeJSON: null,
         currentSlideBase64: null,
-        currentSlide: null,
-        totalSlides: null
+        current_slide_base64: null,
+        currentSlide: 0,
+        totalSlides: 0
       }).catch(err => {
         console.error("ActiveDeck: Error clearing presentation state in Firebase on stop capture:", err);
       });
@@ -3262,20 +3329,6 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       channel.postMessage({
         type: 'clear-all-drawings',
         presentationId: presentation?.id
-      });
-      channel.close();
-    } catch (e) {}
-
-    // Broadcast that slide state has cleared
-    try {
-      const channel = new BroadcastChannel('activedeck-slide-sync');
-      channel.postMessage({
-        type: 'slide-update',
-        presentationId: presentation?.id,
-        deckId: activeDeckKey,
-        currentSlide: null,
-        currentSlideBase64: null,
-        totalSlides: null
       });
       channel.close();
     } catch (e) {}
