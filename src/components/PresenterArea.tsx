@@ -3356,6 +3356,65 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
   return (
     <div className="flex flex-col h-full bg-black relative group">
+      {/* Projector Mode: Slide to audience display tip */}
+      {showProjectorSlideTip && isProjectorMode && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 bg-slate-900/95 border-2 border-osu-orange text-white px-5 py-3 rounded-2xl shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="w-8 h-8 rounded-xl bg-osu-orange/20 border border-osu-orange/30 flex items-center justify-center text-osu-orange shrink-0">
+            <Monitor className="w-4 h-4" />
+          </div>
+          <div className="flex flex-col text-left">
+            <span className="text-xs font-bold text-white">Audience Display</span>
+            <span className="text-[11px] text-slate-300">Please slide this screen to the audience display screen</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowProjectorSlideTip(false)}
+            className="ml-2 px-3 py-1 bg-osu-orange hover:bg-orange-500 text-white font-black text-xs uppercase tracking-wider rounded-lg transition-all active:scale-95 cursor-pointer shadow"
+          >
+            Got it
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowProjectorSlideTip(false)}
+            className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer"
+            title="Dismiss"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Projector Window Blocked Banner */}
+      {isProjectorBlocked && !isProjectorMode && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 bg-slate-900/95 border-2 border-osu-orange text-white px-5 py-2.5 rounded-2xl shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="w-7 h-7 rounded-lg bg-osu-orange/20 border border-osu-orange/30 flex items-center justify-center text-osu-orange shrink-0">
+            <Tv className="w-4 h-4" />
+          </div>
+          <div className="flex flex-col text-left">
+            <span className="text-xs font-bold text-white">Projector Mode Screen Ready</span>
+            <span className="text-[10px] text-slate-400">Pop-up was blocked by browser. Click to launch.</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              openProjectorWindow();
+              setIsProjectorBlocked(false);
+            }}
+            className="ml-2 px-3 py-1.5 bg-osu-orange hover:bg-orange-500 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 cursor-pointer shrink-0"
+          >
+            Open Projector
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsProjectorBlocked(false)}
+            className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer"
+            title="Dismiss"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* Presenter Control Bar - Displays off the slide area */}
       {isPresentationActive && !isProjectorMode && (
         <div className="bg-slate-900 border-b border-slate-800 px-4 py-2 flex items-center justify-between z-[70] shrink-0 select-none relative">
@@ -3913,65 +3972,6 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           </div>
         )}
 
-
-        {/* Projector Mode: Slide to audience display tip */}
-        {showProjectorSlideTip && isProjectorMode && (
-          <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 bg-slate-900/95 border-2 border-osu-orange text-white px-5 py-3 rounded-2xl shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-top-4 duration-300">
-            <div className="w-8 h-8 rounded-xl bg-osu-orange/20 border border-osu-orange/30 flex items-center justify-center text-osu-orange shrink-0">
-              <Monitor className="w-4 h-4" />
-            </div>
-            <div className="flex flex-col text-left">
-              <span className="text-xs font-bold text-white">Audience Display</span>
-              <span className="text-[11px] text-slate-300">Please slide this screen to the audience display screen</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowProjectorSlideTip(false)}
-              className="ml-2 px-3 py-1 bg-osu-orange hover:bg-orange-500 text-white font-black text-xs uppercase tracking-wider rounded-lg transition-all active:scale-95 cursor-pointer shadow"
-            >
-              Got it
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowProjectorSlideTip(false)}
-              className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer"
-              title="Dismiss"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-
-        {/* Projector Window Blocked Banner */}
-        {isProjectorBlocked && !isProjectorMode && (
-          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 bg-slate-900/95 border-2 border-osu-orange text-white px-5 py-2.5 rounded-2xl shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-top-4 duration-300">
-            <div className="w-7 h-7 rounded-lg bg-osu-orange/20 border border-osu-orange/30 flex items-center justify-center text-osu-orange shrink-0">
-              <Tv className="w-4 h-4" />
-            </div>
-            <div className="flex flex-col text-left">
-              <span className="text-xs font-bold text-white">Projector Mode Screen Ready</span>
-              <span className="text-[10px] text-slate-400">Pop-up was blocked by browser. Click to launch.</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                openProjectorWindow();
-                setIsProjectorBlocked(false);
-              }}
-              className="ml-2 px-3 py-1.5 bg-osu-orange hover:bg-orange-500 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 cursor-pointer shrink-0"
-            >
-              Open Projector
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsProjectorBlocked(false)}
-              className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer"
-              title="Dismiss"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
 
         {/* Floating Setup Instructions Bubble - Shown in the top-left when not capturing */}
         {!isPresentationActive && !error && !isProjectorMode && (
