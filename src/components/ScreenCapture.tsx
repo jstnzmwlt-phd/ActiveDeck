@@ -47,19 +47,13 @@ export const ScreenCapture: React.FC<ScreenCaptureProps> = ({
   );
 
   // 2. Safe slide image detection (from Bridge / Load PPT / Firebase synced state)
-  // Ensure we only use valid base64 data URLs or preview URLs, avoiding broken image fallbacks
-  const isImageActive = isBridgeConnected || isCapturing || isProjectorMode;
-  const validSlideSrc = isImageActive ? (
-    (
-      currentSlideBase64 && 
-      typeof currentSlideBase64 === 'string' && 
-      (currentSlideBase64.startsWith('data:image') || currentSlideBase64.startsWith('blob:') || currentSlideBase64.startsWith('http'))
-    ) ? currentSlideBase64 : (
-      currentSlidePreviewUrl &&
-      typeof currentSlidePreviewUrl === 'string' &&
-      (currentSlidePreviewUrl.startsWith('data:image') || currentSlidePreviewUrl.startsWith('blob:') || currentSlidePreviewUrl.startsWith('http'))
-    ) ? currentSlidePreviewUrl : null
-  ) : null;
+  // When currentSlideBase64 is null, the renderer strictly falls back to the default dark theme without preserving stale images
+  const validSlideSrc = (
+    (isBridgeConnected || isCapturing || isProjectorMode) &&
+    currentSlideBase64 && 
+    typeof currentSlideBase64 === 'string' && 
+    (currentSlideBase64.startsWith('data:image') || currentSlideBase64.startsWith('blob:') || currentSlideBase64.startsWith('http'))
+  ) ? currentSlideBase64 : null;
 
   // Handle video element stream attachment
   useEffect(() => {

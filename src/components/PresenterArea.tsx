@@ -337,11 +337,16 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       setCurrentSlidePreviewUrl(null);
       setNextSlidePreviewUrl(null);
       setDisplayedNextSlideUrl(null);
+      if (presentation?.id && typeof window !== 'undefined') {
+        try {
+          localStorage.removeItem(`activedeck_sync_${presentation.id}`);
+        } catch (e) {}
+      }
       if (!stream) {
         setIsCapturing(false);
       }
     }
-  }, [isBridgeConnected, stream, resetPresentationState, clearThumbnails]);
+  }, [isBridgeConnected, stream, presentation?.id, resetPresentationState, clearThumbnails]);
 
   // When bridge presentation ends or is idle, reset capturing and slide states
   useEffect(() => {
@@ -356,8 +361,13 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       setCurrentSlidePreviewUrl(null);
       setNextSlidePreviewUrl(null);
       setDisplayedNextSlideUrl(null);
+      if (presentation?.id && typeof window !== 'undefined') {
+        try {
+          localStorage.removeItem(`activedeck_sync_${presentation.id}`);
+        } catch (e) {}
+      }
     }
-  }, [isCapturing, stream, isBridgeActivePresentation, currentSlide, isProjectorMode, resetPresentationState, clearThumbnails]);
+  }, [isCapturing, stream, isBridgeActivePresentation, currentSlide, isProjectorMode, presentation?.id, resetPresentationState, clearThumbnails]);
   const [isLoadingPpt, setIsLoadingPpt] = useState(false);
   const [loadPptSuccess, setLoadPptSuccess] = useState(false);
 
@@ -1330,15 +1340,21 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     const channel = new BroadcastChannel('activedeck-slide-sync');
     const handleSync = (e: MessageEvent) => {
       if (e.data && e.data.type === 'slide-update' && e.data.presentationId === presentation?.id) {
-        if (typeof e.data.currentSlide === 'number') {
+        if (typeof e.data.currentSlide === 'number' && e.data.currentSlide > 0) {
           setSyncedProjectorSlide(e.data.currentSlide);
           setIsCapturing(true);
+        } else {
+          setSyncedProjectorSlide(null);
         }
-        if (e.data.currentSlideBase64) {
+        if (e.data.currentSlideBase64 && typeof e.data.currentSlideBase64 === 'string') {
           setSyncedProjectorBase64(e.data.currentSlideBase64);
+        } else {
+          setSyncedProjectorBase64(null);
         }
-        if (typeof e.data.totalSlides === 'number') {
+        if (typeof e.data.totalSlides === 'number' && e.data.totalSlides > 0) {
           setSyncedProjectorTotal(e.data.totalSlides);
+        } else {
+          setSyncedProjectorTotal(null);
         }
       }
     };
@@ -1360,13 +1376,19 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         if (data.currentSlideBase64 && typeof data.currentSlideBase64 === 'string') {
           setSyncedProjectorBase64(data.currentSlideBase64);
           setIsCapturing(true);
+        } else {
+          setSyncedProjectorBase64(null);
         }
-        if (typeof data.currentSlide === 'number') {
+        if (typeof data.currentSlide === 'number' && data.currentSlide > 0) {
           setSyncedProjectorSlide(data.currentSlide);
           setIsCapturing(true);
+        } else {
+          setSyncedProjectorSlide(null);
         }
-        if (typeof data.totalSlides === 'number') {
+        if (typeof data.totalSlides === 'number' && data.totalSlides > 0) {
           setSyncedProjectorTotal(data.totalSlides);
+        } else {
+          setSyncedProjectorTotal(null);
         }
       }
     }, (err) => {
@@ -1388,13 +1410,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const bridgeNextThumbnail = (effectiveNextSlide !== null && slideThumbnails[effectiveNextSlide]) || null;
   const nextSlideLocalUrl = !isHttps && effectiveNextSlide !== null ? `http://127.0.0.1:5000/slides/${effectiveNextSlide}.jpg${activeDeckKey ? `?d=${encodeURIComponent(activeDeckKey)}` : ''}` : null;
   const nextSlideFirestoreUrl = effectiveNextSlide !== null ? (slidePreviewsMap[effectiveNextSlide] || null) : null;
-  const nextSlideImgUrl = (isBridgeConnected && nextSlideBase64)
+  const nextSlideImgUrl = (isBridgeConnected && (isPresentationActive || isBridgeActivePresentation) && nextSlideBase64)
     ? nextSlideBase64
-    : (bridgeNextThumbnail)
+    : (isBridgeConnected && (isPresentationActive || isBridgeActivePresentation) && bridgeNextThumbnail)
       ? bridgeNextThumbnail
-      : (nextSlideLocalUrl && !nextSlideImageError && (isBridgeConnected || localSlidesCount >= effectiveNextSlide || localSlidesCount === 0))
-        ? nextSlideLocalUrl
-        : (nextSlideFirestoreUrl || null);
+      : null;
 
   useEffect(() => {
     setNextSlideImageError(false);
@@ -2081,11 +2101,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
     // Calculate background image source for zoom
     const bridgeSlideImgSrc = 
-      (isBridgeConnected && currentSlideBase64) 
+      (isBridgeConnected && (isPresentationActive || isBridgeActivePresentation) && currentSlideBase64) 
         ? currentSlideBase64 
-        : (isBridgeConnected && currentSlide) 
-          ? `http://127.0.0.1:5000/slides/${currentSlide}.jpg` 
-          : currentSlidePreviewUrl || null;
+        : null;
 
     // Calculate the zoomed slide offset inside the lens (with clamping to avoid black bars at edges)
     const idealLeft = -slidePx * scale + halfW;
@@ -3211,6 +3229,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     setCurrentSlidePreviewUrl(null);
     setNextSlidePreviewUrl(null);
     setDisplayedNextSlideUrl(null);
+    if (presentation?.id && typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem(`activedeck_sync_${presentation.id}`);
+      } catch (e) {}
+    }
     (window as any).activeDeckStream = null;
 
     // Reset drawings locally and exit pen mode
