@@ -327,11 +327,15 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const isPresentationActive = isCapturing || isBridgeActivePresentation;
 
   const [stream, setStream] = useState<MediaStream | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const projectorWindowRef = useRef<Window | null>(null);
+  const projectorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const openProjectorWindow = useCallback(() => {
     if (isProjectorMode) return;
+    if (projectorTimeoutRef.current) {
+      clearTimeout(projectorTimeoutRef.current);
+      projectorTimeoutRef.current = null;
+    }
     try {
       if (projectorWindowRef.current && !projectorWindowRef.current.closed) {
         projectorWindowRef.current.focus();
@@ -351,10 +355,30 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     }
   }, [isProjectorMode, presentation?.id, presentation?.pinCode]);
 
+  const scheduleProjectorWindow = useCallback((delayMs = 10000) => {
+    if (isProjectorMode) return;
+    if (projectorTimeoutRef.current) {
+      clearTimeout(projectorTimeoutRef.current);
+    }
+    console.log(`ActiveDeck: Scheduling Projector Mode popup in ${delayMs / 1000}s to allow PowerPoint and screen share to initialize.`);
+    projectorTimeoutRef.current = setTimeout(() => {
+      openProjectorWindow();
+      projectorTimeoutRef.current = null;
+    }, delayMs);
+  }, [isProjectorMode, openProjectorWindow]);
+
+  useEffect(() => {
+    return () => {
+      if (projectorTimeoutRef.current) {
+        clearTimeout(projectorTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const startCapture = useCallback(() => {
     setError(null);
-    if (!isProjectorMode) {
-      openProjectorWindow();
+    if (!isProjectorMode && !projectorTimeoutRef.current && (!projectorWindowRef.current || projectorWindowRef.current.closed)) {
+      scheduleProjectorWindow(10000);
     }
     const displayMediaOptions: any = {
       video: {
@@ -827,9 +851,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     setIsLoadingPpt(true);
     setLoadPptSuccess(false);
 
-    // 5. Open Projector Mode window and trigger screen sharing immediately in user gesture
+    // 5. Trigger screen sharing immediately, and schedule Projector Mode popup with a 10s delay
     if (!isProjectorMode) {
-      openProjectorWindow();
+      scheduleProjectorWindow(10000);
     }
     if (!stream) {
       startCapture();
@@ -4076,7 +4100,6 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                           key={deck.id || idx}
                           onClick={() => {
                             handleSelectDeck(deck);
-                            handleLoadPpt(deck);
                           }}
                           className={`group relative p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
                             isSelected
@@ -4127,18 +4150,27 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleSelectDeck(deck);
-                                handleLoadPpt(deck);
+                                if (!isSelected) {
+                                  handleSelectDeck(deck);
+                                } else {
+                                  handleLoadPpt(deck);
+                                }
                               }}
                               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
                                 isSelected
                                   ? 'bg-osu-orange text-white hover:bg-osu-orange-dark shadow-md shadow-osu-orange/20 active:scale-95'
                                   : 'bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700'
                               }`}
-                              title="Download & launch presentation directly in PowerPoint with animations"
+                              title={isSelected ? "Download & launch presentation directly in PowerPoint with animations" : "Select this presentation"}
                             >
-                              <Play className="w-3 h-3 fill-current" />
-                              <span>{isSelected ? 'Open in PPT' : 'Launch'}</span>
+                              {isSelected ? (
+                                <>
+                                  <Play className="w-3 h-3 fill-current" />
+                                  <span>Open in PPT</span>
+                                </>
+                              ) : (
+                                <span>Select</span>
+                              )}
                             </button>
 
                             <button
