@@ -27,13 +27,12 @@ if sys.stderr is None:
     except Exception:
         sys.stderr = open(os.devnull, "w")
 
+import subprocess
 current_os = platform.system()
 
 if current_os == "Windows":
     import win32com.client
     import pythoncom
-elif current_os == "Darwin":
-    import subprocess
 
 import logging
 from flask import Flask, send_from_directory, make_response, request, jsonify, cli
@@ -46,41 +45,46 @@ logging.getLogger('werkzeug').addFilter(lambda record: 'development server' not 
 app = Flask(__name__)
 sock = Sock(app)
 
+# Global lock to serialize PowerPoint STA COM access across threads
+ppt_lock = threading.RLock()
+_current_slides_dir = os.path.join(tempfile.gettempdir(), "activedeck_slides")
+
 # ---------------------------------------------------------
 # 1. MOVEMENT COMMANDS
 # ---------------------------------------------------------
 def move_ppt_windows(direction):
-    pythoncom.CoInitialize()
-    try:
-        ppt_app = win32com.client.GetActiveObject("PowerPoint.Application")
-        if ppt_app.SlideShowWindows.Count > 0:
-            view = ppt_app.SlideShowWindows(1).View
-            old_pos = view.CurrentShowPosition
-            if direction == "next":
-                view.Next()
-            elif direction == "prev":
-                view.Previous()
-            else:
-                try:
-                    slide_num = int(direction)
-                    presentation = ppt_app.SlideShowWindows(1).Presentation
-                    if 1 <= slide_num <= presentation.Slides.Count:
-                        view.GotoSlide(slide_num)
-                except ValueError:
-                    pass
+    with ppt_lock:
+        pythoncom.CoInitialize()
+        try:
+            ppt_app = win32com.client.GetActiveObject("PowerPoint.Application")
+            if ppt_app.SlideShowWindows.Count > 0:
+                view = ppt_app.SlideShowWindows(1).View
+                old_pos = view.CurrentShowPosition
+                if direction == "next":
+                    view.Next()
+                elif direction == "prev":
+                    view.Previous()
+                else:
+                    try:
+                        slide_num = int(direction)
+                        presentation = ppt_app.SlideShowWindows(1).Presentation
+                        if 1 <= slide_num <= presentation.Slides.Count:
+                            view.GotoSlide(slide_num)
+                    except ValueError:
+                        pass
 
-            # Fast micro-wait for PowerPoint COM to update CurrentShowPosition (up to 150ms max, 10ms steps)
-            for _ in range(15):
-                time.sleep(0.01)
-                try:
-                    if view.CurrentShowPosition != old_pos:
-                        break
-                except Exception:
-                    pass
-    except Exception:
-        pass
-    finally:
-        pythoncom.CoUninitialize()
+                # Fast micro-wait for PowerPoint COM to update CurrentShowPosition (up to 150ms max, 10ms steps)
+                for _ in range(15):
+                    time.sleep(0.01)
+                    try:
+                        if view.CurrentShowPosition != old_pos:
+                            break
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        finally:
+            pythoncom.CoUninitialize()
 
 def move_ppt_mac(direction):
     if direction == "next":
@@ -145,29 +149,45 @@ def download_and_open_ppt(url):
 
         # 4. Use win32com.client.Dispatch("PowerPoint.Application") to set Visible = True, open the presentation, and execute SlideShowSettings.Run()
         if current_os == "Windows":
-            pythoncom.CoInitialize()
-            try:
-                ppt_app = win32com.client.Dispatch("PowerPoint.Application")
-                ppt_app.Visible = True
+            with ppt_lock:
+                pythoncom.CoInitialize()
                 try:
-                    while ppt_app.SlideShowWindows.Count > 0:
-                        ppt_app.SlideShowWindows(1).View.Exit()
-                except Exception:
-                    pass
-                try:
-                    for i in range(ppt_app.Presentations.Count, 0, -1):
-                        ppt_app.Presentations(i).Close()
-                except Exception:
-                    pass
-                presentation = ppt_app.Presentations.Open(filepath)
-                presentation.SlideShowSettings.Run()
-                print(f"[ActiveDeck Bridge] Launched presentation in PowerPoint: {presentation.Name} ({presentation.Slides.Count} slides)")
-                try:
-                    ppt_app.Activate()
-                except Exception:
-                    pass
-            finally:
-                pythoncom.CoUninitialize()
+                    ppt_app = win32com.client.Dispatch("PowerPoint.Application")
+                    ppt_app.Visible = True
+                    try:
+                        ppt_app.DisplayAlerts = 1  # ppAlertsNone - prevents blocking modal dialogs
+                    except Exception:
+                        pass
+                    try:
+                        while ppt_app.SlideShowWindows.Count > 0:
+                            try:
+                                ppt_app.SlideShowWindows(1).View.Exit()
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
+                    try:
+                        for i in range(ppt_app.Presentations.Count, 0, -1):
+                            try:
+                                p = ppt_app.Presentations(i)
+                                p.Saved = True
+                                p.Close()
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
+                    presentation = ppt_app.Presentations.Open(filepath)
+                    presentation.SlideShowSettings.Run()
+                    print(f"[ActiveDeck Bridge] Launched presentation in PowerPoint: {presentation.Name} ({presentation.Slides.Count} slides)")
+                    global _current_slides_dir, _last_presentation_name
+                    _last_presentation_name = presentation.Name
+                    _current_slides_dir = os.path.join(tempfile.gettempdir(), f"activedeck_slides_{hashlib.md5(presentation.Name.encode('utf-8')).hexdigest()}")
+                    try:
+                        ppt_app.Activate()
+                    except Exception:
+                        pass
+                finally:
+                    pythoncom.CoUninitialize()
         else:
             try:
                 ppt_app = win32com.client.Dispatch("PowerPoint.Application")
@@ -292,91 +312,98 @@ def preload_all_notes(presentation):
         pass
 
 def get_ppt_state_windows():
-    global _cached_state, _cached_slide_index, _cached_total_slides, _notes_cache, _thumbnails_cache, _thumbnails_version, _last_presentation_name
-    pythoncom.CoInitialize()
+    global _cached_state, _cached_slide_index, _cached_total_slides, _notes_cache, _thumbnails_cache, _thumbnails_version, _last_presentation_name, _current_slides_dir
+    if not ppt_lock.acquire(blocking=False):
+        return _cached_state
     try:
-        ppt_app = win32com.client.GetActiveObject("PowerPoint.Application")
-        if ppt_app.SlideShowWindows.Count > 0:
-            presentation = ppt_app.SlideShowWindows(1).Presentation
-            view = ppt_app.SlideShowWindows(1).View
-            
-            pres = presentation
-            if _last_presentation_name != pres.Name:
+        pythoncom.CoInitialize()
+        try:
+            ppt_app = win32com.client.GetActiveObject("PowerPoint.Application")
+            if ppt_app.SlideShowWindows.Count > 0:
+                presentation = ppt_app.SlideShowWindows(1).Presentation
+                view = ppt_app.SlideShowWindows(1).View
+                
+                pres = presentation
+                if _last_presentation_name != pres.Name:
+                    _cached_state = None
+                    _cached_slide_index = None
+                    _cached_total_slides = None
+                    _notes_cache.clear()
+                    _thumbnails_cache = {}
+                    _thumbnails_version += 1
+                    _last_presentation_name = pres.Name
+                    _current_slides_dir = os.path.join(tempfile.gettempdir(), f"activedeck_slides_{hashlib.md5(pres.Name.encode('utf-8')).hexdigest()}")
+
+                current_slide_index = view.CurrentShowPosition
+                total_slides = presentation.Slides.Count
+
+                # If slide index and total_slides haven't changed, and we have base64 cached, return cache instantly
+                if (
+                    _cached_state is not None 
+                    and _cached_slide_index == current_slide_index 
+                    and _cached_total_slides == total_slides
+                    and _cached_state.get("current_slide_base64") is not None
+                ):
+                    return _cached_state
+
+                next_slide_index = current_slide_index + 1 if current_slide_index < total_slides else 0
+                
+                # Fetch slide notes instantly from memory cache
+                notes_text = get_slide_notes(presentation, current_slide_index)
+                
+                # Dynamic temp_dir based on active presentation's name
+                temp_dir = os.path.join(tempfile.gettempdir(), f"activedeck_slides_{hashlib.md5(pres.Name.encode('utf-8')).hexdigest()}")
+                _current_slides_dir = temp_dir
+
+                # Fetch current slide image as base64 securely
+                current_slide_base64 = None
+                if current_slide_index > 0:
+                    current_image_path = os.path.join(temp_dir, f"{current_slide_index}.jpg")
+                    if not os.path.exists(current_image_path):
+                        current_image_path = os.path.join(temp_dir, f"Slide{current_slide_index}.JPG")
+                    if os.path.exists(current_image_path):
+                        try:
+                            with open(current_image_path, "rb") as img_file:
+                                current_slide_base64 = "data:image/jpeg;base64," + base64.b64encode(img_file.read()).decode('utf-8')
+                        except Exception:
+                            pass
+
+                # Fetch next slide image as base64 securely if it exists to bypass HTTPS mixed content blocking
+                next_slide_base64 = None
+                if next_slide_index > 0:
+                    next_image_path = os.path.join(temp_dir, f"{next_slide_index}.jpg")
+                    if not os.path.exists(next_image_path):
+                        next_image_path = os.path.join(temp_dir, f"Slide{next_slide_index}.JPG")
+                    if os.path.exists(next_image_path):
+                        try:
+                            with open(next_image_path, "rb") as img_file:
+                                next_slide_base64 = "data:image/jpeg;base64," + base64.b64encode(img_file.read()).decode('utf-8')
+                        except Exception:
+                            pass
+                                
+                state = {
+                    "current_slide": current_slide_index,
+                    "current_slide_base64": current_slide_base64,
+                    "next_slide": next_slide_index if next_slide_index > 0 else 0,
+                    "total_slides": total_slides,
+                    "notes": notes_text.strip(),
+                    "next_slide_base64": next_slide_base64
+                }
+                _cached_state = state
+                _cached_slide_index = current_slide_index
+                _cached_total_slides = total_slides
+                return state
+            else:
+                _last_presentation_name = None
                 _cached_state = None
                 _cached_slide_index = None
                 _cached_total_slides = None
-                _notes_cache.clear()
-                _thumbnails_cache = {}
-                _thumbnails_version += 1
-                _last_presentation_name = pres.Name
-
-            current_slide_index = view.CurrentShowPosition
-            total_slides = presentation.Slides.Count
-
-            # If slide index and total_slides haven't changed, and we have base64 cached, return cache instantly
-            if (
-                _cached_state is not None 
-                and _cached_slide_index == current_slide_index 
-                and _cached_total_slides == total_slides
-                and _cached_state.get("current_slide_base64") is not None
-            ):
-                return _cached_state
-
-            next_slide_index = current_slide_index + 1 if current_slide_index < total_slides else 0
-            
-            # Fetch slide notes instantly from memory cache
-            notes_text = get_slide_notes(presentation, current_slide_index)
-            
-            # Dynamic temp_dir based on active presentation's name
-            temp_dir = os.path.join(tempfile.gettempdir(), f"activedeck_slides_{hashlib.md5(pres.Name.encode('utf-8')).hexdigest()}")
-
-            # Fetch current slide image as base64 securely
-            current_slide_base64 = None
-            if current_slide_index > 0:
-                current_image_path = os.path.join(temp_dir, f"{current_slide_index}.jpg")
-                if not os.path.exists(current_image_path):
-                    current_image_path = os.path.join(temp_dir, f"Slide{current_slide_index}.JPG")
-                if os.path.exists(current_image_path):
-                    try:
-                        with open(current_image_path, "rb") as img_file:
-                            current_slide_base64 = "data:image/jpeg;base64," + base64.b64encode(img_file.read()).decode('utf-8')
-                    except Exception:
-                        pass
-
-            # Fetch next slide image as base64 securely if it exists to bypass HTTPS mixed content blocking
-            next_slide_base64 = None
-            if next_slide_index > 0:
-                next_image_path = os.path.join(temp_dir, f"{next_slide_index}.jpg")
-                if not os.path.exists(next_image_path):
-                    next_image_path = os.path.join(temp_dir, f"Slide{next_slide_index}.JPG")
-                if os.path.exists(next_image_path):
-                    try:
-                        with open(next_image_path, "rb") as img_file:
-                            next_slide_base64 = "data:image/jpeg;base64," + base64.b64encode(img_file.read()).decode('utf-8')
-                    except Exception:
-                        pass
-                            
-            state = {
-                "current_slide": current_slide_index,
-                "current_slide_base64": current_slide_base64,
-                "next_slide": next_slide_index if next_slide_index > 0 else 0,
-                "total_slides": total_slides,
-                "notes": notes_text.strip(),
-                "next_slide_base64": next_slide_base64
-            }
-            _cached_state = state
-            _cached_slide_index = current_slide_index
-            _cached_total_slides = total_slides
-            return state
-        else:
-            _last_presentation_name = None
-            _cached_state = None
-            _cached_slide_index = None
-            _cached_total_slides = None
-    except Exception:
-        pass 
+        except Exception:
+            pass 
+        finally:
+            pythoncom.CoUninitialize()
     finally:
-        pythoncom.CoUninitialize()
+        ppt_lock.release()
     return None
 
 def get_ppt_state_silently():
@@ -388,77 +415,83 @@ def get_ppt_state_silently():
 # 3. BACKGROUND SLIDE EXPORTER (Fixed for Subfolders & Frontend Mismatches)
 # ---------------------------------------------------------
 def background_slide_exporter():
-    global _last_exported_presentation, _cached_state, _cached_slide_index, _cached_total_slides, _notes_cache
+    global _last_exported_presentation, _cached_state, _cached_slide_index, _cached_total_slides, _notes_cache, _current_slides_dir
     
     while True:
         time.sleep(1)
         if current_os == "Windows":
+            if not ppt_lock.acquire(blocking=False):
+                continue
             try:
                 pythoncom.CoInitialize()
-                ppt_app = win32com.client.GetActiveObject("PowerPoint.Application")
-                
-                if ppt_app.SlideShowWindows.Count > 0:
-                    pres = ppt_app.SlideShowWindows(1).Presentation
-                    temp_dir = os.path.join(tempfile.gettempdir(), f"activedeck_slides_{hashlib.md5(pres.Name.encode('utf-8')).hexdigest()}")
+                try:
+                    ppt_app = win32com.client.GetActiveObject("PowerPoint.Application")
                     
-                    if pres.Name != _last_exported_presentation:
+                    if ppt_app.SlideShowWindows.Count > 0:
+                        pres = ppt_app.SlideShowWindows(1).Presentation
+                        temp_dir = os.path.join(tempfile.gettempdir(), f"activedeck_slides_{hashlib.md5(pres.Name.encode('utf-8')).hexdigest()}")
+                        _current_slides_dir = temp_dir
+                        
+                        if pres.Name != _last_exported_presentation:
+                            _cached_state = None
+                            _cached_slide_index = None
+                            _cached_total_slides = None
+                            _notes_cache.clear()
+                            preload_all_notes(pres)
+                            os.makedirs(temp_dir, exist_ok=True)
+                            for f in os.listdir(temp_dir):
+                                if f.lower().endswith(('.jpg', '.jpeg', '.png')):
+                                    try:
+                                        os.remove(os.path.join(temp_dir, f))
+                                    except Exception:
+                                        pass
+                            count = pres.Slides.Count
+                            # Try fast whole-presentation export first (~1s in native C++)
+                            exported_all = False
+                            try:
+                                pres.Export(temp_dir, "JPG")
+                                exported_all = True
+                            except Exception:
+                                pass
+
+                            if exported_all:
+                                for i in range(1, count + 1):
+                                    slide_jpg = os.path.join(temp_dir, f"Slide{i}.JPG")
+                                    num_jpg = os.path.join(temp_dir, f"{i}.jpg")
+                                    if os.path.exists(slide_jpg) and not os.path.exists(num_jpg):
+                                        try:
+                                            shutil.copyfile(slide_jpg, num_jpg)
+                                        except Exception:
+                                            pass
+                                    elif os.path.exists(num_jpg) and not os.path.exists(slide_jpg):
+                                        try:
+                                            shutil.copyfile(num_jpg, slide_jpg)
+                                        except Exception:
+                                            pass
+                            else:
+                                for i in range(1, count + 1):
+                                    slide = pres.Slides(i)
+                                    target_jpg = os.path.join(temp_dir, f"{i}.jpg")
+                                    slide.Export(target_jpg, "JPG")
+                                    try:
+                                        shutil.copyfile(target_jpg, os.path.join(temp_dir, f"Slide{i}.JPG"))
+                                    except Exception:
+                                        pass
+                                    time.sleep(0.005)
+                                
+                            update_thumbnails_cache(temp_dir)
+                            _last_exported_presentation = pres.Name
+                    else:
+                        _last_exported_presentation = ""
                         _cached_state = None
                         _cached_slide_index = None
                         _cached_total_slides = None
-                        _notes_cache.clear()
-                        preload_all_notes(pres)
-                        os.makedirs(temp_dir, exist_ok=True)
-                        for f in os.listdir(temp_dir):
-                            if f.lower().endswith(('.jpg', '.jpeg', '.png')):
-                                try:
-                                    os.remove(os.path.join(temp_dir, f))
-                                except Exception:
-                                    pass
-                        count = pres.Slides.Count
-                        # Try fast whole-presentation export first (~1s in native C++)
-                        exported_all = False
-                        try:
-                            pres.Export(temp_dir, "JPG")
-                            exported_all = True
-                        except Exception:
-                            pass
-
-                        if exported_all:
-                            for i in range(1, count + 1):
-                                slide_jpg = os.path.join(temp_dir, f"Slide{i}.JPG")
-                                num_jpg = os.path.join(temp_dir, f"{i}.jpg")
-                                if os.path.exists(slide_jpg) and not os.path.exists(num_jpg):
-                                    try:
-                                        shutil.copyfile(slide_jpg, num_jpg)
-                                    except Exception:
-                                        pass
-                                elif os.path.exists(num_jpg) and not os.path.exists(slide_jpg):
-                                    try:
-                                        shutil.copyfile(num_jpg, slide_jpg)
-                                    except Exception:
-                                        pass
-                        else:
-                            for i in range(1, count + 1):
-                                slide = pres.Slides(i)
-                                target_jpg = os.path.join(temp_dir, f"{i}.jpg")
-                                slide.Export(target_jpg, "JPG")
-                                try:
-                                    shutil.copyfile(target_jpg, os.path.join(temp_dir, f"Slide{i}.JPG"))
-                                except Exception:
-                                    pass
-                                time.sleep(0.005)
-                            
-                        update_thumbnails_cache(temp_dir)
-                        _last_exported_presentation = pres.Name
-                else:
-                    _last_exported_presentation = ""
-                    _cached_state = None
-                    _cached_slide_index = None
-                    _cached_total_slides = None
-            except Exception:
-                pass
+                except Exception:
+                    pass
+                finally:
+                    pythoncom.CoUninitialize()
             finally:
-                pythoncom.CoUninitialize()
+                ppt_lock.release()
 
 # ---------------------------------------------------------
 # 4. WEBSERVER ROUTES (Images, HTTP Commands & WebSockets)
@@ -499,26 +532,18 @@ def handle_load_http():
 
 @app.route('/slides/<path:filename>')
 def serve_slide(filename):
-    temp_dir = os.path.join(tempfile.gettempdir(), "activedeck_slides")
-    if current_os == "Windows":
+    global _current_slides_dir
+    temp_dir = _current_slides_dir
+    if not os.path.exists(temp_dir) or not os.listdir(temp_dir):
+        # Fallback to any recent activedeck_slides_* folder on disk
+        t_base = tempfile.gettempdir()
         try:
-            pythoncom.CoInitialize()
-            try:
-                ppt_app = win32com.client.GetActiveObject("PowerPoint.Application")
-                if ppt_app.SlideShowWindows.Count > 0:
-                    pres = ppt_app.SlideShowWindows(1).Presentation
-                    temp_dir = os.path.join(tempfile.gettempdir(), f"activedeck_slides_{hashlib.md5(pres.Name.encode('utf-8')).hexdigest()}")
-                elif ppt_app.Presentations.Count > 0:
-                    pres = ppt_app.ActivePresentation
-                    temp_dir = os.path.join(tempfile.gettempdir(), f"activedeck_slides_{hashlib.md5(pres.Name.encode('utf-8')).hexdigest()}")
-            finally:
-                pythoncom.CoUninitialize()
+            dirs = [os.path.join(t_base, d) for d in os.listdir(t_base) if d.startswith("activedeck_slides_")]
+            if dirs:
+                dirs.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+                temp_dir = dirs[0]
         except Exception:
             pass
-    if (not os.path.exists(temp_dir) or not os.listdir(temp_dir)) and _last_exported_presentation:
-        fallback_dir = os.path.join(tempfile.gettempdir(), f"activedeck_slides_{hashlib.md5(_last_exported_presentation.encode('utf-8')).hexdigest()}")
-        if os.path.exists(fallback_dir):
-            temp_dir = fallback_dir
 
     os.makedirs(temp_dir, exist_ok=True)
     target = os.path.join(temp_dir, filename)
@@ -529,6 +554,10 @@ def serve_slide(filename):
             if os.path.exists(os.path.join(temp_dir, c)):
                 filename = c
                 break
+    
+    if not os.path.exists(os.path.join(temp_dir, filename)):
+        return jsonify({'error': 'Slide image not ready yet'}), 404
+
     response = make_response(send_from_directory(temp_dir, filename))
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
     response.headers['Pragma'] = 'no-cache'
@@ -536,41 +565,63 @@ def serve_slide(filename):
     return response
 
 def export_slides_now():
-    temp_dir = os.path.join(tempfile.gettempdir(), "activedeck_slides")
+    global _current_slides_dir
+    temp_dir = _current_slides_dir
+    # Check disk cache first - avoid touching PowerPoint COM if already on disk!
+    if os.path.exists(temp_dir):
+        existing = [f for f in os.listdir(temp_dir) if f.endswith('.jpg') and not f.startswith('Slide')]
+        if len(existing) > 0:
+            return len(existing)
+
     count = 0
     if current_os == "Windows":
-        pythoncom.CoInitialize()
+        if not ppt_lock.acquire(blocking=False):
+            return 0
         try:
-            ppt_app = win32com.client.GetActiveObject("PowerPoint.Application")
-            if ppt_app.SlideShowWindows.Count > 0:
-                pres = ppt_app.SlideShowWindows(1).Presentation
-                temp_dir = os.path.join(tempfile.gettempdir(), f"activedeck_slides_{hashlib.md5(pres.Name.encode('utf-8')).hexdigest()}")
-                os.makedirs(temp_dir, exist_ok=True)
-                count = pres.Slides.Count
-                
-                # Preload all slide notes into memory so navigation notes are instant
-                preload_all_notes(pres)
+            pythoncom.CoInitialize()
+            try:
+                ppt_app = win32com.client.GetActiveObject("PowerPoint.Application")
+                if ppt_app.SlideShowWindows.Count > 0:
+                    pres = ppt_app.SlideShowWindows(1).Presentation
+                    temp_dir = os.path.join(tempfile.gettempdir(), f"activedeck_slides_{hashlib.md5(pres.Name.encode('utf-8')).hexdigest()}")
+                    _current_slides_dir = temp_dir
+                    os.makedirs(temp_dir, exist_ok=True)
+                    count = pres.Slides.Count
+                    
+                    # Preload all slide notes into memory so navigation notes are instant
+                    preload_all_notes(pres)
 
-                # Check if all slides already exist on disk to prevent blocking COM
-                existing = [f for f in os.listdir(temp_dir) if f.endswith('.jpg') and not f.startswith('Slide')]
-                if len(existing) >= count:
-                    return count
+                    existing = [f for f in os.listdir(temp_dir) if f.endswith('.jpg') and not f.startswith('Slide')]
+                    if len(existing) >= count:
+                        return count
 
-                for i in range(1, count + 1):
-                    target_jpg = os.path.join(temp_dir, f"{i}.jpg")
-                    if not os.path.exists(target_jpg):
-                        slide = pres.Slides(i)
-                        slide.Export(target_jpg, "JPG")
-                        try:
-                            import shutil
-                            shutil.copyfile(target_jpg, os.path.join(temp_dir, f"Slide{i}.JPG"))
-                        except Exception:
-                            pass
-                        time.sleep(0.005)
-        except Exception:
-            pass
+                    try:
+                        pres.Export(temp_dir, "JPG")
+                        for i in range(1, count + 1):
+                            slide_jpg = os.path.join(temp_dir, f"Slide{i}.JPG")
+                            num_jpg = os.path.join(temp_dir, f"{i}.jpg")
+                            if os.path.exists(slide_jpg) and not os.path.exists(num_jpg):
+                                try:
+                                    shutil.copyfile(slide_jpg, num_jpg)
+                                except Exception:
+                                    pass
+                    except Exception:
+                        for i in range(1, count + 1):
+                            target_jpg = os.path.join(temp_dir, f"{i}.jpg")
+                            if not os.path.exists(target_jpg):
+                                slide = pres.Slides(i)
+                                slide.Export(target_jpg, "JPG")
+                                try:
+                                    shutil.copyfile(target_jpg, os.path.join(temp_dir, f"Slide{i}.JPG"))
+                                except Exception:
+                                    pass
+                                time.sleep(0.005)
+            except Exception:
+                pass
+            finally:
+                pythoncom.CoUninitialize()
         finally:
-            pythoncom.CoUninitialize()
+            ppt_lock.release()
     if count == 0 and os.path.exists(temp_dir):
         jpgs = [f for f in os.listdir(temp_dir) if f.endswith('.jpg') and not f.startswith('Slide')]
         count = len(jpgs)
@@ -608,7 +659,7 @@ def handle_ws(ws):
                         elif action == 'load':
                             url = payload.get('url')
                             if url:
-                                download_and_open_ppt(url)
+                                threading.Thread(target=download_and_open_ppt, args=(url,), daemon=True).start()
                                 force_send = True
                         elif action == 'get_thumbnails':
                             if _thumbnails_cache:
@@ -679,7 +730,23 @@ def handle_ws(ws):
 def _handle_ws_route(ws):
     handle_ws(ws)
 
+def free_port(port=5000):
+    if current_os == "Windows":
+        try:
+            out = subprocess.check_output(f'netstat -ano | findstr :{port}', shell=True, text=True)
+            for line in out.strip().splitlines():
+                parts = line.split()
+                if len(parts) >= 5 and 'LISTENING' in parts:
+                    pid = int(parts[-1])
+                    if pid != os.getpid():
+                        print(f"[ActiveDeck Bridge] Terminating zombie process {pid} on port {port}...")
+                        subprocess.run(f'taskkill /F /PID {pid}', shell=True, capture_output=True)
+                        time.sleep(0.5)
+        except Exception:
+            pass
+
 if __name__ == '__main__':
+    free_port(5000)
     update_thumbnails_cache()
     exporter_thread = threading.Thread(target=background_slide_exporter, daemon=True)
     exporter_thread.start()
