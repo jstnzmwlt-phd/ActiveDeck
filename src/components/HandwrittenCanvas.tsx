@@ -453,7 +453,7 @@ export function HandwrittenCanvas({
                 strokeWidth={stroke.width}
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                opacity={stroke.isHighlighter ? 0.35 : 1}
+                opacity={stroke.isHighlighter ? 0.25 : 1}
               />
             );
           })}
@@ -470,7 +470,7 @@ export function HandwrittenCanvas({
               strokeWidth={activeStroke.width}
               strokeLinecap="round"
               strokeLinejoin="round"
-              opacity={activeStroke.isHighlighter ? 0.35 : 1}
+              opacity={activeStroke.isHighlighter ? 0.25 : 1}
             />
           )}
         </svg>

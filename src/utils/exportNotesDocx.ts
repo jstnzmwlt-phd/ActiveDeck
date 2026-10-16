@@ -191,6 +191,45 @@ export const createSlidePlaceholderImage = (slideTitle: string): { data: Uint8Ar
   return null;
 };
 
+export const colorToRgba = (color?: string, opacity: number = 0.25): string => {
+  if (!color) return `rgba(234, 179, 8, ${opacity})`;
+  const trimmed = color.trim().toLowerCase();
+  if (trimmed.startsWith('rgba')) {
+    return trimmed.replace(/,\s*[\d\.]+\)$/, `, ${opacity})`);
+  }
+  if (trimmed.startsWith('rgb')) {
+    return trimmed.replace('rgb', 'rgba').replace(')', `, ${opacity})`);
+  }
+  if (trimmed.startsWith('#')) {
+    let hex = trimmed.slice(1);
+    if (hex.length === 3) {
+      hex = hex.split('').map(ch => ch + ch).join('');
+    }
+    if (hex.length === 6) {
+      const r = parseInt(hex.substring(0, 2), 16);
+      const g = parseInt(hex.substring(2, 4), 16);
+      const b = parseInt(hex.substring(4, 6), 16);
+      if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
+        return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+      }
+    }
+  }
+  const namedColors: Record<string, [number, number, number]> = {
+    yellow: [234, 179, 8],
+    red: [239, 68, 68],
+    green: [34, 197, 94],
+    blue: [59, 130, 246],
+    orange: [235, 93, 0],
+    purple: [168, 85, 247],
+    pink: [236, 72, 153],
+  };
+  if (namedColors[trimmed]) {
+    const [r, g, b] = namedColors[trimmed];
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+  }
+  return `rgba(234, 179, 8, ${opacity})`;
+};
+
 export const convertStrokesToPng = (drawingJson: string): string => {
   if (!drawingJson) return '';
   try {
@@ -230,7 +269,7 @@ export const convertStrokesToPng = (drawingJson: string): string => {
       ctx.lineWidth = stroke.width;
 
       if (stroke.isHighlighter) {
-        ctx.strokeStyle = 'rgba(234, 179, 8, 0.35)';
+        ctx.strokeStyle = colorToRgba(stroke.color, 0.25);
       } else {
         ctx.strokeStyle = stroke.color === '#FFFFFF' ? '#cbd5e1' : stroke.color;
       }
@@ -385,7 +424,7 @@ export const generateCompositeSlideBase64 = async (
             ctx.lineWidth = stroke.width * avgScale;
 
             if (stroke.isHighlighter) {
-              ctx.strokeStyle = 'rgba(234, 179, 8, 0.45)';
+              ctx.strokeStyle = colorToRgba(stroke.color, 0.25);
             } else {
               ctx.strokeStyle = stroke.color;
               ctx.fillStyle = stroke.color;

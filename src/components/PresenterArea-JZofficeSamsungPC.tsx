@@ -1245,7 +1245,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                               strokeLinecap="round"
                               strokeLinejoin="round"
                               fill="none"
-                              opacity={stroke.isHighlighter ? 0.45 : 1}
+                              opacity={stroke.isHighlighter ? 0.25 : 1}
                             />
                           );
                         })}
@@ -1257,7 +1257,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                             strokeLinecap="round"
                             strokeLinejoin="round"
                             fill="none"
-                            opacity={activeDrawingStroke.isHighlighter ? 0.45 : 1}
+                            opacity={activeDrawingStroke.isHighlighter ? 0.25 : 1}
                           />
                         )}
                       </svg>
@@ -1453,7 +1453,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                               strokeLinecap="round"
                               strokeLinejoin="round"
                               fill="none"
-                              opacity={stroke.isHighlighter ? 0.45 : 1}
+                              opacity={stroke.isHighlighter ? 0.25 : 1}
                             />
                           );
                         })}
@@ -1465,7 +1465,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                             strokeLinecap="round"
                             strokeLinejoin="round"
                             fill="none"
-                            opacity={activeDrawingStroke.isHighlighter ? 0.45 : 1}
+                            opacity={activeDrawingStroke.isHighlighter ? 0.25 : 1}
                           />
                         )}
                       </svg>
@@ -1578,7 +1578,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                           strokeLinecap="round"
                           strokeLinejoin="round"
                           fill="none"
-                          opacity={stroke.isHighlighter ? 0.45 : 1}
+                          opacity={stroke.isHighlighter ? 0.25 : 1}
                         />
                       );
                     })}
@@ -1590,7 +1590,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         fill="none"
-                        opacity={activeDrawingStroke.isHighlighter ? 0.45 : 1}
+                        opacity={activeDrawingStroke.isHighlighter ? 0.25 : 1}
                       />
                     )}
                   </svg>
@@ -2358,7 +2358,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     fill="none"
-                    opacity={stroke.isHighlighter ? 0.45 : 1}
+                    opacity={stroke.isHighlighter ? 0.25 : 1}
                   />
                 );
               })}
@@ -2370,7 +2370,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   fill="none"
-                  opacity={activeDrawingStroke.isHighlighter ? 0.45 : 1}
+                  opacity={activeDrawingStroke.isHighlighter ? 0.25 : 1}
                 />
               )}
             </svg>

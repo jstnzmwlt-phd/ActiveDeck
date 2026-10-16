@@ -945,7 +945,7 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     fill="none"
-                    opacity={stroke.isHighlighter ? 0.45 : 1}
+                    opacity={stroke.isHighlighter ? 0.25 : 1}
                   />
                 );
               })}
@@ -999,7 +999,7 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   fill="none"
-                  opacity={stroke.isHighlighter ? 0.45 : 1}
+                  opacity={stroke.isHighlighter ? 0.25 : 1}
                 />
               );
             })}
@@ -1012,7 +1012,7 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 fill="none"
-                opacity={activeStudentStroke.isHighlighter ? 0.45 : 1}
+                opacity={activeStudentStroke.isHighlighter ? 0.25 : 1}
               />
             )}
           </svg>

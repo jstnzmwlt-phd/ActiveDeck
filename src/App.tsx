@@ -1890,7 +1890,7 @@ function AppContent() {
                                     strokeLinecap="round"
                                     strokeLinejoin="round"
                                     fill="none"
-                                    opacity={stroke.isHighlighter ? 0.45 : 1}
+                                    opacity={stroke.isHighlighter ? 0.25 : 1}
                                   />
                                 );
                               })}
@@ -1944,7 +1944,7 @@ function AppContent() {
                                     strokeLinecap="round"
                                     strokeLinejoin="round"
                                     fill="none"
-                                    opacity={stroke.isHighlighter ? 0.45 : 1}
+                                    opacity={stroke.isHighlighter ? 0.25 : 1}
                                   />
                                 );
                               })}
@@ -2950,7 +2950,7 @@ function AppContent() {
                                             strokeLinecap="round"
                                             strokeLinejoin="round"
                                             fill="none"
-                                            opacity={stroke.isHighlighter ? 0.45 : 1}
+                                            opacity={stroke.isHighlighter ? 0.25 : 1}
                                           />
                                         );
                                       })}
@@ -3004,7 +3004,7 @@ function AppContent() {
                                             strokeLinecap="round"
                                             strokeLinejoin="round"
                                             fill="none"
-                                            opacity={stroke.isHighlighter ? 0.45 : 1}
+                                            opacity={stroke.isHighlighter ? 0.25 : 1}
                                           />
                                         );
                                       })}
