@@ -9,7 +9,8 @@ import {
   TableRow,
   TableCell,
   BorderStyle,
-  WidthType
+  WidthType,
+  VerticalAlignTable
 } from 'docx';
 import { DrawingStroke, SlideTextAnnotation } from '../types';
 
@@ -160,10 +161,10 @@ export const createSlidePlaceholderImage = (slideTitle: string): { data: Uint8Ar
     ctx.fillStyle = '#f8fafc';
     ctx.fillRect(0, 0, 1000, 560);
 
-    // Subtle border
-    ctx.strokeStyle = '#cbd5e1';
+    // Crisp 1pt solid black border outline
+    ctx.strokeStyle = '#000000';
     ctx.lineWidth = 4;
-    ctx.strokeRect(12, 12, 976, 536);
+    ctx.strokeRect(2, 2, 996, 556);
 
     // Primary Text
     ctx.fillStyle = '#334155';
@@ -571,6 +572,13 @@ export const generateCompositeSlideBase64 = async (
           });
         }
 
+        // Crisp 1pt solid black outline border
+        ctx.save();
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = Math.max(1, Math.round(canvas.width / 480));
+        ctx.strokeRect(0, 0, canvas.width, canvas.height);
+        ctx.restore();
+
         const dataUrl = canvas.toDataURL('image/png');
         cleanup();
         resolve(dataUrl);
@@ -895,56 +903,86 @@ export const exportNotesToDocx = async (options: ExportNotesOptions): Promise<bo
 
   const slideElements: (Paragraph | Table)[] = [];
 
-  for (const slide of sortedSlides) {
-    slideElements.push(
+  for (let sIdx = 0; sIdx < sortedSlides.length; sIdx++) {
+    const slide = sortedSlides[sIdx];
+    const slideTitle = getTabTitle(slide);
+
+    // 1. Left Column (Slide Image with 1pt solid black outline and small bold header)
+    const leftCellChildren: Paragraph[] = [
       new Paragraph({
-        text: getTabTitle(slide),
-        heading: HeadingLevel.HEADING_2,
-        spacing: { before: 240, after: 120 }
+        children: [
+          new TextRun({
+            text: slideTitle,
+            bold: true,
+            size: 20, // 10pt
+            color: "0F172A",
+            font: "Arial"
+          })
+        ],
+        spacing: { before: 0, after: 60 }
       })
-    );
+    ];
 
     const slideImgUrl = pushedSlidesMap[slide];
-    if (slideImgUrl) {
-      const presenterJson = presenterDrawingsMap[slide];
-      const studentJson = studentSlideDrawingsMap[slide];
-      const slideTextAnns = getSlideTextAnnotationsForSlide(studentSlideTextAnnotationsMap, slide);
+    const presenterJson = presenterDrawingsMap[slide];
+    const studentJson = studentSlideDrawingsMap[slide];
+    const slideTextAnns = getSlideTextAnnotationsForSlide(studentSlideTextAnnotationsMap, slide);
 
-      const imgResult = (await compositeSlideWithAnnotations(
+    let imgResult: { data: Uint8Array; type: 'png' | 'jpg' | 'gif' | 'bmp' } | null = null;
+    if (slideImgUrl) {
+      imgResult = await compositeSlideWithAnnotations(
         slideImgUrl,
         presenterJson,
         studentJson,
         slideTextAnns
-      )) || createSlidePlaceholderImage(getTabTitle(slide));
-
-      if (imgResult) {
-        slideElements.push(
-          new Paragraph({
-            children: [
-              new TextRun({ text: "Slide Image:", bold: true, color: "475569", size: 20, font: "Arial" }),
-            ],
-            spacing: { before: 80, after: 60 }
-          })
-        );
-        slideElements.push(
-          new Paragraph({
-            children: [
-              new ImageRun({
-                data: imgResult.data,
-                transformation: { width: 500, height: 280 },
-                type: imgResult.type
-              })
-            ],
-            spacing: { after: 180 }
-          })
-        );
-      }
+      );
+    }
+    if (!imgResult) {
+      imgResult = createSlidePlaceholderImage(slideTitle);
     }
 
+    if (imgResult) {
+      leftCellChildren.push(
+        new Paragraph({
+          children: [
+            new ImageRun({
+              data: imgResult.data,
+              transformation: { width: 310, height: 174 },
+              type: imgResult.type,
+              outline: {
+                width: 12700, // 1pt solid black outline
+                type: "solidFill",
+                solidFillType: "rgb",
+                value: "000000"
+              }
+            })
+          ],
+          spacing: { before: 0, after: 40 }
+        })
+      );
+    }
+
+    const leftCell = new TableCell({
+      width: { size: 48, type: WidthType.PERCENTAGE },
+      verticalAlign: VerticalAlignTable.TOP,
+      borders: {
+        top: { style: BorderStyle.NONE, size: 0, color: "auto" },
+        bottom: { style: BorderStyle.NONE, size: 0, color: "auto" },
+        left: { style: BorderStyle.NONE, size: 0, color: "auto" },
+        right: { style: BorderStyle.NONE, size: 0, color: "auto" },
+      },
+      margins: { top: 40, bottom: 40, left: 0, right: 140 },
+      children: leftCellChildren
+    });
+
+    // 2. Right Column (Typed Notes inside styled callout container)
+    const rightCellChildren: Paragraph[] = [];
     const htmlContent = notesTextMap[slide];
-    if (htmlContent) {
+    const cleanText = (htmlContent || '').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+
+    if (cleanText) {
       const textParagraphs = parseHtmlToDocxParagraphs(htmlContent);
-      slideElements.push(...textParagraphs);
+      rightCellChildren.push(...textParagraphs);
     }
 
     const drawingJson = notesDrawingsMap[slide];
@@ -954,28 +992,85 @@ export const exportNotesToDocx = async (options: ExportNotesOptions): Promise<bo
         const drawingBytes = dataUriToUint8Array(pngDataUrl);
         const format = detectImageFormat(drawingBytes);
         if (drawingBytes && format) {
-          slideElements.push(
+          rightCellChildren.push(
             new Paragraph({
               children: [
-                new TextRun({ text: "Handwritten Drawing:", bold: true, color: "475569", size: 20, font: "Arial" }),
+                new TextRun({ text: "Handwritten Notes:", bold: true, color: "475569", size: 18, font: "Arial" }),
               ],
-              spacing: { before: 120, after: 60 }
-            })
-          );
-          slideElements.push(
+              spacing: { before: cleanText ? 120 : 0, after: 60 }
+            }),
             new Paragraph({
               children: [
                 new ImageRun({
                   data: drawingBytes,
-                  transformation: { width: 500, height: 350 },
+                  transformation: { width: 290, height: 200 },
                   type: format
                 })
               ],
-              spacing: { after: 180 }
+              spacing: { after: 60 }
             })
           );
         }
       }
+    }
+
+    if (rightCellChildren.length === 0) {
+      rightCellChildren.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: "No typed notes for this slide",
+              italics: true,
+              color: "94A3B8",
+              size: 20, // 10pt
+              font: "Arial"
+            })
+          ],
+          spacing: { before: 80, after: 80 }
+        })
+      );
+    }
+
+    const rightCell = new TableCell({
+      width: { size: 52, type: WidthType.PERCENTAGE },
+      verticalAlign: VerticalAlignTable.TOP,
+      shading: { fill: "F8FAFC" },
+      borders: {
+        top: { style: BorderStyle.SINGLE, size: 6, color: "CBD5E1" },
+        bottom: { style: BorderStyle.SINGLE, size: 6, color: "CBD5E1" },
+        left: { style: BorderStyle.SINGLE, size: 6, color: "CBD5E1" },
+        right: { style: BorderStyle.SINGLE, size: 6, color: "CBD5E1" },
+      },
+      margins: { top: 140, bottom: 140, left: 160, right: 160 },
+      children: rightCellChildren
+    });
+
+    const slideTable = new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      borders: {
+        top: { style: BorderStyle.NONE, size: 0, color: "auto" },
+        bottom: { style: BorderStyle.NONE, size: 0, color: "auto" },
+        left: { style: BorderStyle.NONE, size: 0, color: "auto" },
+        right: { style: BorderStyle.NONE, size: 0, color: "auto" },
+        insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "auto" },
+        insideVertical: { style: BorderStyle.NONE, size: 0, color: "auto" },
+      },
+      rows: [
+        new TableRow({
+          cantSplit: true,
+          children: [leftCell, rightCell]
+        })
+      ]
+    });
+
+    slideElements.push(slideTable);
+
+    if (sIdx < sortedSlides.length - 1) {
+      slideElements.push(
+        new Paragraph({
+          spacing: { before: 100, after: 180 }
+        })
+      );
     }
   }
 
@@ -986,7 +1081,7 @@ export const exportNotesToDocx = async (options: ExportNotesOptions): Promise<bo
         new Paragraph({
           text: "ActiveDeck Study Notes",
           heading: HeadingLevel.HEADING_1,
-          spacing: { after: 200 }
+          spacing: { after: 160 }
         }),
         new Table({
           width: { size: 100, type: WidthType.PERCENTAGE },
@@ -995,35 +1090,41 @@ export const exportNotesToDocx = async (options: ExportNotesOptions): Promise<bo
             bottom: { style: BorderStyle.NONE, size: 0, color: "auto" },
             left: { style: BorderStyle.SINGLE, size: 24, color: "EB5D00" },
             right: { style: BorderStyle.NONE, size: 0, color: "auto" },
+            insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "auto" },
+            insideVertical: { style: BorderStyle.NONE, size: 0, color: "auto" },
           },
           rows: [
             new TableRow({
               children: [
                 new TableCell({
-                  shading: { fill: "F8F9FA" },
+                  shading: { fill: "F8FAFC" },
+                  margins: { top: 120, bottom: 120, left: 160, right: 160 },
                   children: [
                     new Paragraph({
                       children: [
-                        new TextRun({ text: "Presenter: ", bold: true, color: "111111", font: "Arial" }),
-                        new TextRun({ text: presenterName, font: "Arial" }),
+                        new TextRun({ text: "Presenter: ", bold: true, color: "0F172A", font: "Arial", size: 21 }),
+                        new TextRun({ text: presenterName, color: "334155", font: "Arial", size: 21 }),
                       ],
+                      spacing: { after: 40 }
                     }),
                     new Paragraph({
                       children: [
-                        new TextRun({ text: "Session PIN: ", bold: true, color: "111111", font: "Arial" }),
-                        new TextRun({ text: pinCode, font: "Arial" }),
+                        new TextRun({ text: "Session PIN: ", bold: true, color: "0F172A", font: "Arial", size: 21 }),
+                        new TextRun({ text: pinCode, color: "334155", font: "Arial", size: 21 }),
                       ],
+                      spacing: { after: 40 }
                     }),
                     new Paragraph({
                       children: [
-                        new TextRun({ text: "Notes Title: ", bold: true, color: "111111", font: "Arial" }),
-                        new TextRun({ text: title, font: "Arial" }),
+                        new TextRun({ text: "Notes Title: ", bold: true, color: "0F172A", font: "Arial", size: 21 }),
+                        new TextRun({ text: title, color: "334155", font: "Arial", size: 21 }),
                       ],
+                      spacing: { after: 40 }
                     }),
                     new Paragraph({
                       children: [
-                        new TextRun({ text: "Date: ", bold: true, color: "111111", font: "Arial" }),
-                        new TextRun({ text: new Date().toLocaleDateString(), font: "Arial" }),
+                        new TextRun({ text: "Date: ", bold: true, color: "0F172A", font: "Arial", size: 21 }),
+                        new TextRun({ text: new Date().toLocaleDateString(), color: "334155", font: "Arial", size: 21 }),
                       ],
                     }),
                   ],
@@ -1032,7 +1133,18 @@ export const exportNotesToDocx = async (options: ExportNotesOptions): Promise<bo
             }),
           ],
         }),
-        new Paragraph({ spacing: { after: 240 } }),
+        // Clean horizontal divider before slide notes begin
+        new Paragraph({
+          border: {
+            bottom: {
+              style: BorderStyle.SINGLE,
+              size: 10,
+              color: "CBD5E1",
+              space: 1
+            }
+          },
+          spacing: { before: 180, after: 260 }
+        }),
         ...slideElements
       ]
     }]
