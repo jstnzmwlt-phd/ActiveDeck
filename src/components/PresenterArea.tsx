@@ -438,6 +438,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     const displayMediaOptions: any = {
       video: {
         displaySurface: 'window',
+        cursor: 'never',
       },
       audio: false,
       selfBrowserSurface: 'exclude',
@@ -3686,8 +3687,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                             setIsPenActive(true);
                           }
                         }}
+                        style={{
+                          cursor: presentation?.magnifierActive ? 'pointer' : (laserEnabled && !isPenActive) ? 'none' : (!isPenActive ? 'pointer' : undefined)
+                        }}
                         className={`relative w-full h-full bg-black border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex items-center justify-center mx-auto ${
-                          presentation?.magnifierActive || !isPenActive ? 'cursor-pointer' : ''
+                          presentation?.magnifierActive || (!isPenActive && !laserEnabled) ? 'cursor-pointer' : ''
                         }`}
                       >
                       <ScreenCapture 
