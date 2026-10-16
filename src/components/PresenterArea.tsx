@@ -379,7 +379,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     }
   }, [isProjectorMode, presentation?.id, presentation?.pinCode]);
 
-  const scheduleProjectorWindow = useCallback((delayMs = 5000) => {
+  const scheduleProjectorWindow = useCallback((delayMs = 3000) => {
     if (isProjectorMode) return;
     if (projectorTimeoutRef.current) {
       clearTimeout(projectorTimeoutRef.current);
@@ -432,9 +432,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         }
         window.dispatchEvent(new CustomEvent('activedeck-stream-started'));
 
-        // When user clicks the Share button to share screen, wait 5 seconds before opening Projector Mode window
+        // When user clicks the Share button to share screen, wait 3 seconds before opening Projector Mode window
         if (!isProjectorMode && (!projectorWindowRef.current || projectorWindowRef.current.closed)) {
-          scheduleProjectorWindow(5000);
+          scheduleProjectorWindow(3000);
         }
         // Only create a new presentation session if one doesn't exist yet
         let activePresentationId = presentation?.id;
@@ -4643,38 +4643,30 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                       <div className="space-y-1.5">
                         <div className="flex gap-2.5">
                           <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">1</div>
-                          <p className="text-xs text-slate-600 leading-relaxed">Download <span className="font-bold">ActiveDeck Bridge (.zip)</span> below to computer.</p>
+                          <p className="text-xs text-slate-600 leading-relaxed">Run <span className="font-bold">ActiveDeck Bridge</span> (<span className="font-bold">activedeck_bridge.exe</span>) on your presentation computer. The indicator above will turn green when connected.</p>
                         </div>
                         <div className="flex gap-2.5">
                           <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">2</div>
-                          <p className="text-xs text-slate-600 leading-relaxed">Unzip file (right click and <span className="font-bold">"Extract All"</span>).</p>
+                          <p className="text-xs text-slate-600 leading-relaxed"><span className="font-bold">Start presentation:</span> Click <span className="font-bold text-amber-600">"Launch & Present"</span> for an uploaded deck to auto-download and open PPT in Slide Show mode, or open PPT manually and click <span className="font-bold text-green-600">"Share Screen to Present"</span>.</p>
                         </div>
                         <div className="flex gap-2.5">
                           <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">3</div>
-                          <p className="text-xs text-slate-600 leading-relaxed">Install file (<span className="font-bold">activedeck_bridge.exe</span>). If Windows shows a protection warning, click <span className="font-bold">"More Info"</span> and then <span className="font-bold">"Run Anyway"</span>. A green color on the <span className="font-bold">"Ready to Present"</span> window means that the bridge is working.</p>
+                          <p className="text-xs text-slate-600 leading-relaxed">In the browser screen sharing prompt, select your PowerPoint Slide Show window/screen to share.</p>
                         </div>
                         <div className="flex gap-2.5">
                           <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">4</div>
-                          <p className="text-xs text-slate-600 leading-relaxed">Open PPT and start <span className="font-bold">Slide Show (F5)</span> on your computer. Make sure the slide show is showing on the projector (audience) screen, and disable <span className="font-bold">"Presenter"</span> mode.</p>
+                          <p className="text-xs text-slate-600 leading-relaxed">The <span className="font-bold">Projector Mode</span> window will automatically pop up in 3 seconds. Drag it to your projector or audience display screen and maximize it.</p>
                         </div>
                         <div className="flex gap-2.5">
                           <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">5</div>
-                          <p className="text-xs text-slate-600 leading-relaxed">Click the <span className="font-bold">Projector Mode</span> button on the ActiveDeck main screen (in the top bar) to launch the audience screen window.</p>
-                        </div>
-                        <div className="flex gap-2.5">
-                          <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">6</div>
-                          <p className="text-xs text-slate-600 leading-relaxed">Click <span className="font-bold">"Start Presentation"</span> (green button) and share the PPT main screen.</p>
-                        </div>
-                        <div className="flex gap-2.5">
-                          <div className="flex-shrink-0 w-5 h-5 bg-osu-orange text-white rounded-full flex items-center justify-center text-[10px] font-bold">7</div>
-                          <p className="text-xs text-slate-600 leading-relaxed">Drag the new <span className="font-bold">Projector Mode</span> window to the projector or audience display screen.</p>
+                          <p className="text-xs text-slate-600 leading-relaxed">Keep ActiveDeck on your laptop/primary monitor to access presenter tools (timer, laser pointer, drawings, attendance, and student chat).</p>
                         </div>
                         <div 
                           className="mt-1.5 p-2 bg-slate-50 rounded-lg border-2" 
                           style={{ borderColor: secondaryColor }}
                         >
                           <p className="text-[10px] text-slate-500 italic text-center leading-normal">
-                            Advance slides using the <span className="font-bold">Prev/Next</span> button in ActiveDeck, not the PowerPoint.
+                            Advance slides seamlessly using either PowerPoint (clicker/keyboard) or the <span className="font-bold">Prev/Next</span> controls in ActiveDeck—both stay synchronized in real time.
                           </p>
                         </div>
                       </div>
@@ -4700,16 +4692,33 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                           </div>
                         </>
                       ) : (
-                        <button
-                          onClick={() => {
-                            setShowInstructions(false);
-                            startCapture();
-                          }}
-                          className="flex items-center justify-center gap-2.5 w-full py-3 bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-xl shadow-green-500/30 text-base cursor-pointer border-0"
-                        >
-                          <Play className="w-5 h-5 fill-current" />
-                          Start Presentation
-                        </button>
+                        <div className="space-y-2">
+                          {(activeDeck?.url || presentation?.pptxUrl) ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowInstructions(false);
+                                handleLoadPpt(activeDeck || undefined);
+                              }}
+                              className="flex items-center justify-center gap-2.5 w-full py-3 bg-amber-600 hover:bg-amber-500 text-white font-black uppercase tracking-wider rounded-xl transition-all active:scale-95 shadow-xl shadow-amber-600/30 text-sm cursor-pointer border-0"
+                            >
+                              <Play className="w-4 h-4 fill-current" />
+                              <span>Launch & Present Selected PPT</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowInstructions(false);
+                                startCapture();
+                              }}
+                              className="flex items-center justify-center gap-2.5 w-full py-3 bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-xl shadow-green-500/30 text-base cursor-pointer border-0"
+                            >
+                              <Play className="w-5 h-5 fill-current" />
+                              <span>Start Presentation</span>
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
