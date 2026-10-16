@@ -354,6 +354,13 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       if (projectorWindowRef.current && !projectorWindowRef.current.closed) {
         projectorWindowRef.current.focus();
         setIsProjectorBlocked(false);
+        window.dispatchEvent(new CustomEvent('activedeck-projector-opened'));
+        try {
+          const channel = new BroadcastChannel('activedeck-stream');
+          channel.postMessage({ type: 'projector-opened' });
+          channel.postMessage({ type: 'projector-alive' });
+          channel.close();
+        } catch (e) {}
         return;
       }
       const url = new URL(window.location.href);
@@ -372,6 +379,30 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       } else {
         projectorWindowRef.current = win;
         setIsProjectorBlocked(false);
+        window.dispatchEvent(new CustomEvent('activedeck-projector-opened'));
+        try {
+          const channel = new BroadcastChannel('activedeck-stream');
+          channel.postMessage({ type: 'projector-opened' });
+          channel.postMessage({ type: 'projector-alive' });
+          channel.close();
+        } catch (e) {}
+
+        const checkClosedTimer = setInterval(() => {
+          try {
+            if (win.closed) {
+              clearInterval(checkClosedTimer);
+              projectorWindowRef.current = null;
+              window.dispatchEvent(new CustomEvent('activedeck-projector-closed'));
+              try {
+                const channel = new BroadcastChannel('activedeck-stream');
+                channel.postMessage({ type: 'projector-closed' });
+                channel.close();
+              } catch (e) {}
+            }
+          } catch {
+            clearInterval(checkClosedTimer);
+          }
+        }, 1000);
       }
     } catch (err) {
       console.error('Failed to automatically open Projector Mode screen:', err);

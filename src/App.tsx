@@ -6,7 +6,7 @@ import { Header } from './components/Header';
 import { Presentation, GlobalSettings, DrawingStroke, DeckItem, SlideTextAnnotation } from './types';
 import { db } from './firebase';
 import { collection, query, orderBy, limit, onSnapshot, doc, addDoc, serverTimestamp, updateDoc, getDoc, setDoc, increment, where } from 'firebase/firestore';
-import { Presentation as PresentationIcon, Loader2, AlertCircle, Maximize, Minimize, Lock, Pen, ZoomIn, Tv, ArrowLeftRight, MessageSquare, NotebookPen, Plus, FileText, X, Download, ChevronsLeft, ChevronsRight, Edit3, Sun, Moon } from 'lucide-react';
+import { Presentation as PresentationIcon, Loader2, AlertCircle, Maximize, Minimize, Lock, Pen, ZoomIn, Tv, ArrowLeftRight, MessageSquare, NotebookPen, Plus, FileText, X, Download, ChevronsLeft, ChevronsRight, Edit3, Sun, Moon, Eye } from 'lucide-react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { BridgeProvider } from './contexts/BridgeContext';
 import { AdminPortal } from './components/AdminPortal';
@@ -1070,9 +1070,10 @@ function AppContent() {
     const saved = localStorage.getItem('activeDeckPresenterSidebarWidth');
     if (saved) {
       const parsed = parseInt(saved, 10);
-      return !isNaN(parsed) && parsed >= 440 ? parsed : 440;
+      if (parsed === 440) return 320;
+      return !isNaN(parsed) && parsed >= 280 ? parsed : 320;
     }
-    return 440;
+    return 320;
   });
 
   const [audienceChatWidth, setAudienceChatWidth] = useState(() => {
@@ -1081,6 +1082,20 @@ function AppContent() {
   });
 
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const [viewingAsEmail, setViewingAsEmail] = useState<string | null>(() => {
+    return sessionStorage.getItem('activeDeckViewingAs') || null;
+  });
+
+  const handleExitViewAs = () => {
+    const original = sessionStorage.getItem('activeDeckAdminOriginalEmail') || 'justin.zumwalt@okstate.edu';
+    sessionStorage.setItem('activePresenterEmail', original);
+    localStorage.setItem('activeDeckLastPresenterEmail', original);
+    sessionStorage.removeItem('activeDeckViewingAs');
+    sessionStorage.removeItem('activeDeckAdminOriginalEmail');
+    window.location.hash = '#admin';
+    window.location.reload();
+  };
 
   // Manage local fullscreen change state
   useEffect(() => {
@@ -1095,18 +1110,46 @@ function AppContent() {
     };
   }, []);
 
-  // Listen for close-projector broadcast in Projector Mode
+  // Listen for close-projector broadcast in Projector Mode and broadcast liveness
   useEffect(() => {
     if (!isProjector) return;
-    console.log('AppContent - Projector Mode: Listening for close-projector broadcast');
+    console.log('AppContent - Projector Mode: Listening for close-projector broadcast & announcing liveness');
     const channel = new BroadcastChannel('activedeck-stream');
+
+    // Announce immediately that projector window is open and deployed
+    channel.postMessage({ type: 'projector-alive' });
+
+    // Send periodic heartbeat every 2 seconds
+    const heartbeatTimer = setInterval(() => {
+      try {
+        channel.postMessage({ type: 'projector-alive' });
+      } catch (e) {}
+    }, 2000);
+
     channel.onmessage = (event) => {
       if (event.data?.type === 'close-projector') {
         console.log('AppContent - Closing projector window as requested by presenter');
         window.close();
+      } else if (event.data?.type === 'projector-ping') {
+        try {
+          channel.postMessage({ type: 'projector-alive' });
+        } catch (e) {}
       }
     };
+
+    const handleBeforeUnload = () => {
+      try {
+        channel.postMessage({ type: 'projector-closed' });
+      } catch (e) {}
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
     return () => {
+      clearInterval(heartbeatTimer);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      try {
+        channel.postMessage({ type: 'projector-closed' });
+      } catch (e) {}
       channel.close();
     };
   }, [isProjector]);
@@ -1218,8 +1261,8 @@ function AppContent() {
   };
 
   const handleDoubleClickPresenter = () => {
-    setPresenterSidebarWidth(440);
-    localStorage.setItem('activeDeckPresenterSidebarWidth', '440');
+    setPresenterSidebarWidth(320);
+    localStorage.setItem('activeDeckPresenterSidebarWidth', '320');
   };
 
   const handleDoubleClickAudienceChat = () => {
@@ -3129,6 +3172,26 @@ function AppContent() {
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden bg-slate-100 font-sans antialiased">
+      {viewingAsEmail && (
+        <div className="bg-amber-500 text-slate-950 font-black text-xs px-4 py-2 flex items-center justify-between z-[999] shadow-md shrink-0 border-b border-amber-600/30">
+          <div className="flex items-center gap-2">
+            <span className="bg-slate-950 text-white text-[10px] uppercase font-black px-2 py-0.5 rounded tracking-wider">
+              Superuser View As
+            </span>
+            <span>
+              Viewing app workspace as: <span className="font-mono underline">{viewingAsEmail}</span>
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={handleExitViewAs}
+            className="flex items-center gap-1.5 px-3 py-1 bg-slate-950 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
+          >
+            <Eye className="w-3.5 h-3.5" />
+            <span>Exit View As & Return to Admin</span>
+          </button>
+        </div>
+      )}
       <Header 
         presentationId={presentation?.id || activePresentationId} 
         showAttendance={settings?.showAttendance}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Monitor, Clock, Maximize, Minimize, Link2, Link2Off, Sun, Moon, Loader2, AlertCircle, Eye, EyeOff, Download, ShieldAlert, X, Tv, UserCheck, LogOut } from 'lucide-react';
 import { useBridge } from '../contexts/BridgeContext';
@@ -28,6 +28,7 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hasOpenedProjector, setHasOpenedProjector] = useState(false);
   const [isLocallySharing, setIsLocallySharing] = useState(false);
+  const projectorWindowRef = useRef<Window | null>(null);
 
   useEffect(() => {
     const handleStarted = () => setIsLocallySharing(true);
@@ -36,16 +37,39 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
     window.addEventListener('activedeck-stream-started', handleStarted);
     window.addEventListener('activedeck-stream-stopped', handleStopped);
 
+    const handleProjOpened = () => setHasOpenedProjector(true);
+    const handleProjClosed = () => setHasOpenedProjector(false);
+    window.addEventListener('activedeck-projector-opened', handleProjOpened);
+    window.addEventListener('activedeck-projector-closed', handleProjClosed);
+
     let bc: BroadcastChannel | null = null;
+    let heartbeatTimeout: any = null;
+
     try {
       bc = new BroadcastChannel('activedeck-stream');
       bc.onmessage = (event) => {
         if (event.data?.type === 'stream-started') {
           setIsLocallySharing(true);
-        } else if (event.data?.type === 'stream-stopped' || event.data?.type === 'close-projector') {
+        } else if (event.data?.type === 'stream-stopped') {
           setIsLocallySharing(false);
+        } else if (event.data?.type === 'close-projector') {
+          setIsLocallySharing(false);
+          setHasOpenedProjector(false);
+        } else if (event.data?.type === 'projector-opened' || event.data?.type === 'projector-alive') {
+          setHasOpenedProjector(true);
+          // If no heartbeat for 5s, assume closed
+          if (heartbeatTimeout) clearTimeout(heartbeatTimeout);
+          heartbeatTimeout = setTimeout(() => {
+            setHasOpenedProjector(false);
+          }, 5000);
+        } else if (event.data?.type === 'projector-closed') {
+          if (heartbeatTimeout) clearTimeout(heartbeatTimeout);
+          setHasOpenedProjector(false);
         }
       };
+
+      // Query if projector is already open
+      bc.postMessage({ type: 'projector-ping' });
     } catch (e) {
       console.warn('Header: BroadcastChannel error:', e);
     }
@@ -57,13 +81,21 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
     return () => {
       window.removeEventListener('activedeck-stream-started', handleStarted);
       window.removeEventListener('activedeck-stream-stopped', handleStopped);
+      window.removeEventListener('activedeck-projector-opened', handleProjOpened);
+      window.removeEventListener('activedeck-projector-closed', handleProjClosed);
+      if (heartbeatTimeout) clearTimeout(heartbeatTimeout);
       if (bc) bc.close();
     };
   }, []);
 
+  // When presentationId or sharing status changes, ping to verify if projector is currently alive
   useEffect(() => {
-    setHasOpenedProjector(false);
-  }, [presentationId]);
+    try {
+      const channel = new BroadcastChannel('activedeck-stream');
+      channel.postMessage({ type: 'projector-ping' });
+      channel.close();
+    } catch (e) {}
+  }, [presentationId, isSharingPresentation, isLocallySharing]);
 
   const isSharing = isSharingPresentation || isLocallySharing;
   const shouldPulsateProjector = isSharing && !hasOpenedProjector;
@@ -410,6 +442,13 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
             <button
               onClick={() => {
                 if (!presentationId) return;
+
+                if (projectorWindowRef.current && !projectorWindowRef.current.closed) {
+                  projectorWindowRef.current.focus();
+                  setHasOpenedProjector(true);
+                  return;
+                }
+
                 const url = new URL(window.location.href);
                 url.searchParams.set('id', presentationId);
                 if (pinCode) {
@@ -417,19 +456,34 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
                 }
                 url.searchParams.set('view', 'projector');
                 const projWin = window.open(url.toString(), '_blank', 'popup=yes,width=1280,height=720,resizable=yes,scrollbars=yes');
+                projectorWindowRef.current = projWin;
                 setHasOpenedProjector(true);
+                window.dispatchEvent(new CustomEvent('activedeck-projector-opened'));
+                try {
+                  const channel = new BroadcastChannel('activedeck-stream');
+                  channel.postMessage({ type: 'projector-opened' });
+                  channel.postMessage({ type: 'projector-alive' });
+                  channel.close();
+                } catch (e) {}
 
                 if (projWin) {
                   const checkClosedTimer = setInterval(() => {
                     try {
                       if (projWin.closed) {
                         clearInterval(checkClosedTimer);
+                        projectorWindowRef.current = null;
                         setHasOpenedProjector(false);
+                        window.dispatchEvent(new CustomEvent('activedeck-projector-closed'));
+                        try {
+                          const channel = new BroadcastChannel('activedeck-stream');
+                          channel.postMessage({ type: 'projector-closed' });
+                          channel.close();
+                        } catch (e) {}
                       }
                     } catch {
                       clearInterval(checkClosedTimer);
                     }
-                  }, 1500);
+                  }, 1000);
                 }
               }}
               className={`relative flex items-center gap-1.5 px-2.5 py-1 bg-osu-orange hover:bg-[#c03900] text-white text-[11px] font-black uppercase tracking-wider rounded-lg transition-all active:scale-95 cursor-pointer ${

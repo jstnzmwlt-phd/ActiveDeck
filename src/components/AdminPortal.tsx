@@ -3,7 +3,7 @@ import { doc, getDoc, setDoc, addDoc, collection, onSnapshot, deleteDoc, query, 
 import { db, storage } from '../firebase';
 import { ref, listAll, deleteObject } from 'firebase/storage';
 import { Theme, SavedTheme, Message, Poll, WordCloud, OpenEndedQuestion, Presentation } from '../types';
-import { Palette, UserCheck, Download, ArrowLeft, Loader2, Calendar, Database, AlertCircle, Trash2, Monitor, Plus, Mail, History, Copy, Check, FileText, Send, X, Presentation as PresentationIcon, ChevronDown, ChevronRight, ChevronsUpDown, User, Lock, Unlock } from 'lucide-react';
+import { Palette, UserCheck, Download, ArrowLeft, Loader2, Calendar, Database, AlertCircle, Trash2, Monitor, Plus, Mail, History, Copy, Check, FileText, Send, X, Presentation as PresentationIcon, ChevronDown, ChevronRight, ChevronsUpDown, User, Lock, Unlock, Eye } from 'lucide-react';
 import { compositeSlideWithAnnotations, createSlidePlaceholderImage } from '../utils/exportNotesDocx';
 
 const formatHtmlTextWithLinks = (text: string): string => {
@@ -924,6 +924,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
     } finally {
       setIsDeletingPresenters(false);
     }
+  };
+
+  const handleViewAsPresenter = (email: string) => {
+    const trimmed = email.trim().toLowerCase();
+    const currentAdminEmail = sessionStorage.getItem('activePresenterEmail') || localStorage.getItem('activeDeckLastPresenterEmail') || 'justin.zumwalt@okstate.edu';
+    sessionStorage.setItem('activeDeckAdminOriginalEmail', currentAdminEmail);
+    sessionStorage.setItem('activeDeckViewingAs', trimmed);
+    sessionStorage.setItem('activePresenterEmail', trimmed);
+    localStorage.setItem('activeDeckLastPresenterEmail', trimmed);
+    window.location.href = window.location.origin + window.location.pathname;
   };
 
   // Derived state to filter attendance records by selected institution
@@ -2640,11 +2650,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                 </div>
 
                 <div className="border border-slate-800/80 rounded-2xl overflow-hidden bg-slate-950/40">
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto max-h-[620px] overflow-y-auto">
                     <table className="w-full text-left border-collapse">
-                      <thead>
+                      <thead className="sticky top-0 z-20 bg-slate-950 shadow-md">
                         <tr className="bg-slate-950 border-b border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-400">
-                          <th className="py-3 px-5 text-center w-12">
+                          <th className="py-3 px-5 text-center w-12 sticky top-0 bg-slate-950">
                             <input
                               type="checkbox"
                               checked={whitelistedPresenters.length > 0 && whitelistedPresenters.filter(p => p.email.toLowerCase() !== 'justin.zumwalt@okstate.edu').every(p => selectedPresenterKeysForBulk.includes(p.email))}
@@ -2662,12 +2672,12 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                               className="w-4 h-4 rounded border-slate-700 text-osu-orange focus:ring-osu-orange/20 bg-slate-950 cursor-pointer"
                             />
                           </th>
-                          <th className="py-3 px-5">Presenter Display Name</th>
-                          <th className="py-3 px-5">Presenter Email Address</th>
-                          <th className="py-3 px-5">Date Whitelisted</th>
-                          <th className="py-3 px-5 text-center">Sessions Hosted</th>
-                          <th className="py-3 px-5">Latest Session Date & Time</th>
-                          <th className="py-3 px-5 text-right w-20">Actions</th>
+                          <th className="py-3 px-5 sticky top-0 bg-slate-950">Presenter Display Name</th>
+                          <th className="py-3 px-5 sticky top-0 bg-slate-950">Presenter Email Address</th>
+                          <th className="py-3 px-5 sticky top-0 bg-slate-950">Date Whitelisted</th>
+                          <th className="py-3 px-5 text-center min-w-[130px] w-36 sticky top-0 bg-slate-950">Sessions Hosted</th>
+                          <th className="py-3 px-5 sticky top-0 bg-slate-950">Latest Session Date & Time</th>
+                          <th className="py-3 px-5 text-right min-w-[160px] w-44 sticky top-0 bg-slate-950">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -2716,29 +2726,40 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                                 <td className="py-4 px-5 text-slate-300 font-mono text-xs">{presenter.email}</td>
                                 <td className="py-4 px-5 text-slate-400 text-xs">{addedDateString}</td>
                                 <td className="py-4 px-5 text-center font-black text-osu-orange">
-                                  <span className="bg-osu-orange/10 px-3 py-1 rounded-full border border-osu-orange/20">
-                                    {presenter.usageCount || 0} sessions
+                                  <span className="inline-flex items-center justify-center bg-osu-orange/10 px-3.5 py-1 rounded-full border border-osu-orange/20 min-w-[54px] font-mono text-xs">
+                                    {presenter.usageCount || 0}
                                   </span>
                                 </td>
                                 <td className="py-4 px-5 text-slate-400 font-mono text-xs font-semibold">
                                   {lastUsedDateString}
                                 </td>
                                 <td className="py-4 px-5 text-right">
-                                  {isCreator ? (
-                                    <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wide text-amber-500 bg-amber-500/10 px-2.5 py-0.5 rounded border border-amber-500/20" title="Creator account: Protected from removal">
-                                      Owner
-                                    </span>
-                                  ) : (
+                                  <div className="flex items-center justify-end gap-2">
                                     <button
                                       type="button"
-                                      onClick={() => handleDeletePresenters([presenter.email])}
-                                      disabled={isDeletingPresenters}
-                                      className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200 cursor-pointer disabled:opacity-50"
-                                      title="Remove Presenter Whitelist"
+                                      onClick={() => handleViewAsPresenter(presenter.email)}
+                                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-osu-orange/10 hover:bg-osu-orange/20 border border-osu-orange/30 text-osu-orange text-xs font-bold transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-sm whitespace-nowrap"
+                                      title={`View ActiveDeck from ${presenter.email}'s account`}
                                     >
-                                      <Trash2 className="w-4 h-4" />
+                                      <Eye className="w-3.5 h-3.5 shrink-0" />
+                                      <span>View As</span>
                                     </button>
-                                  )}
+                                    {isCreator ? (
+                                      <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wide text-amber-500 bg-amber-500/10 px-2.5 py-1 rounded border border-amber-500/20" title="Creator account: Protected from removal">
+                                        Owner
+                                      </span>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeletePresenters([presenter.email])}
+                                        disabled={isDeletingPresenters}
+                                        className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200 cursor-pointer disabled:opacity-50"
+                                        title="Remove Presenter Whitelist"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    )}
+                                  </div>
                                 </td>
                               </tr>
                             );
