@@ -5,7 +5,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Message, Presentation, Poll, WordCloud, OpenEndedQuestion, GlobalSettings } from '../types';
 import { useAuth } from './AuthProvider';
 import { useBridge } from '../contexts/BridgeContext';
-import { Send, HelpCircle, MessageSquare, MessageSquareOff, Trash2, ThumbsUp, Download, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud, Eye, EyeOff, Timer, Users, ChevronDown, ChevronUp, Pin, Loader2, AlertCircle, Presentation as PresentationIcon, Paperclip, Maximize2, Minimize2, X, Square, Lock, Unlock, QrCode } from 'lucide-react';
+import { Send, HelpCircle, MessageSquare, MessageSquareOff, Trash2, ThumbsUp, Download, ToggleLeft, ToggleRight, BarChart2, CheckCircle2, XCircle, Cloud, Eye, EyeOff, Timer, Users, ChevronDown, ChevronUp, ChevronsLeft, ChevronsRight, Pin, Loader2, AlertCircle, Presentation as PresentationIcon, Paperclip, Maximize2, Minimize2, X, Square, Lock, Unlock, QrCode } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { QRCodeSVG } from 'qrcode.react';
@@ -182,6 +182,7 @@ interface OpenEndedQuestionCardProps {
 }
 
 const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, canModerate, onClose, onDelete, onStart, onSubmit, onToggleResults, onAdjustDuration, initialCollapsed = false, isInitiallyNew = false, secondaryColor, isProjector = false, onOpenImageLightbox, isStarting, forceCollapsed, onToggleCollapse }) => {
+  const isDark = !canModerate && !isProjector;
   const [response, setResponse] = useState('');
   const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : (forceCollapsed ?? initialCollapsed));
   const responsesData = q.responses || {};
@@ -251,7 +252,10 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
   };
 
   return (
-    <div className="p-4 rounded-xl border-2 border-green-500 bg-white shadow-lg animate-in zoom-in-95 duration-200">
+    <div className={cn(
+      "p-4 rounded-xl border-2 border-green-500 shadow-lg animate-in zoom-in-95 duration-200",
+      isDark ? "bg-slate-900/95 text-slate-100" : "bg-white"
+    )}>
       <div className="flex items-center justify-between gap-2 mb-3 min-w-0 w-full">
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
           <button 
@@ -260,16 +264,23 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
               setIsCollapsed(nextCollapsed);
               onToggleCollapse?.(q.id, nextCollapsed);
             }}
-            className="p-1 -ml-1 hover:bg-slate-100 rounded transition-colors text-slate-400 hover:text-green-500 shrink-0"
+            className={cn(
+              "p-1 -ml-1 rounded transition-colors text-slate-400 hover:text-green-500 shrink-0",
+              isDark ? "hover:bg-slate-800" : "hover:bg-slate-100"
+            )}
           >
             {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
           </button>
           <MessageSquare className="w-4 h-4 text-green-500 shrink-0" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 truncate">Open Question</span>
+          <span className={cn("text-[10px] font-black uppercase tracking-widest truncate", isDark ? "text-slate-400" : "text-slate-500")}>Open Question</span>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           {isCollapsed && q.active && timeLeft !== null && (
-            <div className={`flex items-center gap-1.5 px-2 py-1 bg-red-50 border border-red-100 rounded-lg text-xs font-mono font-black shrink-0 ${timeLeft > 10 ? 'text-slate-700' : 'text-red-500 animate-pulse'}`}>
+            <div className={cn(
+              "flex items-center gap-1.5 px-2 py-1 border rounded-lg text-xs font-mono font-black shrink-0",
+              isDark ? "bg-red-950/60 border-red-800/60" : "bg-red-50 border-red-100",
+              timeLeft > 10 ? (isDark ? 'text-slate-200' : 'text-slate-700') : 'text-red-500 animate-pulse'
+            )}>
               <Timer className="w-3.5 h-3.5" />
               <span>Time Left: </span>
               {Math.floor(timeLeft / 60)}:{Math.floor(timeLeft % 60).toString().padStart(2, '0')}
@@ -311,7 +322,7 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
       {!isCollapsed && (
         <>
           <div className="mb-4">
-            <h4 className="font-bold text-slate-800 text-lg">{q.prompt}</h4>
+            <h4 className={cn("font-bold text-lg", isDark ? "text-slate-100" : "text-slate-800")}>{q.prompt}</h4>
           </div>
 
           {q.fileUrl && (
@@ -338,10 +349,13 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
           )}
 
           {q.active && timeLeft !== null && (
-            <div className="mb-4 flex items-center justify-center gap-2.5 py-3 px-4 bg-green-50 border border-green-200/40 rounded-2xl shadow-sm animate-pulse">
-              <Timer className={`w-6 h-6 ${timeLeft > 10 ? 'text-green-600' : 'text-red-500 animate-spin'}`} />
-              <span className="text-xs uppercase font-black tracking-widest text-slate-500">Time Remaining:</span>
-              <span className={`text-2xl font-black font-mono tracking-wider ${timeLeft > 10 ? 'text-slate-800' : 'text-red-600'}`}>
+            <div className={cn(
+              "mb-4 flex items-center justify-center gap-2.5 py-3 px-4 border rounded-2xl shadow-sm animate-pulse",
+              isDark ? "bg-green-950/40 border-green-500/30" : "bg-green-50 border-green-200/40"
+            )}>
+              <Timer className={`w-6 h-6 ${timeLeft > 10 ? (isDark ? 'text-green-400' : 'text-green-600') : 'text-red-500 animate-spin'}`} />
+              <span className={cn("text-xs uppercase font-black tracking-widest", isDark ? "text-slate-400" : "text-slate-500")}>Time Remaining:</span>
+              <span className={`text-2xl font-black font-mono tracking-wider ${timeLeft > 10 ? (isDark ? 'text-slate-100' : 'text-slate-800') : 'text-red-500'}`}>
                 {Math.floor(timeLeft / 60)}:{Math.floor(timeLeft % 60).toString().padStart(2, '0')}
               </span>
             </div>
@@ -412,7 +426,7 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
                     value={response}
                     onChange={e => setResponse(e.target.value)}
                     placeholder="Type your response..."
-                    className="flex-1 px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:border-green-500"
+                    className="flex-1 px-3 py-2 border border-slate-700 bg-slate-800 text-slate-100 placeholder-slate-400 rounded-md text-sm focus:outline-none focus:border-green-500"
                   />
                   <button type="submit" className="px-4 py-2 bg-green-500 text-white rounded-md text-sm font-bold hover:bg-green-600">
                     Submit
@@ -423,7 +437,7 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
               {showResults ? (
                 <div className="mt-4 space-y-2">
                   {Object.values(responsesData).map((r, i) => (
-                    <div key={i} className="p-2 bg-slate-50 text-sm rounded shadow-sm text-slate-700">
+                    <div key={i} className={cn("p-2 text-sm rounded shadow-sm", isDark ? "bg-slate-800 text-slate-200 border border-slate-700" : "bg-slate-50 text-slate-700")}>
                       {r}
                     </div>
                   ))}
@@ -432,11 +446,11 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
               ) : (
                 <div className="mt-4 space-y-3">
                   {myResponse && !canModerate && (
-                    <div className="p-2 bg-green-50 border border-green-100 text-sm rounded shadow-sm text-slate-700">
-                      <span className="font-bold text-green-600">Your response:</span> {myResponse}
+                    <div className={cn("p-2 border text-sm rounded shadow-sm", isDark ? "bg-green-950/40 border-green-500/30 text-slate-200" : "bg-green-50 border-green-100 text-slate-700")}>
+                      <span className={cn("font-bold", isDark ? "text-green-400" : "text-green-600")}>Your response:</span> {myResponse}
                     </div>
                   )}
-                  <div className="p-3 bg-slate-100 text-slate-500 text-xs rounded-lg text-center italic border border-slate-200">
+                  <div className={cn("p-3 text-xs rounded-lg text-center italic border", isDark ? "bg-slate-800/70 text-slate-400 border-slate-700" : "bg-slate-100 text-slate-500 border-slate-200")}>
                       {canModerate ? (
                         <>
                           Responses are currently hidden from audience (<span style={{ color: secondaryColor }} className="text-sm font-black transition-colors duration-300">{totalResponses}</span> received)
@@ -476,6 +490,7 @@ interface PollCardProps {
 }
 
 const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate, onVote, onToggleResults, onClose, onDelete, onStart, onAdjustDuration, onMarkCorrect, initialCollapsed = false, isInitiallyNew = false, secondaryColor, isProjector = false, onOpenImageLightbox, isStarting, forceCollapsed, onToggleCollapse }) => {
+  const isDark = !canModerate && !isProjector;
   const totalVotes = Object.values(poll.votes || {}).reduce((a, b) => a + b, 0);
   const userVote = user && poll.voters ? poll.voters[user.uid] : null;
   const [timeLeft, setTimeLeft] = useState<number | null>(() => {
@@ -543,7 +558,10 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
   const isClosed = !poll.active && (poll.expiresAt || poll.started);
 
   return (
-    <div className="p-4 rounded-xl border-2 border-osu-orange bg-white shadow-lg animate-in zoom-in-95 duration-200">
+    <div className={cn(
+      "p-4 rounded-xl border-2 border-osu-orange shadow-lg animate-in zoom-in-95 duration-200",
+      isDark ? "bg-slate-900/95 text-slate-100" : "bg-white"
+    )}>
       <div className="flex items-center justify-between gap-2 mb-3 min-w-0 w-full">
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
           <button 
@@ -552,14 +570,20 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
               setIsCollapsed(nextCollapsed);
               onToggleCollapse?.(poll.id, nextCollapsed);
             }}
-            className="p-1 -ml-1 hover:bg-slate-100 rounded transition-colors text-slate-400 hover:text-osu-orange shrink-0"
+            className={cn(
+              "p-1 -ml-1 rounded transition-colors text-slate-400 hover:text-osu-orange shrink-0",
+              isDark ? "hover:bg-slate-800" : "hover:bg-slate-100"
+            )}
           >
             {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
           </button>
           <BarChart2 className="w-4 h-4 text-osu-orange shrink-0" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 truncate">Poll</span>
+          <span className={cn("text-[10px] font-black uppercase tracking-widest truncate", isDark ? "text-slate-400" : "text-slate-500")}>Poll</span>
           {isCollapsed && timeLeft !== null && (
-            <div className="flex items-center gap-1.5 ml-1 px-2 py-1 bg-red-50 border border-red-100 rounded-lg text-xs font-mono font-black text-red-600 shrink-0">
+            <div className={cn(
+              "flex items-center gap-1.5 ml-1 px-2 py-1 border rounded-lg text-xs font-mono font-black shrink-0",
+              isDark ? "bg-red-950/60 border-red-800/60 text-red-400" : "bg-red-50 border-red-100 text-red-600"
+            )}>
               <Timer className="w-3.5 h-3.5" />
               {formatTime(timeLeft)}
             </div>
@@ -694,10 +718,13 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
           ) : (
             <div className="space-y-3">
               {poll.active && timeLeft !== null && (
-                <div className="flex items-center justify-center gap-2.5 py-3 px-4 bg-orange-50 border border-orange-200/40 rounded-2xl shadow-sm animate-pulse">
+                <div className={cn(
+                  "flex items-center justify-center gap-2.5 py-3 px-4 border rounded-2xl shadow-sm animate-pulse",
+                  isDark ? "bg-orange-950/40 border-osu-orange/30" : "bg-orange-50 border-orange-200/40"
+                )}>
                   <Timer className={`w-6 h-6 ${timeLeft > 10 ? 'text-osu-orange' : 'text-red-500 animate-spin'}`} />
-                  <span className="text-xs uppercase font-black tracking-widest text-slate-500">Time Remaining:</span>
-                  <span className={`text-2xl font-black font-mono tracking-wider ${timeLeft > 10 ? 'text-slate-800' : 'text-red-600'}`}>
+                  <span className={cn("text-xs uppercase font-black tracking-widest", isDark ? "text-slate-400" : "text-slate-500")}>Time Remaining:</span>
+                  <span className={`text-2xl font-black font-mono tracking-wider ${timeLeft > 10 ? (isDark ? 'text-slate-100' : 'text-slate-800') : 'text-red-500'}`}>
                     {formatTime(timeLeft)}
                   </span>
                 </div>
@@ -724,10 +751,12 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
                       }}
                       className={cn(
                         "w-full relative overflow-hidden flex items-center justify-between px-4 py-2 rounded-lg border transition-all",
-                        isSelected ? "border-osu-orange bg-orange-50" : "border-slate-200 hover:border-osu-orange/50 bg-white",
+                        isSelected 
+                          ? (isDark ? "border-osu-orange bg-osu-orange/15" : "border-osu-orange bg-orange-50") 
+                          : (isDark ? "border-slate-700 hover:border-osu-orange/60 bg-slate-800/80" : "border-slate-200 hover:border-osu-orange/50 bg-white"),
                         isProjector && "cursor-default pointer-events-none hover:border-slate-200 bg-white",
                         !poll.active && !canMarkCorrect && "opacity-80 cursor-default",
-                        hasCorrectAnswer && isCorrect && "border-green-500 bg-green-50/30 ring-2 ring-green-500/20",
+                        hasCorrectAnswer && isCorrect && (isDark ? "border-green-500 bg-green-950/40 ring-2 ring-green-500/20" : "border-green-500 bg-green-50/30 ring-2 ring-green-500/20"),
                         hasCorrectAnswer && !isCorrect && "border-red-500/50 grayscale-[0.5] opacity-70",
                         canMarkCorrect && !hasCorrectAnswer && "hover:border-green-500 cursor-pointer"
                       )}
@@ -743,20 +772,20 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
                       <div className="flex items-center gap-3 relative z-10">
                         <span className={cn(
                           "w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold transition-colors", 
-                          isSelected ? "bg-osu-orange text-white" : "bg-slate-100 text-slate-600",
+                          isSelected ? "bg-osu-orange text-white" : (isDark ? "bg-slate-700 text-slate-200" : "bg-slate-100 text-slate-600"),
                           hasCorrectAnswer && isCorrect && "bg-green-500 text-white",
-                          hasCorrectAnswer && !isCorrect && "bg-slate-100 text-slate-400"
+                          hasCorrectAnswer && !isCorrect && (isDark ? "bg-slate-800 text-slate-500" : "bg-slate-100 text-slate-400")
                         )}>
                           {opt}
                         </span>
                         {isSelected && <CheckCircle2 className="w-3 h-3 text-osu-orange" />}
-                        {hasCorrectAnswer && isCorrect && <CheckCircle2 className="w-3 h-3 text-green-600 ml-1" />}
+                        {hasCorrectAnswer && isCorrect && <CheckCircle2 className="w-3 h-3 text-green-500 ml-1" />}
                       </div>
                       
                       {poll.showResults && (
                         <div className="flex items-center gap-2 relative z-10">
                           <span className="text-[10px] font-bold text-slate-400">{Math.round(percentage)}%</span>
-                          <span className="text-xs font-bold text-slate-700">{count}</span>
+                          <span className={cn("text-xs font-bold", isDark ? "text-slate-200" : "text-slate-700")}>{count}</span>
                         </div>
                       )}
                     </button>
@@ -767,7 +796,7 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
           )}
           
           {!isDraft && (
-            <div className="mt-3 pt-3 border-t border-slate-100 flex justify-between items-center">
+            <div className={cn("mt-3 pt-3 border-t flex justify-between items-center", isDark ? "border-slate-800" : "border-slate-100")}>
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                 <span style={{ color: secondaryColor }} className="text-sm font-black transition-colors duration-300">{totalVotes}</span> Total Votes
               </span>
@@ -804,6 +833,7 @@ interface WordCloudCardProps {
 }
 
 const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, canModerate, onSubmit, onToggleResults, onClose, onDelete, onStart, onAdjustDuration, initialCollapsed = false, isInitiallyNew = false, secondaryColor, isProjector = false, forceCollapsed, onToggleCollapse }) => {
+  const isDark = !canModerate && !isProjector;
   const [word, setWord] = useState('');
   const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : (forceCollapsed ?? initialCollapsed));
   const [timeLeft, setTimeLeft] = useState<number | null>(() => {
@@ -878,7 +908,9 @@ const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, 
     return minSize + ((count - 1) / (maxCount - 1)) * (maxSize - minSize);
   };
 
-  const colors = ['#ff3e00', '#1e293b', '#334155', '#ea580c', '#c2410c', '#0f172a'];
+  const colors = isDark
+    ? ['#ff5722', '#38bdf8', '#facc15', '#fb923c', '#a78bfa', '#4ade80']
+    : ['#ff3e00', '#1e293b', '#334155', '#ea580c', '#c2410c', '#0f172a'];
   const getWordColor = (wordStr: string) => {
     let hash = 0;
     for (let i = 0; i < wordStr.length; i++) {
@@ -890,7 +922,10 @@ const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, 
   const isDraft = cloud.started === false || (!cloud.started && !cloud.active && !cloud.expiresAt);
 
   return (
-    <div className="p-4 rounded-xl border-2 border-blue-500 bg-white shadow-lg animate-in zoom-in-95 duration-200">
+    <div className={cn(
+      "p-4 rounded-xl border-2 border-blue-500 shadow-lg animate-in zoom-in-95 duration-200",
+      isDark ? "bg-slate-900/95 text-slate-100" : "bg-white"
+    )}>
       <div className="flex items-center justify-between gap-2 mb-3 min-w-0 w-full">
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
           <button 
@@ -899,16 +934,23 @@ const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, 
               setIsCollapsed(nextCollapsed);
               onToggleCollapse?.(cloud.id, nextCollapsed);
             }}
-            className="p-1 -ml-1 hover:bg-slate-100 rounded transition-colors text-slate-400 hover:text-blue-500 shrink-0"
+            className={cn(
+              "p-1 -ml-1 rounded transition-colors text-slate-400 hover:text-blue-500 shrink-0",
+              isDark ? "hover:bg-slate-800" : "hover:bg-slate-100"
+            )}
           >
             {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
           </button>
           <Cloud className="w-4 h-4 text-blue-500 shrink-0" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 truncate">Word Cloud</span>
+          <span className={cn("text-[10px] font-black uppercase tracking-widest truncate", isDark ? "text-slate-400" : "text-slate-500")}>Word Cloud</span>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           {isCollapsed && cloud.active && timeLeft !== null && (
-            <div className={`flex items-center gap-1.5 px-2 py-1 bg-red-50 border border-red-100 rounded-lg text-xs font-mono font-black shrink-0 ${timeLeft > 10 ? 'text-slate-700' : 'text-red-500 animate-pulse'}`}>
+            <div className={cn(
+              "flex items-center gap-1.5 px-2 py-1 border rounded-lg text-xs font-mono font-black shrink-0",
+              isDark ? "bg-red-950/60 border-red-800/60" : "bg-red-50 border-red-100",
+              timeLeft > 10 ? (isDark ? 'text-slate-200' : 'text-slate-700') : 'text-red-500 animate-pulse'
+            )}>
               <Timer className="w-3.5 h-3.5" />
               <span>Time Left: </span>
               {Math.floor(timeLeft / 60)}:{Math.floor(timeLeft % 60).toString().padStart(2, '0')}
@@ -955,14 +997,17 @@ const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, 
       {!isCollapsed && (
         <>
           <div className="mb-4">
-            <h4 className="font-bold text-slate-800 text-lg">{cloud.prompt}</h4>
+            <h4 className={cn("font-bold text-lg", isDark ? "text-slate-100" : "text-slate-800")}>{cloud.prompt}</h4>
           </div>
 
           {cloud.active && timeLeft !== null && (
-            <div className="mb-4 flex items-center justify-center gap-2.5 py-3 px-4 bg-blue-50 border border-blue-200/40 rounded-2xl shadow-sm animate-pulse">
-              <Timer className={`w-6 h-6 ${timeLeft > 10 ? 'text-blue-500' : 'text-red-500 animate-spin'}`} />
-              <span className="text-xs uppercase font-black tracking-widest text-slate-500">Time Remaining:</span>
-              <span className={`text-2xl font-black font-mono tracking-wider ${timeLeft > 10 ? 'text-slate-800' : 'text-red-600'}`}>
+            <div className={cn(
+              "mb-4 flex items-center justify-center gap-2.5 py-3 px-4 border rounded-2xl shadow-sm animate-pulse",
+              isDark ? "bg-blue-950/40 border-blue-500/30" : "bg-blue-50 border-blue-200/40"
+            )}>
+              <Timer className={`w-6 h-6 ${timeLeft > 10 ? (isDark ? 'text-blue-400' : 'text-blue-500') : 'text-red-500 animate-spin'}`} />
+              <span className={cn("text-xs uppercase font-black tracking-widest", isDark ? "text-slate-400" : "text-slate-500")}>Time Remaining:</span>
+              <span className={`text-2xl font-black font-mono tracking-wider ${timeLeft > 10 ? (isDark ? 'text-slate-100' : 'text-slate-800') : 'text-red-500'}`}>
                 {Math.floor(timeLeft / 60)}:{Math.floor(timeLeft % 60).toString().padStart(2, '0')}
               </span>
             </div>
@@ -1020,7 +1065,7 @@ const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, 
                     value={word}
                     onChange={e => setWord(e.target.value)}
                     placeholder="Enter a word or short phrase..."
-                    className="flex-1 px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:border-blue-500"
+                    className="flex-1 px-3 py-2 border border-slate-700 bg-slate-800 text-slate-100 placeholder-slate-400 rounded-md text-sm focus:outline-none focus:border-blue-500"
                     maxLength={30}
                   />
                   <button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded-md text-sm font-bold hover:bg-blue-600">
@@ -1030,11 +1075,14 @@ const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, 
               )}
 
               {hasParticipated && cloud.active && isChatOnly && !isProjector && (
-                <div className="text-xs text-slate-500 italic mb-2">You have submitted your response.</div>
+                <div className="text-xs text-slate-400 italic mb-2">You have submitted your response.</div>
               )}
 
               {cloud.showResults && (
-                <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-100 min-h-[150px] flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+                <div className={cn(
+                  "mt-4 p-4 rounded-lg border min-h-[150px] flex flex-wrap items-center justify-center gap-x-4 gap-y-2",
+                  isDark ? "bg-slate-800/80 border-slate-700" : "bg-slate-50 border-slate-100"
+                )}>
                   {Object.keys(cloud.words || {}).length === 0 ? (
                     <span className="text-sm text-slate-400">No words submitted yet.</span>
                   ) : (
@@ -1058,7 +1106,7 @@ const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, 
           )}
           
           {!isDraft && (
-            <div className="mt-3 pt-3 border-t border-slate-100 flex justify-between items-center">
+            <div className={cn("mt-3 pt-3 border-t flex justify-between items-center", isDark ? "border-slate-800" : "border-slate-100")}>
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                 <span style={{ color: secondaryColor }} className="text-sm font-black transition-colors duration-300">{totalWords}</span> Total Submissions
               </span>
@@ -1095,6 +1143,7 @@ interface MessageCardProps {
   onToggleCollapse?: (msgId: string, collapsed: boolean) => void;
   onOpenImageLightbox?: (imageUrl: string, title?: string) => void;
   isUnread?: boolean;
+  isDark?: boolean;
 }
 
 const MessageCard: React.FC<MessageCardProps> = ({ 
@@ -1111,7 +1160,8 @@ const MessageCard: React.FC<MessageCardProps> = ({
   forceCollapsed,
   onToggleCollapse,
   onOpenImageLightbox,
-  isUnread = false
+  isUnread = false,
+  isDark = false
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(
     isInitiallyNew ? false : (isUnread ? false : (forceCollapsed ?? initialCollapsed))
@@ -1132,23 +1182,23 @@ const MessageCard: React.FC<MessageCardProps> = ({
 
   return (
     <motion.div 
-      initial={isPulsingNew ? { scale: 1, borderColor: isPresenter ? "rgb(199, 210, 254)" : "rgb(254, 215, 170)" } : false}
+      initial={isPulsingNew ? { scale: 1, borderColor: isPresenter ? "rgb(99, 102, 241)" : (isDark ? "rgb(71, 85, 105)" : "rgb(254, 215, 170)") } : false}
       animate={isPulsingNew ? { 
         scale: [1, 1.04, 1, 1.04, 1],
         borderColor: isPresenter 
           ? [
-              "rgb(199, 210, 254)", 
+              "rgb(99, 102, 241)", 
               "rgb(79, 70, 229)", 
-              "rgb(199, 210, 254)", 
+              "rgb(99, 102, 241)", 
               "rgb(79, 70, 229)", 
-              "rgb(199, 210, 254)"
+              "rgb(99, 102, 241)"
             ]
           : [
-              "rgb(254, 215, 170)", 
+              isDark ? "rgb(71, 85, 105)" : "rgb(254, 215, 170)", 
               "rgb(255, 62, 0)", 
-              "rgb(254, 215, 170)", 
+              isDark ? "rgb(71, 85, 105)" : "rgb(254, 215, 170)", 
               "rgb(255, 62, 0)", 
-              "rgb(254, 215, 170)"
+              isDark ? "rgb(71, 85, 105)" : "rgb(254, 215, 170)"
             ],
         boxShadow: isPresenter
           ? [
@@ -1173,8 +1223,12 @@ const MessageCard: React.FC<MessageCardProps> = ({
         "transition-all relative duration-300",
         canModerate && "cursor-pointer select-none",
         isPresenter
-          ? "p-3 rounded-xl border-2 border-indigo-500 bg-indigo-50 shadow-md hover:border-indigo-600 hover:shadow-lg"
-          : "p-3 rounded-xl border border-orange-200 bg-orange-50 shadow-md hover:border-orange-400 hover:shadow-lg",
+          ? (isDark
+              ? "p-3 rounded-xl border-2 border-indigo-500/70 bg-indigo-950/40 shadow-md hover:border-indigo-400"
+              : "p-3 rounded-xl border-2 border-indigo-500 bg-indigo-50 shadow-md hover:border-indigo-600 hover:shadow-lg")
+          : (isDark
+              ? "p-3 rounded-xl border border-slate-700/80 bg-slate-800/80 shadow-md hover:border-osu-orange/50"
+              : "p-3 rounded-xl border border-orange-200 bg-orange-50 shadow-md hover:border-orange-400 hover:shadow-lg"),
         isCollapsed && "py-2"
       )}
     >
@@ -1190,8 +1244,8 @@ const MessageCard: React.FC<MessageCardProps> = ({
             className={cn(
               "p-1 -ml-1 rounded transition-colors text-slate-400 focus:outline-none",
               isPresenter 
-                ? "hover:bg-indigo-100 hover:text-indigo-600" 
-                : "hover:bg-orange-100 hover:text-osu-orange"
+                ? (isDark ? "hover:bg-indigo-900/50 hover:text-indigo-300" : "hover:bg-indigo-100 hover:text-indigo-600") 
+                : (isDark ? "hover:bg-slate-700 hover:text-osu-orange" : "hover:bg-orange-100 hover:text-osu-orange")
             )}
           >
             {isCollapsed ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
@@ -1199,7 +1253,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
           <div className="flex flex-col min-w-0 flex-1">
             <span className={cn(
               "text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 flex-wrap transition-all duration-300",
-              isPresenter ? "text-indigo-700" : "text-slate-500"
+              isPresenter ? (isDark ? "text-indigo-300" : "text-indigo-700") : (isDark ? "text-slate-400" : "text-slate-500")
             )}>
               <span className="truncate max-w-[120px]">{msg.userName}</span>
               {isPresenter && (
@@ -1222,7 +1276,9 @@ const MessageCard: React.FC<MessageCardProps> = ({
               "flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold transition-colors border focus:outline-none",
               (msg.likes || 0) > 0 
                 ? "bg-yellow-400 text-slate-900 border-yellow-500 shadow-sm" 
-                : "bg-white/60 text-slate-500 border-transparent hover:bg-white hover:text-slate-700"
+                : (isDark
+                    ? "bg-slate-900/60 text-slate-400 border-slate-700/60 hover:bg-slate-700 hover:text-slate-200"
+                    : "bg-white/60 text-slate-500 border-transparent hover:bg-white hover:text-slate-700")
             )}
             title={msg.likedBy?.includes(user?.uid || '') ? "Unlike" : "Like"}
           >
@@ -1277,7 +1333,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
             </div>
           ) : (
             /* Student view layout: original inline flow */
-            <div className="text-slate-800 leading-relaxed transition-all duration-300 text-sm mb-2">
+            <div className={cn("leading-relaxed transition-all duration-300 text-sm mb-2", isDark ? "text-slate-100" : "text-slate-800")}>
               {msg.text && (
                 <span className="font-bold">
                   {renderTextWithLinks(msg.text)}
@@ -1285,7 +1341,8 @@ const MessageCard: React.FC<MessageCardProps> = ({
               )}
               {(msg.slide !== undefined && msg.slide !== null) && (
                 <span className={cn(
-                  "inline-flex items-center ml-1.5 px-2.5 py-1 rounded-full text-[11px] font-normal text-white border-2 border-white uppercase tracking-wider transition-all duration-300",
+                  "inline-flex items-center ml-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold text-white border uppercase tracking-wider transition-all duration-300",
+                  isDark ? "border-white/20" : "border-2 border-white",
                   isPresenter 
                     ? "bg-indigo-600 shadow-[0_2px_4px_rgba(79,70,229,0.3)]"
                     : "bg-[#ff3e00] shadow-[0_2px_4px_rgba(255,62,0,0.3)]"
@@ -1303,7 +1360,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
                   e.stopPropagation(); 
                   onOpenImageLightbox?.(msg.fileUrl!, msg.text || "Pushed Slide"); 
                 }}
-                className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 shadow-md hover:shadow-lg hover:border-osu-orange/50 transition-all cursor-pointer relative group/img max-w-xl mx-auto w-full aspect-video flex flex-col justify-between"
+                className="mt-3 overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-md hover:shadow-lg hover:border-osu-orange/50 transition-all cursor-pointer relative group/img max-w-xl mx-auto w-full aspect-video flex flex-col justify-between"
               >
                 <div className="flex-1 w-full p-3.5 relative flex items-center justify-center bg-slate-950 overflow-hidden">
                   <img 
@@ -1323,17 +1380,23 @@ const MessageCard: React.FC<MessageCardProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="mt-2.5 p-3 bg-white/95 rounded-xl border border-slate-200/80 flex items-center justify-between gap-3 shadow-sm hover:border-indigo-400 hover:shadow-md transition-all group/doc">
+              <div className={cn(
+                "mt-2.5 p-3 rounded-xl border flex items-center justify-between gap-3 shadow-sm hover:border-indigo-400 hover:shadow-md transition-all group/doc",
+                isDark ? "bg-slate-900/90 border-slate-700" : "bg-white/95 border-slate-200/80"
+              )}>
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg group-hover/doc:bg-indigo-100 group-hover/doc:text-indigo-700 transition-colors flex items-center justify-center shrink-0">
+                  <div className={cn(
+                    "p-2 rounded-lg transition-colors flex items-center justify-center shrink-0",
+                    isDark ? "bg-indigo-950 text-indigo-400 group-hover/doc:bg-indigo-900" : "bg-indigo-50 text-indigo-600 group-hover/doc:bg-indigo-100 group-hover/doc:text-indigo-700"
+                  )}>
                     <Download className="w-4 h-4" />
                   </div>
                   <div className="min-w-0 flex flex-col items-start">
-                    <span className="font-bold text-slate-800 truncate block w-full text-xs max-w-[130px]" title={msg.fileName}>
+                    <span className={cn("font-bold truncate block w-full text-xs max-w-[130px]", isDark ? "text-slate-100" : "text-slate-800")} title={msg.fileName}>
                       {msg.fileName || "Shared Document"}
                     </span>
                     {msg.fileSize !== undefined && msg.fileSize !== null && (
-                      <span className="text-[9px] text-slate-500 font-semibold mt-0.5 block">
+                      <span className="text-[9px] text-slate-400 font-semibold mt-0.5 block">
                         {formatFileSize(msg.fileSize)}
                       </span>
                     )}
@@ -1361,7 +1424,7 @@ const MessageCard: React.FC<MessageCardProps> = ({
               (No slide data)
             </span>
           )}
-          <div className="mt-2 text-slate-450 text-[9px] text-right">
+          <div className="mt-2 text-slate-400 text-[9px] text-right">
             {msg.timestamp?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </div>
         </>
@@ -1378,9 +1441,14 @@ interface ChatSidebarProps {
   showAttendance?: boolean;
   isProjector?: boolean;
   onJoinChange?: (joined: boolean) => void;
+  onCollapseChat?: () => void;
+  chatLayoutDirection?: 'left' | 'right';
+  isCollapsedRail?: boolean;
+  onUnreadActivityChange?: (info: { unreadCount: number; hasActiveActivity: boolean }) => void;
 }
 
-export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, presentation = null, logoUrl, presentationLoaded = true, showAttendance = false, isProjector = false, onJoinChange }) => {
+export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, presentation = null, logoUrl, presentationLoaded = true, showAttendance = false, isProjector = false, onJoinChange, onCollapseChat, chatLayoutDirection = 'right', isCollapsedRail = false, onUnreadActivityChange }) => {
+  const isDarkChat = isChatOnly && !isProjector;
   const [internalLogoUrl, setInternalLogoUrl] = useState<string | undefined | null>(null);
   const [secondaryColor, setSecondaryColor] = useState<string>('#ff3e00');
 
@@ -1947,6 +2015,25 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     wordClouds.some(w => w.active);
 
   const pinnedMessages = messages.filter(m => m.isPinned);
+
+  // Track unread messages and active polls/questions when chat sidebar is collapsed into a rail
+  const lastSeenMessageCountRef = useRef<number>(0);
+  useEffect(() => {
+    if (!isCollapsedRail) {
+      lastSeenMessageCountRef.current = messages.length;
+      onUnreadActivityChange?.({ unreadCount: 0, hasActiveActivity: hasActiveInteractive });
+    } else {
+      const unreadMessages = Math.max(0, messages.length - lastSeenMessageCountRef.current);
+      const activeCount =
+        polls.filter(p => p.active).length +
+        wordClouds.filter(w => w.active).length +
+        openEndedQuestions.filter(q => q.active).length;
+      onUnreadActivityChange?.({
+        unreadCount: unreadMessages + activeCount,
+        hasActiveActivity: hasActiveInteractive
+      });
+    }
+  }, [isCollapsedRail, messages.length, polls, wordClouds, openEndedQuestions, hasActiveInteractive, onUnreadActivityChange]);
 
   // ... (some code)
 
@@ -3960,7 +4047,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   }
 
   return (
-    <div ref={sidebarContainerRef} className="flex flex-col h-full max-h-full overflow-hidden bg-white relative">
+    <div ref={sidebarContainerRef} className={cn(
+      "flex flex-col h-full max-h-full overflow-hidden relative",
+      isDarkChat ? "bg-[#111827] text-slate-100" : "bg-white"
+    )}>
       {/* Clear Chat Confirmation Modal */}
       {showClearConfirm && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
@@ -4095,16 +4185,32 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           </div>
         ) : null
       ) : (
-        <div className="text-white flex flex-wrap items-center justify-between gap-2 min-w-0 p-4 bg-osu-black">
+        <div className={cn(
+          "text-white flex flex-wrap items-center justify-between gap-2 min-w-0 shrink-0",
+          isDarkChat ? "px-3 py-2.5 bg-slate-900 border-b border-slate-800" : "p-4 bg-osu-black"
+        )}>
           <div className="flex items-center gap-1.5 min-w-0">
-            <MessageSquare className="text-osu-orange flex-shrink-0 w-5 h-5" />
+            <MessageSquare className="text-osu-orange flex-shrink-0 w-4 h-4" />
             <div className="flex flex-col min-w-0">
-              <h2 className="uppercase font-bold tracking-tight text-sm leading-tight text-white">
+              <h2 className="uppercase font-bold tracking-tight text-xs sm:text-sm leading-tight text-white">
                 ActiveDeck Chat
               </h2>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-1.5 flex-shrink-0">
+            {isDarkChat && onCollapseChat && (
+              <button
+                onClick={onCollapseChat}
+                className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-800 text-slate-400 hover:text-white transition-colors border border-slate-700/60 cursor-pointer flex items-center gap-1 text-[10px] font-bold"
+                title="Collapse chat sidebar into a thin rail"
+              >
+                {chatLayoutDirection === 'left' ? (
+                  <ChevronsLeft className="w-3.5 h-3.5" />
+                ) : (
+                  <ChevronsRight className="w-3.5 h-3.5" />
+                )}
+              </button>
+            )}
             {canModerate && (
               <>
                 <button 
@@ -4190,14 +4296,14 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       {isChatOnly && showAttendanceBanner && showAttendance && (urlToken || attendanceStatus === 'success' || attendanceStatus === 'error') && (
         <div className={cn(
           "px-4 py-2 border-b text-xs flex items-start gap-2.5 transition-all duration-300 animate-in slide-in-from-top z-40",
-          attendanceStatus === 'success' && "bg-green-50 text-green-800 border-green-200",
-          attendanceStatus === 'expired' && "bg-amber-50 text-amber-800 border-amber-200",
-          attendanceStatus === 'error' && "bg-red-50 text-red-800 border-red-200",
-          attendanceStatus === 'none' && isValidatingToken && "bg-slate-50 text-slate-700 border-slate-200"
+          attendanceStatus === 'success' && (isDarkChat ? "bg-green-950/50 text-green-200 border-green-800/60" : "bg-green-50 text-green-800 border-green-200"),
+          attendanceStatus === 'expired' && (isDarkChat ? "bg-amber-950/50 text-amber-200 border-amber-800/60" : "bg-amber-50 text-amber-800 border-amber-200"),
+          attendanceStatus === 'error' && (isDarkChat ? "bg-red-950/50 text-red-200 border-red-800/60" : "bg-red-50 text-red-800 border-red-200"),
+          attendanceStatus === 'none' && isValidatingToken && (isDarkChat ? "bg-slate-800 text-slate-200 border-slate-700" : "bg-slate-50 text-slate-700 border-slate-200")
         )}>
           {attendanceStatus === 'success' && (
             <>
-              <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0 mt-0.5" />
+              <CheckCircle2 className={cn("w-4 h-4 shrink-0 mt-0.5", isDarkChat ? "text-green-400" : "text-green-600")} />
               <div className="flex-1 min-w-0 flex items-center justify-between gap-2 flex-wrap">
                 <div>
                   <p className="font-bold">Attendance Checked-In!</p>
@@ -4211,7 +4317,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           )}
           {attendanceStatus === 'expired' && (
             <>
-              <XCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <XCircle className={cn("w-4 h-4 shrink-0 mt-0.5", isDarkChat ? "text-amber-400" : "text-amber-600")} />
               <div className="flex-1 min-w-0">
                 <p className="font-bold">Attendance QR Expired</p>
                 <p className="opacity-80">You're in chat, but checking in failed (45s limit expired). Scan the latest QR code on presenter's screen to check-in.</p>
@@ -4220,7 +4326,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           )}
           {attendanceStatus === 'error' && (
             <>
-              <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+              <AlertCircle className={cn("w-4 h-4 shrink-0 mt-0.5", isDarkChat ? "text-red-400" : "text-red-600")} />
               <div className="flex-1 min-w-0">
                 <p className="font-bold">Check-In Error</p>
                 <p className="opacity-80">Failed to register attendance. Please try scanning again or contact the presenter.</p>
@@ -4246,7 +4352,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           )}
           <button 
             onClick={() => setShowAttendanceBanner(false)}
-            className="text-slate-400 hover:text-slate-600 font-bold px-1 rounded transition-colors shrink-0"
+            className="text-slate-400 hover:text-slate-200 font-bold px-1 rounded transition-colors shrink-0"
             title="Dismiss"
           >
             ✕
@@ -4412,7 +4518,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       )}
 
       {/* Messages Area Wrapper */}
-      <div className="flex-1 flex flex-col relative overflow-hidden bg-white">
+      <div className={cn(
+        "flex-1 flex flex-col relative overflow-hidden",
+        isDarkChat ? "bg-[#111827]" : "bg-white"
+      )}>
         {/* OSU Logo Watermark & Faded App Label */}
         {internalLogoUrl !== null && (
           isProjector ? (
@@ -4429,15 +4538,21 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               </span>
             </div>
           ) : (
-            /* Higher up on the presenter display */
-            <div className="absolute inset-x-0 top-20 flex flex-col items-center justify-start pointer-events-none opacity-10 z-0 gap-3">
+            /* Higher up on the presenter/student display */
+            <div className={cn(
+              "absolute inset-x-0 top-20 flex flex-col items-center justify-start pointer-events-none z-0 gap-3",
+              isDarkChat ? "opacity-[0.04]" : "opacity-10"
+            )}>
               <img 
                 src={internalLogoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png"} 
                 alt="Logo Watermark" 
                 className="w-3/4 object-contain max-h-[160px]" 
                 referrerPolicy="no-referrer" 
               />
-              <span className="text-xl md:text-2xl font-black uppercase tracking-[0.2em] text-slate-800 select-none text-center">
+              <span className={cn(
+                "text-xl md:text-2xl font-black uppercase tracking-[0.2em] select-none text-center",
+                isDarkChat ? "text-slate-200" : "text-slate-800"
+              )}>
                 ActiveDeck Chat
               </span>
             </div>
@@ -4446,10 +4561,13 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
         {/* Sticky Pinned Messages Banner */}
         {pinnedMessages.length > 0 && !presentation?.hideComments && (
-          <div className="bg-blue-100/80 border-b border-blue-200 p-2.5 space-y-2 shrink-0 z-20 shadow-sm relative max-h-[350px] overflow-y-auto">
+          <div className={cn(
+            "border-b p-2.5 space-y-2 shrink-0 z-20 shadow-sm relative max-h-[350px] overflow-y-auto",
+            isDarkChat ? "bg-slate-900/95 border-slate-800" : "bg-blue-100/80 border-blue-200"
+          )}>
             <div className="flex items-center gap-1.5 px-1 mb-1">
-              <Pin className="w-3 h-3 text-blue-600 fill-current rotate-45" />
-              <span className="text-[9px] font-black uppercase tracking-wider text-blue-800">Pinned Messages</span>
+              <Pin className={cn("w-3 h-3 fill-current rotate-45", isDarkChat ? "text-blue-400" : "text-blue-600")} />
+              <span className={cn("text-[9px] font-black uppercase tracking-wider", isDarkChat ? "text-blue-300" : "text-blue-800")}>Pinned Messages</span>
             </div>
             {pinnedMessages.map((msg) => (
               <MessageCard
@@ -4464,6 +4582,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 isInitiallyNew={false}
                 isPresenter={msg.isPresenterPost !== undefined ? msg.isPresenterPost : msg.userId === presentation?.presenterId}
                 isUnread={isProjector ? false : !readMessageIds[msg.id]}
+                isDark={isDarkChat}
                 onFocus={(msg) => {
                   setReadMessageIds(prev => ({ ...prev, [msg.id]: true }));
                   const isAlreadyFocused = focusedMessage?.id === msg.id;
@@ -4496,15 +4615,18 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         <div 
           ref={scrollRef}
           onScroll={handleScroll}
-          className="flex-1 overflow-y-auto p-4 space-y-4 z-10"
+          className="flex-1 overflow-y-auto p-3.5 space-y-3.5 z-10"
         >
           {presentation?.hideComments && (
-            <div className="flex flex-col items-center justify-center p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-300 animate-in fade-in duration-500">
+            <div className={cn(
+              "flex flex-col items-center justify-center p-8 text-center rounded-xl border border-dashed animate-in fade-in duration-500",
+              isDarkChat ? "bg-slate-900/60 border-slate-700" : "bg-slate-50 border-slate-300"
+            )}>
               <MessageSquareOff className="w-8 h-8 text-slate-400 mb-3" />
-              <h3 className="text-sm font-bold text-slate-700">
+              <h3 className={cn("text-sm font-bold", isDarkChat ? "text-slate-200" : "text-slate-700")}>
                 Chat Disabled
               </h3>
-              <p className="text-xs text-slate-500 mt-1">
+              <p className="text-xs text-slate-400 mt-1">
                 {canModerate 
                   ? "Chat disabled, enable it above to receive messages from audience"
                   : "The chat has been disabled"}
@@ -4512,8 +4634,11 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
             </div>
           )}
           {messages.length === 0 && polls.length === 0 && wordClouds.length === 0 && openEndedQuestions.length === 0 && !presentation?.hideComments && (
-            <div className="h-full flex flex-col items-center justify-center text-slate-300 opacity-50">
-              <MessageSquare className="w-8 h-8 mb-2" />
+            <div className={cn(
+              "h-full flex flex-col items-center justify-center",
+              isDarkChat ? "text-slate-500" : "text-slate-300 opacity-50"
+            )}>
+              <MessageSquare className="w-8 h-8 mb-2 opacity-60" />
               <p className="text-xs font-medium">No messages yet</p>
             </div>
           )}
@@ -4650,6 +4775,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                   isInitiallyNew={isInitiallyNew}
                   isPresenter={msg.isPresenterPost !== undefined ? msg.isPresenterPost : msg.userId === presentation?.presenterId}
                   isUnread={isProjector ? false : !readMessageIds[msg.id]}
+                  isDark={isDarkChat}
                   onFocus={(msg) => {
                     setReadMessageIds(prev => ({ ...prev, [msg.id]: true }));
                     const isAlreadyFocused = focusedMessage?.id === msg.id;
@@ -4681,10 +4807,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
       {/* Input Area - Only visible for audience members (isChatOnly) */}
       {isChatOnly && !isProjector && (
-        <div className="bg-white border-t border-slate-200 shrink-0 pb-[env(safe-area-inset-bottom)]">
+        <div className="bg-slate-900 border-t border-slate-800 shrink-0 pb-[env(safe-area-inset-bottom)]">
           {!user ? (
             <div className="p-4 text-center">
-              <p className="text-xs text-slate-500 mb-3">Connecting to chat...</p>
+              <p className="text-xs text-slate-400 mb-3">Connecting to chat...</p>
               <button 
                 onClick={() => window.location.reload()}
                 className="text-xs text-osu-orange hover:underline font-bold"
@@ -4695,10 +4821,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           ) : user.isAnonymous && !hasJoined ? (
             <form onSubmit={handleJoin} className="p-4 flex flex-col gap-3">
               <div className="text-center mb-1">
-                <h3 className="text-sm font-bold text-slate-900">
+                <h3 className="text-sm font-bold text-slate-100">
                   {!presentation?.disableAttendance ? "Join & Check-In" : "Join the Discussion"}
                 </h3>
-                <p className="text-xs text-slate-500 mt-1 mb-2">
+                <p className="text-xs text-slate-400 mt-1 mb-2">
                   {!presentation?.disableAttendance
                     ? (urlToken 
                         ? "Enter your name and email to register attendance and join the chat." 
@@ -4706,13 +4832,13 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                     : "Enter your name and email to join the discussion."}
                 </p>
                 {urlToken && tokenTimeLeft !== null && isTokenValid && (
-                  <div className="mt-2 py-1 px-3 bg-orange-50 border border-orange-100 rounded-lg inline-flex items-center gap-1.5 text-xs font-bold text-osu-orange animate-pulse">
+                  <div className="mt-2 py-1 px-3 bg-osu-orange/15 border border-osu-orange/30 rounded-lg inline-flex items-center gap-1.5 text-xs font-bold text-osu-orange animate-pulse">
                     <Timer className="w-3.5 h-3.5" />
                     <span>Time left to check-in: {tokenTimeLeft}s</span>
                   </div>
                 )}
                 {!urlToken && !presentation?.disableAttendance && iconTimeLeft !== null && (
-                  <div className="mt-2 py-1 px-3 bg-orange-50 border border-orange-100 rounded-lg inline-flex items-center gap-1.5 text-xs font-bold text-osu-orange animate-pulse">
+                  <div className="mt-2 py-1 px-3 bg-osu-orange/15 border border-osu-orange/30 rounded-lg inline-flex items-center gap-1.5 text-xs font-bold text-osu-orange animate-pulse">
                     <Timer className="w-3.5 h-3.5" />
                     <span>Screen Icon rotates in: {Math.ceil(iconTimeLeft)}s</span>
                   </div>
@@ -4720,8 +4846,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               </div>
 
               {joinError && (
-                <div className="p-2.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600 font-semibold text-center flex items-center justify-center gap-1.5 animate-in fade-in duration-200">
-                  <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                <div className="p-2.5 bg-red-950/50 border border-red-500/40 rounded-lg text-xs text-red-300 font-semibold text-center flex items-center justify-center gap-1.5 animate-in fade-in duration-200">
+                  <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
                   <span>{joinError}</span>
                 </div>
               )}
@@ -4741,7 +4867,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                       </span>
                     )}
                   </div>
-                  <p className="text-[10px] text-slate-500 leading-normal mb-1">
+                  <p className="text-[10px] text-slate-400 leading-normal mb-1">
                     Select the medical icon shown on the presenter's screen to verify attendance:
                   </p>
 
@@ -4788,7 +4914,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 value={joinNameInput}
                 onChange={(e) => setJoinNameInput(e.target.value)}
                 required
-                className="w-full px-3 py-2 text-base border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-osu-orange"
+                className="w-full px-3 py-2 text-base bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-400 rounded-md focus:outline-none focus:ring-2 focus:ring-osu-orange"
               />
               <input
                 type="email"
@@ -4796,12 +4922,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 value={joinEmailInput}
                 onChange={(e) => setJoinEmailInput(e.target.value)}
                 required
-                className="w-full px-3 py-2 text-base border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-osu-orange"
+                className="w-full px-3 py-2 text-base bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-400 rounded-md focus:outline-none focus:ring-2 focus:ring-osu-orange"
               />
               <button
                 type="submit"
                 disabled={isValidatingToken || !joinNameInput.trim() || !joinEmailInput.trim() || (!presentation?.disableAttendance && !urlToken && !selectedIcon)}
-                className="w-full bg-osu-orange disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-md hover:bg-[#c03900] transition-colors text-sm flex items-center justify-center gap-1.5 shadow-sm"
+                className="w-full bg-osu-orange disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-md hover:bg-[#c03900] transition-colors text-sm flex items-center justify-center gap-1.5 shadow-sm"
               >
                 {isValidatingToken ? (
                   <>
@@ -4818,20 +4944,20 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               {user.isAnonymous && (
                 <div className="flex justify-between items-start px-1">
                   <div className="flex flex-col gap-1.5">
-                    <span className="text-xs text-slate-500">
-                      Posting as: <span className="font-semibold text-slate-700">
+                    <span className="text-xs text-slate-400">
+                      Posting as: <span className="font-semibold text-slate-200">
                         {isPostingAnonymously
                           ? `Anonymous ${user.uid.slice(0, 4)}` 
                           : (guestName || (guestEmail ? guestEmail.split('@')[0] : `Guest ${user.uid.slice(0, 4)}`))}
                       </span>
                     </span>
                     {(guestName || guestEmail || presentation?.allowAnonymousChat || presentation?.disableAttendance) && (
-                      <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
+                      <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer">
                         <input 
                           type="checkbox" 
                           checked={isPostingAnonymously}
                           onChange={(e) => setIsPostingAnonymously(e.target.checked)}
-                          className="rounded border-slate-300 text-osu-orange focus:ring-osu-orange"
+                          className="rounded border-slate-600 bg-slate-800 text-osu-orange focus:ring-osu-orange"
                         />
                         Post Anonymously
                       </label>
@@ -4846,15 +4972,15 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 </div>
               )}
               {hasActiveInteractive && (
-                <div className="mb-2 px-1 py-1.5 bg-blue-50 border border-blue-100 rounded-lg flex items-center gap-2 animate-in slide-in-from-bottom-2 duration-300">
-                  <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
-                  <p className="text-[10px] font-bold text-blue-700 uppercase tracking-tight">Active Activity: Chat Paused</p>
+                <div className="mb-1 px-2.5 py-1.5 bg-blue-950/60 border border-blue-500/30 rounded-lg flex items-center gap-2 animate-in slide-in-from-bottom-2 duration-300">
+                  <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse" />
+                  <p className="text-[10px] font-bold text-blue-300 uppercase tracking-tight">Active Activity: Chat Paused</p>
                 </div>
               )}
               {presentation?.hideComments && !hasActiveInteractive && (
-                <div className="mb-2 px-1 py-1.5 bg-red-50 border border-red-100 rounded-lg flex items-center gap-2 animate-in slide-in-from-bottom-2 duration-300">
-                  <div className="w-1.5 h-1.5 bg-red-500 rounded-full" />
-                  <p className="text-[10px] font-bold text-red-700 uppercase tracking-tight">Chat Disabled by Presenter</p>
+                <div className="mb-1 px-2.5 py-1.5 bg-red-950/60 border border-red-500/30 rounded-lg flex items-center gap-2 animate-in slide-in-from-bottom-2 duration-300">
+                  <div className="w-1.5 h-1.5 bg-red-400 rounded-full" />
+                  <p className="text-[10px] font-bold text-red-300 uppercase tracking-tight">Chat Disabled by Presenter</p>
                 </div>
               )}
               <form onSubmit={handleSendMessage} className="flex gap-2">
@@ -4868,10 +4994,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                         : "Type a message..."
                   }
                   disabled={hasActiveInteractive || presentation?.hideComments}
-                  className={`flex-1 min-w-0 px-3 py-2 text-base border rounded-md focus:outline-none focus:ring-2 focus:ring-osu-orange transition-all ${
+                  className={`flex-1 min-w-0 px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-osu-orange transition-all ${
                     (hasActiveInteractive || presentation?.hideComments)
-                      ? "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed italic" 
-                      : "border-slate-300 bg-white"
+                      ? "bg-slate-800/50 border-slate-800 text-slate-500 cursor-not-allowed italic" 
+                      : "border-slate-700 bg-slate-800 text-slate-100 placeholder-slate-400"
                   }`}
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
@@ -4879,10 +5005,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 <button
                   type="submit"
                   disabled={hasActiveInteractive || presentation?.hideComments || !inputText.trim()}
-                  className={`shrink-0 p-2 rounded-md transition-colors ${
+                  className={`shrink-0 p-2 rounded-lg transition-colors ${
                     (hasActiveInteractive || presentation?.hideComments || !inputText.trim())
-                      ? "bg-slate-200 text-slate-400 cursor-not-allowed" 
-                      : "bg-osu-black text-white hover:bg-slate-800 shadow-sm"
+                      ? "bg-slate-800 text-slate-600 cursor-not-allowed" 
+                      : "bg-osu-orange text-white hover:bg-[#c03900] shadow-sm"
                   }`}
                 >
                   <Send className="w-4 h-4" />

@@ -6,7 +6,7 @@ import { Header } from './components/Header';
 import { Presentation, GlobalSettings, DrawingStroke, DeckItem } from './types';
 import { db } from './firebase';
 import { collection, query, orderBy, limit, onSnapshot, doc, addDoc, serverTimestamp, updateDoc, getDoc, setDoc, increment, where } from 'firebase/firestore';
-import { Presentation as PresentationIcon, Loader2, AlertCircle, Maximize, Minimize, Lock, Keyboard, Pen, Tv, ArrowLeftRight, MessageSquare, NotebookPen, Plus, FileText, X } from 'lucide-react';
+import { Presentation as PresentationIcon, Loader2, AlertCircle, Maximize, Minimize, Lock, Keyboard, Pen, Tv, ArrowLeftRight, MessageSquare, NotebookPen, Plus, FileText, X, Download, ChevronsLeft, ChevronsRight, Edit3 } from 'lucide-react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { BridgeProvider } from './contexts/BridgeContext';
 import { AdminPortal } from './components/AdminPortal';
@@ -523,11 +523,37 @@ function AppContent() {
     return (saved === 'left' ? 'left' : 'right');
   });
 
+  const [editorTheme, setEditorTheme] = useState<'dark' | 'paper'>(() => {
+    const saved = localStorage.getItem('activeDeckEditorTheme');
+    return saved === 'paper' ? 'paper' : 'dark';
+  });
+
+  const handleEditorThemeChange = (theme: 'dark' | 'paper') => {
+    setEditorTheme(theme);
+    localStorage.setItem('activeDeckEditorTheme', theme);
+  };
+
+  const [isEditingNotesTitle, setIsEditingNotesTitle] = useState(false);
+
+  const [isStudentChatCollapsed, setIsStudentChatCollapsed] = useState<boolean>(() => {
+    return localStorage.getItem('activeDeckStudentChatCollapsed') === 'true';
+  });
+
+  const toggleStudentChatCollapsed = (collapsed: boolean) => {
+    setIsStudentChatCollapsed(collapsed);
+    localStorage.setItem('activeDeckStudentChatCollapsed', String(collapsed));
+  };
+
+  const [chatUnreadInfo, setChatUnreadInfo] = useState<{ unreadCount: number; hasActiveActivity: boolean }>({
+    unreadCount: 0,
+    hasActiveActivity: false,
+  });
+
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [lightboxImgUrl, setLightboxImgUrl] = useState('');
 
   const [isMobile, setIsMobile] = useState(() => 
-    typeof window !== 'undefined' ? (window.innerWidth < 768 || window.innerHeight > window.innerWidth) : false
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false
   );
   const [mobileTab, setMobileTab] = useState<'chat' | 'notes'>('chat');
 
@@ -578,7 +604,7 @@ function AppContent() {
 
   useEffect(() => {
     const handleResize = () => {
-      setIsMobile(window.innerWidth < 768 || window.innerHeight > window.innerWidth);
+      setIsMobile(window.innerWidth < 768);
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -2009,7 +2035,7 @@ function AppContent() {
             {/* Content Area Underneath Switcher */}
             <div className="flex-1 min-h-0 flex flex-col relative z-10 bg-slate-950">
               {mobileTab === 'chat' && presentation?.chatEnabled !== false ? (
-                <div className="w-full h-full bg-white relative flex-1 flex flex-col min-h-0">
+                <div className="w-full h-full bg-[#111827] relative flex-1 flex flex-col min-h-0">
                   <ChatSidebar 
                     isChatOnly={true} 
                     presentation={presentation} 
@@ -2020,7 +2046,7 @@ function AppContent() {
                   />
                 </div>
               ) : (
-                <div className="flex-1 flex flex-col min-h-0 p-3 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 overflow-y-auto custom-scrollbar">
+                <div className="flex-1 flex flex-col min-h-0 p-2.5 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 overflow-y-auto custom-scrollbar">
                   {!hasJoinedChat && presentation?.chatEnabled !== false ? (
                     <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-4">
                       <div className="w-12 h-12 rounded-2xl bg-osu-orange/10 border border-osu-orange/20 flex items-center justify-center text-osu-orange shadow-lg">
@@ -2034,195 +2060,189 @@ function AppContent() {
                       </div>
                     </div>
                   ) : (
-                    <div className="flex-1 flex flex-col space-y-3 min-h-0">
-                      <div className="flex items-center justify-between shrink-0">
-                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">My Study Notes</span>
-                        {saveStatus && (
-                          <span className={`text-[8px] font-bold px-2 py-0.5 rounded transition-all duration-305 ${
-                            saveStatus === 'saving' ? 'text-slate-400 animate-pulse' : 'text-green-400 bg-green-500/10 border border-green-500/20'
-                          }`}>
-                            {saveStatus === 'saving' ? 'Saving...' : 'Auto-saved'}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Title & Slides Overview for Mobile */}
-                      <div className="flex flex-col gap-2 w-full shrink-0 bg-white/[0.02] border border-white/5 rounded-xl p-2.5">
-                        {/* Notes Title */}
-                        <div className="w-full flex flex-col space-y-1">
-                          <span className="text-[8px] font-black uppercase tracking-wider text-slate-500">Notes Title</span>
-                          <input 
-                            type="text"
-                            value={notesTitle}
-                            onChange={(e) => setNotesTitle(e.target.value)}
-                            placeholder="Notes Title (e.g. Lecture 1)"
-                            className="w-full h-9 px-2.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-osu-orange focus:border-osu-orange transition-all"
-                          />
+                    <div className="flex-1 flex flex-col space-y-2 min-h-0">
+                      {/* Compact Consolidated Mobile Notes Header */}
+                      <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 bg-slate-900/90 border border-slate-800 rounded-xl shrink-0">
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                          {isEditingNotesTitle ? (
+                            <input
+                              type="text"
+                              autoFocus
+                              value={notesTitle}
+                              onChange={(e) => setNotesTitle(e.target.value)}
+                              onBlur={() => setIsEditingNotesTitle(false)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === 'Escape') {
+                                  setIsEditingNotesTitle(false);
+                                }
+                              }}
+                              placeholder="Untitled Notes"
+                              className="h-7 px-2 text-xs font-bold bg-slate-800 border border-osu-orange rounded-md text-slate-100 placeholder-slate-500 focus:outline-none min-w-0 flex-1"
+                            />
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setIsEditingNotesTitle(true)}
+                              className="group flex items-center gap-1.5 px-1.5 py-1 rounded-md hover:bg-slate-800 transition-colors text-left min-w-0 max-w-full cursor-pointer"
+                              title="Click to rename notes"
+                            >
+                              <span className="text-xs font-bold text-slate-100 truncate">
+                                {notesTitle.trim() || 'Untitled Notes'}
+                              </span>
+                              <Edit3 className="w-3 h-3 text-slate-500 group-hover:text-osu-orange shrink-0" />
+                            </button>
+                          )}
+                          {saveStatus && (
+                            <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded shrink-0 transition-all duration-300 ${
+                              saveStatus === 'saving' ? 'text-slate-400 animate-pulse' : 'text-green-400 bg-green-500/10 border border-green-500/20'
+                            }`}>
+                              {saveStatus === 'saving' ? 'Saving...' : 'Saved'}
+                            </span>
+                          )}
                         </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={handleAddCustomTab}
+                            className="flex items-center gap-1 px-2 py-1 text-[9px] font-bold text-purple-300 bg-purple-950/80 hover:bg-purple-900 border border-purple-500/40 hover:border-purple-400 rounded-lg transition-all cursor-pointer active:scale-95"
+                            title="Add a new blank note tab"
+                          >
+                            <Plus className="w-2.5 h-2.5 text-purple-400" />
+                            <span>Blank Note</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleDownloadNotes}
+                            disabled={isNotesEmpty(notesTextMap, notesDrawingsMap) && Object.keys(pushedSlidesMap).length === 0}
+                            className="flex items-center gap-1 px-2 py-1 text-[9px] font-bold text-slate-200 hover:text-white bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed border border-slate-700 hover:border-osu-orange/50 rounded-lg transition-all cursor-pointer"
+                            title="Export notes as Word document (.docx)"
+                          >
+                            <Download className="w-3 h-3 text-osu-orange" />
+                            <span>Export</span>
+                          </button>
+                        </div>
+                      </div>
 
-                        {/* Slides Overview */}
-                        {(() => {
-                          const slidesWithNotes = Array.from(new Set([
-                            ...Object.keys(notesTextMap),
-                            ...Object.keys(notesDrawingsMap)
-                          ])).filter(slide => {
-                            const html = notesTextMap[slide];
-                            const hasText = html && html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim() !== '';
-                            
-                            const drawingJson = notesDrawingsMap[slide];
-                            let hasDrawing = false;
-                            try {
-                              if (drawingJson) {
-                                const strokes = JSON.parse(drawingJson);
-                                hasDrawing = Array.isArray(strokes) && strokes.length > 0;
-                              }
-                            } catch {}
-                            
-                            return hasText || hasDrawing;
-                          });
+                      {/* Compact Slides Overview Bar for Mobile */}
+                      {(() => {
+                        const slidesWithNotes = Array.from(new Set([
+                          ...Object.keys(notesTextMap),
+                          ...Object.keys(notesDrawingsMap)
+                        ])).filter(slide => {
+                          const html = notesTextMap[slide];
+                          const hasText = html && html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim() !== '';
                           
-                          const presenterSlide = presentation?.currentSlide !== undefined && presentation.currentSlide !== null 
-                            ? String(presentation.currentSlide) 
-                            : '1';
+                          const drawingJson = notesDrawingsMap[slide];
+                          let hasDrawing = false;
+                          try {
+                            if (drawingJson) {
+                              const strokes = JSON.parse(drawingJson);
+                              hasDrawing = Array.isArray(strokes) && strokes.length > 0;
+                            }
+                          } catch {}
                           
-                          const maxSlide = Math.max(
-                            1,
-                            maxSlideSeen,
-                            presentation?.currentSlide || 1,
-                            ...Object.keys(notesTextMap).map(Number).filter(n => !isNaN(n)),
-                            ...Object.keys(notesDrawingsMap).map(Number).filter(n => !isNaN(n)),
-                            ...Object.keys(pushedSlidesMap).map(Number).filter(n => !isNaN(n))
-                          );
+                          return hasText || hasDrawing;
+                        });
+                        
+                        const presenterSlide = presentation?.currentSlide !== undefined && presentation.currentSlide !== null 
+                          ? String(presentation.currentSlide) 
+                          : '1';
+                        
+                        const maxSlide = Math.max(
+                          1,
+                          maxSlideSeen,
+                          presentation?.currentSlide || 1,
+                          ...Object.keys(notesTextMap).map(Number).filter(n => !isNaN(n)),
+                          ...Object.keys(notesDrawingsMap).map(Number).filter(n => !isNaN(n)),
+                          ...Object.keys(pushedSlidesMap).map(Number).filter(n => !isNaN(n))
+                        );
 
-                          const allTabs: Array<{ id: string; label: string; position: number; isCustom: boolean }> = [];
-                          for (let i = 1; i <= maxSlide; i++) {
-                            allTabs.push({
-                              id: String(i),
-                              label: `Slide ${i}`,
-                              position: i,
-                              isCustom: false
-                            });
-                          }
-
-                          customTabs.forEach(ct => {
-                            allTabs.push({
-                              id: ct.id,
-                              label: ct.label,
-                              position: ct.position,
-                              isCustom: true
-                            });
+                        const allTabs: Array<{ id: string; label: string; position: number; isCustom: boolean }> = [];
+                        for (let i = 1; i <= maxSlide; i++) {
+                          allTabs.push({
+                            id: String(i),
+                            label: `Slide ${i}`,
+                            position: i,
+                            isCustom: false
                           });
+                        }
 
-                          allTabs.sort((a, b) => a.position - b.position);
+                        customTabs.forEach(ct => {
+                          allTabs.push({
+                            id: ct.id,
+                            label: ct.label,
+                            position: ct.position,
+                            isCustom: true
+                          });
+                        });
 
-                          return (
-                            <div className="flex flex-col space-y-1 w-full">
-                              <div className="flex items-center justify-between gap-1">
-                                <span className="text-[8px] font-black uppercase tracking-wider text-slate-500">Slides Overview</span>
-                                <button
-                                  type="button"
-                                  onClick={handleAddCustomTab}
-                                  className="flex items-center gap-1 px-1.5 py-0.5 text-[8px] font-bold text-purple-300 bg-purple-950/80 hover:bg-purple-900 border border-purple-500/40 hover:border-purple-400 rounded transition-all cursor-pointer active:scale-95 shadow-sm"
-                                  title="Add a new blank note tab for website or non-PPT content"
-                                >
-                                  <Plus className="w-2.5 h-2.5 text-purple-400" />
-                                  <span>+ Blank Note</span>
-                                </button>
-                              </div>
-                              <div className="w-full max-h-24 overflow-y-auto pr-0.5 custom-scrollbar">
-                                <div className="flex flex-row flex-wrap items-center gap-1 py-0.5 select-none">
-                                  {allTabs.map(tab => {
-                                    const isCurrentTab = tab.id === activeTab;
-                                    const isPresenterSlide = tab.id === presenterSlide;
-                                    const hasContent = slidesWithNotes.includes(tab.id);
+                        allTabs.sort((a, b) => a.position - b.position);
 
-                                    if (tab.isCustom) {
-                                      return (
-                                        <button
-                                          key={tab.id}
-                                          type="button"
-                                          onClick={() => setActiveTab(tab.id)}
-                                          className={`px-2.5 py-0.5 text-[9px] font-bold rounded border transition-all flex items-center gap-1 cursor-pointer shrink-0 group ${
-                                            isCurrentTab 
-                                              ? 'bg-purple-600 border-purple-500 text-white shadow-sm font-bold'
-                                              : 'bg-purple-950/80 border-purple-500/40 text-purple-200 hover:bg-purple-900 hover:border-purple-400 hover:text-white'
-                                          }`}
-                                          title={`Custom Note Tab: ${tab.label}`}
-                                        >
-                                          <FileText className="w-2.5 h-2.5 text-purple-300 shrink-0" />
-                                          <span>{tab.label}</span>
-                                          {hasContent && !isCurrentTab && (
-                                            <span className="w-0.5 h-0.5 rounded-full bg-purple-300/80" />
-                                          )}
-                                          <span 
-                                            onClick={(e) => handleDeleteCustomTab(tab.id, e)}
-                                            className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-purple-800/80 rounded transition-opacity ml-0.5 cursor-pointer"
-                                            title="Delete note tab"
-                                          >
-                                            <X className="w-2 h-2 text-purple-200 hover:text-white" />
-                                          </span>
-                                        </button>
-                                      );
-                                    }
+                        return (
+                          <div className="w-full max-h-16 overflow-y-auto px-1 custom-scrollbar shrink-0">
+                            <div className="flex flex-row flex-wrap items-center gap-1 py-0.5 select-none">
+                              {allTabs.map(tab => {
+                                const isCurrentTab = tab.id === activeTab;
+                                const isPresenterSlide = tab.id === presenterSlide;
+                                const hasContent = slidesWithNotes.includes(tab.id);
 
-                                    return (
-                                      <button
-                                        key={tab.id}
-                                        type="button"
-                                        onClick={() => setActiveTab(tab.id)}
-                                        className={`px-2.5 py-0.5 text-[9px] font-bold rounded border transition-all flex items-center gap-1 cursor-pointer shrink-0 ${
-                                          isCurrentTab 
-                                            ? 'bg-osu-orange border-osu-orange text-white shadow-sm'
-                                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
-                                        }`}
+                                if (tab.isCustom) {
+                                  return (
+                                    <button
+                                      key={tab.id}
+                                      type="button"
+                                      onClick={() => setActiveTab(tab.id)}
+                                      className={`px-2 py-0.5 text-[9px] font-bold rounded border transition-all flex items-center gap-1 cursor-pointer shrink-0 group ${
+                                        isCurrentTab 
+                                          ? 'bg-purple-600 border-purple-500 text-white shadow-sm font-bold'
+                                          : 'bg-purple-950/80 border-purple-500/40 text-purple-200 hover:bg-purple-900 hover:border-purple-400 hover:text-white'
+                                      }`}
+                                      title={`Custom Note Tab: ${tab.label}`}
+                                    >
+                                      <FileText className="w-2.5 h-2.5 text-purple-300 shrink-0" />
+                                      <span>{tab.label}</span>
+                                      {hasContent && !isCurrentTab && (
+                                        <span className="w-0.5 h-0.5 rounded-full bg-purple-300/80" />
+                                      )}
+                                      <span 
+                                        onClick={(e) => handleDeleteCustomTab(tab.id, e)}
+                                        className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-purple-800/80 rounded transition-opacity ml-0.5 cursor-pointer"
+                                        title="Delete note tab"
                                       >
-                                        <span>{tab.label}</span>
-                                        {isPresenterSlide && (
-                                          <span className="w-1 h-1 rounded-full bg-green-400 animate-pulse border border-green-300" />
-                                        )}
-                                        {!isPresenterSlide && hasContent && (
-                                          <span className="w-0.5 h-0.5 rounded-full bg-orange-300/60" />
-                                        )}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </div>
+                                        <X className="w-2 h-2 text-purple-200 hover:text-white" />
+                                      </span>
+                                    </button>
+                                  );
+                                }
+
+                                return (
+                                  <button
+                                    key={tab.id}
+                                    type="button"
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`px-2 py-0.5 text-[9px] font-bold rounded border transition-all flex items-center gap-1 cursor-pointer shrink-0 ${
+                                      isCurrentTab 
+                                        ? 'bg-osu-orange border-osu-orange text-white shadow-sm'
+                                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                                    }`}
+                                  >
+                                    <span>{tab.label}</span>
+                                    {isPresenterSlide && (
+                                      <span className="w-1 h-1 rounded-full bg-green-400 animate-pulse border border-green-300" />
+                                    )}
+                                    {!isPresenterSlide && hasContent && (
+                                      <span className="w-0.5 h-0.5 rounded-full bg-orange-300/60" />
+                                    )}
+                                  </button>
+                                );
+                              })}
                             </div>
-                          );
-                        })()}
-                      </div>
+                          </div>
+                        );
+                      })()}
 
-                      {/* Mode Selector Toggle */}
-                      <div className="flex items-center bg-slate-900/60 p-0.5 rounded-lg border border-white/5 shrink-0 select-none">
-                        <button
-                          type="button"
-                          onClick={() => setNotesMode('text')}
-                          className={`flex-1 py-1 text-[9px] font-black uppercase tracking-wider rounded-md transition-all cursor-pointer flex items-center justify-center gap-1 ${
-                            notesMode === 'text'
-                              ? 'bg-osu-orange text-white shadow-sm font-bold'
-                              : 'text-slate-400 hover:text-white'
-                          }`}
-                        >
-                          <Keyboard className="w-3 h-3" />
-                          Typed
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setNotesMode('pen')}
-                          className={`flex-1 py-1 text-[9px] font-black uppercase tracking-wider rounded-md transition-all cursor-pointer flex items-center justify-center gap-1 ${
-                            notesMode === 'pen'
-                              ? 'bg-osu-orange text-white shadow-sm font-bold'
-                              : 'text-slate-400 hover:text-white'
-                          }`}
-                        >
-                          <Pen className="w-3 h-3" />
-                          Draw
-                        </button>
-                      </div>
-
-                      {/* Editor Area (Fills remaining mobile viewport height) */}
-                      <div className="flex-1 min-h-[160px] flex flex-col">
+                      {/* Editor Area (Fills remaining mobile viewport height, with inline Typed/Draw pill in toolbar) */}
+                      <div className="flex-1 min-h-[200px] flex flex-col">
                         {notesMode === 'text' ? (
                           <RichTextEditor
                             value={notesTextMap[activeTab] || ''}
@@ -2237,6 +2257,10 @@ function AppContent() {
                             onBlur={() => setIsEditorFocused(false)}
                             placeholder={`Type notes for Slide ${activeTab}...`}
                             className="flex-1"
+                            notesMode={notesMode}
+                            onNotesModeChange={setNotesMode}
+                            editorTheme={editorTheme}
+                            onEditorThemeChange={handleEditorThemeChange}
                           />
                         ) : (
                           <HandwrittenCanvas
@@ -2248,20 +2272,12 @@ function AppContent() {
                               }));
                             }}
                             placeholder={`Draw notes for Slide ${activeTab}...`}
+                            notesMode={notesMode}
+                            onNotesModeChange={setNotesMode}
+                            editorTheme={editorTheme}
+                            onEditorThemeChange={handleEditorThemeChange}
                           />
                         )}
-                      </div>
-
-                      {/* Export / Download Button */}
-                      <div className="pt-1 shrink-0">
-                        <button
-                          type="button"
-                          onClick={handleDownloadNotes}
-                          disabled={isNotesEmpty(notesTextMap, notesDrawingsMap) && Object.keys(pushedSlidesMap).length === 0}
-                          className="w-full h-9 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white text-[9px] font-black uppercase tracking-widest rounded-lg transition-all shadow-md flex items-center justify-center gap-1 cursor-pointer"
-                        >
-                          Download (.doc)
-                        </button>
                       </div>
                     </div>
                   )}
@@ -2288,15 +2304,65 @@ function AppContent() {
       );
     }
 
+    const isChatCollapsedEffective = isStudentChatCollapsed && hasJoinedChat;
+
     return (
       <>
         <div className={`h-full w-full flex flex-col ${chatLayoutDirection === 'right' ? 'md:flex-row-reverse' : 'md:flex-row'} bg-slate-950 font-sans antialiased overflow-hidden`}>
-          {/* Left Side: The Chat Sidebar / Join Screen */}
+          {/* Chat Sidebar / Collapsible Vertical Rail */}
           {presentation?.chatEnabled !== false && (
             <>
+              {isChatCollapsedEffective && (
+                <div
+                  onClick={() => toggleStudentChatCollapsed(false)}
+                  className={`hidden md:flex w-11 h-full bg-[#111827] hover:bg-slate-900 ${
+                    chatLayoutDirection === 'right' ? 'border-l' : 'border-r'
+                  } border-slate-800 flex-col items-center py-3 justify-between shrink-0 cursor-pointer select-none transition-colors group z-20`}
+                  title="Expand ActiveDeck Chat"
+                >
+                  <div className="flex flex-col items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleStudentChatCollapsed(false);
+                      }}
+                      className="p-1.5 rounded-lg bg-slate-800/90 group-hover:bg-osu-orange text-slate-300 group-hover:text-white border border-slate-700 group-hover:border-osu-orange transition-colors relative cursor-pointer"
+                      title="Expand Chat"
+                    >
+                      {chatLayoutDirection === 'left' ? (
+                        <ChevronsRight className="w-4 h-4" />
+                      ) : (
+                        <ChevronsLeft className="w-4 h-4" />
+                      )}
+                    </button>
+
+                    {(chatUnreadInfo.unreadCount > 0 || chatUnreadInfo.hasActiveActivity) && (
+                      <span
+                        className="min-w-[20px] h-5 px-1.5 rounded-full bg-osu-orange text-white text-[10px] font-black flex items-center justify-center shadow-lg shadow-orange-500/30 animate-bounce"
+                        title={chatUnreadInfo.hasActiveActivity ? 'Active Poll or Question in Chat!' : `${chatUnreadInfo.unreadCount} unread`}
+                      >
+                        {chatUnreadInfo.unreadCount > 0 ? chatUnreadInfo.unreadCount : '!'}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex-1 flex items-center justify-center">
+                    <div className="flex items-center gap-2 -rotate-90 whitespace-nowrap">
+                      <MessageSquare className="w-3.5 h-3.5 text-osu-orange shrink-0" />
+                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 group-hover:text-slate-200 transition-colors">
+                        ActiveDeck Chat
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="w-2 h-2 rounded-full bg-green-500/80" title="Connected to Live Chat" />
+                </div>
+              )}
+
               <div 
                 style={{ width: !hasJoinedChat ? '660px' : `${audienceChatWidth}px` }}
-                className="w-full md:w-auto h-full bg-slate-950 relative flex-shrink-0 transition-all duration-300"
+                className={`${isChatCollapsedEffective ? 'hidden' : 'w-full md:w-auto'} h-full bg-[#111827] relative flex-shrink-0 transition-all duration-300`}
               >
                 <ChatSidebar 
                   isChatOnly={true} 
@@ -2305,32 +2371,38 @@ function AppContent() {
                   presentationLoaded={presentationLoaded} 
                   showAttendance={settings?.showAttendance}
                   onJoinChange={setHasJoinedChat}
+                  onCollapseChat={hasJoinedChat ? () => toggleStudentChatCollapsed(true) : undefined}
+                  chatLayoutDirection={chatLayoutDirection}
+                  isCollapsedRail={isChatCollapsedEffective}
+                  onUnreadActivityChange={setChatUnreadInfo}
                 />
               </div>
 
               {/* Interactive Drag Splitter */}
-              <div 
-                onMouseDown={handleMouseDownAudienceChat}
-                onTouchStart={handleTouchStartAudienceChat}
-                onDoubleClick={handleDoubleClickAudienceChat}
-                className="hidden md:flex w-3 h-full cursor-col-resize items-center justify-center flex-shrink-0 group/splitter select-none bg-slate-950 border-l border-r border-slate-900"
-                title="Drag to resize chat (double-click to reset)"
-              >
-                <div className="w-[3px] h-20 bg-slate-800 group-hover/splitter:bg-osu-orange/70 group-active/splitter:bg-osu-orange rounded-full transition-all duration-200" />
-              </div>
+              {!isChatCollapsedEffective && (
+                <div 
+                  onMouseDown={handleMouseDownAudienceChat}
+                  onTouchStart={handleTouchStartAudienceChat}
+                  onDoubleClick={handleDoubleClickAudienceChat}
+                  className="hidden md:flex w-2.5 h-full cursor-col-resize items-center justify-center flex-shrink-0 group/splitter select-none bg-slate-950 border-l border-r border-slate-900"
+                  title="Drag to resize chat (double-click to reset)"
+                >
+                  <div className="w-[3px] h-20 bg-slate-800 group-hover/splitter:bg-osu-orange/70 group-active/splitter:bg-osu-orange rounded-full transition-all duration-200" />
+                </div>
+              )}
             </>
           )}
 
-          {/* Right Side: Premium Welcome Panel (Desktop/Laptop only) */}
-          <div className={`hidden md:flex flex-1 h-full flex-col bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 ${presentation?.chatEnabled !== false ? 'border-l border-slate-800/80' : ''} p-4 md:p-5 relative overflow-hidden`}>
+          {/* Main Notes & Slide Preview Workspace */}
+          <div className={`hidden md:flex flex-1 h-full flex-col bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 ${presentation?.chatEnabled !== false ? 'border-l border-slate-800/80' : ''} p-3 md:p-4 relative overflow-hidden`}>
           {/* Ambient lighting glow */}
           <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-osu-orange/5 rounded-full blur-[100px] pointer-events-none" />
           
-          <div className="w-full space-y-3.5 relative z-10 animate-in fade-in zoom-in-95 duration-500 flex flex-col h-full min-h-0">
-            {/* Ultra-compact Header & Stats Bar */}
-            <div className="flex items-center justify-between gap-3 p-3 bg-white/[0.02] border border-white/5 rounded-2xl shrink-0 select-none">
-              <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 p-1 bg-white/5 rounded-lg border border-white/10 flex items-center justify-center shrink-0">
+          <div className="w-full space-y-2.5 relative z-10 animate-in fade-in zoom-in-95 duration-500 flex flex-col h-full min-h-0">
+            {/* Consolidated Top Header Bar (Logo, Inline Click-to-Edit Notes Title, Save Status, Session Info, Export .docx) */}
+            <div className="flex items-center justify-between gap-3 px-3.5 py-2 bg-slate-900/90 border border-slate-800/90 rounded-xl shrink-0 select-none shadow-md">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <div className="w-6 h-6 p-1 bg-slate-800/90 rounded-lg border border-slate-700/80 flex items-center justify-center shrink-0">
                   <img 
                     src={settings?.theme.logoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png"} 
                     alt="Logo" 
@@ -2338,10 +2410,76 @@ function AppContent() {
                     referrerPolicy="no-referrer"
                   />
                 </div>
-                <div className="text-left">
-                  <h1 className="text-xs font-black uppercase tracking-wider text-white leading-none">ActiveDeck Notes</h1>
-                </div>
-                <div className="h-4 w-px bg-white/10 mx-1" />
+                <span className="text-[11px] font-black uppercase tracking-wider text-slate-400 shrink-0 hidden lg:inline">
+                  ActiveDeck Notes
+                </span>
+                <span className="text-slate-700 hidden lg:inline">/</span>
+
+                {/* Inline Click-to-Edit Notes Title (Google Docs style) */}
+                {hasJoinedChat || presentation?.chatEnabled === false ? (
+                  <div className="flex items-center gap-2 min-w-0 flex-1 max-w-md">
+                    {isEditingNotesTitle ? (
+                      <input
+                        type="text"
+                        autoFocus
+                        value={notesTitle}
+                        onChange={(e) => setNotesTitle(e.target.value)}
+                        onBlur={() => setIsEditingNotesTitle(false)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === 'Escape') {
+                            setIsEditingNotesTitle(false);
+                          }
+                        }}
+                        placeholder="Untitled Lecture Notes"
+                        className="h-7 px-2.5 text-xs font-bold bg-slate-800 border border-osu-orange rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none w-full max-w-[260px]"
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingNotesTitle(true)}
+                        className="group flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-slate-800/90 border border-transparent hover:border-slate-700/80 transition-all text-left min-w-0 max-w-[280px] cursor-pointer"
+                        title="Click to rename notes title"
+                      >
+                        <span className="text-xs font-bold text-slate-100 truncate">
+                          {notesTitle.trim() || 'Untitled Lecture Notes'}
+                        </span>
+                        <Edit3 className="w-3 h-3 text-slate-500 group-hover:text-osu-orange shrink-0 transition-colors" />
+                      </button>
+                    )}
+
+                    {saveStatus && (
+                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md shrink-0 transition-all duration-300 ${
+                        saveStatus === 'saving' ? 'text-slate-400 animate-pulse' : 'text-green-400 bg-green-500/10 border border-green-500/20'
+                      }`}>
+                        {saveStatus === 'saving' ? 'Saving...' : 'Auto-saved'}
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <span className="text-xs font-black uppercase tracking-wider text-white">ActiveDeck Notes</span>
+                )}
+              </div>
+
+              {/* Right Controls: Session PIN, Current Slide, Swap Sides, Export (.docx) */}
+              <div className="flex items-center gap-2.5 shrink-0">
+                {presentation && (
+                  <div className="hidden xl:flex items-center gap-3 text-[10px] px-2.5 py-1 rounded-lg bg-slate-950/60 border border-slate-800/80">
+                    <div>
+                      <span className="text-slate-500 uppercase font-black tracking-wider text-[8px] mr-1.5">PIN</span>
+                      <span className="font-mono font-bold text-osu-orange text-xs">{presentation.pinCode || 'N/A'}</span>
+                    </div>
+                    <div className="h-3.5 w-px bg-slate-800" />
+                    <div>
+                      <span className="text-slate-500 uppercase font-black tracking-wider text-[8px] mr-1.5">Slide</span>
+                      <span className="font-bold text-slate-200 text-xs">
+                        {presentation.currentSlide !== undefined && presentation.currentSlide !== null 
+                          ? presentation.currentSlide 
+                          : 'N/A'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
                 <button
                   type="button"
                   onClick={() => {
@@ -2349,33 +2487,29 @@ function AppContent() {
                     setChatLayoutDirection(nextDir);
                     localStorage.setItem('activeDeckChatLayoutDirection', nextDir);
                   }}
-                  className="p-1.5 rounded-xl bg-white/5 hover:bg-osu-orange hover:text-white border border-white/10 hover:border-osu-orange/30 text-osu-orange hover:text-white transition-all duration-300 flex items-center justify-center cursor-pointer outline-none active:scale-95 shadow-md"
+                  className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/80 hover:border-slate-600 transition-all flex items-center justify-center cursor-pointer outline-none active:scale-95"
                   title={chatLayoutDirection === 'left' ? "Move Chat to Right / Notes to Left" : "Move Chat to Left / Notes to Right"}
                 >
-                  <ArrowLeftRight className="w-[18px] h-[18px] transition-transform duration-300" />
+                  <ArrowLeftRight className="w-3.5 h-3.5" />
                 </button>
+
+                {(hasJoinedChat || presentation?.chatEnabled === false) && (
+                  <button
+                    type="button"
+                    onClick={handleDownloadNotes}
+                    disabled={isNotesEmpty(notesTextMap, notesDrawingsMap) && Object.keys(pushedSlidesMap).length === 0}
+                    className="h-8 px-3 rounded-lg bg-slate-800/90 hover:bg-slate-800 text-slate-100 hover:text-white border border-slate-700 hover:border-osu-orange/60 disabled:opacity-40 disabled:cursor-not-allowed text-[11px] font-bold tracking-wide transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-sm"
+                    title="Export notes & slides to Word (.docx)"
+                  >
+                    <Download className="w-3.5 h-3.5 text-osu-orange" />
+                    <span>Export (.docx)</span>
+                  </button>
+                )}
               </div>
-              {presentation && (
-                <div className="flex items-center gap-4 text-[10px] pr-1">
-                  <div>
-                    <span className="text-slate-500 uppercase font-black tracking-wider text-[8px] mr-1.5">Session PIN</span>
-                    <span className="font-mono font-bold text-osu-orange text-xs">{presentation.pinCode || 'N/A'}</span>
-                  </div>
-                  <div className="h-4 w-px bg-white/5" />
-                  <div>
-                    <span className="text-slate-500 uppercase font-black tracking-wider text-[8px] mr-1.5">Current Slide</span>
-                    <span className="font-bold text-slate-200 text-xs">
-                      {presentation.currentSlide !== undefined && presentation.currentSlide !== null 
-                        ? `Slide ${presentation.currentSlide}` 
-                        : 'N/A'}
-                    </span>
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Note-Taking Section */}
-            <div className="flex-1 flex flex-col min-h-0 bg-white/[0.01] border border-white/5 rounded-2xl p-4 shadow-xl backdrop-blur-sm space-y-3">
+            <div className="flex-1 flex flex-col min-h-0 bg-slate-900/30 border border-slate-800/80 rounded-2xl p-3 shadow-xl backdrop-blur-sm space-y-2.5">
               {!hasJoinedChat && presentation?.chatEnabled !== false ? (
                 <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-4 animate-in fade-in duration-305">
                   <div className="w-12 h-12 rounded-2xl bg-osu-orange/10 border border-osu-orange/20 flex items-center justify-center text-osu-orange shadow-lg shadow-orange-500/5">
@@ -2384,173 +2518,145 @@ function AppContent() {
                   <div className="space-y-1.5 max-w-sm">
                     <h3 className="text-sm font-black uppercase tracking-wider text-slate-200">Notes Locked</h3>
                     <p className="text-xs text-slate-400 leading-relaxed">
-                      Join the discussion by entering your name and email on the left to unlock real-time, slide-by-slide note-taking.
+                      Join the discussion by entering your name and email in the Chat panel to unlock real-time, slide-by-slide note-taking.
                     </p>
                   </div>
                 </div>
               ) : (
                 <>
-                  <div className="flex items-center justify-between shrink-0">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">My Study Notes</span>
-                    {saveStatus && (
-                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded transition-all duration-305 ${
-                        saveStatus === 'saving' ? 'text-slate-400 animate-pulse' : 'text-green-400 bg-green-500/10 border border-green-500/20'
-                      }`}>
-                        {saveStatus === 'saving' ? 'Saving...' : 'Auto-saved'}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Title & Slides Overview Row */}
-                  <div className="flex flex-col md:flex-row gap-4 items-start w-full shrink-0">
-                    {/* Notes Title */}
-                    <div className="w-full md:w-64 flex flex-col space-y-1 shrink-0">
-                      <span className="text-[8px] font-black uppercase tracking-wider text-slate-500">Notes Title</span>
-                      <input 
-                        type="text"
-                        value={notesTitle}
-                        onChange={(e) => setNotesTitle(e.target.value)}
-                        placeholder="Notes Title (e.g. Lecture 1)"
-                        className="w-full h-10 px-3 text-xs bg-white border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-osu-orange focus:border-osu-orange transition-all shrink-0"
-                      />
-                    </div>
-
-                    {/* Slide Tabs Bar */}
-                    {(() => {
-                      const slidesWithNotes = Array.from(new Set([
-                        ...Object.keys(notesTextMap),
-                        ...Object.keys(notesDrawingsMap)
-                      ])).filter(slide => {
-                        const html = notesTextMap[slide];
-                        const hasText = html && html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim() !== '';
-                        
-                        const drawingJson = notesDrawingsMap[slide];
-                        let hasDrawing = false;
-                        try {
-                          if (drawingJson) {
-                            const strokes = JSON.parse(drawingJson);
-                            hasDrawing = Array.isArray(strokes) && strokes.length > 0;
-                          }
-                        } catch {}
-                        
-                        return hasText || hasDrawing;
-                      });
+                  {/* Compact Single-Row Slide Tabs Bar + Blank Note Button */}
+                  {(() => {
+                    const slidesWithNotes = Array.from(new Set([
+                      ...Object.keys(notesTextMap),
+                      ...Object.keys(notesDrawingsMap)
+                    ])).filter(slide => {
+                      const html = notesTextMap[slide];
+                      const hasText = html && html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim() !== '';
                       
-                      const presenterSlide = presentation?.currentSlide !== undefined && presentation.currentSlide !== null 
-                        ? String(presentation.currentSlide) 
-                        : '1';
+                      const drawingJson = notesDrawingsMap[slide];
+                      let hasDrawing = false;
+                      try {
+                        if (drawingJson) {
+                          const strokes = JSON.parse(drawingJson);
+                          hasDrawing = Array.isArray(strokes) && strokes.length > 0;
+                        }
+                      } catch {}
                       
-                      const maxSlide = Math.max(
-                        1,
-                        maxSlideSeen,
-                        presentation?.currentSlide || 1,
-                        ...Object.keys(notesTextMap).map(Number).filter(n => !isNaN(n)),
-                        ...Object.keys(notesDrawingsMap).map(Number).filter(n => !isNaN(n)),
-                        ...Object.keys(pushedSlidesMap).map(Number).filter(n => !isNaN(n))
-                      );
+                      return hasText || hasDrawing;
+                    });
+                    
+                    const presenterSlide = presentation?.currentSlide !== undefined && presentation.currentSlide !== null 
+                      ? String(presentation.currentSlide) 
+                      : '1';
+                    
+                    const maxSlide = Math.max(
+                      1,
+                      maxSlideSeen,
+                      presentation?.currentSlide || 1,
+                      ...Object.keys(notesTextMap).map(Number).filter(n => !isNaN(n)),
+                      ...Object.keys(notesDrawingsMap).map(Number).filter(n => !isNaN(n)),
+                      ...Object.keys(pushedSlidesMap).map(Number).filter(n => !isNaN(n))
+                    );
 
-                      const allTabs: Array<{ id: string; label: string; position: number; isCustom: boolean }> = [];
-                      for (let i = 1; i <= maxSlide; i++) {
-                        allTabs.push({
-                          id: String(i),
-                          label: `Slide ${i}`,
-                          position: i,
-                          isCustom: false
-                        });
-                      }
-
-                      customTabs.forEach(ct => {
-                        allTabs.push({
-                          id: ct.id,
-                          label: ct.label,
-                          position: ct.position,
-                          isCustom: true
-                        });
+                    const allTabs: Array<{ id: string; label: string; position: number; isCustom: boolean }> = [];
+                    for (let i = 1; i <= maxSlide; i++) {
+                      allTabs.push({
+                        id: String(i),
+                        label: `Slide ${i}`,
+                        position: i,
+                        isCustom: false
                       });
+                    }
 
-                      allTabs.sort((a, b) => a.position - b.position);
+                    customTabs.forEach(ct => {
+                      allTabs.push({
+                        id: ct.id,
+                        label: ct.label,
+                        position: ct.position,
+                        isCustom: true
+                      });
+                    });
 
-                      return (
-                        <div className="flex flex-col space-y-1 flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-[8px] font-black uppercase tracking-wider text-slate-500">Slides Overview</span>
-                            <button
-                              type="button"
-                              onClick={handleAddCustomTab}
-                              className="flex items-center gap-1 px-2 py-0.5 text-[9px] font-bold text-purple-300 bg-purple-950/80 hover:bg-purple-900 border border-purple-500/40 hover:border-purple-400 rounded-md transition-all cursor-pointer active:scale-95 shadow-sm"
-                              title="Add a new blank note tab for website or non-PPT content"
-                            >
-                              <Plus className="w-2.5 h-2.5 text-purple-400" />
-                              <span>+ Blank Note</span>
-                            </button>
-                          </div>
-                          <div className="w-full max-h-32 overflow-y-auto pr-1 custom-scrollbar">
-                            <div className="flex flex-row flex-wrap items-center gap-1.5 py-1 select-none">
-                              {allTabs.map(tab => {
-                                const isCurrentTab = tab.id === activeTab;
-                                const isPresenterSlide = tab.id === presenterSlide;
-                                const hasContent = slidesWithNotes.includes(tab.id);
+                    allTabs.sort((a, b) => a.position - b.position);
 
-                                if (tab.isCustom) {
-                                  return (
-                                    <button
-                                      key={tab.id}
-                                      type="button"
-                                      onClick={() => setActiveTab(tab.id)}
-                                      className={`px-3 py-1 text-[10px] font-bold rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer shrink-0 group ${
-                                        isCurrentTab 
-                                          ? 'bg-purple-600 border-purple-500 text-white shadow-md shadow-purple-500/20 font-bold'
-                                          : 'bg-purple-950/80 border-purple-500/40 text-purple-200 hover:bg-purple-900 hover:border-purple-400 hover:text-white'
-                                      }`}
-                                      title={`Custom Blank Note Tab: ${tab.label}`}
-                                    >
-                                      <FileText className="w-3 h-3 text-purple-300 shrink-0" />
-                                      <span>{tab.label}</span>
-                                      {hasContent && !isCurrentTab && (
-                                        <span className="w-1 h-1 rounded-full bg-purple-300/80" title="Has notes" />
-                                      )}
-                                      <span 
-                                        onClick={(e) => handleDeleteCustomTab(tab.id, e)}
-                                        className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-purple-800/80 rounded transition-opacity ml-0.5 cursor-pointer"
-                                        title="Delete note tab"
-                                      >
-                                        <X className="w-2.5 h-2.5 text-purple-200 hover:text-white" />
-                                      </span>
-                                    </button>
-                                  );
-                                }
+                    return (
+                      <div className="flex items-center justify-between gap-2 w-full shrink-0">
+                        <div className="flex-1 min-w-0 max-h-20 overflow-y-auto pr-1 custom-scrollbar">
+                          <div className="flex flex-row flex-wrap items-center gap-1.5 py-0.5 select-none">
+                            {allTabs.map(tab => {
+                              const isCurrentTab = tab.id === activeTab;
+                              const isPresenterSlide = tab.id === presenterSlide;
+                              const hasContent = slidesWithNotes.includes(tab.id);
 
+                              if (tab.isCustom) {
                                 return (
                                   <button
                                     key={tab.id}
                                     type="button"
                                     onClick={() => setActiveTab(tab.id)}
-                                    className={`px-3 py-1 text-[10px] font-bold rounded-lg border transition-all flex items-center gap-1 cursor-pointer shrink-0 ${
+                                    className={`px-2.5 py-1 text-[10px] font-bold rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer shrink-0 group ${
                                       isCurrentTab 
-                                        ? 'bg-osu-orange border-osu-orange text-white shadow-md shadow-orange-500/10'
-                                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+                                        ? 'bg-purple-600 border-purple-500 text-white shadow-md shadow-purple-500/20 font-bold'
+                                        : 'bg-purple-950/80 border-purple-500/40 text-purple-200 hover:bg-purple-900 hover:border-purple-400 hover:text-white'
                                     }`}
+                                    title={`Custom Blank Note Tab: ${tab.label}`}
                                   >
+                                    <FileText className="w-3 h-3 text-purple-300 shrink-0" />
                                     <span>{tab.label}</span>
-                                    {isPresenterSlide && (
-                                      <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse border border-green-300" title="Presenter is currently on this slide" />
+                                    {hasContent && !isCurrentTab && (
+                                      <span className="w-1 h-1 rounded-full bg-purple-300/80" title="Has notes" />
                                     )}
-                                    {!isPresenterSlide && hasContent && (
-                                      <span className="w-1 h-1 rounded-full bg-orange-300/60" title="Has notes" />
-                                    )}
+                                    <span 
+                                      onClick={(e) => handleDeleteCustomTab(tab.id, e)}
+                                      className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-purple-800/80 rounded transition-opacity ml-0.5 cursor-pointer"
+                                      title="Delete note tab"
+                                    >
+                                      <X className="w-2.5 h-2.5 text-purple-200 hover:text-white" />
+                                    </span>
                                   </button>
                                 );
-                              })}
-                            </div>
+                              }
+
+                              return (
+                                <button
+                                  key={tab.id}
+                                  type="button"
+                                  onClick={() => setActiveTab(tab.id)}
+                                  className={`px-2.5 py-1 text-[10px] font-bold rounded-lg border transition-all flex items-center gap-1 cursor-pointer shrink-0 ${
+                                    isCurrentTab 
+                                      ? 'bg-osu-orange border-osu-orange text-white shadow-md shadow-orange-500/10'
+                                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+                                  }`}
+                                >
+                                  <span>{tab.label}</span>
+                                  {isPresenterSlide && (
+                                    <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse border border-green-300" title="Presenter is currently on this slide" />
+                                  )}
+                                  {!isPresenterSlide && hasContent && (
+                                    <span className="w-1 h-1 rounded-full bg-orange-300/60" title="Has notes" />
+                                  )}
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
-                      );
-                    })()}
-                  </div>
+
+                        <button
+                          type="button"
+                          onClick={handleAddCustomTab}
+                          className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold text-purple-300 bg-purple-950/80 hover:bg-purple-900 border border-purple-500/40 hover:border-purple-400 rounded-lg transition-all cursor-pointer active:scale-95 shadow-sm shrink-0"
+                          title="Add a new blank note tab for website or non-PPT content"
+                        >
+                          <Plus className="w-3 h-3 text-purple-400" />
+                          <span>+ Blank Note</span>
+                        </button>
+                      </div>
+                    );
+                  })()}
 
                   {/* Slide Out-of-Sync Alert */}
                   {presentation && presentation.currentSlide !== undefined && presentation.currentSlide !== null && String(presentation.currentSlide) !== activeTab && (
-                    <div className="flex items-center justify-between p-2 rounded-xl bg-orange-500/10 border border-orange-500/20 text-[10px] shrink-0 text-orange-200 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-orange-500/10 border border-orange-500/20 text-[10px] shrink-0 text-orange-200 animate-in fade-in slide-in-from-top-2 duration-300">
                       <span className="flex items-center gap-1.5 font-medium">
                         <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse shrink-0" />
                         Presenter is on Slide {presentation.currentSlide} (You are on {getTabTitle(activeTab)})
@@ -2565,39 +2671,12 @@ function AppContent() {
                     </div>
                   )}
 
-                  {/* Mode Selector Toggle (Typed vs Handwritten) */}
-                  <div className="flex items-center bg-slate-900/60 p-1 rounded-xl border border-white/5 shrink-0 select-none">
-                    <button
-                      type="button"
-                      onClick={() => setNotesMode('text')}
-                      className={`flex-1 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                        notesMode === 'text'
-                          ? 'bg-osu-orange text-white shadow-md shadow-orange-500/10 font-bold'
-                          : 'text-slate-400 hover:text-white font-medium'
-                      }`}
-                    >
-                      <Keyboard className="w-3.5 h-3.5" />
-                      Typed Notes
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setNotesMode('pen')}
-                      className={`flex-1 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                        notesMode === 'pen'
-                          ? 'bg-osu-orange text-white shadow-md shadow-orange-500/10 font-bold'
-                          : 'text-slate-400 hover:text-white font-medium'
-                      }`}
-                    >
-                      <Pen className="w-3.5 h-3.5" />
-                      Handwritten Notes
-                    </button>
-                  </div>
                    {(() => {
                     console.log(`[SlidePreview Render] activeTab: "${activeTab}" (type: ${typeof activeTab}), pushedSlidesMapKeys:`, Object.keys(pushedSlidesMap), `resolvedUrl:`, pushedSlidesMap[activeTab]);
                     return null;
                   })()}
                    {/* Split-screen Side-by-Side Editor and Slide Preview Container */}
-                  <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-4 relative" ref={notesContainerRef}>
+                  <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-3 relative" ref={notesContainerRef}>
                     
                     {/* Notes Writing Area (Left/Top) */}
                     <div 
@@ -2618,6 +2697,10 @@ function AppContent() {
                           onBlur={() => setIsEditorFocused(false)}
                           placeholder={`Type your notes for ${getTabTitle(activeTab)} here...`}
                           className="flex-1 min-h-[120px]"
+                          notesMode={notesMode}
+                          onNotesModeChange={setNotesMode}
+                          editorTheme={editorTheme}
+                          onEditorThemeChange={handleEditorThemeChange}
                         />
                       ) : (
                         <HandwrittenCanvas
@@ -2629,6 +2712,10 @@ function AppContent() {
                             }));
                           }}
                           placeholder={`Draw your notes for ${getTabTitle(activeTab)} here...`}
+                          notesMode={notesMode}
+                          onNotesModeChange={setNotesMode}
+                          editorTheme={editorTheme}
+                          onEditorThemeChange={handleEditorThemeChange}
                         />
                       )}
                     </div>
@@ -2639,7 +2726,7 @@ function AppContent() {
                         onMouseDown={handleMouseDownNotesSplit}
                         onTouchStart={handleTouchStartNotesSplit}
                         onDoubleClick={handleDoubleClickNotesSplit}
-                        className="hidden md:flex w-2.5 h-full cursor-col-resize items-center justify-center flex-shrink-0 group/notes-splitter select-none bg-transparent hover:bg-white/[0.01] transition-colors rounded-lg"
+                        className="hidden md:flex w-2 h-full cursor-col-resize items-center justify-center flex-shrink-0 group/notes-splitter select-none bg-transparent hover:bg-white/[0.01] transition-colors rounded-lg"
                         title="Drag to resize notes and slide preview (double-click to reset)"
                       >
                         <div className="w-[3px] h-20 bg-slate-800/80 group-hover/notes-splitter:bg-osu-orange/70 group-active/notes-splitter:bg-osu-orange rounded-full transition-all duration-200" />
@@ -2814,26 +2901,9 @@ function AppContent() {
                     )}
 
                   </div>
-
-                  {/* Export Buttons */}
-                  <div className="pt-1.5 shrink-0 select-none">
-                    <button
-                      type="button"
-                      onClick={handleDownloadNotes}
-                      disabled={isNotesEmpty(notesTextMap, notesDrawingsMap) && Object.keys(pushedSlidesMap).length === 0}
-                      className="w-full h-10 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-orange-500/15 active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      Download (.doc)
-                    </button>
-                  </div>
                 </>
               )}
             </div>
-
-            {/* Footer watermark */}
-            <span className="text-[10px] font-black tracking-widest text-slate-600 uppercase select-none text-center shrink-0">
-              ActiveDeck &copy; {new Date().getFullYear()}
-            </span>
           </div>
         </div>
       </div>

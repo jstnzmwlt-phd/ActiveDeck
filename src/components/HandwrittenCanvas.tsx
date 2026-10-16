@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Pen, Eraser, Undo2, Redo2, Trash2, Highlighter } from 'lucide-react';
+import { Pen, Eraser, Undo2, Redo2, Trash2, Highlighter, Keyboard, Sun, Moon } from 'lucide-react';
 
 interface Point {
   x: number;
@@ -17,9 +17,21 @@ interface HandwrittenCanvasProps {
   value: string; // JSON string of Stroke[]
   onChange: (value: string) => void;
   placeholder?: string;
+  notesMode?: 'text' | 'pen';
+  onNotesModeChange?: (mode: 'text' | 'pen') => void;
+  editorTheme?: 'dark' | 'paper';
+  onEditorThemeChange?: (theme: 'dark' | 'paper') => void;
 }
 
-export function HandwrittenCanvas({ value, onChange, placeholder = "Draw your notes here..." }: HandwrittenCanvasProps) {
+export function HandwrittenCanvas({
+  value,
+  onChange,
+  placeholder = "Draw your notes here...",
+  notesMode = 'pen',
+  onNotesModeChange,
+  editorTheme = 'dark',
+  onEditorThemeChange
+}: HandwrittenCanvasProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [activeStroke, setActiveStroke] = useState<Stroke | null>(null);
@@ -31,15 +43,15 @@ export function HandwrittenCanvas({ value, onChange, placeholder = "Draw your no
 
   // Toolbar state
   const [tool, setTool] = useState<'pen' | 'highlighter' | 'eraser'>('pen');
-  const [color, setColor] = useState<string>('#000000'); // Default Black
+  const [color, setColor] = useState<string>('#000000'); // Default Ink (rendered as light ink on dark canvas, dark ink on paper)
   const [width, setWidth] = useState<number>(5);
 
   const colors = [
-    { value: '#000000', name: 'Black' },
-    { value: '#FFFFFF', name: 'White' },
-    { value: '#1E3A8A', name: 'Navy Blue' },
-    { value: '#DC2626', name: 'Red' },
-    { value: '#16A34A', name: 'Green' },
+    { value: '#000000', name: 'Default Ink' },
+    { value: '#38BDF8', name: 'Sky Blue' },
+    { value: '#F97316', name: 'Orange' },
+    { value: '#EF4444', name: 'Red' },
+    { value: '#22C55E', name: 'Green' },
   ];
 
   const widths = [
@@ -55,7 +67,7 @@ export function HandwrittenCanvas({ value, onChange, placeholder = "Draw your no
       setColor('#EAB308'); // Highlighter yellow
     } else if (tool === 'pen') {
       setWidth(5);
-      setColor('#000000'); // Default black
+      setColor('#000000'); // Default ink
     }
   }, [tool]);
 
@@ -213,65 +225,111 @@ export function HandwrittenCanvas({ value, onChange, placeholder = "Draw your no
     }
   };
 
+  const isDarkSurface = editorTheme === 'dark';
+
+  const getDisplayStrokeColor = (c: string) => {
+    if (isDarkSurface && (c === '#000000' || c === '#0f172a')) {
+      return '#F8FAFC';
+    }
+    if (!isDarkSurface && c === '#FFFFFF') {
+      return '#0f172a';
+    }
+    return c;
+  };
+
   return (
-    <div className="flex-1 min-h-0 flex flex-col bg-slate-950 border border-white/5 rounded-2xl overflow-hidden relative select-none">
-      {/* Sleek Floating Glassmorphic Drawing Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-900/90 border-b border-white/5 backdrop-blur-md shrink-0">
-        
+    <div className="flex-1 min-h-0 flex flex-col bg-slate-950 border border-slate-700/80 rounded-xl overflow-hidden relative select-none shadow-sm">
+      {/* Sleek Drawing Toolbar */}
+      <div className="flex flex-wrap items-center gap-1.5 px-2 py-1.5 bg-slate-900 border-b border-slate-700/80 shrink-0">
+        {/* Compact Typed / Handwritten Segmented Pill */}
+        {onNotesModeChange && (
+          <>
+            <div className="flex items-center bg-slate-950 p-0.5 rounded-lg border border-slate-800 mr-0.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => onNotesModeChange('text')}
+                className={`px-2 py-1 text-[10px] font-black uppercase tracking-wider rounded-md transition-all cursor-pointer flex items-center gap-1 ${
+                  notesMode === 'text'
+                    ? 'bg-osu-orange text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="Typed Notes"
+              >
+                <Keyboard className="w-3 h-3" />
+                <span>Typed</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onNotesModeChange('pen')}
+                className={`px-2 py-1 text-[10px] font-black uppercase tracking-wider rounded-md transition-all cursor-pointer flex items-center gap-1 ${
+                  notesMode === 'pen'
+                    ? 'bg-osu-orange text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="Handwritten Notes"
+              >
+                <Pen className="w-3 h-3" />
+                <span>Draw</span>
+              </button>
+            </div>
+            <div className="w-px h-4 bg-slate-700/80 mx-0.5" />
+          </>
+        )}
+
         {/* Tools */}
-        <div className="flex items-center bg-slate-950/60 rounded-xl p-1 border border-white/5">
+        <div className="flex items-center bg-slate-950/60 rounded-lg p-0.5 border border-slate-800">
           <button
             type="button"
             onClick={() => setTool('pen')}
-            className={`p-2 rounded-lg cursor-pointer transition-all flex items-center gap-1.5 text-xs font-black uppercase tracking-wider ${
+            className={`px-2 py-1 rounded-md cursor-pointer transition-all flex items-center gap-1 text-[10px] font-black uppercase tracking-wider ${
               tool === 'pen'
-                ? 'bg-osu-orange text-white'
+                ? 'bg-slate-800 text-white border border-slate-700'
                 : 'text-slate-400 hover:text-white'
             }`}
             title="Pen Stylus"
           >
-            <Pen className="w-3.5 h-3.5" />
+            <Pen className="w-3 h-3" />
             <span className="hidden sm:inline">Pen</span>
           </button>
           <button
             type="button"
             onClick={() => setTool('highlighter')}
-            className={`p-2 rounded-lg cursor-pointer transition-all flex items-center gap-1.5 text-xs font-black uppercase tracking-wider ${
+            className={`px-2 py-1 rounded-md cursor-pointer transition-all flex items-center gap-1 text-[10px] font-black uppercase tracking-wider ${
               tool === 'highlighter'
-                ? 'bg-osu-orange text-white'
+                ? 'bg-slate-800 text-white border border-slate-700'
                 : 'text-slate-400 hover:text-white'
             }`}
             title="Highlighter"
           >
-            <Highlighter className="w-3.5 h-3.5" />
+            <Highlighter className="w-3 h-3" />
             <span className="hidden sm:inline">Highlight</span>
           </button>
           <button
             type="button"
             onClick={() => setTool('eraser')}
-            className={`p-2 rounded-lg cursor-pointer transition-all flex items-center gap-1.5 text-xs font-black uppercase tracking-wider ${
+            className={`px-2 py-1 rounded-md cursor-pointer transition-all flex items-center gap-1 text-[10px] font-black uppercase tracking-wider ${
               tool === 'eraser'
-                ? 'bg-osu-orange text-white'
+                ? 'bg-slate-800 text-white border border-slate-700'
                 : 'text-slate-400 hover:text-white'
             }`}
             title="Stroke Eraser"
           >
-            <Eraser className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Eraser</span>
+            <Eraser className="w-3 h-3" />
+            <span className="hidden sm:inline">Erase</span>
           </button>
         </div>
 
         {/* Dynamic Width / Colors controls - Hidden on Eraser mode */}
         {tool !== 'eraser' && (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {/* Stroke Thickness Selector */}
-            <div className="flex bg-slate-950/40 rounded-xl p-0.5 border border-white/5">
+            <div className="flex bg-slate-950/60 rounded-lg p-0.5 border border-slate-800">
               {widths.map(w => (
                 <button
                   key={w.label}
                   type="button"
                   onClick={() => setWidth(tool === 'highlighter' ? w.value * 3 : w.value)}
-                  className={`px-2 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                  className={`px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider rounded-md transition-all cursor-pointer ${
                     (tool === 'highlighter' ? width === w.value * 3 : width === w.value)
                       ? 'bg-slate-800 text-white font-black'
                       : 'text-slate-500 hover:text-slate-300'
@@ -283,26 +341,25 @@ export function HandwrittenCanvas({ value, onChange, placeholder = "Draw your no
             </div>
 
             {/* Colors */}
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1">
               {colors.map(c => {
                 const isSelected = color === c.value;
+                const swatchColor = c.value === '#000000'
+                  ? (isDarkSurface ? '#F8FAFC' : '#0f172a')
+                  : c.value;
                 return (
                   <button
                     key={c.value}
                     type="button"
                     onClick={() => setColor(c.value)}
-                    style={{ backgroundColor: c.value }}
-                    className={`w-5 h-5 rounded-full cursor-pointer transition-all border relative flex items-center justify-center ${
+                    style={{ backgroundColor: swatchColor }}
+                    className={`w-4.5 h-4.5 rounded-full cursor-pointer transition-all border relative flex items-center justify-center ${
                       isSelected 
-                        ? 'border-white scale-110 shadow-lg shadow-white/10 ring-2 ring-osu-orange/50' 
-                        : 'border-white/10 hover:scale-105 hover:border-white/30'
+                        ? 'border-white scale-110 shadow-md ring-2 ring-osu-orange/60' 
+                        : 'border-slate-600 hover:scale-105 hover:border-white/50'
                     }`}
                     title={c.name}
-                  >
-                    {isSelected && (
-                      <span className="absolute w-1 h-1 rounded-full bg-slate-900 invert" />
-                    )}
-                  </button>
+                  />
                 );
               })}
             </div>
@@ -310,12 +367,12 @@ export function HandwrittenCanvas({ value, onChange, placeholder = "Draw your no
         )}
 
         {/* History & Utility Actions */}
-        <div className="flex items-center gap-1.5 ml-auto">
+        <div className="flex items-center gap-1 ml-auto">
           <button
             type="button"
             onClick={handleUndo}
             disabled={undoStack.length <= 1}
-            className="p-2 rounded-xl bg-slate-950/40 hover:bg-slate-900 text-slate-400 hover:text-white border border-white/5 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed cursor-pointer transition-colors"
+            className="p-1.5 rounded-lg bg-slate-950/40 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed cursor-pointer transition-colors"
             title="Undo stroke"
           >
             <Undo2 className="w-3.5 h-3.5" />
@@ -324,7 +381,7 @@ export function HandwrittenCanvas({ value, onChange, placeholder = "Draw your no
             type="button"
             onClick={handleRedo}
             disabled={redoStack.length === 0}
-            className="p-2 rounded-xl bg-slate-950/40 hover:bg-slate-900 text-slate-400 hover:text-white border border-white/5 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed cursor-pointer transition-colors"
+            className="p-1.5 rounded-lg bg-slate-950/40 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed cursor-pointer transition-colors"
             title="Redo stroke"
           >
             <Redo2 className="w-3.5 h-3.5" />
@@ -333,28 +390,40 @@ export function HandwrittenCanvas({ value, onChange, placeholder = "Draw your no
             type="button"
             onClick={handleClear}
             disabled={strokes.length === 0}
-            className="p-2 rounded-xl bg-red-950/20 border border-red-500/10 text-red-400 hover:text-red-300 hover:bg-red-950/40 disabled:opacity-20 disabled:hover:bg-transparent disabled:cursor-not-allowed cursor-pointer transition-all"
+            className="p-1.5 rounded-lg bg-red-950/20 border border-red-500/10 text-red-400 hover:text-red-300 hover:bg-red-950/40 disabled:opacity-20 disabled:hover:bg-transparent disabled:cursor-not-allowed cursor-pointer transition-all"
             title="Clear all drawings on slide"
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>
+          {onEditorThemeChange && (
+            <button
+              type="button"
+              onClick={() => onEditorThemeChange(isDarkSurface ? 'paper' : 'dark')}
+              className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/60 transition-colors cursor-pointer flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider"
+              title={isDarkSurface ? "Switch canvas surface to Warm Paper (#F8FAFC)" : "Switch canvas surface to Dark Slate (#1E293B)"}
+            >
+              {isDarkSurface ? <Sun className="w-3 h-3 text-amber-400" /> : <Moon className="w-3 h-3 text-sky-400" />}
+              <span className="hidden sm:inline">{isDarkSurface ? 'Paper' : 'Dark'}</span>
+            </button>
+          )}
         </div>
-
       </div>
 
-      {/* SVG Vector Drawing Area with Engineering Grid Paper Background */}
+      {/* SVG Vector Drawing Area with Subtle Engineering Grid Background */}
       <div 
-        className="flex-1 relative overflow-hidden cursor-crosshair border border-slate-200"
+        className="flex-1 relative overflow-hidden cursor-crosshair"
         style={{
-          backgroundColor: '#ffffff',
-          backgroundImage: 'linear-gradient(#f1f5f9 1px, transparent 1px), linear-gradient(90deg, #f1f5f9 1px, transparent 1px)',
+          backgroundColor: isDarkSurface ? '#1E293B' : '#F8FAFC',
+          backgroundImage: isDarkSurface
+            ? 'linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px)'
+            : 'linear-gradient(#e2e8f0 1px, transparent 1px), linear-gradient(90deg, #e2e8f0 1px, transparent 1px)',
           backgroundSize: '24px 24px'
         }}
       >
         {strokes.length === 0 && !activeStroke && (
           <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center select-none pointer-events-none opacity-40">
-            <p className="text-xs font-black text-slate-500 uppercase tracking-widest">{placeholder}</p>
-            <p className="text-[10px] text-slate-400 mt-1">Use your stylus or touch to draw notes on this slide.</p>
+            <p className="text-xs font-black text-slate-400 uppercase tracking-widest">{placeholder}</p>
+            <p className="text-[10px] text-slate-500 mt-1">Use your stylus or touch to draw notes on this slide.</p>
           </div>
         )}
         
@@ -366,7 +435,7 @@ export function HandwrittenCanvas({ value, onChange, placeholder = "Draw your no
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
-          style={{ touchAction: 'none' }} // Prevents browser scrolling or zooming on mobile/tablets while drawing
+          style={{ touchAction: 'none' }}
         >
           {/* Render existing completed strokes */}
           {strokes.map((stroke, index) => {
@@ -380,7 +449,7 @@ export function HandwrittenCanvas({ value, onChange, placeholder = "Draw your no
                 key={index}
                 d={pathData}
                 fill="none"
-                stroke={stroke.color}
+                stroke={getDisplayStrokeColor(stroke.color)}
                 strokeWidth={stroke.width}
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -397,7 +466,7 @@ export function HandwrittenCanvas({ value, onChange, placeholder = "Draw your no
                 .join(' ')
               }
               fill="none"
-              stroke={activeStroke.color}
+              stroke={getDisplayStrokeColor(activeStroke.color)}
               strokeWidth={activeStroke.width}
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -409,3 +478,4 @@ export function HandwrittenCanvas({ value, onChange, placeholder = "Draw your no
     </div>
   );
 }
+

@@ -14,7 +14,11 @@ import {
   Redo,
   Baseline,
   Highlighter,
-  ChevronDown
+  ChevronDown,
+  Keyboard,
+  Pen,
+  Sun,
+  Moon
 } from 'lucide-react';
 
 interface RichTextEditorProps {
@@ -24,10 +28,14 @@ interface RichTextEditorProps {
   className?: string;
   onFocus?: () => void;
   onBlur?: () => void;
+  notesMode?: 'text' | 'pen';
+  onNotesModeChange?: (mode: 'text' | 'pen') => void;
+  editorTheme?: 'dark' | 'paper';
+  onEditorThemeChange?: (theme: 'dark' | 'paper') => void;
 }
 
 const FONT_COLORS = [
-  { name: 'Default', value: '#0f172a' }, // Slate-900 (matches editor default text-slate-900)
+  { name: 'Default (Dark/Auto)', value: 'default' },
   { name: 'Red', value: '#ef4444' },     // Red-500
   { name: 'Orange', value: '#f97316' },  // Orange-500
   { name: 'Yellow', value: '#eab308' },  // Yellow-500
@@ -35,7 +43,7 @@ const FONT_COLORS = [
   { name: 'Blue', value: '#3b82f6' },    // Blue-500
   { name: 'Purple', value: '#a855f7' },  // Purple-500
   { name: 'Pink', value: '#ec4899' },    // Pink-500
-  { name: 'Gray', value: '#64748b' },    // Slate-500
+  { name: 'Gray', value: '#94a3b8' },    // Slate-400
 ];
 
 const HIGHLIGHT_COLORS = [
@@ -55,7 +63,11 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   placeholder = 'Type your notes here...',
   className = '',
   onFocus,
-  onBlur
+  onBlur,
+  notesMode = 'text',
+  onNotesModeChange,
+  editorTheme = 'dark',
+  onEditorThemeChange
 }) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const textColorRef = useRef<HTMLDivElement>(null);
@@ -64,7 +76,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
 
   const [isTextColorOpen, setIsTextColorOpen] = useState(false);
   const [isHighlightColorOpen, setIsHighlightColorOpen] = useState(false);
-  const [selectedTextColor, setSelectedTextColor] = useState('#0f172a');
+  const [selectedTextColor, setSelectedTextColor] = useState('default');
   const [selectedHighlightColor, setSelectedHighlightColor] = useState('transparent');
 
   const [fontSize, setFontSize] = useState<number>(() => {
@@ -132,8 +144,8 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     }
   };
 
-  const execFormat = (command: string, value: string = '') => {
-    document.execCommand(command, false, value);
+  const execFormat = (command: string, val: string = '') => {
+    document.execCommand(command, false, val);
     handleInput();
     if (editorRef.current) {
       editorRef.current.focus();
@@ -142,7 +154,11 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
 
   const handleColorClick = (command: 'foreColor' | 'hiliteColor', color: string) => {
     restoreSelection();
-    execFormat(command, color);
+    if (command === 'foreColor' && color === 'default') {
+      execFormat('foreColor', editorTheme === 'dark' ? '#f1f5f9' : '#0f172a');
+    } else {
+      execFormat(command, color);
+    }
     
     if (command === 'foreColor') {
       setSelectedTextColor(color);
@@ -153,17 +169,63 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     }
   };
 
+  const isDarkSurface = editorTheme === 'dark';
+  const resolvedSwatchBarColor = selectedTextColor === 'default'
+    ? (isDarkSurface ? '#f1f5f9' : '#0f172a')
+    : selectedTextColor;
+
   return (
-    <div className={`flex flex-col border border-slate-200 rounded-xl bg-white text-slate-900 shadow-sm relative z-10 transition-all focus-within:ring-1 focus-within:ring-osu-orange focus-within:border-osu-orange ${className}`}>
+    <div
+      className={`flex flex-col border rounded-xl shadow-sm relative z-10 transition-all focus-within:ring-1 focus-within:ring-osu-orange focus-within:border-osu-orange ${
+        isDarkSurface
+          ? 'bg-[#1E293B] border-slate-700/80 text-slate-100'
+          : 'bg-[#F8FAFC] border-slate-300 text-slate-900'
+      } ${className}`}
+    >
       {/* Rich Text Toolbar */}
-      <div className="flex flex-row flex-wrap items-center gap-0.5 p-1 bg-slate-50 border-b border-slate-100 select-none shrink-0 rounded-t-xl relative z-20">
+      <div className="flex flex-row flex-wrap items-center gap-0.5 px-2 py-1.5 bg-slate-900 border-b border-slate-700/80 select-none shrink-0 rounded-t-xl relative z-20">
+        {/* Compact Typed / Handwritten Segmented Pill */}
+        {onNotesModeChange && (
+          <>
+            <div className="flex items-center bg-slate-950 p-0.5 rounded-lg border border-slate-800 mr-1 shrink-0">
+              <button
+                type="button"
+                onClick={() => onNotesModeChange('text')}
+                className={`px-2 py-1 text-[10px] font-black uppercase tracking-wider rounded-md transition-all cursor-pointer flex items-center gap-1 ${
+                  notesMode === 'text'
+                    ? 'bg-osu-orange text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="Typed Notes"
+              >
+                <Keyboard className="w-3 h-3" />
+                <span>Typed</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onNotesModeChange('pen')}
+                className={`px-2 py-1 text-[10px] font-black uppercase tracking-wider rounded-md transition-all cursor-pointer flex items-center gap-1 ${
+                  notesMode === 'pen'
+                    ? 'bg-osu-orange text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="Handwritten Notes"
+              >
+                <Pen className="w-3 h-3" />
+                <span>Draw</span>
+              </button>
+            </div>
+            <div className="w-px h-4 bg-slate-700/80 mx-1" />
+          </>
+        )}
+
         <button
           type="button"
           onMouseDown={(e) => {
             e.preventDefault();
             execFormat('bold');
           }}
-          className="p-1.5 rounded text-slate-500 hover:text-slate-900 hover:bg-slate-200/50 active:bg-slate-200 transition-colors cursor-pointer"
+          className="p-1.5 rounded text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer"
           title="Bold (Ctrl+B)"
         >
           <Bold className="w-3.5 h-3.5" />
@@ -174,7 +236,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             e.preventDefault();
             execFormat('italic');
           }}
-          className="p-1.5 rounded text-slate-500 hover:text-slate-900 hover:bg-slate-200/50 active:bg-slate-200 transition-colors cursor-pointer"
+          className="p-1.5 rounded text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer"
           title="Italic (Ctrl+I)"
         >
           <Italic className="w-3.5 h-3.5" />
@@ -185,7 +247,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             e.preventDefault();
             execFormat('underline');
           }}
-          className="p-1.5 rounded text-slate-500 hover:text-slate-900 hover:bg-slate-200/50 active:bg-slate-200 transition-colors cursor-pointer"
+          className="p-1.5 rounded text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer"
           title="Underline (Ctrl+U)"
         >
           <Underline className="w-3.5 h-3.5" />
@@ -196,13 +258,13 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             e.preventDefault();
             execFormat('strikeThrough');
           }}
-          className="p-1.5 rounded text-slate-500 hover:text-slate-900 hover:bg-slate-200/50 active:bg-slate-200 transition-colors cursor-pointer"
+          className="p-1.5 rounded text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer"
           title="Strikethrough"
         >
           <Strikethrough className="w-3.5 h-3.5" />
         </button>
 
-        <div className="w-px h-4 bg-slate-200 mx-1" />
+        <div className="w-px h-4 bg-slate-700/80 mx-1" />
 
         {/* Text Color Dropdown */}
         <div className="relative" ref={textColorRef}>
@@ -214,14 +276,14 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
               setIsTextColorOpen(!isTextColorOpen);
               setIsHighlightColorOpen(false);
             }}
-            className="flex items-center gap-0.5 p-1.5 rounded text-slate-500 hover:text-slate-900 hover:bg-slate-200/50 active:bg-slate-200 transition-colors cursor-pointer"
+            className="flex items-center gap-0.5 p-1.5 rounded text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer"
             title="Text Color"
           >
             <div className="relative flex flex-col items-center">
               <Baseline className="w-3.5 h-3.5" />
               <div 
                 className="absolute bottom-[-2px] left-0 right-0 h-[3px] rounded-sm"
-                style={{ backgroundColor: selectedTextColor }}
+                style={{ backgroundColor: resolvedSwatchBarColor }}
               />
             </div>
             <ChevronDown className="w-2.5 h-2.5 opacity-60" />
@@ -229,34 +291,39 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
 
           {isTextColorOpen && (
             <div 
-              className="absolute left-0 top-full mt-1 p-2 bg-white border border-slate-200 rounded-xl shadow-2xl z-[100] min-w-[150px] animate-in fade-in slide-in-from-top-1 duration-150"
+              className="absolute left-0 top-full mt-1 p-2 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-[100] min-w-[150px] animate-in fade-in slide-in-from-top-1 duration-150"
               onMouseDown={(e) => e.preventDefault()} // Keep focus on contentEditable
             >
               <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5 px-0.5">
                 Text Color
               </div>
               <div className="grid grid-cols-5 gap-1">
-                {FONT_COLORS.map((color) => (
-                  <button
-                    key={color.name}
-                    type="button"
-                    onClick={() => handleColorClick('foreColor', color.value)}
-                    className="w-5 h-5 rounded-full border border-slate-200 cursor-pointer flex items-center justify-center hover:scale-110 transition-transform"
-                    style={{ backgroundColor: color.value === 'transparent' ? '#ffffff' : color.value }}
-                    title={color.name}
-                  >
-                    {selectedTextColor === color.value && (
-                      <div className={`w-1.5 h-1.5 rounded-full ${color.value === '#0f172a' ? 'bg-white' : 'bg-slate-900'}`} />
-                    )}
-                  </button>
-                ))}
+                {FONT_COLORS.map((color) => {
+                  const swatchBg = color.value === 'default'
+                    ? (isDarkSurface ? '#f1f5f9' : '#0f172a')
+                    : color.value;
+                  return (
+                    <button
+                      key={color.name}
+                      type="button"
+                      onClick={() => handleColorClick('foreColor', color.value)}
+                      className="w-5 h-5 rounded-full border border-slate-600 cursor-pointer flex items-center justify-center hover:scale-110 transition-transform"
+                      style={{ backgroundColor: swatchBg }}
+                      title={color.name}
+                    >
+                      {selectedTextColor === color.value && (
+                        <div className={`w-1.5 h-1.5 rounded-full ${swatchBg === '#0f172a' ? 'bg-white' : 'bg-slate-900'}`} />
+                      )}
+                    </button>
+                  );
+                })}
               </div>
 
               {/* Custom Text Color Picker */}
-              <div className="flex items-center justify-between border-t border-slate-100 pt-1.5 mt-1.5 px-0.5">
-                <span className="text-[10px] font-medium text-slate-500">Custom</span>
-                <label className="relative flex items-center justify-center w-5 h-5 rounded border border-slate-200 cursor-pointer overflow-hidden bg-slate-50 hover:bg-slate-100 transition-colors">
-                  <span className="text-[10px] font-bold text-slate-600">+</span>
+              <div className="flex items-center justify-between border-t border-slate-800 pt-1.5 mt-1.5 px-0.5">
+                <span className="text-[10px] font-medium text-slate-400">Custom</span>
+                <label className="relative flex items-center justify-center w-5 h-5 rounded border border-slate-700 cursor-pointer overflow-hidden bg-slate-800 hover:bg-slate-700 transition-colors">
+                  <span className="text-[10px] font-bold text-slate-300">+</span>
                   <input
                     type="color"
                     className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
@@ -279,7 +346,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
               setIsHighlightColorOpen(!isHighlightColorOpen);
               setIsTextColorOpen(false);
             }}
-            className="flex items-center gap-0.5 p-1.5 rounded text-slate-500 hover:text-slate-900 hover:bg-slate-200/50 active:bg-slate-200 transition-colors cursor-pointer"
+            className="flex items-center gap-0.5 p-1.5 rounded text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer"
             title="Highlight Color"
           >
             <div className="relative flex flex-col items-center">
@@ -294,7 +361,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
 
           {isHighlightColorOpen && (
             <div 
-              className="absolute left-0 top-full mt-1 p-2 bg-white border border-slate-200 rounded-xl shadow-2xl z-[100] min-w-[150px] animate-in fade-in slide-in-from-top-1 duration-150"
+              className="absolute left-0 top-full mt-1 p-2 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-[100] min-w-[150px] animate-in fade-in slide-in-from-top-1 duration-150"
               onMouseDown={(e) => e.preventDefault()} // Keep focus on contentEditable
             >
               <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5 px-0.5">
@@ -306,8 +373,8 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                     key={color.name}
                     type="button"
                     onClick={() => handleColorClick('hiliteColor', color.value)}
-                    className="w-5 h-5 rounded-full border border-slate-200 cursor-pointer flex items-center justify-center hover:scale-110 transition-transform overflow-hidden relative"
-                    style={{ backgroundColor: color.value === 'transparent' ? '#ffffff' : color.value }}
+                    className="w-5 h-5 rounded-full border border-slate-600 cursor-pointer flex items-center justify-center hover:scale-110 transition-transform overflow-hidden relative"
+                    style={{ backgroundColor: color.value === 'transparent' ? '#1e293b' : color.value }}
                     title={color.name}
                   >
                     {color.value === 'transparent' && (
@@ -321,10 +388,10 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
               </div>
 
               {/* Custom Highlight Color Picker */}
-              <div className="flex items-center justify-between border-t border-slate-100 pt-1.5 mt-1.5 px-0.5">
-                <span className="text-[10px] font-medium text-slate-500">Custom</span>
-                <label className="relative flex items-center justify-center w-5 h-5 rounded border border-slate-200 cursor-pointer overflow-hidden bg-slate-50 hover:bg-slate-100 transition-colors">
-                  <span className="text-[10px] font-bold text-slate-600">+</span>
+              <div className="flex items-center justify-between border-t border-slate-800 pt-1.5 mt-1.5 px-0.5">
+                <span className="text-[10px] font-medium text-slate-400">Custom</span>
+                <label className="relative flex items-center justify-center w-5 h-5 rounded border border-slate-700 cursor-pointer overflow-hidden bg-slate-800 hover:bg-slate-700 transition-colors">
+                  <span className="text-[10px] font-bold text-slate-300">+</span>
                   <input
                     type="color"
                     className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
@@ -337,7 +404,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           )}
         </div>
 
-        <div className="w-px h-4 bg-slate-200 mx-1" />
+        <div className="w-px h-4 bg-slate-700/80 mx-1" />
 
         <button
           type="button"
@@ -345,7 +412,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             e.preventDefault();
             execFormat('insertUnorderedList');
           }}
-          className="p-1.5 rounded text-slate-500 hover:text-slate-900 hover:bg-slate-200/50 active:bg-slate-200 transition-colors cursor-pointer"
+          className="p-1.5 rounded text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer"
           title="Bullet List"
         >
           <List className="w-3.5 h-3.5" />
@@ -356,13 +423,13 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             e.preventDefault();
             execFormat('insertOrderedList');
           }}
-          className="p-1.5 rounded text-slate-500 hover:text-slate-900 hover:bg-slate-200/50 active:bg-slate-200 transition-colors cursor-pointer"
+          className="p-1.5 rounded text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer"
           title="Numbered List"
         >
           <ListOrdered className="w-3.5 h-3.5" />
         </button>
 
-        <div className="w-px h-4 bg-slate-200 mx-1" />
+        <div className="w-px h-4 bg-slate-700/80 mx-1" />
 
         <button
           type="button"
@@ -370,7 +437,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             e.preventDefault();
             execFormat('justifyLeft');
           }}
-          className="p-1.5 rounded text-slate-500 hover:text-slate-900 hover:bg-slate-200/50 active:bg-slate-200 transition-colors cursor-pointer"
+          className="p-1.5 rounded text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer"
           title="Align Left"
         >
           <AlignLeft className="w-3.5 h-3.5" />
@@ -381,7 +448,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             e.preventDefault();
             execFormat('justifyCenter');
           }}
-          className="p-1.5 rounded text-slate-500 hover:text-slate-900 hover:bg-slate-200/50 active:bg-slate-200 transition-colors cursor-pointer"
+          className="p-1.5 rounded text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer"
           title="Align Center"
         >
           <AlignCenter className="w-3.5 h-3.5" />
@@ -392,13 +459,13 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             e.preventDefault();
             execFormat('justifyRight');
           }}
-          className="p-1.5 rounded text-slate-500 hover:text-slate-900 hover:bg-slate-200/50 active:bg-slate-200 transition-colors cursor-pointer"
+          className="p-1.5 rounded text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer"
           title="Align Right"
         >
           <AlignRight className="w-3.5 h-3.5" />
         </button>
 
-        <div className="w-px h-4 bg-slate-200 mx-1" />
+        <div className="w-px h-4 bg-slate-700/80 mx-1" />
 
         <button
           type="button"
@@ -406,7 +473,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             e.preventDefault();
             execFormat('undo');
           }}
-          className="p-1.5 rounded text-slate-500 hover:text-slate-900 hover:bg-slate-200/50 active:bg-slate-200 transition-colors cursor-pointer"
+          className="p-1.5 rounded text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer"
           title="Undo (Ctrl+Z)"
         >
           <Undo className="w-3.5 h-3.5" />
@@ -417,7 +484,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             e.preventDefault();
             execFormat('redo');
           }}
-          className="p-1.5 rounded text-slate-500 hover:text-slate-900 hover:bg-slate-200/50 active:bg-slate-200 transition-colors cursor-pointer"
+          className="p-1.5 rounded text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer"
           title="Redo (Ctrl+Y)"
         >
           <Redo className="w-3.5 h-3.5" />
@@ -427,21 +494,21 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           onMouseDown={(e) => {
             e.preventDefault();
             execFormat('removeFormat');
-            setSelectedTextColor('#0f172a');
+            setSelectedTextColor('default');
             setSelectedHighlightColor('transparent');
           }}
-          className="p-1.5 rounded text-slate-500 hover:text-slate-900 hover:bg-slate-200/50 active:bg-slate-200 transition-colors cursor-pointer"
+          className="p-1.5 rounded text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer"
           title="Clear Formatting"
         >
           <Trash2 className="w-3.5 h-3.5" />
         </button>
 
         {/* Font Size Adjusters */}
-        <div className="flex items-center gap-0.5 border-l border-slate-250 pl-1.5 ml-1">
+        <div className="flex items-center gap-0.5 border-l border-slate-700/80 pl-1.5 ml-1">
           <button
             type="button"
             onClick={() => setFontSize(prev => Math.max(12, prev - 1))}
-            className="p-1 rounded text-slate-500 hover:text-slate-900 hover:bg-slate-200/50 active:bg-slate-200 transition-colors cursor-pointer w-6 h-6 flex items-center justify-center text-[10px] font-bold"
+            className="p-1 rounded text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer w-6 h-6 flex items-center justify-center text-[10px] font-bold"
             title="Decrease Font Size"
           >
             A-
@@ -452,12 +519,25 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           <button
             type="button"
             onClick={() => setFontSize(prev => Math.min(28, prev + 1))}
-            className="p-1 rounded text-slate-500 hover:text-slate-900 hover:bg-slate-200/50 active:bg-slate-200 transition-colors cursor-pointer w-6 h-6 flex items-center justify-center text-xs font-bold"
+            className="p-1 rounded text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer w-6 h-6 flex items-center justify-center text-xs font-bold"
             title="Increase Font Size"
           >
             A+
           </button>
         </div>
+
+        {/* Surface Theme Toggle (Dark Slate #1E293B vs Soft Paper #F8FAFC) */}
+        {onEditorThemeChange && (
+          <button
+            type="button"
+            onClick={() => onEditorThemeChange(isDarkSurface ? 'paper' : 'dark')}
+            className="ml-auto p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/60 transition-colors cursor-pointer flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider"
+            title={isDarkSurface ? "Switch editor surface to Warm Paper (#F8FAFC)" : "Switch editor surface to Dark Slate (#1E293B)"}
+          >
+            {isDarkSurface ? <Sun className="w-3 h-3 text-amber-400" /> : <Moon className="w-3 h-3 text-sky-400" />}
+            <span className="hidden sm:inline">{isDarkSurface ? 'Paper' : 'Dark'}</span>
+          </button>
+        )}
       </div>
 
       {/* Editor Content Area */}
@@ -467,10 +547,13 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         onInput={handleInput}
         onFocus={onFocus}
         onBlur={onBlur}
-        className="rich-text-editor flex-1 p-3 outline-none overflow-y-auto leading-relaxed focus:ring-0 focus:outline-none text-slate-900 rounded-b-xl"
+        className={`rich-text-editor flex-1 p-3.5 outline-none overflow-y-auto leading-relaxed focus:ring-0 focus:outline-none rounded-b-xl ${
+          isDarkSurface ? 'text-slate-100' : 'text-slate-900'
+        }`}
         style={{ minHeight: '120px', fontSize: `${fontSize}px` }}
         {...{ placeholder } as any}
       />
     </div>
   );
 };
+

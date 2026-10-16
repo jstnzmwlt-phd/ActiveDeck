@@ -517,7 +517,22 @@ export const parseHtmlToDocxParagraphs = (htmlString: string): Paragraph[] => {
       if (tag === 'b' || tag === 'strong') newStyle.bold = true;
       if (tag === 'i' || tag === 'em') newStyle.italics = true;
       if (tag === 'u') newStyle.underline = true;
-      if (elem.style && elem.style.color) newStyle.color = elem.style.color.replace('#', '');
+      const rawColor = (elem.style && elem.style.color) || elem.getAttribute('color') || '';
+      if (rawColor) {
+        const lower = rawColor.trim().toLowerCase();
+        if (
+          lower === '#f1f5f9' ||
+          lower === '#f8fafc' ||
+          lower === '#ffffff' ||
+          lower === 'rgb(241, 245, 249)' ||
+          lower === 'rgb(248, 250, 252)' ||
+          lower === 'rgb(255, 255, 255)'
+        ) {
+          newStyle.color = undefined;
+        } else if (lower.startsWith('#')) {
+          newStyle.color = lower.replace('#', '');
+        }
+      }
 
       if (['p', 'div', 'li', 'h1', 'h2', 'h3'].includes(tag)) {
         const childRuns: TextRun[] = [];
