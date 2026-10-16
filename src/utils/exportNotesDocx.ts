@@ -11,13 +11,28 @@ import {
   BorderStyle,
   WidthType
 } from 'docx';
-import { DrawingStroke } from '../types';
+import { DrawingStroke, SlideTextAnnotation } from '../types';
+
+export const getSlideTextAnnotationsForSlide = (
+  annotationsMap?: Record<string | number, SlideTextAnnotation[]>,
+  slideKey?: string | number
+): SlideTextAnnotation[] => {
+  if (!annotationsMap || slideKey === undefined || slideKey === null) return [];
+  const strKey = String(slideKey);
+  const numKey = Number(slideKey);
+  const list =
+    annotationsMap[strKey] ||
+    (!isNaN(numKey) ? annotationsMap[numKey] : undefined) ||
+    [];
+  return Array.isArray(list) ? list.filter(a => a && typeof a.text === 'string') : [];
+};
 
 export const isNotesEmpty = (
   notesMap?: Record<string, string>,
   drawingsMap?: Record<string, string>,
   pushedSlidesMap?: Record<string, string>,
-  studentSlideDrawingsMap?: Record<string, string>
+  studentSlideDrawingsMap?: Record<string, string>,
+  studentSlideTextAnnotationsMap?: Record<string | number, SlideTextAnnotation[]>
 ): boolean => {
   const hasText = notesMap && Object.keys(notesMap).length > 0 && !Object.values(notesMap).every(html => {
     if (!html) return true;
@@ -45,9 +60,16 @@ export const isNotesEmpty = (
     }
   });
 
+  const hasStudentTextAnnotations =
+    studentSlideTextAnnotationsMap &&
+    Object.keys(studentSlideTextAnnotationsMap).length > 0 &&
+    Object.values(studentSlideTextAnnotationsMap).some(
+      list => Array.isArray(list) && list.some(a => a && a.text && a.text.trim() !== '')
+    );
+
   const hasSlides = pushedSlidesMap && Object.keys(pushedSlidesMap).length > 0;
 
-  return !hasText && !hasDrawings && !hasStudentDrawings && !hasSlides;
+  return !hasText && !hasDrawings && !hasStudentDrawings && !hasStudentTextAnnotations && !hasSlides;
 };
 
 export const dataUriToUint8Array = (dataUrl: string): Uint8Array | null => {
@@ -252,33 +274,36 @@ export const convertStrokesToPng = (drawingJson: string): string => {
   }
 };
 
-export const compositeSlideWithAnnotations = async (
+const drawRoundedRectPath = (
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number
+) => {
+  const radius = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + w - radius, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+  ctx.lineTo(x + w, y + h - radius);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+  ctx.lineTo(x + radius, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+};
+
+export const generateCompositeSlideBase64 = async (
   slideImgUrl: string,
   presenterDrawingsJson?: string,
-  studentDrawingsJson?: string
-): Promise<{ data: Uint8Array; type: 'png' | 'jpg' | 'gif' | 'bmp' } | null> => {
+  studentDrawingsJson?: string,
+  textAnnotations?: SlideTextAnnotation[]
+): Promise<string | null> => {
   if (!slideImgUrl) return null;
 
-  const hasStrokes = (json?: string): boolean => {
-    if (!json) return false;
-    try {
-      const parsed = JSON.parse(json);
-      return Array.isArray(parsed) && parsed.length > 0;
-    } catch {
-      return false;
-    }
-  };
-
-  const hasPresenter = hasStrokes(presenterDrawingsJson);
-  const hasStudent = hasStrokes(studentDrawingsJson);
-
-  // If there are NO annotations, directly fetch the original image bytes
-  // This avoids canvas re-encoding overhead and eliminates memory/taint issues
-  if (!hasPresenter && !hasStudent) {
-    return await fetchImageAsUint8Array(slideImgUrl);
-  }
-
-  // If annotations exist, fetch image into a local blob to guarantee clean canvas drawing
   return new Promise(async (resolve) => {
     let localBlobUrl = '';
     try {
@@ -313,7 +338,7 @@ export const compositeSlideWithAnnotations = async (
         }
       }
     } catch (e) {
-      console.error("compositeSlideWithAnnotations: Failed to fetch image", e);
+      console.error("generateCompositeSlideBase64: Failed to fetch image", e);
       localBlobUrl = slideImgUrl;
     }
 
@@ -338,12 +363,14 @@ export const compositeSlideWithAnnotations = async (
         const ctx = canvas.getContext('2d');
         if (!ctx) {
           cleanup();
-          fetchImageAsUint8Array(slideImgUrl).then(resolve);
+          resolve(null);
           return;
         }
 
+        // (a) Draw the base slide image
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
+        // (b) Draw the transparent freehand drawing layers (presenter + student)
         const drawStrokeList = (strokes: DrawingStroke[]) => {
           strokes.forEach(stroke => {
             if (!stroke.points || stroke.points.length === 0) return;
@@ -360,8 +387,8 @@ export const compositeSlideWithAnnotations = async (
             if (stroke.isHighlighter) {
               ctx.strokeStyle = 'rgba(234, 179, 8, 0.45)';
             } else {
-              ctx.strokeStyle = stroke.color === '#FFFFFF' ? '#cbd5e1' : stroke.color;
-              ctx.fillStyle = stroke.color === '#FFFFFF' ? '#cbd5e1' : stroke.color;
+              ctx.strokeStyle = stroke.color;
+              ctx.fillStyle = stroke.color;
             }
 
             const pts = stroke.points.map(p => ({
@@ -456,30 +483,119 @@ export const compositeSlideWithAnnotations = async (
           } catch {}
         }
 
+        // (c) Draw all text annotations for that slide from state
+        if (Array.isArray(textAnnotations) && textAnnotations.length > 0) {
+          const widthScale = canvas.width / 960;
+          textAnnotations.forEach(ann => {
+            if (!ann || !ann.text || !ann.text.trim()) return;
+            ctx.save();
+
+            const lines = ann.text.split(/\r?\n/);
+            const fontSize = Math.max(12, Math.round((ann.fontSize || 16) * widthScale));
+            const lineHeight = Math.round(fontSize * 1.3);
+            const padX = Math.round(10 * widthScale);
+            const padY = Math.round(6 * widthScale);
+            const borderRadius = Math.round(8 * widthScale);
+
+            ctx.font = `bold ${fontSize}px Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif`;
+            ctx.textBaseline = 'top';
+            ctx.textAlign = 'left';
+
+            const maxLineWidth = Math.max(
+              ...lines.map(line => ctx.measureText(line || ' ').width),
+              fontSize
+            );
+            const boxWidth = maxLineWidth + padX * 2;
+            const boxHeight = lines.length * lineHeight + padY * 2;
+
+            const rawX = (ann.xPct / 100) * canvas.width;
+            const rawY = (ann.yPct / 100) * canvas.height;
+            const x = Math.max(0, Math.min(canvas.width - Math.min(boxWidth, canvas.width), rawX));
+            const y = Math.max(0, Math.min(canvas.height - Math.min(boxHeight, canvas.height), rawY));
+
+            const isDarkInk = (ann.color || '').trim().toUpperCase() === '#000000';
+            ctx.fillStyle = isDarkInk ? 'rgba(248, 250, 252, 0.90)' : 'rgba(15, 23, 42, 0.82)';
+            ctx.strokeStyle = isDarkInk ? 'rgba(148, 163, 184, 0.75)' : 'rgba(255, 255, 255, 0.22)';
+            ctx.lineWidth = Math.max(1, Math.round(1.5 * widthScale));
+
+            drawRoundedRectPath(ctx, x, y, boxWidth, boxHeight, borderRadius);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = ann.color || '#EF4444';
+            const verticalOffset = Math.round((lineHeight - fontSize) / 2);
+            lines.forEach((line, idx) => {
+              ctx.fillText(line, x + padX, y + padY + idx * lineHeight + verticalOffset);
+            });
+
+            ctx.restore();
+          });
+        }
+
         const dataUrl = canvas.toDataURL('image/png');
         cleanup();
-        const bytes = dataUriToUint8Array(dataUrl);
-        if (bytes) {
-          const format = detectImageFormat(bytes);
-          if (format) {
-            resolve({ data: bytes, type: format });
-            return;
-          }
-        }
-        fetchImageAsUint8Array(slideImgUrl).then(resolve);
+        resolve(dataUrl);
       } catch (e) {
         cleanup();
-        fetchImageAsUint8Array(slideImgUrl).then(resolve);
+        resolve(null);
       }
     };
 
     img.onerror = () => {
       cleanup();
-      fetchImageAsUint8Array(slideImgUrl).then(resolve);
+      resolve(null);
     };
 
     img.src = localBlobUrl;
   });
+};
+
+export const compositeSlideWithAnnotations = async (
+  slideImgUrl: string,
+  presenterDrawingsJson?: string,
+  studentDrawingsJson?: string,
+  textAnnotations?: SlideTextAnnotation[]
+): Promise<{ data: Uint8Array; type: 'png' | 'jpg' | 'gif' | 'bmp' } | null> => {
+  if (!slideImgUrl) return null;
+
+  const hasStrokes = (json?: string): boolean => {
+    if (!json) return false;
+    try {
+      const parsed = JSON.parse(json);
+      return Array.isArray(parsed) && parsed.length > 0;
+    } catch {
+      return false;
+    }
+  };
+
+  const hasPresenter = hasStrokes(presenterDrawingsJson);
+  const hasStudent = hasStrokes(studentDrawingsJson);
+  const hasTextAnns = Array.isArray(textAnnotations) && textAnnotations.some(a => a && a.text && a.text.trim() !== '');
+
+  // If there are NO annotations, directly fetch the original image bytes
+  // This avoids canvas re-encoding overhead and eliminates memory/taint issues
+  if (!hasPresenter && !hasStudent && !hasTextAnns) {
+    return await fetchImageAsUint8Array(slideImgUrl);
+  }
+
+  const dataUrl = await generateCompositeSlideBase64(
+    slideImgUrl,
+    presenterDrawingsJson,
+    studentDrawingsJson,
+    textAnnotations
+  );
+
+  if (dataUrl) {
+    const bytes = dataUriToUint8Array(dataUrl);
+    if (bytes) {
+      const format = detectImageFormat(bytes);
+      if (format) {
+        return { data: bytes, type: format };
+      }
+    }
+  }
+
+  return await fetchImageAsUint8Array(slideImgUrl);
 };
 
 export const parseHtmlToDocxParagraphs = (htmlString: string): Paragraph[] => {
@@ -579,6 +695,7 @@ export interface ExportNotesOptions {
   notesTextMap?: Record<string, string>;
   notesDrawingsMap?: Record<string, string>;
   studentSlideDrawingsMap?: Record<string, string>;
+  studentSlideTextAnnotationsMap?: Record<string | number, SlideTextAnnotation[]>;
   pushedSlidesMap?: Record<string, string>;
   presenterDrawingsMap?: Record<string, string>;
   customTabs?: Array<{ id: string; label: string; position: number }>;
@@ -593,6 +710,7 @@ export const exportNotesToDocx = async (options: ExportNotesOptions): Promise<bo
     notesTextMap: passedNotes,
     notesDrawingsMap: passedDrawings,
     studentSlideDrawingsMap: passedStudentDrawings,
+    studentSlideTextAnnotationsMap: passedStudentTextAnnotations,
     pushedSlidesMap: passedPushedSlides,
     presenterDrawingsMap: passedPresenterDrawings,
     customTabs: passedCustomTabs
@@ -601,6 +719,7 @@ export const exportNotesToDocx = async (options: ExportNotesOptions): Promise<bo
   let notesTextMap = passedNotes;
   let notesDrawingsMap = passedDrawings;
   let studentSlideDrawingsMap = passedStudentDrawings;
+  let studentSlideTextAnnotationsMap = passedStudentTextAnnotations;
   let pushedSlidesMap = passedPushedSlides;
   let presenterDrawingsMap = passedPresenterDrawings;
   let customTabs = passedCustomTabs;
@@ -641,6 +760,16 @@ export const exportNotesToDocx = async (options: ExportNotesOptions): Promise<bo
   }
   studentSlideDrawingsMap = studentSlideDrawingsMap || {};
 
+  if (!studentSlideTextAnnotationsMap && presentationId) {
+    const saved = localStorage.getItem(`activeDeckStudentSlideTextAnnotations_${presentationId}`);
+    if (saved) {
+      try {
+        studentSlideTextAnnotationsMap = JSON.parse(saved);
+      } catch {}
+    }
+  }
+  studentSlideTextAnnotationsMap = studentSlideTextAnnotationsMap || {};
+
   if (!pushedSlidesMap && presentationId) {
     const saved = localStorage.getItem(`activeDeckPushedSlides_${presentationId}`);
     if (saved) {
@@ -675,7 +804,7 @@ export const exportNotesToDocx = async (options: ExportNotesOptions): Promise<bo
     notesTitle = localStorage.getItem(`activeDeckNotesTitle_${presentationId}`) || '';
   }
 
-  if (isNotesEmpty(notesTextMap, notesDrawingsMap, pushedSlidesMap, studentSlideDrawingsMap)) {
+  if (isNotesEmpty(notesTextMap, notesDrawingsMap, pushedSlidesMap, studentSlideDrawingsMap, studentSlideTextAnnotationsMap)) {
     return false;
   }
 
@@ -700,6 +829,8 @@ export const exportNotesToDocx = async (options: ExportNotesOptions): Promise<bo
     ...Object.keys(notesTextMap),
     ...Object.keys(notesDrawingsMap),
     ...Object.keys(pushedSlidesMap),
+    ...Object.keys(studentSlideDrawingsMap),
+    ...Object.keys(studentSlideTextAnnotationsMap),
     ...customTabs.map(c => c.id)
   ]))
     .filter(slide => {
@@ -716,8 +847,10 @@ export const exportNotesToDocx = async (options: ExportNotesOptions): Promise<bo
       } catch {}
 
       const hasImg = !!pushedSlidesMap?.[slide];
+      const slideTextAnns = getSlideTextAnnotationsForSlide(studentSlideTextAnnotationsMap, slide);
+      const hasSlideTextAnns = slideTextAnns.some(a => a.text && a.text.trim() !== '');
 
-      return hasText || hasDrawing || hasImg;
+      return hasText || hasDrawing || hasImg || hasSlideTextAnns;
     })
     .sort((a, b) => getTabPos(a) - getTabPos(b));
 
@@ -736,11 +869,13 @@ export const exportNotesToDocx = async (options: ExportNotesOptions): Promise<bo
     if (slideImgUrl) {
       const presenterJson = presenterDrawingsMap[slide];
       const studentJson = studentSlideDrawingsMap[slide];
+      const slideTextAnns = getSlideTextAnnotationsForSlide(studentSlideTextAnnotationsMap, slide);
 
       const imgResult = (await compositeSlideWithAnnotations(
         slideImgUrl,
         presenterJson,
-        studentJson
+        studentJson,
+        slideTextAnns
       )) || createSlidePlaceholderImage(getTabTitle(slide));
 
       if (imgResult) {

@@ -15,8 +15,6 @@ import {
   Baseline,
   Highlighter,
   ChevronDown,
-  Keyboard,
-  Pen,
   Sun,
   Moon
 } from 'lucide-react';
@@ -28,9 +26,7 @@ interface RichTextEditorProps {
   className?: string;
   onFocus?: () => void;
   onBlur?: () => void;
-  notesMode?: 'text' | 'pen';
-  onNotesModeChange?: (mode: 'text' | 'pen') => void;
-  editorTheme?: 'dark' | 'paper';
+  editorTheme?: 'dark' | 'light' | 'paper';
   onEditorThemeChange?: (theme: 'dark' | 'paper') => void;
 }
 
@@ -64,8 +60,6 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   className = '',
   onFocus,
   onBlur,
-  notesMode = 'text',
-  onNotesModeChange,
   editorTheme = 'dark',
   onEditorThemeChange
 }) => {
@@ -152,10 +146,12 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     }
   };
 
+  const isDarkSurface = editorTheme === 'dark';
+
   const handleColorClick = (command: 'foreColor' | 'hiliteColor', color: string) => {
     restoreSelection();
     if (command === 'foreColor' && color === 'default') {
-      execFormat('foreColor', editorTheme === 'dark' ? '#f1f5f9' : '#0f172a');
+      execFormat('foreColor', isDarkSurface ? '#f1f5f9' : '#0f172a');
     } else {
       execFormat(command, color);
     }
@@ -169,63 +165,39 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     }
   };
 
-  const isDarkSurface = editorTheme === 'dark';
   const resolvedSwatchBarColor = selectedTextColor === 'default'
     ? (isDarkSurface ? '#f1f5f9' : '#0f172a')
     : selectedTextColor;
+
+  const toolBtnClass = isDarkSurface
+    ? 'p-1.5 rounded text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer'
+    : 'p-1.5 rounded text-slate-600 hover:text-slate-900 hover:bg-slate-200/80 active:bg-slate-300 transition-colors cursor-pointer';
+
+  const dividerClass = isDarkSurface
+    ? 'w-px h-4 bg-slate-700/80 mx-1'
+    : 'w-px h-4 bg-slate-200 mx-1';
 
   return (
     <div
       className={`flex flex-col border rounded-xl shadow-sm relative z-10 transition-all focus-within:ring-1 focus-within:ring-osu-orange focus-within:border-osu-orange ${
         isDarkSurface
           ? 'bg-[#1E293B] border-slate-700/80 text-slate-100'
-          : 'bg-[#F8FAFC] border-slate-300 text-slate-900'
+          : 'bg-[#FFFFFF] border-slate-200 text-slate-900'
       } ${className}`}
     >
       {/* Rich Text Toolbar */}
-      <div className="flex flex-row flex-wrap items-center gap-0.5 px-2 py-1.5 bg-slate-900 border-b border-slate-700/80 select-none shrink-0 rounded-t-xl relative z-20">
-        {/* Compact Typed / Handwritten Segmented Pill */}
-        {onNotesModeChange && (
-          <>
-            <div className="flex items-center bg-slate-950 p-0.5 rounded-lg border border-slate-800 mr-1 shrink-0">
-              <button
-                type="button"
-                onClick={() => onNotesModeChange('text')}
-                className={`px-2 py-1 text-[10px] font-black uppercase tracking-wider rounded-md transition-all cursor-pointer flex items-center gap-1 ${
-                  notesMode === 'text'
-                    ? 'bg-osu-orange text-white shadow-sm'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-                title="Typed Notes"
-              >
-                <Keyboard className="w-3 h-3" />
-                <span>Typed</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => onNotesModeChange('pen')}
-                className={`px-2 py-1 text-[10px] font-black uppercase tracking-wider rounded-md transition-all cursor-pointer flex items-center gap-1 ${
-                  notesMode === 'pen'
-                    ? 'bg-osu-orange text-white shadow-sm'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-                title="Handwritten Notes"
-              >
-                <Pen className="w-3 h-3" />
-                <span>Draw</span>
-              </button>
-            </div>
-            <div className="w-px h-4 bg-slate-700/80 mx-1" />
-          </>
-        )}
-
+      <div className={`flex flex-row flex-wrap items-center gap-0.5 px-2 py-1.5 border-b select-none shrink-0 rounded-t-xl relative z-20 ${
+        isDarkSurface
+          ? 'bg-slate-900 border-slate-700/80'
+          : 'bg-slate-50 border-slate-200'
+      }`}>
         <button
           type="button"
           onMouseDown={(e) => {
             e.preventDefault();
             execFormat('bold');
           }}
-          className="p-1.5 rounded text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer"
+          className={toolBtnClass}
           title="Bold (Ctrl+B)"
         >
           <Bold className="w-3.5 h-3.5" />
@@ -236,7 +208,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             e.preventDefault();
             execFormat('italic');
           }}
-          className="p-1.5 rounded text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer"
+          className={toolBtnClass}
           title="Italic (Ctrl+I)"
         >
           <Italic className="w-3.5 h-3.5" />
@@ -247,7 +219,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             e.preventDefault();
             execFormat('underline');
           }}
-          className="p-1.5 rounded text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer"
+          className={toolBtnClass}
           title="Underline (Ctrl+U)"
         >
           <Underline className="w-3.5 h-3.5" />
@@ -258,13 +230,13 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             e.preventDefault();
             execFormat('strikeThrough');
           }}
-          className="p-1.5 rounded text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer"
+          className={toolBtnClass}
           title="Strikethrough"
         >
           <Strikethrough className="w-3.5 h-3.5" />
         </button>
 
-        <div className="w-px h-4 bg-slate-700/80 mx-1" />
+        <div className={dividerClass} />
 
         {/* Text Color Dropdown */}
         <div className="relative" ref={textColorRef}>
@@ -276,7 +248,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
               setIsTextColorOpen(!isTextColorOpen);
               setIsHighlightColorOpen(false);
             }}
-            className="flex items-center gap-0.5 p-1.5 rounded text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer"
+            className={`flex items-center gap-0.5 ${toolBtnClass}`}
             title="Text Color"
           >
             <div className="relative flex flex-col items-center">
@@ -291,10 +263,12 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
 
           {isTextColorOpen && (
             <div 
-              className="absolute left-0 top-full mt-1 p-2 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-[100] min-w-[150px] animate-in fade-in slide-in-from-top-1 duration-150"
+              className={`absolute left-0 top-full mt-1 p-2 border rounded-xl shadow-2xl z-[100] min-w-[150px] animate-in fade-in slide-in-from-top-1 duration-150 ${
+                isDarkSurface ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'
+              }`}
               onMouseDown={(e) => e.preventDefault()} // Keep focus on contentEditable
             >
-              <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5 px-0.5">
+              <div className={`text-[10px] font-semibold uppercase tracking-wider mb-1.5 px-0.5 ${isDarkSurface ? 'text-slate-400' : 'text-slate-500'}`}>
                 Text Color
               </div>
               <div className="grid grid-cols-5 gap-1">
@@ -307,7 +281,9 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                       key={color.name}
                       type="button"
                       onClick={() => handleColorClick('foreColor', color.value)}
-                      className="w-5 h-5 rounded-full border border-slate-600 cursor-pointer flex items-center justify-center hover:scale-110 transition-transform"
+                      className={`w-5 h-5 rounded-full border cursor-pointer flex items-center justify-center hover:scale-110 transition-transform ${
+                        isDarkSurface ? 'border-slate-600' : 'border-slate-300'
+                      }`}
                       style={{ backgroundColor: swatchBg }}
                       title={color.name}
                     >
@@ -320,10 +296,12 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
               </div>
 
               {/* Custom Text Color Picker */}
-              <div className="flex items-center justify-between border-t border-slate-800 pt-1.5 mt-1.5 px-0.5">
-                <span className="text-[10px] font-medium text-slate-400">Custom</span>
-                <label className="relative flex items-center justify-center w-5 h-5 rounded border border-slate-700 cursor-pointer overflow-hidden bg-slate-800 hover:bg-slate-700 transition-colors">
-                  <span className="text-[10px] font-bold text-slate-300">+</span>
+              <div className={`flex items-center justify-between border-t pt-1.5 mt-1.5 px-0.5 ${isDarkSurface ? 'border-slate-800' : 'border-slate-100'}`}>
+                <span className={`text-[10px] font-medium ${isDarkSurface ? 'text-slate-400' : 'text-slate-500'}`}>Custom</span>
+                <label className={`relative flex items-center justify-center w-5 h-5 rounded border cursor-pointer overflow-hidden transition-colors ${
+                  isDarkSurface ? 'border-slate-700 bg-slate-800 hover:bg-slate-700' : 'border-slate-300 bg-slate-100 hover:bg-slate-200'
+                }`}>
+                  <span className={`text-[10px] font-bold ${isDarkSurface ? 'text-slate-300' : 'text-slate-600'}`}>+</span>
                   <input
                     type="color"
                     className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
@@ -346,7 +324,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
               setIsHighlightColorOpen(!isHighlightColorOpen);
               setIsTextColorOpen(false);
             }}
-            className="flex items-center gap-0.5 p-1.5 rounded text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer"
+            className={`flex items-center gap-0.5 ${toolBtnClass}`}
             title="Highlight Color"
           >
             <div className="relative flex flex-col items-center">
@@ -361,10 +339,12 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
 
           {isHighlightColorOpen && (
             <div 
-              className="absolute left-0 top-full mt-1 p-2 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-[100] min-w-[150px] animate-in fade-in slide-in-from-top-1 duration-150"
+              className={`absolute left-0 top-full mt-1 p-2 border rounded-xl shadow-2xl z-[100] min-w-[150px] animate-in fade-in slide-in-from-top-1 duration-150 ${
+                isDarkSurface ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'
+              }`}
               onMouseDown={(e) => e.preventDefault()} // Keep focus on contentEditable
             >
-              <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5 px-0.5">
+              <div className={`text-[10px] font-semibold uppercase tracking-wider mb-1.5 px-0.5 ${isDarkSurface ? 'text-slate-400' : 'text-slate-500'}`}>
                 Highlight Color
               </div>
               <div className="grid grid-cols-5 gap-1">
@@ -373,8 +353,10 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                     key={color.name}
                     type="button"
                     onClick={() => handleColorClick('hiliteColor', color.value)}
-                    className="w-5 h-5 rounded-full border border-slate-600 cursor-pointer flex items-center justify-center hover:scale-110 transition-transform overflow-hidden relative"
-                    style={{ backgroundColor: color.value === 'transparent' ? '#1e293b' : color.value }}
+                    className={`w-5 h-5 rounded-full border cursor-pointer flex items-center justify-center hover:scale-110 transition-transform overflow-hidden relative ${
+                      isDarkSurface ? 'border-slate-600' : 'border-slate-300'
+                    }`}
+                    style={{ backgroundColor: color.value === 'transparent' ? (isDarkSurface ? '#1e293b' : '#f8fafc') : color.value }}
                     title={color.name}
                   >
                     {color.value === 'transparent' && (
@@ -388,10 +370,12 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
               </div>
 
               {/* Custom Highlight Color Picker */}
-              <div className="flex items-center justify-between border-t border-slate-800 pt-1.5 mt-1.5 px-0.5">
-                <span className="text-[10px] font-medium text-slate-400">Custom</span>
-                <label className="relative flex items-center justify-center w-5 h-5 rounded border border-slate-700 cursor-pointer overflow-hidden bg-slate-800 hover:bg-slate-700 transition-colors">
-                  <span className="text-[10px] font-bold text-slate-300">+</span>
+              <div className={`flex items-center justify-between border-t pt-1.5 mt-1.5 px-0.5 ${isDarkSurface ? 'border-slate-800' : 'border-slate-100'}`}>
+                <span className={`text-[10px] font-medium ${isDarkSurface ? 'text-slate-400' : 'text-slate-500'}`}>Custom</span>
+                <label className={`relative flex items-center justify-center w-5 h-5 rounded border cursor-pointer overflow-hidden transition-colors ${
+                  isDarkSurface ? 'border-slate-700 bg-slate-800 hover:bg-slate-700' : 'border-slate-300 bg-slate-100 hover:bg-slate-200'
+                }`}>
+                  <span className={`text-[10px] font-bold ${isDarkSurface ? 'text-slate-300' : 'text-slate-600'}`}>+</span>
                   <input
                     type="color"
                     className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
@@ -404,7 +388,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           )}
         </div>
 
-        <div className="w-px h-4 bg-slate-700/80 mx-1" />
+        <div className={dividerClass} />
 
         <button
           type="button"
@@ -412,7 +396,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             e.preventDefault();
             execFormat('insertUnorderedList');
           }}
-          className="p-1.5 rounded text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer"
+          className={toolBtnClass}
           title="Bullet List"
         >
           <List className="w-3.5 h-3.5" />
@@ -423,13 +407,13 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             e.preventDefault();
             execFormat('insertOrderedList');
           }}
-          className="p-1.5 rounded text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer"
+          className={toolBtnClass}
           title="Numbered List"
         >
           <ListOrdered className="w-3.5 h-3.5" />
         </button>
 
-        <div className="w-px h-4 bg-slate-700/80 mx-1" />
+        <div className={dividerClass} />
 
         <button
           type="button"
@@ -437,7 +421,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             e.preventDefault();
             execFormat('justifyLeft');
           }}
-          className="p-1.5 rounded text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer"
+          className={toolBtnClass}
           title="Align Left"
         >
           <AlignLeft className="w-3.5 h-3.5" />
@@ -448,7 +432,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             e.preventDefault();
             execFormat('justifyCenter');
           }}
-          className="p-1.5 rounded text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer"
+          className={toolBtnClass}
           title="Align Center"
         >
           <AlignCenter className="w-3.5 h-3.5" />
@@ -459,13 +443,13 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             e.preventDefault();
             execFormat('justifyRight');
           }}
-          className="p-1.5 rounded text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer"
+          className={toolBtnClass}
           title="Align Right"
         >
           <AlignRight className="w-3.5 h-3.5" />
         </button>
 
-        <div className="w-px h-4 bg-slate-700/80 mx-1" />
+        <div className={dividerClass} />
 
         <button
           type="button"
@@ -473,7 +457,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             e.preventDefault();
             execFormat('undo');
           }}
-          className="p-1.5 rounded text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer"
+          className={toolBtnClass}
           title="Undo (Ctrl+Z)"
         >
           <Undo className="w-3.5 h-3.5" />
@@ -484,7 +468,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             e.preventDefault();
             execFormat('redo');
           }}
-          className="p-1.5 rounded text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer"
+          className={toolBtnClass}
           title="Redo (Ctrl+Y)"
         >
           <Redo className="w-3.5 h-3.5" />
@@ -497,45 +481,49 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             setSelectedTextColor('default');
             setSelectedHighlightColor('transparent');
           }}
-          className="p-1.5 rounded text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer"
+          className={toolBtnClass}
           title="Clear Formatting"
         >
           <Trash2 className="w-3.5 h-3.5" />
         </button>
 
         {/* Font Size Adjusters */}
-        <div className="flex items-center gap-0.5 border-l border-slate-700/80 pl-1.5 ml-1">
+        <div className={`flex items-center gap-0.5 border-l pl-1.5 ml-1 ${isDarkSurface ? 'border-slate-700/80' : 'border-slate-200'}`}>
           <button
             type="button"
             onClick={() => setFontSize(prev => Math.max(12, prev - 1))}
-            className="p-1 rounded text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer w-6 h-6 flex items-center justify-center text-[10px] font-bold"
+            className={`w-6 h-6 flex items-center justify-center text-[10px] font-bold ${toolBtnClass}`}
             title="Decrease Font Size"
           >
             A-
           </button>
-          <span className="text-[9px] font-black text-slate-400 w-7 text-center select-none font-mono">
+          <span className={`text-[9px] font-black w-7 text-center select-none font-mono ${isDarkSurface ? 'text-slate-400' : 'text-slate-500'}`}>
             {fontSize}px
           </span>
           <button
             type="button"
             onClick={() => setFontSize(prev => Math.min(28, prev + 1))}
-            className="p-1 rounded text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer w-6 h-6 flex items-center justify-center text-xs font-bold"
+            className={`w-6 h-6 flex items-center justify-center text-xs font-bold ${toolBtnClass}`}
             title="Increase Font Size"
           >
             A+
           </button>
         </div>
 
-        {/* Surface Theme Toggle (Dark Slate #1E293B vs Soft Paper #F8FAFC) */}
+        {/* Surface Theme Toggle (Dark Slate #1E293B vs Pure White #FFFFFF) */}
         {onEditorThemeChange && (
           <button
             type="button"
             onClick={() => onEditorThemeChange(isDarkSurface ? 'paper' : 'dark')}
-            className="ml-auto p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/60 transition-colors cursor-pointer flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider"
-            title={isDarkSurface ? "Switch editor surface to Warm Paper (#F8FAFC)" : "Switch editor surface to Dark Slate (#1E293B)"}
+            className={`ml-auto p-1.5 rounded-lg border transition-colors cursor-pointer flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider ${
+              isDarkSurface
+                ? 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700/60'
+                : 'bg-white hover:bg-slate-100 text-slate-700 hover:text-slate-900 border-slate-200 shadow-xs'
+            }`}
+            title={isDarkSurface ? "Switch to Light Mode" : "Switch to Dark Mode"}
           >
-            {isDarkSurface ? <Sun className="w-3 h-3 text-amber-400" /> : <Moon className="w-3 h-3 text-sky-400" />}
-            <span className="hidden sm:inline">{isDarkSurface ? 'Paper' : 'Dark'}</span>
+            {isDarkSurface ? <Sun className="w-3 h-3 text-amber-400" /> : <Moon className="w-3 h-3 text-indigo-600" />}
+            <span className="hidden sm:inline">{isDarkSurface ? 'Light' : 'Dark'}</span>
           </button>
         )}
       </div>

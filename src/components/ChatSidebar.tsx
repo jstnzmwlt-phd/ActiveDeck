@@ -179,10 +179,11 @@ interface OpenEndedQuestionCardProps {
   isStarting?: boolean;
   forceCollapsed?: boolean;
   onToggleCollapse?: (id: string, collapsed: boolean) => void;
+  isDark?: boolean;
 }
 
-const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, canModerate, onClose, onDelete, onStart, onSubmit, onToggleResults, onAdjustDuration, initialCollapsed = false, isInitiallyNew = false, secondaryColor, isProjector = false, onOpenImageLightbox, isStarting, forceCollapsed, onToggleCollapse }) => {
-  const isDark = !canModerate && !isProjector;
+const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, canModerate, onClose, onDelete, onStart, onSubmit, onToggleResults, onAdjustDuration, initialCollapsed = false, isInitiallyNew = false, secondaryColor, isProjector = false, onOpenImageLightbox, isStarting, forceCollapsed, onToggleCollapse, isDark: isDarkProp }) => {
+  const isDark = isDarkProp !== undefined ? isDarkProp : (!canModerate && !isProjector);
   const [response, setResponse] = useState('');
   const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : (forceCollapsed ?? initialCollapsed));
   const responsesData = q.responses || {};
@@ -487,10 +488,11 @@ interface PollCardProps {
   isStarting?: boolean;
   forceCollapsed?: boolean;
   onToggleCollapse?: (id: string, collapsed: boolean) => void;
+  isDark?: boolean;
 }
 
-const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate, onVote, onToggleResults, onClose, onDelete, onStart, onAdjustDuration, onMarkCorrect, initialCollapsed = false, isInitiallyNew = false, secondaryColor, isProjector = false, onOpenImageLightbox, isStarting, forceCollapsed, onToggleCollapse }) => {
-  const isDark = !canModerate && !isProjector;
+const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate, onVote, onToggleResults, onClose, onDelete, onStart, onAdjustDuration, onMarkCorrect, initialCollapsed = false, isInitiallyNew = false, secondaryColor, isProjector = false, onOpenImageLightbox, isStarting, forceCollapsed, onToggleCollapse, isDark: isDarkProp }) => {
+  const isDark = isDarkProp !== undefined ? isDarkProp : (!canModerate && !isProjector);
   const totalVotes = Object.values(poll.votes || {}).reduce((a, b) => a + b, 0);
   const userVote = user && poll.voters ? poll.voters[user.uid] : null;
   const [timeLeft, setTimeLeft] = useState<number | null>(() => {
@@ -830,10 +832,11 @@ interface WordCloudCardProps {
   isProjector?: boolean;
   forceCollapsed?: boolean;
   onToggleCollapse?: (id: string, collapsed: boolean) => void;
+  isDark?: boolean;
 }
 
-const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, canModerate, onSubmit, onToggleResults, onClose, onDelete, onStart, onAdjustDuration, initialCollapsed = false, isInitiallyNew = false, secondaryColor, isProjector = false, forceCollapsed, onToggleCollapse }) => {
-  const isDark = !canModerate && !isProjector;
+const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, canModerate, onSubmit, onToggleResults, onClose, onDelete, onStart, onAdjustDuration, initialCollapsed = false, isInitiallyNew = false, secondaryColor, isProjector = false, forceCollapsed, onToggleCollapse, isDark: isDarkProp }) => {
+  const isDark = isDarkProp !== undefined ? isDarkProp : (!canModerate && !isProjector);
   const [word, setWord] = useState('');
   const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : (forceCollapsed ?? initialCollapsed));
   const [timeLeft, setTimeLeft] = useState<number | null>(() => {
@@ -1445,10 +1448,11 @@ interface ChatSidebarProps {
   chatLayoutDirection?: 'left' | 'right';
   isCollapsedRail?: boolean;
   onUnreadActivityChange?: (info: { unreadCount: number; hasActiveActivity: boolean }) => void;
+  themeMode?: 'dark' | 'light';
 }
 
-export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, presentation = null, logoUrl, presentationLoaded = true, showAttendance = false, isProjector = false, onJoinChange, onCollapseChat, chatLayoutDirection = 'right', isCollapsedRail = false, onUnreadActivityChange }) => {
-  const isDarkChat = isChatOnly && !isProjector;
+export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, presentation = null, logoUrl, presentationLoaded = true, showAttendance = false, isProjector = false, onJoinChange, onCollapseChat, chatLayoutDirection = 'right', isCollapsedRail = false, onUnreadActivityChange, themeMode = 'dark' }) => {
+  const isDarkChat = isChatOnly && !isProjector && themeMode !== 'light';
   const [internalLogoUrl, setInternalLogoUrl] = useState<string | undefined | null>(null);
   const [secondaryColor, setSecondaryColor] = useState<string>('#ff3e00');
 
@@ -3810,13 +3814,19 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
   if (presentation?.isEnded) {
     return (
-      <div className="flex flex-col items-center justify-center h-full w-full bg-slate-950 text-white p-6">
-        <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl text-center flex flex-col items-center animate-in fade-in zoom-in-95 duration-300">
+      <div className={cn(
+        "flex flex-col items-center justify-center h-full w-full p-6",
+        isDarkChat ? "bg-slate-950 text-white" : "bg-[#FFFFFF] text-slate-900"
+      )}>
+        <div className={cn(
+          "w-full max-w-md border rounded-3xl p-8 shadow-2xl text-center flex flex-col items-center animate-in fade-in zoom-in-95 duration-300",
+          isDarkChat ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"
+        )}>
           <div className="w-16 h-16 bg-osu-orange/10 text-osu-orange rounded-full flex items-center justify-center mb-6 border border-osu-orange/20 animate-pulse">
             <PresentationIcon className="w-8 h-8" />
           </div>
-          <h2 className="text-2xl font-black mb-2 text-white">Session Ended</h2>
-          <p className="text-slate-400 text-sm leading-relaxed mb-6">
+          <h2 className={cn("text-2xl font-black mb-2", isDarkChat ? "text-white" : "text-slate-900")}>Session Ended</h2>
+          <p className={cn("text-sm leading-relaxed mb-6", isDarkChat ? "text-slate-400" : "text-slate-500")}>
             The presenter has ended this session. Thank you for participating!
           </p>
         </div>
@@ -3826,7 +3836,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
   if (isChatOnly && !isProjector && user?.isAnonymous && !hasJoined) {
     return (
-      <div className="flex flex-col items-center justify-center h-full w-full bg-slate-950 text-white p-4 md:p-6 relative overflow-y-auto">
+      <div className={cn(
+        "flex flex-col items-center justify-center h-full w-full p-4 md:p-6 relative overflow-y-auto",
+        isDarkChat ? "bg-slate-950 text-white" : "bg-[#FFFFFF] text-slate-900"
+      )}>
         {/* OSU Logo Watermark */}
         {internalLogoUrl !== null && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-5 z-0">
@@ -3839,7 +3852,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           </div>
         )}
 
-        <div className="w-full bg-slate-900 border border-slate-800 rounded-3xl p-5 md:p-8 shadow-2xl z-10 animate-in fade-in zoom-in-95 duration-300 relative max-w-2xl lg:max-w-3xl">
+        <div className={cn(
+          "w-full border rounded-3xl p-5 md:p-8 shadow-2xl z-10 animate-in fade-in zoom-in-95 duration-300 relative max-w-2xl lg:max-w-3xl",
+          isDarkChat ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200 shadow-slate-200/80"
+        )}>
           <form onSubmit={handleJoin} className="space-y-6">
             
             {/* If we need manual attendance check, show responsive 2-column grid */}
@@ -3849,41 +3865,54 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 {/* Left Column: Information and Inputs */}
                 <div className="space-y-5 flex flex-col justify-between h-full">
                   <div>
-                    <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight">Join & Check-In</h2>
-                    <p className="text-slate-400 text-xs md:text-sm mt-2 leading-relaxed">
+                    <h2 className={cn("text-2xl md:text-3xl font-black tracking-tight", isDarkChat ? "text-white" : "text-slate-900")}>Join & Check-In</h2>
+                    <p className={cn("text-xs md:text-sm mt-2 leading-relaxed", isDarkChat ? "text-slate-400" : "text-slate-500")}>
                       Enter your name, email, and select the matching screen icon to register attendance and join the chat.
                     </p>
                   </div>
 
                   {joinError && (
-                    <div className="p-4 bg-red-950/30 border border-red-500/20 rounded-2xl flex gap-3 text-xs text-red-300 items-start">
-                      <AlertCircle className="w-4.5 h-4.5 flex-shrink-0 mt-0.5 text-red-400" />
+                    <div className={cn(
+                      "p-4 border rounded-2xl flex gap-3 text-xs items-start",
+                      isDarkChat ? "bg-red-950/30 border-red-500/20 text-red-300" : "bg-red-50 border-red-200 text-red-700"
+                    )}>
+                      <AlertCircle className="w-4.5 h-4.5 flex-shrink-0 mt-0.5 text-red-500" />
                       <p className="leading-relaxed">{joinError}</p>
                     </div>
                   )}
 
                   <div className="space-y-4">
                     <div className="space-y-1.5">
-                      <label className="block text-xs font-black uppercase tracking-wider text-slate-400">Full Name</label>
+                      <label className={cn("block text-xs font-black uppercase tracking-wider", isDarkChat ? "text-slate-400" : "text-slate-600")}>Full Name</label>
                       <input
                         type="text"
                         placeholder="John Doe"
                         value={joinNameInput}
                         onChange={(e) => setJoinNameInput(e.target.value)}
                         required
-                        className="w-full h-11 bg-slate-950 border border-slate-800 rounded-xl px-4 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-osu-orange focus:ring-1 focus:ring-osu-orange transition-colors"
+                        className={cn(
+                          "w-full h-11 border rounded-xl px-4 text-sm focus:outline-none focus:border-osu-orange focus:ring-1 focus:ring-osu-orange transition-colors",
+                          isDarkChat
+                            ? "bg-slate-950 border-slate-800 text-slate-100 placeholder-slate-600"
+                            : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400"
+                        )}
                       />
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="block text-xs font-black uppercase tracking-wider text-slate-400">Email Address</label>
+                      <label className={cn("block text-xs font-black uppercase tracking-wider", isDarkChat ? "text-slate-400" : "text-slate-600")}>Email Address</label>
                       <input
                         type="email"
                         placeholder="john.doe@example.com"
                         value={joinEmailInput}
                         onChange={(e) => setJoinEmailInput(e.target.value)}
                         required
-                        className="w-full h-11 bg-slate-950 border border-slate-800 rounded-xl px-4 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-osu-orange focus:ring-1 focus:ring-osu-orange transition-colors"
+                        className={cn(
+                          "w-full h-11 border rounded-xl px-4 text-sm focus:outline-none focus:border-osu-orange focus:ring-1 focus:ring-osu-orange transition-colors",
+                          isDarkChat
+                            ? "bg-slate-950 border-slate-800 text-slate-100 placeholder-slate-600"
+                            : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400"
+                        )}
                       />
                     </div>
                   </div>
@@ -3891,7 +3920,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                   <button
                     type="submit"
                     disabled={isValidatingToken || !joinNameInput.trim() || !joinEmailInput.trim() || !selectedIcon}
-                    className="w-full h-12 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-[0.98] shadow-lg shadow-orange-500/10 flex items-center justify-center gap-2 mt-4"
+                    className={cn(
+                      "w-full h-12 bg-osu-orange hover:bg-[#c03900] disabled:cursor-not-allowed text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-[0.98] shadow-lg shadow-orange-500/10 flex items-center justify-center gap-2 mt-4",
+                      isDarkChat ? "disabled:bg-slate-800 disabled:text-slate-600" : "disabled:bg-slate-200 disabled:text-slate-400"
+                    )}
                   >
                     {isValidatingToken ? (
                       <>
@@ -3905,16 +3937,19 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 </div>
 
                 {/* Right Column: Icon Grid and Countdown Timer */}
-                <div className="bg-slate-950/40 border border-slate-800/60 rounded-2xl p-5 space-y-4">
+                <div className={cn(
+                  "border rounded-2xl p-5 space-y-4",
+                  isDarkChat ? "bg-slate-950/40 border-slate-800/60" : "bg-slate-50 border-slate-200"
+                )}>
                   <div className="flex justify-between items-center">
-                    <label className="block text-xs font-black uppercase tracking-wider text-slate-400">
+                    <label className={cn("block text-xs font-black uppercase tracking-wider", isDarkChat ? "text-slate-400" : "text-slate-600")}>
                       Verify Screen Icon
                     </label>
                     {iconTimeLeft !== null && (
                       <div className={cn(
                         "flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-black tracking-wider uppercase transition-colors",
                         iconTimeLeft <= 3 
-                          ? "bg-red-500/10 text-red-400 border-red-500/20 animate-pulse" 
+                          ? "bg-red-500/10 text-red-500 border-red-500/20 animate-pulse" 
                           : "bg-osu-orange/10 text-osu-orange border-osu-orange/20"
                       )}>
                         <Timer className="w-3.5 h-3.5" />
@@ -3929,7 +3964,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
                   {/* Premium Progress Bar */}
                   {iconTimeLeft !== null && (
-                    <div className="w-full bg-slate-950 h-1.5 rounded-full overflow-hidden relative border border-slate-900/50">
+                    <div className={cn(
+                      "w-full h-1.5 rounded-full overflow-hidden relative border",
+                      isDarkChat ? "bg-slate-950 border-slate-900/50" : "bg-slate-200 border-slate-300/50"
+                    )}>
                       <div
                         className={cn(
                           "h-full rounded-full transition-all duration-100 ease-linear",
@@ -3941,7 +3979,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                   )}
 
                   {/* Icon grid 4 columns wide, 5 columns deep (4x5) with overflow-hidden and no scrollbar */}
-                  <div className="grid grid-cols-4 gap-2.5 p-3 bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-inner">
+                  <div className={cn(
+                    "grid grid-cols-4 gap-2.5 p-3 border rounded-xl overflow-hidden shadow-inner",
+                    isDarkChat ? "bg-slate-950 border-slate-800" : "bg-white border-slate-200"
+                  )}>
                     {iconGrid.map((iconName, idx) => {
                       const isSelected = selectedIcon === iconName;
                       return (
@@ -3953,7 +3994,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                             "h-12 rounded-lg flex items-center justify-center transition-all duration-200 border cursor-pointer",
                             isSelected
                               ? "bg-osu-orange/20 border-osu-orange text-osu-orange shadow-[0_0_8px_rgba(235,93,0,0.4)] scale-95 font-bold"
-                              : "bg-slate-900/60 border-slate-800/80 text-slate-400 hover:text-white hover:border-slate-700 hover:bg-slate-900"
+                              : isDarkChat
+                                ? "bg-slate-900/60 border-slate-800/80 text-slate-400 hover:text-white hover:border-slate-700 hover:bg-slate-900"
+                                : "bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300 hover:bg-slate-100"
                           )}
                           title={iconName}
                         >
@@ -3969,10 +4012,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               /* If no manual attendance or scanning QR code, show centered single column form */
               <div className="max-w-md mx-auto space-y-6">
                 <div className="text-center">
-                  <h2 className="text-2xl font-black text-white tracking-tight">
+                  <h2 className={cn("text-2xl font-black tracking-tight", isDarkChat ? "text-white" : "text-slate-900")}>
                     {urlToken ? "Register Attendance" : "Join the Discussion"}
                   </h2>
-                  <p className="text-slate-400 text-sm mt-2 leading-relaxed">
+                  <p className={cn("text-sm mt-2 leading-relaxed", isDarkChat ? "text-slate-400" : "text-slate-500")}>
                     {urlToken 
                       ? "Enter your name and email to register attendance and join the chat." 
                       : "Enter your name and email to join the discussion."}
@@ -3987,15 +4030,18 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 </div>
 
                 {joinError && (
-                  <div className="p-4 bg-red-950/30 border border-red-500/20 rounded-2xl flex gap-3 text-xs text-red-300 items-start">
-                    <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-red-400" />
+                  <div className={cn(
+                    "p-4 border rounded-2xl flex gap-3 text-xs items-start",
+                    isDarkChat ? "bg-red-950/30 border-red-500/20 text-red-300" : "bg-red-50 border-red-200 text-red-700"
+                  )}>
+                    <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-red-500" />
                     <p className="leading-relaxed">{joinError}</p>
                   </div>
                 )}
 
                 <div className="space-y-4">
                   <div className="space-y-1.5">
-                    <label className="block text-xs font-black uppercase tracking-wider text-slate-400">
+                    <label className={cn("block text-xs font-black uppercase tracking-wider", isDarkChat ? "text-slate-400" : "text-slate-600")}>
                       Full Name
                     </label>
                     <input
@@ -4004,12 +4050,17 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                       value={joinNameInput}
                       onChange={(e) => setJoinNameInput(e.target.value)}
                       required
-                      className="w-full h-11 bg-slate-950 border border-slate-800 rounded-xl px-4 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-osu-orange focus:ring-1 focus:ring-osu-orange transition-colors"
+                      className={cn(
+                        "w-full h-11 border rounded-xl px-4 text-sm focus:outline-none focus:border-osu-orange focus:ring-1 focus:ring-osu-orange transition-colors",
+                        isDarkChat
+                          ? "bg-slate-950 border-slate-800 text-slate-100 placeholder-slate-600"
+                          : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400"
+                      )}
                     />
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="block text-xs font-black uppercase tracking-wider text-slate-400">
+                    <label className={cn("block text-xs font-black uppercase tracking-wider", isDarkChat ? "text-slate-400" : "text-slate-600")}>
                       Email Address
                     </label>
                     <input
@@ -4018,7 +4069,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                       value={joinEmailInput}
                       onChange={(e) => setJoinEmailInput(e.target.value)}
                       required
-                      className="w-full h-11 bg-slate-950 border border-slate-800 rounded-xl px-4 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-osu-orange focus:ring-1 focus:ring-osu-orange transition-colors"
+                      className={cn(
+                        "w-full h-11 border rounded-xl px-4 text-sm focus:outline-none focus:border-osu-orange focus:ring-1 focus:ring-osu-orange transition-colors",
+                        isDarkChat
+                          ? "bg-slate-950 border-slate-800 text-slate-100 placeholder-slate-600"
+                          : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400"
+                      )}
                     />
                   </div>
                 </div>
@@ -4026,7 +4082,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 <button
                   type="submit"
                   disabled={isValidatingToken || !joinNameInput.trim() || !joinEmailInput.trim()}
-                  className="w-full h-12 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-[0.98] shadow-lg shadow-orange-500/10 flex items-center justify-center gap-2"
+                  className={cn(
+                    "w-full h-12 bg-osu-orange hover:bg-[#c03900] disabled:cursor-not-allowed text-white font-black uppercase tracking-widest rounded-xl transition-all active:scale-[0.98] shadow-lg shadow-orange-500/10 flex items-center justify-center gap-2",
+                    isDarkChat ? "disabled:bg-slate-800 disabled:text-slate-600" : "disabled:bg-slate-200 disabled:text-slate-400"
+                  )}
                 >
                   {isValidatingToken ? (
                     <>
@@ -4049,7 +4108,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   return (
     <div ref={sidebarContainerRef} className={cn(
       "flex flex-col h-full max-h-full overflow-hidden relative",
-      isDarkChat ? "bg-[#111827] text-slate-100" : "bg-white"
+      isDarkChat ? "bg-[#111827] text-slate-100" : "bg-[#FFFFFF] text-slate-900"
     )}>
       {/* Clear Chat Confirmation Modal */}
       {showClearConfirm && (
@@ -4186,22 +4245,34 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         ) : null
       ) : (
         <div className={cn(
-          "text-white flex flex-wrap items-center justify-between gap-2 min-w-0 shrink-0",
-          isDarkChat ? "px-3 py-2.5 bg-slate-900 border-b border-slate-800" : "p-4 bg-osu-black"
+          "flex flex-wrap items-center justify-between gap-2 min-w-0 shrink-0",
+          isChatOnly
+            ? isDarkChat
+              ? "px-3 py-2.5 bg-slate-900 border-b border-slate-800 text-white"
+              : "px-3 py-2.5 bg-slate-50 border-b border-slate-200 text-slate-900"
+            : "p-4 bg-osu-black text-white"
         )}>
           <div className="flex items-center gap-1.5 min-w-0">
             <MessageSquare className="text-osu-orange flex-shrink-0 w-4 h-4" />
             <div className="flex flex-col min-w-0">
-              <h2 className="uppercase font-bold tracking-tight text-xs sm:text-sm leading-tight text-white">
+              <h2 className={cn(
+                "uppercase font-bold tracking-tight text-xs sm:text-sm leading-tight",
+                isChatOnly && !isDarkChat ? "text-slate-900" : "text-white"
+              )}>
                 ActiveDeck Chat
               </h2>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-1.5 flex-shrink-0">
-            {isDarkChat && onCollapseChat && (
+            {isChatOnly && onCollapseChat && (
               <button
                 onClick={onCollapseChat}
-                className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-800 text-slate-400 hover:text-white transition-colors border border-slate-700/60 cursor-pointer flex items-center gap-1 text-[10px] font-bold"
+                className={cn(
+                  "p-1.5 rounded-lg transition-colors border cursor-pointer flex items-center gap-1 text-[10px] font-bold",
+                  isDarkChat
+                    ? "bg-slate-800/80 hover:bg-slate-800 text-slate-400 hover:text-white border-slate-700/60"
+                    : "bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-900 border-slate-200 shadow-sm"
+                )}
                 title="Collapse chat sidebar into a thin rail"
               >
                 {chatLayoutDirection === 'left' ? (
@@ -4680,6 +4751,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                     isInitiallyNew={isInitiallyNew}
                     secondaryColor={secondaryColor}
                     isProjector={isProjector}
+                    isDark={isDarkChat}
                     onOpenImageLightbox={(imageUrl, title) => {
                       setLightboxImageUrl(imageUrl);
                       setLightboxTitle(title);
@@ -4714,6 +4786,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                     isInitiallyNew={isInitiallyNew}
                     secondaryColor={secondaryColor}
                     isProjector={isProjector}
+                    isDark={isDarkChat}
                     forceCollapsed={collapsedMessageIds[cloud.id]}
                     onToggleCollapse={(id, collapsed) => {
                       setCollapsedMessageIds(prev => ({ ...prev, [id]: collapsed }));
@@ -4741,6 +4814,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                     isInitiallyNew={isInitiallyNew}
                     secondaryColor={secondaryColor}
                     isProjector={isProjector}
+                    isDark={isDarkChat}
                     onOpenImageLightbox={(imageUrl, title) => {
                       setLightboxImageUrl(imageUrl);
                       setLightboxTitle(title);
@@ -4807,10 +4881,13 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
       {/* Input Area - Only visible for audience members (isChatOnly) */}
       {isChatOnly && !isProjector && (
-        <div className="bg-slate-900 border-t border-slate-800 shrink-0 pb-[env(safe-area-inset-bottom)]">
+        <div className={cn(
+          "border-t shrink-0 pb-[env(safe-area-inset-bottom)]",
+          isDarkChat ? "bg-slate-900 border-slate-800" : "bg-slate-50 border-slate-200"
+        )}>
           {!user ? (
             <div className="p-4 text-center">
-              <p className="text-xs text-slate-400 mb-3">Connecting to chat...</p>
+              <p className={cn("text-xs mb-3", isDarkChat ? "text-slate-400" : "text-slate-500")}>Connecting to chat...</p>
               <button 
                 onClick={() => window.location.reload()}
                 className="text-xs text-osu-orange hover:underline font-bold"
@@ -4821,10 +4898,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
           ) : user.isAnonymous && !hasJoined ? (
             <form onSubmit={handleJoin} className="p-4 flex flex-col gap-3">
               <div className="text-center mb-1">
-                <h3 className="text-sm font-bold text-slate-100">
+                <h3 className={cn("text-sm font-bold", isDarkChat ? "text-slate-100" : "text-slate-900")}>
                   {!presentation?.disableAttendance ? "Join & Check-In" : "Join the Discussion"}
                 </h3>
-                <p className="text-xs text-slate-400 mt-1 mb-2">
+                <p className={cn("text-xs mt-1 mb-2", isDarkChat ? "text-slate-400" : "text-slate-500")}>
                   {!presentation?.disableAttendance
                     ? (urlToken 
                         ? "Enter your name and email to register attendance and join the chat." 
@@ -4846,8 +4923,11 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               </div>
 
               {joinError && (
-                <div className="p-2.5 bg-red-950/50 border border-red-500/40 rounded-lg text-xs text-red-300 font-semibold text-center flex items-center justify-center gap-1.5 animate-in fade-in duration-200">
-                  <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                <div className={cn(
+                  "p-2.5 border rounded-lg text-xs font-semibold text-center flex items-center justify-center gap-1.5 animate-in fade-in duration-200",
+                  isDarkChat ? "bg-red-950/50 border-red-500/40 text-red-300" : "bg-red-50 border-red-200 text-red-700"
+                )}>
+                  <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
                   <span>{joinError}</span>
                 </div>
               )}
@@ -4855,7 +4935,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               {!presentation?.disableAttendance && !urlToken && (
                 <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
                   <div className="flex justify-between items-baseline">
-                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    <label className={cn("block text-[10px] font-black uppercase tracking-wider", isDarkChat ? "text-slate-400" : "text-slate-600")}>
                       Verify Screen Icon
                     </label>
                     {iconTimeLeft !== null && (
@@ -4867,13 +4947,16 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                       </span>
                     )}
                   </div>
-                  <p className="text-[10px] text-slate-400 leading-normal mb-1">
+                  <p className={cn("text-[10px] leading-normal mb-1", isDarkChat ? "text-slate-400" : "text-slate-500")}>
                     Select the medical icon shown on the presenter's screen to verify attendance:
                   </p>
 
                   {/* Visual Progress Bar */}
                   {iconTimeLeft !== null && (
-                    <div className="w-full bg-slate-950 h-1 rounded-full overflow-hidden relative border border-slate-900/50">
+                    <div className={cn(
+                      "w-full h-1 rounded-full overflow-hidden relative border",
+                      isDarkChat ? "bg-slate-950 border-slate-900/50" : "bg-slate-200 border-slate-300/50"
+                    )}>
                       <div
                         className={cn(
                           "h-full rounded-full transition-all duration-100 ease-linear",
@@ -4884,7 +4967,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                     </div>
                   )}
 
-                  <div className="grid grid-cols-4 gap-2.5 p-3 bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-inner">
+                  <div className={cn(
+                    "grid grid-cols-4 gap-2.5 p-3 border rounded-xl overflow-hidden shadow-inner",
+                    isDarkChat ? "bg-slate-950 border-slate-800" : "bg-white border-slate-200"
+                  )}>
                     {iconGrid.map((iconName, idx) => {
                       const isSelected = selectedIcon === iconName;
                       return (
@@ -4896,7 +4982,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                             "h-10 rounded-lg flex items-center justify-center transition-all duration-200 border cursor-pointer",
                             isSelected
                               ? "bg-osu-orange/20 border-osu-orange text-osu-orange shadow-[0_0_8px_rgba(235,93,0,0.4)] scale-95"
-                              : "bg-slate-900/60 border-slate-800/80 text-slate-400 hover:text-white hover:border-slate-700 hover:bg-slate-900"
+                              : isDarkChat
+                                ? "bg-slate-900/60 border-slate-800/80 text-slate-400 hover:text-white hover:border-slate-700 hover:bg-slate-900"
+                                : "bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300 hover:bg-slate-100"
                           )}
                           title={iconName}
                         >
@@ -4914,7 +5002,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 value={joinNameInput}
                 onChange={(e) => setJoinNameInput(e.target.value)}
                 required
-                className="w-full px-3 py-2 text-base bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-400 rounded-md focus:outline-none focus:ring-2 focus:ring-osu-orange"
+                className={cn(
+                  "w-full px-3 py-2 text-base border rounded-md focus:outline-none focus:ring-2 focus:ring-osu-orange",
+                  isDarkChat
+                    ? "bg-slate-800 border-slate-700 text-slate-100 placeholder-slate-400"
+                    : "bg-white border-slate-200 text-slate-900 placeholder-slate-400"
+                )}
               />
               <input
                 type="email"
@@ -4922,12 +5015,20 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 value={joinEmailInput}
                 onChange={(e) => setJoinEmailInput(e.target.value)}
                 required
-                className="w-full px-3 py-2 text-base bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-400 rounded-md focus:outline-none focus:ring-2 focus:ring-osu-orange"
+                className={cn(
+                  "w-full px-3 py-2 text-base border rounded-md focus:outline-none focus:ring-2 focus:ring-osu-orange",
+                  isDarkChat
+                    ? "bg-slate-800 border-slate-700 text-slate-100 placeholder-slate-400"
+                    : "bg-white border-slate-200 text-slate-900 placeholder-slate-400"
+                )}
               />
               <button
                 type="submit"
                 disabled={isValidatingToken || !joinNameInput.trim() || !joinEmailInput.trim() || (!presentation?.disableAttendance && !urlToken && !selectedIcon)}
-                className="w-full bg-osu-orange disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-md hover:bg-[#c03900] transition-colors text-sm flex items-center justify-center gap-1.5 shadow-sm"
+                className={cn(
+                  "w-full bg-osu-orange disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-md hover:bg-[#c03900] transition-colors text-sm flex items-center justify-center gap-1.5 shadow-sm",
+                  isDarkChat ? "disabled:bg-slate-800 disabled:text-slate-500" : "disabled:bg-slate-200 disabled:text-slate-400"
+                )}
               >
                 {isValidatingToken ? (
                   <>
@@ -4944,20 +5045,23 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
               {user.isAnonymous && (
                 <div className="flex justify-between items-start px-1">
                   <div className="flex flex-col gap-1.5">
-                    <span className="text-xs text-slate-400">
-                      Posting as: <span className="font-semibold text-slate-200">
+                    <span className={cn("text-xs", isDarkChat ? "text-slate-400" : "text-slate-500")}>
+                      Posting as: <span className={cn("font-semibold", isDarkChat ? "text-slate-200" : "text-slate-800")}>
                         {isPostingAnonymously
                           ? `Anonymous ${user.uid.slice(0, 4)}` 
                           : (guestName || (guestEmail ? guestEmail.split('@')[0] : `Guest ${user.uid.slice(0, 4)}`))}
                       </span>
                     </span>
                     {(guestName || guestEmail || presentation?.allowAnonymousChat || presentation?.disableAttendance) && (
-                      <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer">
+                      <label className={cn("flex items-center gap-1.5 text-xs cursor-pointer", isDarkChat ? "text-slate-300" : "text-slate-600")}>
                         <input 
                           type="checkbox" 
                           checked={isPostingAnonymously}
                           onChange={(e) => setIsPostingAnonymously(e.target.checked)}
-                          className="rounded border-slate-600 bg-slate-800 text-osu-orange focus:ring-osu-orange"
+                          className={cn(
+                            "rounded text-osu-orange focus:ring-osu-orange",
+                            isDarkChat ? "border-slate-600 bg-slate-800" : "border-slate-300 bg-white"
+                          )}
                         />
                         Post Anonymously
                       </label>
@@ -4965,22 +5069,28 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                   </div>
                   <button 
                     onClick={handleLeave}
-                    className="text-xs text-osu-orange hover:underline mt-0.5"
+                    className="text-xs text-osu-orange hover:underline mt-0.5 font-semibold"
                   >
                     {hasJoined ? "Change" : "Add Name"}
                   </button>
                 </div>
               )}
               {hasActiveInteractive && (
-                <div className="mb-1 px-2.5 py-1.5 bg-blue-950/60 border border-blue-500/30 rounded-lg flex items-center gap-2 animate-in slide-in-from-bottom-2 duration-300">
-                  <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse" />
-                  <p className="text-[10px] font-bold text-blue-300 uppercase tracking-tight">Active Activity: Chat Paused</p>
+                <div className={cn(
+                  "mb-1 px-2.5 py-1.5 border rounded-lg flex items-center gap-2 animate-in slide-in-from-bottom-2 duration-300",
+                  isDarkChat ? "bg-blue-950/60 border-blue-500/30" : "bg-blue-50 border-blue-200"
+                )}>
+                  <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
+                  <p className={cn("text-[10px] font-bold uppercase tracking-tight", isDarkChat ? "text-blue-300" : "text-blue-700")}>Active Activity: Chat Paused</p>
                 </div>
               )}
               {presentation?.hideComments && !hasActiveInteractive && (
-                <div className="mb-1 px-2.5 py-1.5 bg-red-950/60 border border-red-500/30 rounded-lg flex items-center gap-2 animate-in slide-in-from-bottom-2 duration-300">
-                  <div className="w-1.5 h-1.5 bg-red-400 rounded-full" />
-                  <p className="text-[10px] font-bold text-red-300 uppercase tracking-tight">Chat Disabled by Presenter</p>
+                <div className={cn(
+                  "mb-1 px-2.5 py-1.5 border rounded-lg flex items-center gap-2 animate-in slide-in-from-bottom-2 duration-300",
+                  isDarkChat ? "bg-red-950/60 border-red-500/30" : "bg-red-50 border-red-200"
+                )}>
+                  <div className="w-1.5 h-1.5 bg-red-500 rounded-full" />
+                  <p className={cn("text-[10px] font-bold uppercase tracking-tight", isDarkChat ? "text-red-300" : "text-red-700")}>Chat Disabled by Presenter</p>
                 </div>
               )}
               <form onSubmit={handleSendMessage} className="flex gap-2">
@@ -4994,22 +5104,30 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                         : "Type a message..."
                   }
                   disabled={hasActiveInteractive || presentation?.hideComments}
-                  className={`flex-1 min-w-0 px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-osu-orange transition-all ${
+                  className={cn(
+                    "flex-1 min-w-0 px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-osu-orange transition-all",
                     (hasActiveInteractive || presentation?.hideComments)
-                      ? "bg-slate-800/50 border-slate-800 text-slate-500 cursor-not-allowed italic" 
-                      : "border-slate-700 bg-slate-800 text-slate-100 placeholder-slate-400"
-                  }`}
+                      ? isDarkChat
+                        ? "bg-slate-800/50 border-slate-800 text-slate-500 cursor-not-allowed italic"
+                        : "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed italic"
+                      : isDarkChat
+                        ? "border-slate-700 bg-slate-800 text-slate-100 placeholder-slate-400"
+                        : "border-slate-200 bg-white text-slate-900 placeholder-slate-400"
+                  )}
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
                 />
                 <button
                   type="submit"
                   disabled={hasActiveInteractive || presentation?.hideComments || !inputText.trim()}
-                  className={`shrink-0 p-2 rounded-lg transition-colors ${
+                  className={cn(
+                    "shrink-0 p-2 rounded-lg transition-colors",
                     (hasActiveInteractive || presentation?.hideComments || !inputText.trim())
-                      ? "bg-slate-800 text-slate-600 cursor-not-allowed" 
+                      ? isDarkChat
+                        ? "bg-slate-800 text-slate-600 cursor-not-allowed"
+                        : "bg-slate-200 text-slate-400 cursor-not-allowed"
                       : "bg-osu-orange text-white hover:bg-[#c03900] shadow-sm"
-                  }`}
+                  )}
                 >
                   <Send className="w-4 h-4" />
                 </button>

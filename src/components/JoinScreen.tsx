@@ -63,6 +63,7 @@ export const JoinScreen: React.FC = () => {
     const savedDrawings = localStorage.getItem(`activeDeckDrawings_${targetSessionId}`);
     const savedSlides = localStorage.getItem(`activeDeckPushedSlides_${targetSessionId}`);
     const savedStudentDrawings = localStorage.getItem(`activeDeckStudentSlideDrawings_${targetSessionId}`);
+    const savedStudentTextAnns = localStorage.getItem(`activeDeckStudentSlideTextAnnotations_${targetSessionId}`);
 
     let notesTextMap: Record<string, string> = {};
     if (savedNotes) {
@@ -95,7 +96,14 @@ export const JoinScreen: React.FC = () => {
       } catch {}
     }
 
-    const notesExist = !isNotesEmpty(notesTextMap, notesDrawingsMap, pushedSlidesMap, studentDrawingsMap);
+    let studentTextAnnotationsMap: Record<string, any[]> = {};
+    if (savedStudentTextAnns) {
+      try {
+        studentTextAnnotationsMap = JSON.parse(savedStudentTextAnns);
+      } catch {}
+    }
+
+    const notesExist = !isNotesEmpty(notesTextMap, notesDrawingsMap, pushedSlidesMap, studentDrawingsMap, studentTextAnnotationsMap);
     setHasPreviousNotes(notesExist);
 
     // If redirected from ended session or notes exist, display the recovery modal

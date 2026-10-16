@@ -3,19 +3,18 @@ import { AuthProvider, useAuth } from './components/AuthProvider';
 import { PresenterArea, useRenderedSlideBounds } from './components/PresenterArea';
 import { ChatSidebar } from './components/ChatSidebar';
 import { Header } from './components/Header';
-import { Presentation, GlobalSettings, DrawingStroke, DeckItem } from './types';
+import { Presentation, GlobalSettings, DrawingStroke, DeckItem, SlideTextAnnotation } from './types';
 import { db } from './firebase';
 import { collection, query, orderBy, limit, onSnapshot, doc, addDoc, serverTimestamp, updateDoc, getDoc, setDoc, increment, where } from 'firebase/firestore';
-import { Presentation as PresentationIcon, Loader2, AlertCircle, Maximize, Minimize, Lock, Keyboard, Pen, Tv, ArrowLeftRight, MessageSquare, NotebookPen, Plus, FileText, X, Download, ChevronsLeft, ChevronsRight, Edit3 } from 'lucide-react';
+import { Presentation as PresentationIcon, Loader2, AlertCircle, Maximize, Minimize, Lock, Pen, ZoomIn, Tv, ArrowLeftRight, MessageSquare, NotebookPen, Plus, FileText, X, Download, ChevronsLeft, ChevronsRight, Edit3, Sun, Moon } from 'lucide-react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { BridgeProvider } from './contexts/BridgeContext';
 import { AdminPortal } from './components/AdminPortal';
 import { StudentAttendance } from './components/StudentAttendance';
 import { JoinScreen } from './components/JoinScreen';
 import { RichTextEditor } from './components/RichTextEditor';
-import { HandwrittenCanvas } from './components/HandwrittenCanvas';
 import { ImageLightboxModal } from './components/ImageLightboxModal';
-import { exportNotesToDocx } from './utils/exportNotesDocx';
+import { exportNotesToDocx, getSlideTextAnnotationsForSlide } from './utils/exportNotesDocx';
 
 console.log('App.tsx - Module loaded');
 
@@ -93,14 +92,18 @@ const generateUniquePin = async (): Promise<string> => {
   return pin;
 };
 
-const isNotesEmpty = (notesMap: Record<string, string>, drawingsMap?: Record<string, string>) => {
+const isNotesEmpty = (
+  notesMap: Record<string, string>,
+  studentSlideDrawingsMap?: Record<string, string>,
+  studentSlideTextAnnotationsMap?: Record<string | number, SlideTextAnnotation[]>
+) => {
   const hasText = notesMap && Object.keys(notesMap).length > 0 && !Object.values(notesMap).every(html => {
     if (!html) return true;
     const cleanText = html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
     return cleanText === '';
   });
-  
-  const hasDrawings = drawingsMap && Object.keys(drawingsMap).length > 0 && !Object.values(drawingsMap).every(drawingJson => {
+
+  const hasSlideDrawings = studentSlideDrawingsMap && Object.keys(studentSlideDrawingsMap).length > 0 && !Object.values(studentSlideDrawingsMap).every(drawingJson => {
     if (!drawingJson) return true;
     try {
       const strokes = JSON.parse(drawingJson);
@@ -110,7 +113,14 @@ const isNotesEmpty = (notesMap: Record<string, string>, drawingsMap?: Record<str
     }
   });
 
-  return !hasText && !hasDrawings;
+  const hasSlideTextAnnotations =
+    studentSlideTextAnnotationsMap &&
+    Object.keys(studentSlideTextAnnotationsMap).length > 0 &&
+    Object.values(studentSlideTextAnnotationsMap).some(
+      list => Array.isArray(list) && list.some(a => a && a.text && a.text.trim() !== '')
+    );
+
+  return !hasText && !hasSlideDrawings && !hasSlideTextAnnotations;
 };
 
 const htmlToPlainText = (html: string) => {
@@ -410,9 +420,9 @@ function AppContent() {
   const [presenterEmail, setPresenterEmail] = useState<string>(() => sessionStorage.getItem('activePresenterEmail') || '');
 
   const [notesTextMap, setNotesTextMap] = useState<Record<string, string>>({});
-  const [notesDrawingsMap, setNotesDrawingsMap] = useState<Record<string, string>>({});
   const [studentSlideDrawingsMap, setStudentSlideDrawingsMap] = useState<Record<string, string>>({});
-  const [notesMode, setNotesMode] = useState<'text' | 'pen'>('text');
+  const [studentSlideTextAnnotationsMap, setStudentSlideTextAnnotationsMap] = useState<Record<number | string, SlideTextAnnotation[]>>({});
+  const [, setCompositedSlidePreviewsMap] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState<string>('1');
   const [maxSlideSeen, setMaxSlideSeen] = useState<number>(1);
   const [isEditorFocused, setIsEditorFocused] = useState(false);
@@ -421,6 +431,19 @@ function AppContent() {
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | ''>('');
 
   const [pushedSlidesMap, setPushedSlidesMap] = useState<Record<string, string>>({});
+
+  const handleUpdateSlideTextAnnotations = (tabKey: string | number, newAnnotations: SlideTextAnnotation[]) => {
+    setStudentSlideTextAnnotationsMap(prev => {
+      const next = { ...prev };
+      const strKey = String(tabKey);
+      const numKey = Number(tabKey);
+      next[strKey] = newAnnotations;
+      if (!isNaN(numKey)) {
+        next[numKey] = newAnnotations;
+      }
+      return next;
+    });
+  };
 
   const getSlidePreviewUrl = (tab: string | number | undefined | null): string | undefined => {
     if (tab === undefined || tab === null) return undefined;
@@ -467,8 +490,7 @@ function AppContent() {
       maxSlideSeen,
       presentation?.currentSlide || 1,
       ...customTabs.map(t => t.position),
-      ...Object.keys(notesTextMap).map(Number).filter(n => !isNaN(n)),
-      ...Object.keys(notesDrawingsMap).map(Number).filter(n => !isNaN(n))
+      ...Object.keys(notesTextMap).map(Number).filter(n => !isNaN(n))
     );
 
     const newPos = Number((currentHighestPos + 0.1).toFixed(2));
@@ -496,11 +518,6 @@ function AppContent() {
       delete copy[tabId];
       return copy;
     });
-    setNotesDrawingsMap(prev => {
-      const copy = { ...prev };
-      delete copy[tabId];
-      return copy;
-    });
 
     if (activeTab === tabId) {
       setActiveTab('1');
@@ -523,14 +540,33 @@ function AppContent() {
     return (saved === 'left' ? 'left' : 'right');
   });
 
-  const [editorTheme, setEditorTheme] = useState<'dark' | 'paper'>(() => {
-    const saved = localStorage.getItem('activeDeckEditorTheme');
-    return saved === 'paper' ? 'paper' : 'dark';
+  const [studentTheme, setStudentTheme] = useState<'dark' | 'light'>(() => {
+    const saved = localStorage.getItem('activeDeckStudentTheme');
+    return saved === 'light' ? 'light' : 'dark';
   });
 
-  const handleEditorThemeChange = (theme: 'dark' | 'paper') => {
-    setEditorTheme(theme);
-    localStorage.setItem('activeDeckEditorTheme', theme);
+  const [editorTheme, setEditorTheme] = useState<'dark' | 'light' | 'paper'>(() => {
+    const savedStudentTheme = localStorage.getItem('activeDeckStudentTheme');
+    if (savedStudentTheme === 'light') return 'light';
+    if (savedStudentTheme === 'dark') return 'dark';
+    const saved = localStorage.getItem('activeDeckEditorTheme');
+    return saved === 'paper' || saved === 'light' ? 'light' : 'dark';
+  });
+
+  const toggleStudentTheme = () => {
+    const nextTheme = studentTheme === 'dark' ? 'light' : 'dark';
+    setStudentTheme(nextTheme);
+    localStorage.setItem('activeDeckStudentTheme', nextTheme);
+    setEditorTheme(nextTheme);
+    localStorage.setItem('activeDeckEditorTheme', nextTheme);
+  };
+
+  const handleEditorThemeChange = (theme: 'dark' | 'light' | 'paper') => {
+    const normalized = theme === 'paper' || theme === 'light' ? 'light' : 'dark';
+    setEditorTheme(normalized);
+    localStorage.setItem('activeDeckEditorTheme', normalized);
+    setStudentTheme(normalized);
+    localStorage.setItem('activeDeckStudentTheme', normalized);
   };
 
   const [isEditingNotesTitle, setIsEditingNotesTitle] = useState(false);
@@ -577,10 +613,6 @@ function AppContent() {
       const n = parseInt(k, 10);
       if (!isNaN(n) && n > 0) candidates.push(n);
     });
-    Object.keys(notesDrawingsMap).forEach(k => {
-      const n = parseInt(k, 10);
-      if (!isNaN(n) && n > 0) candidates.push(n);
-    });
     Object.keys(pushedSlidesMap).forEach(k => {
       const n = parseInt(k, 10);
       if (!isNaN(n) && n > 0) candidates.push(n);
@@ -590,7 +622,7 @@ function AppContent() {
     if (highest > maxSlideSeen) {
       setMaxSlideSeen(highest);
     }
-  }, [presentation?.currentSlide, activeTab, notesTextMap, notesDrawingsMap, pushedSlidesMap, maxSlideSeen]);
+  }, [presentation?.currentSlide, activeTab, notesTextMap, pushedSlidesMap, maxSlideSeen]);
 
   // Reset maxSlideSeen when changing presentation session
   useEffect(() => {
@@ -700,7 +732,6 @@ function AppContent() {
   useEffect(() => {
     if (!activePresentationId) return;
     const savedNotes = localStorage.getItem(`activeDeckNotes_${activePresentationId}`);
-    const savedDrawings = localStorage.getItem(`activeDeckDrawings_${activePresentationId}`);
     const savedTitle = localStorage.getItem(`activeDeckNotesTitle_${activePresentationId}`);
     
     let parsedNotesMap: Record<string, string> = { '1': '' };
@@ -719,16 +750,6 @@ function AppContent() {
     }
     setNotesTextMap(parsedNotesMap);
 
-    let parsedDrawingsMap: Record<string, string> = {};
-    if (savedDrawings) {
-      try {
-        parsedDrawingsMap = JSON.parse(savedDrawings);
-      } catch (e) {
-        console.error('Failed to parse drawings map on load:', e);
-      }
-    }
-    setNotesDrawingsMap(parsedDrawingsMap);
-
     const savedStudentSlideDrawings = localStorage.getItem(`activeDeckStudentSlideDrawings_${activePresentationId}`) || '';
     let parsedStudentSlideDrawings: Record<string, string> = {};
     if (savedStudentSlideDrawings) {
@@ -736,7 +757,50 @@ function AppContent() {
         parsedStudentSlideDrawings = JSON.parse(savedStudentSlideDrawings);
       } catch (e) {}
     }
+
+    const savedStudentSlideTextAnnotations = localStorage.getItem(`activeDeckStudentSlideTextAnnotations_${activePresentationId}`) || '';
+    let parsedStudentSlideTextAnnotations: Record<number | string, SlideTextAnnotation[]> = {};
+    if (savedStudentSlideTextAnnotations) {
+      try {
+        parsedStudentSlideTextAnnotations = JSON.parse(savedStudentSlideTextAnnotations);
+      } catch (e) {}
+    }
+
+    // Migrate any legacy stroke.text items from studentSlideDrawings into editable percentage text annotations
+    Object.keys(parsedStudentSlideDrawings).forEach(slideKey => {
+      try {
+        const rawStrokes: DrawingStroke[] = JSON.parse(parsedStudentSlideDrawings[slideKey]);
+        if (Array.isArray(rawStrokes) && rawStrokes.some(s => s && s.text)) {
+          const migratedTextAnns: SlideTextAnnotation[] = [
+            ...getSlideTextAnnotationsForSlide(parsedStudentSlideTextAnnotations, slideKey)
+          ];
+          const remainingStrokes: DrawingStroke[] = [];
+          rawStrokes.forEach((s, idx) => {
+            if (s && s.text && s.points?.[0]) {
+              migratedTextAnns.push({
+                id: `migrated_${slideKey}_${idx}_${Date.now()}`,
+                xPct: Number(Math.max(1, Math.min(92, s.points[0].x / 10)).toFixed(2)),
+                yPct: Number(Math.max(1, Math.min(92, s.points[0].y / 10)).toFixed(2)),
+                text: s.text,
+                color: s.color || '#EF4444',
+                fontSize: 16
+              });
+            } else {
+              remainingStrokes.push(s);
+            }
+          });
+          parsedStudentSlideDrawings[slideKey] = JSON.stringify(remainingStrokes);
+          parsedStudentSlideTextAnnotations[slideKey] = migratedTextAnns;
+          const numKey = Number(slideKey);
+          if (!isNaN(numKey)) {
+            parsedStudentSlideTextAnnotations[numKey] = migratedTextAnns;
+          }
+        }
+      } catch {}
+    });
+
     setStudentSlideDrawingsMap(parsedStudentSlideDrawings);
+    setStudentSlideTextAnnotationsMap(parsedStudentSlideTextAnnotations);
 
     setNotesTitle(savedTitle || '');
     setSaveStatus('');
@@ -788,13 +852,13 @@ function AppContent() {
     if (!activePresentationId) return;
     
     const savedNotes = localStorage.getItem(`activeDeckNotes_${activePresentationId}`) || '';
-    const savedDrawings = localStorage.getItem(`activeDeckDrawings_${activePresentationId}`) || '';
     const savedStudentSlideDrawings = localStorage.getItem(`activeDeckStudentSlideDrawings_${activePresentationId}`) || '';
+    const savedStudentSlideTextAnnotations = localStorage.getItem(`activeDeckStudentSlideTextAnnotations_${activePresentationId}`) || '';
     const savedTitle = localStorage.getItem(`activeDeckNotesTitle_${activePresentationId}`) || '';
     
     const currentNotesRaw = JSON.stringify(notesTextMap);
-    const currentDrawingsRaw = JSON.stringify(notesDrawingsMap);
     const currentStudentSlideDrawingsRaw = JSON.stringify(studentSlideDrawingsMap);
+    const currentStudentSlideTextAnnotationsRaw = JSON.stringify(studentSlideTextAnnotationsMap);
     
     // Check if anything actually changed to avoid redundant saves and flicker
     let isSameNotes = false;
@@ -805,14 +869,6 @@ function AppContent() {
       isSameNotes = false;
     }
 
-    let isSameDrawings = false;
-    try {
-      const parsedSaved = JSON.parse(savedDrawings);
-      isSameDrawings = JSON.stringify(parsedSaved) === currentDrawingsRaw;
-    } catch (e) {
-      isSameDrawings = false;
-    }
-
     let isSameStudentSlideDrawings = false;
     try {
       const parsedSaved = JSON.parse(savedStudentSlideDrawings);
@@ -821,15 +877,28 @@ function AppContent() {
       isSameStudentSlideDrawings = false;
     }
 
-    if (isSameNotes && isSameDrawings && isSameStudentSlideDrawings && notesTitle === savedTitle) {
+    let isSameStudentSlideTextAnnotations = false;
+    try {
+      const parsedSaved = JSON.parse(savedStudentSlideTextAnnotations);
+      isSameStudentSlideTextAnnotations = JSON.stringify(parsedSaved) === currentStudentSlideTextAnnotationsRaw;
+    } catch (e) {
+      isSameStudentSlideTextAnnotations = false;
+    }
+
+    if (
+      isSameNotes &&
+      isSameStudentSlideDrawings &&
+      isSameStudentSlideTextAnnotations &&
+      notesTitle === savedTitle
+    ) {
       return;
     }
 
     setSaveStatus('saving');
     const timer = setTimeout(() => {
       localStorage.setItem(`activeDeckNotes_${activePresentationId}`, currentNotesRaw);
-      localStorage.setItem(`activeDeckDrawings_${activePresentationId}`, currentDrawingsRaw);
       localStorage.setItem(`activeDeckStudentSlideDrawings_${activePresentationId}`, currentStudentSlideDrawingsRaw);
+      localStorage.setItem(`activeDeckStudentSlideTextAnnotations_${activePresentationId}`, currentStudentSlideTextAnnotationsRaw);
       localStorage.setItem(`activeDeckNotesTitle_${activePresentationId}`, notesTitle);
       setSaveStatus('saved');
       
@@ -838,93 +907,7 @@ function AppContent() {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [notesTextMap, notesDrawingsMap, studentSlideDrawingsMap, notesTitle, activePresentationId]);
-
-  const convertStrokesToPng = (drawingJson: string): string => {
-    if (!drawingJson) return '';
-    try {
-      const strokes = JSON.parse(drawingJson);
-      if (!Array.isArray(strokes) || strokes.length === 0) return '';
-      
-      const canvas = document.createElement('canvas');
-      canvas.width = 1000;
-      canvas.height = 1000;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return '';
-      
-      // Draw white background
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, 1000, 1000);
-      
-      // Draw light grid lines
-      ctx.strokeStyle = '#f1f5f9';
-      ctx.lineWidth = 2;
-      const gridSize = 30;
-      for (let x = 0; x < 1000; x += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, 1000);
-        ctx.stroke();
-      }
-      for (let y = 0; y < 1000; y += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(1000, y);
-        ctx.stroke();
-      }
-      
-      // Draw strokes
-      strokes.forEach(stroke => {
-        if (!stroke.points || stroke.points.length === 0) return;
-        ctx.beginPath();
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.lineWidth = stroke.width;
-        
-        if (stroke.isHighlighter) {
-          ctx.strokeStyle = 'rgba(234, 179, 8, 0.35)'; // yellow highlighter
-        } else {
-          ctx.strokeStyle = stroke.color === '#FFFFFF' ? '#cbd5e1' : stroke.color;
-        }
-        
-        if (stroke.isArrow && stroke.points.length >= 2) {
-          const p1 = stroke.points[0];
-          const p2 = stroke.points[stroke.points.length - 1];
-          const dx = p2.x - p1.x;
-          const dy = p2.y - p1.y;
-          const angle = Math.atan2(dy, dx);
-          const headLength = Math.max(25, stroke.width * 4);
-          const arrowAngle = Math.PI / 6;
-
-          const h1x = p2.x - headLength * Math.cos(angle - arrowAngle);
-          const h1y = p2.y - headLength * Math.sin(angle - arrowAngle);
-          const h2x = p2.x - headLength * Math.cos(angle + arrowAngle);
-          const h2y = p2.y - headLength * Math.sin(angle + arrowAngle);
-
-          ctx.moveTo(p1.x, p1.y);
-          ctx.lineTo(p2.x, p2.y);
-          ctx.moveTo(p2.x, p2.y);
-          ctx.lineTo(h1x, h1y);
-          ctx.moveTo(p2.x, p2.y);
-          ctx.lineTo(h2x, h2y);
-        } else {
-          stroke.points.forEach((p: any, i: number) => {
-            if (i === 0) {
-              ctx.moveTo(p.x, p.y);
-            } else {
-              ctx.lineTo(p.x, p.y);
-            }
-          });
-        }
-        ctx.stroke();
-      });
-      
-      return canvas.toDataURL('image/png');
-    } catch (e) {
-      console.error("Failed to rasterize drawing strokes:", e);
-      return '';
-    }
-  };
+  }, [notesTextMap, studentSlideDrawingsMap, studentSlideTextAnnotationsMap, notesTitle, activePresentationId]);
 
   const handleDownloadNotes = async () => {
     if (!activePresentationId) return;
@@ -934,8 +917,8 @@ function AppContent() {
       presenterEmail: presentation?.presenterEmail,
       notesTitle,
       notesTextMap,
-      notesDrawingsMap,
       studentSlideDrawingsMap,
+      studentSlideTextAnnotationsMap,
       pushedSlidesMap,
       presenterDrawingsMap: presentation?.presenterDrawings,
       customTabs
@@ -1824,12 +1807,17 @@ function AppContent() {
   // Chat-only view for audience members who scanned the QR code
   if (isChatOnly) {
     if (isMobile) {
+      const isLight = studentTheme === 'light';
       return (
         <>
-          <div className="h-full w-full flex flex-col bg-slate-950 font-sans antialiased overflow-hidden">
+          <div className={`h-full w-full flex flex-col font-sans antialiased overflow-hidden transition-colors duration-200 ${
+            isLight ? 'light-mode bg-[#F8FAFC] text-slate-900' : 'dark-mode bg-[#0B0F19] text-slate-100'
+          }`}>
             {/* Pinned Slide Preview Container at the Top of Viewport */}
             {true && (
-              <div className="w-full shrink-0 bg-slate-950 border-b border-slate-900 relative z-20 shadow-lg">
+              <div className={`w-full shrink-0 border-b relative z-20 shadow-lg ${
+                isLight ? 'bg-white border-slate-200' : 'bg-slate-950 border-slate-900'
+              }`}>
                 <div 
                   className="w-full aspect-[16/9] max-h-[25vh] bg-black select-none relative group overflow-hidden"
                   onClick={() => {
@@ -1870,6 +1858,7 @@ function AppContent() {
                               viewBox="0 0 1000 1000"
                               preserveAspectRatio="none"
                               className="w-full h-full pointer-events-none z-10"
+                              style={{ filter: 'drop-shadow(0px 0px 1.5px rgba(0,0,0,0.75)) drop-shadow(0px 0px 1.5px rgba(255,255,255,0.55))' }}
                             >
                               {strokes.map((stroke, idx) => {
                                 if (stroke.text) {
@@ -1923,6 +1912,7 @@ function AppContent() {
                               viewBox="0 0 1000 1000"
                               preserveAspectRatio="none"
                               className="absolute inset-0 w-full h-full pointer-events-none z-20"
+                              style={{ filter: 'drop-shadow(0px 0px 1.5px rgba(0,0,0,0.75)) drop-shadow(0px 0px 1.5px rgba(255,255,255,0.55))' }}
                             >
                               {strokes.map((stroke, idx) => {
                                 if (stroke.text) {
@@ -1964,14 +1954,50 @@ function AppContent() {
                           return null;
                         }
                       })()}
+                      {/* Student Personal Slide Text Annotations Layer */}
+                      {(() => {
+                        const slideTextAnns = getSlideTextAnnotationsForSlide(studentSlideTextAnnotationsMap, activeTab);
+                        if (!slideTextAnns || slideTextAnns.length === 0) return null;
+                        const previewWidth = mobilePreviewBounds.renderedWidth || 320;
+                        const scaleRatio = Math.max(0.28, Math.min(1, previewWidth / 960));
+                        return (
+                          <div className="absolute inset-0 w-full h-full pointer-events-none z-30 overflow-hidden">
+                            {slideTextAnns.map((ann) => {
+                              if (!ann.text || !ann.text.trim()) return null;
+                              const isDarkInk = (ann.color || '').trim().toUpperCase() === '#000000';
+                              const fontSizePx = Math.max(7, Math.round((ann.fontSize || 16) * scaleRatio));
+                              return (
+                                <div
+                                  key={ann.id}
+                                  style={{
+                                    left: `${ann.xPct}%`,
+                                    top: `${ann.yPct}%`,
+                                    color: ann.color || '#EF4444',
+                                    fontSize: `${fontSizePx}px`,
+                                    lineHeight: 1.25,
+                                  }}
+                                  className={`absolute font-sans font-bold whitespace-pre-wrap break-words px-1 py-0.5 rounded shadow-md border max-w-[80%] ${
+                                    isDarkInk
+                                      ? 'bg-white/95 border-slate-400/90'
+                                      : 'bg-slate-950/90 border-white/25'
+                                  }`}
+                                >
+                                  {ann.text}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
                       </div>
                       {/* Floating badge */}
                       <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-black/60 border border-white/10 text-white text-[9px] font-bold">
                         Slide {activeTab}
                       </div>
-                      <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded-md bg-osu-orange text-white text-[9px] font-bold animate-pulse flex items-center gap-1">
-                        <span className="w-1 h-1 rounded-full bg-white"></span>
-                        Live
+                      <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded-md bg-osu-orange text-white text-[9px] font-bold uppercase tracking-wider animate-pulse flex items-center gap-1 shadow-md">
+                        <Pen className="w-2.5 h-2.5 shrink-0" />
+                        <ZoomIn className="w-2.5 h-2.5 shrink-0" />
+                        <span>Click Slide to Annotate &amp; Zoom</span>
                       </div>
                     </div>
                   ) : (
@@ -1985,7 +2011,9 @@ function AppContent() {
 
                 {/* Slide Out-of-Sync Alert for Mobile */}
                 {presentation && presentation.currentSlide !== undefined && presentation.currentSlide !== null && String(presentation.currentSlide) !== activeTab && (
-                  <div className="flex items-center justify-between p-2 bg-orange-500/10 border-t border-orange-500/20 text-[9px] text-orange-200">
+                  <div className={`flex items-center justify-between p-2 border-t text-[9px] ${
+                    isLight ? 'bg-orange-50 border-orange-200 text-orange-800' : 'bg-orange-500/10 border-orange-500/20 text-orange-200'
+                  }`}>
                     <span className="flex items-center gap-1 font-medium">
                       <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse shrink-0" />
                       Presenter is on Slide {presentation.currentSlide}
@@ -2004,14 +2032,16 @@ function AppContent() {
 
             {/* Dual Tab Switcher Button Group */}
             {presentation?.chatEnabled !== false && (
-              <div className="flex bg-slate-900 border-b border-slate-800 shrink-0 p-1 relative z-20 shadow-md">
+              <div className={`flex border-b shrink-0 p-1 relative z-20 shadow-sm ${
+                isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
+              }`}>
                 <button
                   type="button"
                   onClick={() => setMobileTab('chat')}
                   className={`flex-1 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                     mobileTab === 'chat'
                       ? 'bg-osu-orange text-white shadow-md'
-                      : 'text-slate-400 hover:text-white'
+                      : isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-white'
                   }`}
                 >
                   <MessageSquare className="w-3.5 h-3.5" />
@@ -2023,7 +2053,7 @@ function AppContent() {
                   className={`flex-1 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                     mobileTab === 'notes'
                       ? 'bg-osu-orange text-white shadow-md'
-                      : 'text-slate-400 hover:text-white'
+                      : isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-white'
                   }`}
                 >
                   <NotebookPen className="w-3.5 h-3.5" />
@@ -2033,9 +2063,9 @@ function AppContent() {
             )}
 
             {/* Content Area Underneath Switcher */}
-            <div className="flex-1 min-h-0 flex flex-col relative z-10 bg-slate-950">
+            <div className={`flex-1 min-h-0 flex flex-col relative z-10 ${isLight ? 'bg-[#F8FAFC]' : 'bg-[#0B0F19]'}`}>
               {mobileTab === 'chat' && presentation?.chatEnabled !== false ? (
-                <div className="w-full h-full bg-[#111827] relative flex-1 flex flex-col min-h-0">
+                <div className={`w-full h-full relative flex-1 flex flex-col min-h-0 ${isLight ? 'bg-[#FFFFFF]' : 'bg-[#111827]'}`}>
                   <ChatSidebar 
                     isChatOnly={true} 
                     presentation={presentation} 
@@ -2043,26 +2073,35 @@ function AppContent() {
                     presentationLoaded={presentationLoaded} 
                     showAttendance={settings?.showAttendance}
                     onJoinChange={setHasJoinedChat}
+                    themeMode={studentTheme}
                   />
                 </div>
               ) : (
-                <div className="flex-1 flex flex-col min-h-0 p-2.5 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 overflow-y-auto custom-scrollbar">
+                <div className={`flex-1 flex flex-col min-h-0 p-2.5 overflow-y-auto custom-scrollbar ${
+                  isLight ? 'bg-[#F8FAFC]' : 'bg-gradient-to-br from-slate-900 via-[#0B0F19] to-slate-900'
+                }`}>
                   {!hasJoinedChat && presentation?.chatEnabled !== false ? (
-                    <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-4">
+                    <div className={`flex-1 flex flex-col items-center justify-center p-6 text-center space-y-4 rounded-2xl border ${
+                      isLight ? 'bg-[#FFFFFF] border-slate-200' : 'bg-slate-900/40 border-slate-800'
+                    }`}>
                       <div className="w-12 h-12 rounded-2xl bg-osu-orange/10 border border-osu-orange/20 flex items-center justify-center text-osu-orange shadow-lg">
                         <Lock className="w-5 h-5 animate-pulse" />
                       </div>
                       <div className="space-y-1.5 max-w-xs">
-                        <h3 className="text-sm font-black uppercase tracking-wider text-slate-200">Notes Locked</h3>
-                        <p className="text-xs text-slate-400 leading-relaxed">
+                        <h3 className={`text-sm font-black uppercase tracking-wider ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>Notes Locked</h3>
+                        <p className={`text-xs leading-relaxed ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
                           Join the discussion by entering your name and email in the Chat tab to unlock real-time, slide-by-slide note-taking.
                         </p>
                       </div>
                     </div>
                   ) : (
-                    <div className="flex-1 flex flex-col space-y-2 min-h-0">
+                    <div className={`flex-1 flex flex-col space-y-2 min-h-0 p-2.5 rounded-2xl border ${
+                      isLight ? 'bg-[#FFFFFF] border-slate-200 shadow-sm' : 'bg-transparent border-transparent'
+                    }`}>
                       {/* Compact Consolidated Mobile Notes Header */}
-                      <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 bg-slate-900/90 border border-slate-800 rounded-xl shrink-0">
+                      <div className={`flex items-center justify-between gap-2 px-2.5 py-1.5 border rounded-xl shrink-0 ${
+                        isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/90 border-slate-800'
+                      }`}>
                         <div className="flex items-center gap-1.5 min-w-0 flex-1">
                           {isEditingNotesTitle ? (
                             <input
@@ -2077,16 +2116,20 @@ function AppContent() {
                                 }
                               }}
                               placeholder="Untitled Notes"
-                              className="h-7 px-2 text-xs font-bold bg-slate-800 border border-osu-orange rounded-md text-slate-100 placeholder-slate-500 focus:outline-none min-w-0 flex-1"
+                              className={`h-7 px-2 text-xs font-bold border border-osu-orange rounded-md focus:outline-none min-w-0 flex-1 ${
+                                isLight ? 'bg-white text-slate-900 placeholder-slate-400' : 'bg-slate-800 text-slate-100 placeholder-slate-500'
+                              }`}
                             />
                           ) : (
                             <button
                               type="button"
                               onClick={() => setIsEditingNotesTitle(true)}
-                              className="group flex items-center gap-1.5 px-1.5 py-1 rounded-md hover:bg-slate-800 transition-colors text-left min-w-0 max-w-full cursor-pointer"
+                              className={`group flex items-center gap-1.5 px-1.5 py-1 rounded-md transition-colors text-left min-w-0 max-w-full cursor-pointer ${
+                                isLight ? 'hover:bg-slate-200/70' : 'hover:bg-slate-800'
+                              }`}
                               title="Click to rename notes"
                             >
-                              <span className="text-xs font-bold text-slate-100 truncate">
+                              <span className={`text-xs font-bold truncate ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>
                                 {notesTitle.trim() || 'Untitled Notes'}
                               </span>
                               <Edit3 className="w-3 h-3 text-slate-500 group-hover:text-osu-orange shrink-0" />
@@ -2094,7 +2137,11 @@ function AppContent() {
                           )}
                           {saveStatus && (
                             <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded shrink-0 transition-all duration-300 ${
-                              saveStatus === 'saving' ? 'text-slate-400 animate-pulse' : 'text-green-400 bg-green-500/10 border border-green-500/20'
+                              saveStatus === 'saving'
+                                ? 'text-slate-400 animate-pulse'
+                                : isLight
+                                  ? 'text-green-700 bg-green-100 border border-green-300'
+                                  : 'text-green-400 bg-green-500/10 border border-green-500/20'
                             }`}>
                               {saveStatus === 'saving' ? 'Saving...' : 'Saved'}
                             </span>
@@ -2103,18 +2150,38 @@ function AppContent() {
                         <div className="flex items-center gap-1.5 shrink-0">
                           <button
                             type="button"
+                            onClick={toggleStudentTheme}
+                            className={`p-1.5 rounded-lg border transition-all cursor-pointer active:scale-95 ${
+                              isLight
+                                ? 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
+                                : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                            }`}
+                            title={isLight ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+                          >
+                            {isLight ? <Moon className="w-3 h-3 text-slate-700" /> : <Sun className="w-3 h-3 text-amber-400" />}
+                          </button>
+                          <button
+                            type="button"
                             onClick={handleAddCustomTab}
-                            className="flex items-center gap-1 px-2 py-1 text-[9px] font-bold text-purple-300 bg-purple-950/80 hover:bg-purple-900 border border-purple-500/40 hover:border-purple-400 rounded-lg transition-all cursor-pointer active:scale-95"
+                            className={`flex items-center gap-1 px-2 py-1 text-[9px] font-bold border rounded-lg transition-all cursor-pointer active:scale-95 ${
+                              isLight
+                                ? 'text-purple-700 bg-purple-50 hover:bg-purple-100 border-purple-200'
+                                : 'text-purple-300 bg-purple-950/80 hover:bg-purple-900 border-purple-500/40 hover:border-purple-400'
+                            }`}
                             title="Add a new blank note tab"
                           >
-                            <Plus className="w-2.5 h-2.5 text-purple-400" />
+                            <Plus className="w-2.5 h-2.5 text-purple-500" />
                             <span>Blank Note</span>
                           </button>
                           <button
                             type="button"
                             onClick={handleDownloadNotes}
-                            disabled={isNotesEmpty(notesTextMap, notesDrawingsMap) && Object.keys(pushedSlidesMap).length === 0}
-                            className="flex items-center gap-1 px-2 py-1 text-[9px] font-bold text-slate-200 hover:text-white bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed border border-slate-700 hover:border-osu-orange/50 rounded-lg transition-all cursor-pointer"
+                            disabled={isNotesEmpty(notesTextMap, studentSlideDrawingsMap, studentSlideTextAnnotationsMap) && Object.keys(pushedSlidesMap).length === 0}
+                            className={`flex items-center gap-1 px-2 py-1 text-[9px] font-bold disabled:opacity-40 disabled:cursor-not-allowed border hover:border-osu-orange/50 rounded-lg transition-all cursor-pointer ${
+                              isLight
+                                ? 'text-slate-800 bg-white hover:bg-slate-100 border-slate-200'
+                                : 'text-slate-200 hover:text-white bg-slate-800 hover:bg-slate-700 border-slate-700'
+                            }`}
                             title="Export notes as Word document (.docx)"
                           >
                             <Download className="w-3 h-3 text-osu-orange" />
@@ -2127,21 +2194,25 @@ function AppContent() {
                       {(() => {
                         const slidesWithNotes = Array.from(new Set([
                           ...Object.keys(notesTextMap),
-                          ...Object.keys(notesDrawingsMap)
+                          ...Object.keys(studentSlideDrawingsMap),
+                          ...Object.keys(studentSlideTextAnnotationsMap).map(String)
                         ])).filter(slide => {
                           const html = notesTextMap[slide];
                           const hasText = html && html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim() !== '';
-                          
-                          const drawingJson = notesDrawingsMap[slide];
-                          let hasDrawing = false;
+
+                          const slideDrawingJson = studentSlideDrawingsMap[slide];
+                          let hasSlideDrawing = false;
                           try {
-                            if (drawingJson) {
-                              const strokes = JSON.parse(drawingJson);
-                              hasDrawing = Array.isArray(strokes) && strokes.length > 0;
+                            if (slideDrawingJson) {
+                              const strokes = JSON.parse(slideDrawingJson);
+                              hasSlideDrawing = Array.isArray(strokes) && strokes.length > 0;
                             }
                           } catch {}
+
+                          const slideTextAnns = getSlideTextAnnotationsForSlide(studentSlideTextAnnotationsMap, slide);
+                          const hasSlideTextAnns = slideTextAnns.some(a => a.text && a.text.trim() !== '');
                           
-                          return hasText || hasDrawing;
+                          return hasText || hasSlideDrawing || hasSlideTextAnns;
                         });
                         
                         const presenterSlide = presentation?.currentSlide !== undefined && presentation.currentSlide !== null 
@@ -2153,7 +2224,8 @@ function AppContent() {
                           maxSlideSeen,
                           presentation?.currentSlide || 1,
                           ...Object.keys(notesTextMap).map(Number).filter(n => !isNaN(n)),
-                          ...Object.keys(notesDrawingsMap).map(Number).filter(n => !isNaN(n)),
+                          ...Object.keys(studentSlideDrawingsMap).map(Number).filter(n => !isNaN(n)),
+                          ...Object.keys(studentSlideTextAnnotationsMap).map(Number).filter(n => !isNaN(n)),
                           ...Object.keys(pushedSlidesMap).map(Number).filter(n => !isNaN(n))
                         );
 
@@ -2195,21 +2267,23 @@ function AppContent() {
                                       className={`px-2 py-0.5 text-[9px] font-bold rounded border transition-all flex items-center gap-1 cursor-pointer shrink-0 group ${
                                         isCurrentTab 
                                           ? 'bg-purple-600 border-purple-500 text-white shadow-sm font-bold'
-                                          : 'bg-purple-950/80 border-purple-500/40 text-purple-200 hover:bg-purple-900 hover:border-purple-400 hover:text-white'
+                                          : isLight
+                                            ? 'bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100'
+                                            : 'bg-purple-950/80 border-purple-500/40 text-purple-200 hover:bg-purple-900 hover:border-purple-400 hover:text-white'
                                       }`}
                                       title={`Custom Note Tab: ${tab.label}`}
                                     >
-                                      <FileText className="w-2.5 h-2.5 text-purple-300 shrink-0" />
+                                      <FileText className="w-2.5 h-2.5 text-purple-400 shrink-0" />
                                       <span>{tab.label}</span>
                                       {hasContent && !isCurrentTab && (
-                                        <span className="w-0.5 h-0.5 rounded-full bg-purple-300/80" />
+                                        <span className="w-0.5 h-0.5 rounded-full bg-purple-400/80" />
                                       )}
                                       <span 
                                         onClick={(e) => handleDeleteCustomTab(tab.id, e)}
                                         className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-purple-800/80 rounded transition-opacity ml-0.5 cursor-pointer"
                                         title="Delete note tab"
                                       >
-                                        <X className="w-2 h-2 text-purple-200 hover:text-white" />
+                                        <X className="w-2 h-2 text-purple-300 hover:text-white" />
                                       </span>
                                     </button>
                                   );
@@ -2223,7 +2297,9 @@ function AppContent() {
                                     className={`px-2 py-0.5 text-[9px] font-bold rounded border transition-all flex items-center gap-1 cursor-pointer shrink-0 ${
                                       isCurrentTab 
                                         ? 'bg-osu-orange border-osu-orange text-white shadow-sm'
-                                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                                        : isLight
+                                          ? 'bg-slate-100 border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                                          : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
                                     }`}
                                   >
                                     <span>{tab.label}</span>
@@ -2231,7 +2307,7 @@ function AppContent() {
                                       <span className="w-1 h-1 rounded-full bg-green-400 animate-pulse border border-green-300" />
                                     )}
                                     {!isPresenterSlide && hasContent && (
-                                      <span className="w-0.5 h-0.5 rounded-full bg-orange-300/60" />
+                                      <span className="w-0.5 h-0.5 rounded-full bg-orange-400/80" />
                                     )}
                                   </button>
                                 );
@@ -2241,43 +2317,23 @@ function AppContent() {
                         );
                       })()}
 
-                      {/* Editor Area (Fills remaining mobile viewport height, with inline Typed/Draw pill in toolbar) */}
+                      {/* Editor Area (Permanently locked to Typed Notes RichTextEditor) */}
                       <div className="flex-1 min-h-[200px] flex flex-col">
-                        {notesMode === 'text' ? (
-                          <RichTextEditor
-                            value={notesTextMap[activeTab] || ''}
-                            onChange={(newVal) => {
-                              setLastTypedAt(Date.now());
-                              setNotesTextMap(prev => ({
-                                ...prev,
-                                [activeTab]: newVal
-                              }));
-                            }}
-                            onFocus={() => setIsEditorFocused(true)}
-                            onBlur={() => setIsEditorFocused(false)}
-                            placeholder={`Type notes for Slide ${activeTab}...`}
-                            className="flex-1"
-                            notesMode={notesMode}
-                            onNotesModeChange={setNotesMode}
-                            editorTheme={editorTheme}
-                            onEditorThemeChange={handleEditorThemeChange}
-                          />
-                        ) : (
-                          <HandwrittenCanvas
-                            value={notesDrawingsMap[activeTab] || ''}
-                            onChange={(newVal) => {
-                              setNotesDrawingsMap(prev => ({
-                                ...prev,
-                                [activeTab]: newVal
-                              }));
-                            }}
-                            placeholder={`Draw notes for Slide ${activeTab}...`}
-                            notesMode={notesMode}
-                            onNotesModeChange={setNotesMode}
-                            editorTheme={editorTheme}
-                            onEditorThemeChange={handleEditorThemeChange}
-                          />
-                        )}
+                        <RichTextEditor
+                          value={notesTextMap[activeTab] || ''}
+                          onChange={(newVal) => {
+                            setLastTypedAt(Date.now());
+                            setNotesTextMap(prev => ({
+                              ...prev,
+                              [activeTab]: newVal
+                            }));
+                          }}
+                          onFocus={() => setIsEditorFocused(true)}
+                          onBlur={() => setIsEditorFocused(false)}
+                          placeholder={`Type notes for Slide ${activeTab}...`}
+                          className="flex-1"
+                          editorTheme={studentTheme}
+                        />
                       </div>
                     </div>
                   )}
@@ -2299,25 +2355,40 @@ function AppContent() {
                 [activeTab]: newJson
               }));
             }}
+            textAnnotations={getSlideTextAnnotationsForSlide(studentSlideTextAnnotationsMap, activeTab)}
+            onTextAnnotationsChange={(newAnns) => handleUpdateSlideTextAnnotations(activeTab, newAnns)}
+            onCompositePreviewUpdate={(dataUrl) => {
+              setCompositedSlidePreviewsMap(prev => ({
+                ...prev,
+                [activeTab]: dataUrl
+              }));
+            }}
           />
         </>
       );
     }
 
     const isChatCollapsedEffective = isStudentChatCollapsed && hasJoinedChat;
+    const isLight = studentTheme === 'light';
 
     return (
       <>
-        <div className={`h-full w-full flex flex-col ${chatLayoutDirection === 'right' ? 'md:flex-row-reverse' : 'md:flex-row'} bg-slate-950 font-sans antialiased overflow-hidden`}>
+        <div className={`h-full w-full flex flex-col ${chatLayoutDirection === 'right' ? 'md:flex-row-reverse' : 'md:flex-row'} font-sans antialiased overflow-hidden transition-colors duration-200 ${
+          isLight ? 'light-mode bg-[#F8FAFC] text-slate-900' : 'dark-mode bg-[#0B0F19] text-slate-100'
+        }`}>
           {/* Chat Sidebar / Collapsible Vertical Rail */}
           {presentation?.chatEnabled !== false && (
             <>
               {isChatCollapsedEffective && (
                 <div
                   onClick={() => toggleStudentChatCollapsed(false)}
-                  className={`hidden md:flex w-11 h-full bg-[#111827] hover:bg-slate-900 ${
+                  className={`hidden md:flex w-11 h-full ${
                     chatLayoutDirection === 'right' ? 'border-l' : 'border-r'
-                  } border-slate-800 flex-col items-center py-3 justify-between shrink-0 cursor-pointer select-none transition-colors group z-20`}
+                  } ${
+                    isLight
+                      ? 'bg-[#FFFFFF] hover:bg-slate-50 border-slate-200'
+                      : 'bg-[#111827] hover:bg-slate-900 border-slate-800'
+                  } flex-col items-center py-3 justify-between shrink-0 cursor-pointer select-none transition-colors group z-20`}
                   title="Expand ActiveDeck Chat"
                 >
                   <div className="flex flex-col items-center gap-3">
@@ -2327,7 +2398,11 @@ function AppContent() {
                         e.stopPropagation();
                         toggleStudentChatCollapsed(false);
                       }}
-                      className="p-1.5 rounded-lg bg-slate-800/90 group-hover:bg-osu-orange text-slate-300 group-hover:text-white border border-slate-700 group-hover:border-osu-orange transition-colors relative cursor-pointer"
+                      className={`p-1.5 rounded-lg group-hover:bg-osu-orange group-hover:text-white border group-hover:border-osu-orange transition-colors relative cursor-pointer ${
+                        isLight
+                          ? 'bg-slate-100 text-slate-600 border-slate-200'
+                          : 'bg-slate-800/90 text-slate-300 border-slate-700'
+                      }`}
                       title="Expand Chat"
                     >
                       {chatLayoutDirection === 'left' ? (
@@ -2350,7 +2425,9 @@ function AppContent() {
                   <div className="flex-1 flex items-center justify-center">
                     <div className="flex items-center gap-2 -rotate-90 whitespace-nowrap">
                       <MessageSquare className="w-3.5 h-3.5 text-osu-orange shrink-0" />
-                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 group-hover:text-slate-200 transition-colors">
+                      <span className={`text-[10px] font-black uppercase tracking-[0.2em] transition-colors ${
+                        isLight ? 'text-slate-500 group-hover:text-slate-900' : 'text-slate-400 group-hover:text-slate-200'
+                      }`}>
                         ActiveDeck Chat
                       </span>
                     </div>
@@ -2362,7 +2439,9 @@ function AppContent() {
 
               <div 
                 style={{ width: !hasJoinedChat ? '660px' : `${audienceChatWidth}px` }}
-                className={`${isChatCollapsedEffective ? 'hidden' : 'w-full md:w-auto'} h-full bg-[#111827] relative flex-shrink-0 transition-all duration-300`}
+                className={`${isChatCollapsedEffective ? 'hidden' : 'w-full md:w-auto'} h-full ${
+                  isLight ? 'bg-[#FFFFFF]' : 'bg-[#111827]'
+                } relative flex-shrink-0 transition-all duration-300`}
               >
                 <ChatSidebar 
                   isChatOnly={true} 
@@ -2375,6 +2454,7 @@ function AppContent() {
                   chatLayoutDirection={chatLayoutDirection}
                   isCollapsedRail={isChatCollapsedEffective}
                   onUnreadActivityChange={setChatUnreadInfo}
+                  themeMode={studentTheme}
                 />
               </div>
 
@@ -2384,25 +2464,37 @@ function AppContent() {
                   onMouseDown={handleMouseDownAudienceChat}
                   onTouchStart={handleTouchStartAudienceChat}
                   onDoubleClick={handleDoubleClickAudienceChat}
-                  className="hidden md:flex w-2.5 h-full cursor-col-resize items-center justify-center flex-shrink-0 group/splitter select-none bg-slate-950 border-l border-r border-slate-900"
+                  className={`hidden md:flex w-2.5 h-full cursor-col-resize items-center justify-center flex-shrink-0 group/splitter select-none border-l border-r ${
+                    isLight ? 'bg-slate-100 border-slate-200' : 'bg-[#0B0F19] border-slate-900'
+                  }`}
                   title="Drag to resize chat (double-click to reset)"
                 >
-                  <div className="w-[3px] h-20 bg-slate-800 group-hover/splitter:bg-osu-orange/70 group-active/splitter:bg-osu-orange rounded-full transition-all duration-200" />
+                  <div className={`w-[3px] h-20 group-hover/splitter:bg-osu-orange/70 group-active/splitter:bg-osu-orange rounded-full transition-all duration-200 ${
+                    isLight ? 'bg-slate-300' : 'bg-slate-800'
+                  }`} />
                 </div>
               )}
             </>
           )}
 
           {/* Main Notes & Slide Preview Workspace */}
-          <div className={`hidden md:flex flex-1 h-full flex-col bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 ${presentation?.chatEnabled !== false ? 'border-l border-slate-800/80' : ''} p-3 md:p-4 relative overflow-hidden`}>
+          <div className={`hidden md:flex flex-1 h-full flex-col ${
+            isLight
+              ? `bg-[#F8FAFC] ${presentation?.chatEnabled !== false ? 'border-l border-slate-200' : ''}`
+              : `bg-gradient-to-br from-slate-900 via-[#0B0F19] to-slate-900 ${presentation?.chatEnabled !== false ? 'border-l border-slate-800/80' : ''}`
+          } p-3 md:p-4 relative overflow-hidden`}>
           {/* Ambient lighting glow */}
           <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-osu-orange/5 rounded-full blur-[100px] pointer-events-none" />
           
           <div className="w-full space-y-2.5 relative z-10 animate-in fade-in zoom-in-95 duration-500 flex flex-col h-full min-h-0">
-            {/* Consolidated Top Header Bar (Logo, Inline Click-to-Edit Notes Title, Save Status, Session Info, Export .docx) */}
-            <div className="flex items-center justify-between gap-3 px-3.5 py-2 bg-slate-900/90 border border-slate-800/90 rounded-xl shrink-0 select-none shadow-md">
+            {/* Consolidated Top Header Bar (Logo, Inline Click-to-Edit Notes Title, Save Status, Session Info, Theme Toggle, Export .docx) */}
+            <div className={`flex items-center justify-between gap-3 px-3.5 py-2 border rounded-xl shrink-0 select-none ${
+              isLight ? 'bg-[#FFFFFF] border-slate-200 shadow-sm' : 'bg-slate-900/90 border-slate-800/90 shadow-md'
+            }`}>
               <div className="flex items-center gap-2 min-w-0 flex-1">
-                <div className="w-6 h-6 p-1 bg-slate-800/90 rounded-lg border border-slate-700/80 flex items-center justify-center shrink-0">
+                <div className={`w-6 h-6 p-1 rounded-lg border flex items-center justify-center shrink-0 ${
+                  isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-800/90 border-slate-700/80'
+                }`}>
                   <img 
                     src={settings?.theme.logoUrl || "https://a.espncdn.com/i/teamlogos/ncaa/500/197.png"} 
                     alt="Logo" 
@@ -2410,10 +2502,12 @@ function AppContent() {
                     referrerPolicy="no-referrer"
                   />
                 </div>
-                <span className="text-[11px] font-black uppercase tracking-wider text-slate-400 shrink-0 hidden lg:inline">
+                <span className={`text-[11px] font-black uppercase tracking-wider shrink-0 hidden lg:inline ${
+                  isLight ? 'text-slate-500' : 'text-slate-400'
+                }`}>
                   ActiveDeck Notes
                 </span>
-                <span className="text-slate-700 hidden lg:inline">/</span>
+                <span className={`hidden lg:inline ${isLight ? 'text-slate-300' : 'text-slate-700'}`}>/</span>
 
                 {/* Inline Click-to-Edit Notes Title (Google Docs style) */}
                 {hasJoinedChat || presentation?.chatEnabled === false ? (
@@ -2431,16 +2525,22 @@ function AppContent() {
                           }
                         }}
                         placeholder="Untitled Lecture Notes"
-                        className="h-7 px-2.5 text-xs font-bold bg-slate-800 border border-osu-orange rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none w-full max-w-[260px]"
+                        className={`h-7 px-2.5 text-xs font-bold border border-osu-orange rounded-lg focus:outline-none w-full max-w-[260px] ${
+                          isLight ? 'bg-white text-slate-900 placeholder-slate-400' : 'bg-slate-800 text-slate-100 placeholder-slate-500'
+                        }`}
                       />
                     ) : (
                       <button
                         type="button"
                         onClick={() => setIsEditingNotesTitle(true)}
-                        className="group flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-slate-800/90 border border-transparent hover:border-slate-700/80 transition-all text-left min-w-0 max-w-[280px] cursor-pointer"
+                        className={`group flex items-center gap-1.5 px-2 py-1 rounded-lg border border-transparent transition-all text-left min-w-0 max-w-[280px] cursor-pointer ${
+                          isLight
+                            ? 'hover:bg-slate-100 hover:border-slate-200'
+                            : 'hover:bg-slate-800/90 hover:border-slate-700/80'
+                        }`}
                         title="Click to rename notes title"
                       >
-                        <span className="text-xs font-bold text-slate-100 truncate">
+                        <span className={`text-xs font-bold truncate ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>
                           {notesTitle.trim() || 'Untitled Lecture Notes'}
                         </span>
                         <Edit3 className="w-3 h-3 text-slate-500 group-hover:text-osu-orange shrink-0 transition-colors" />
@@ -2449,29 +2549,35 @@ function AppContent() {
 
                     {saveStatus && (
                       <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md shrink-0 transition-all duration-300 ${
-                        saveStatus === 'saving' ? 'text-slate-400 animate-pulse' : 'text-green-400 bg-green-500/10 border border-green-500/20'
+                        saveStatus === 'saving'
+                          ? 'text-slate-400 animate-pulse'
+                          : isLight
+                            ? 'text-green-700 bg-green-100 border border-green-300'
+                            : 'text-green-400 bg-green-500/10 border border-green-500/20'
                       }`}>
                         {saveStatus === 'saving' ? 'Saving...' : 'Auto-saved'}
                       </span>
                     )}
                   </div>
                 ) : (
-                  <span className="text-xs font-black uppercase tracking-wider text-white">ActiveDeck Notes</span>
+                  <span className={`text-xs font-black uppercase tracking-wider ${isLight ? 'text-slate-900' : 'text-white'}`}>ActiveDeck Notes</span>
                 )}
               </div>
 
-              {/* Right Controls: Session PIN, Current Slide, Swap Sides, Export (.docx) */}
-              <div className="flex items-center gap-2.5 shrink-0">
+              {/* Right Controls: Session PIN, Current Slide, Light/Dark Toggle, Swap Sides, Export (.docx) */}
+              <div className="flex items-center gap-2 shrink-0">
                 {presentation && (
-                  <div className="hidden xl:flex items-center gap-3 text-[10px] px-2.5 py-1 rounded-lg bg-slate-950/60 border border-slate-800/80">
+                  <div className={`hidden xl:flex items-center gap-3 text-[10px] px-2.5 py-1 rounded-lg border ${
+                    isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/60 border-slate-800/80'
+                  }`}>
                     <div>
                       <span className="text-slate-500 uppercase font-black tracking-wider text-[8px] mr-1.5">PIN</span>
                       <span className="font-mono font-bold text-osu-orange text-xs">{presentation.pinCode || 'N/A'}</span>
                     </div>
-                    <div className="h-3.5 w-px bg-slate-800" />
+                    <div className={`h-3.5 w-px ${isLight ? 'bg-slate-200' : 'bg-slate-800'}`} />
                     <div>
                       <span className="text-slate-500 uppercase font-black tracking-wider text-[8px] mr-1.5">Slide</span>
-                      <span className="font-bold text-slate-200 text-xs">
+                      <span className={`font-bold text-xs ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
                         {presentation.currentSlide !== undefined && presentation.currentSlide !== null 
                           ? presentation.currentSlide 
                           : 'N/A'}
@@ -2480,6 +2586,25 @@ function AppContent() {
                   </div>
                 )}
 
+                {/* Subtle Sun/Moon Light/Dark Mode Toggle Button */}
+                <button
+                  type="button"
+                  onClick={toggleStudentTheme}
+                  className={`p-1.5 rounded-lg border transition-all flex items-center justify-center cursor-pointer outline-none active:scale-95 ${
+                    isLight
+                      ? 'bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-slate-900 border-slate-200 hover:border-slate-300'
+                      : 'bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white border-slate-700/80 hover:border-slate-600'
+                  }`}
+                  title={isLight ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+                  aria-label={isLight ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+                >
+                  {isLight ? (
+                    <Moon className="w-3.5 h-3.5 text-slate-700" />
+                  ) : (
+                    <Sun className="w-3.5 h-3.5 text-amber-400" />
+                  )}
+                </button>
+
                 <button
                   type="button"
                   onClick={() => {
@@ -2487,7 +2612,11 @@ function AppContent() {
                     setChatLayoutDirection(nextDir);
                     localStorage.setItem('activeDeckChatLayoutDirection', nextDir);
                   }}
-                  className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/80 hover:border-slate-600 transition-all flex items-center justify-center cursor-pointer outline-none active:scale-95"
+                  className={`p-1.5 rounded-lg border transition-all flex items-center justify-center cursor-pointer outline-none active:scale-95 ${
+                    isLight
+                      ? 'bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-slate-900 border-slate-200 hover:border-slate-300'
+                      : 'bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white border-slate-700/80 hover:border-slate-600'
+                  }`}
                   title={chatLayoutDirection === 'left' ? "Move Chat to Right / Notes to Left" : "Move Chat to Left / Notes to Right"}
                 >
                   <ArrowLeftRight className="w-3.5 h-3.5" />
@@ -2497,8 +2626,12 @@ function AppContent() {
                   <button
                     type="button"
                     onClick={handleDownloadNotes}
-                    disabled={isNotesEmpty(notesTextMap, notesDrawingsMap) && Object.keys(pushedSlidesMap).length === 0}
-                    className="h-8 px-3 rounded-lg bg-slate-800/90 hover:bg-slate-800 text-slate-100 hover:text-white border border-slate-700 hover:border-osu-orange/60 disabled:opacity-40 disabled:cursor-not-allowed text-[11px] font-bold tracking-wide transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-sm"
+                    disabled={isNotesEmpty(notesTextMap, studentSlideDrawingsMap, studentSlideTextAnnotationsMap) && Object.keys(pushedSlidesMap).length === 0}
+                    className={`h-8 px-3 rounded-lg border hover:border-osu-orange/60 disabled:opacity-40 disabled:cursor-not-allowed text-[11px] font-bold tracking-wide transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-sm ${
+                      isLight
+                        ? 'bg-white hover:bg-slate-50 text-slate-800 hover:text-slate-900 border-slate-200'
+                        : 'bg-slate-800/90 hover:bg-slate-800 text-slate-100 hover:text-white border-slate-700'
+                    }`}
                     title="Export notes & slides to Word (.docx)"
                   >
                     <Download className="w-3.5 h-3.5 text-osu-orange" />
@@ -2509,15 +2642,19 @@ function AppContent() {
             </div>
 
             {/* Note-Taking Section */}
-            <div className="flex-1 flex flex-col min-h-0 bg-slate-900/30 border border-slate-800/80 rounded-2xl p-3 shadow-xl backdrop-blur-sm space-y-2.5">
+            <div className={`flex-1 flex flex-col min-h-0 border rounded-2xl p-3 space-y-2.5 transition-colors duration-200 ${
+              isLight
+                ? 'bg-[#FFFFFF] border-slate-200 shadow-sm'
+                : 'bg-slate-900/30 border-slate-800/80 shadow-xl backdrop-blur-sm'
+            }`}>
               {!hasJoinedChat && presentation?.chatEnabled !== false ? (
                 <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-4 animate-in fade-in duration-305">
                   <div className="w-12 h-12 rounded-2xl bg-osu-orange/10 border border-osu-orange/20 flex items-center justify-center text-osu-orange shadow-lg shadow-orange-500/5">
                     <Lock className="w-5 h-5 animate-pulse" />
                   </div>
                   <div className="space-y-1.5 max-w-sm">
-                    <h3 className="text-sm font-black uppercase tracking-wider text-slate-200">Notes Locked</h3>
-                    <p className="text-xs text-slate-400 leading-relaxed">
+                    <h3 className={`text-sm font-black uppercase tracking-wider ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>Notes Locked</h3>
+                    <p className={`text-xs leading-relaxed ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
                       Join the discussion by entering your name and email in the Chat panel to unlock real-time, slide-by-slide note-taking.
                     </p>
                   </div>
@@ -2528,21 +2665,25 @@ function AppContent() {
                   {(() => {
                     const slidesWithNotes = Array.from(new Set([
                       ...Object.keys(notesTextMap),
-                      ...Object.keys(notesDrawingsMap)
+                      ...Object.keys(studentSlideDrawingsMap),
+                      ...Object.keys(studentSlideTextAnnotationsMap)
                     ])).filter(slide => {
                       const html = notesTextMap[slide];
                       const hasText = html && html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim() !== '';
-                      
-                      const drawingJson = notesDrawingsMap[slide];
-                      let hasDrawing = false;
+
+                      const slideDrawingJson = studentSlideDrawingsMap[slide];
+                      let hasSlideDrawing = false;
                       try {
-                        if (drawingJson) {
-                          const strokes = JSON.parse(drawingJson);
-                          hasDrawing = Array.isArray(strokes) && strokes.length > 0;
+                        if (slideDrawingJson) {
+                          const strokes = JSON.parse(slideDrawingJson);
+                          hasSlideDrawing = Array.isArray(strokes) && strokes.length > 0;
                         }
                       } catch {}
+
+                      const slideTextAnns = studentSlideTextAnnotationsMap[slide];
+                      const hasSlideText = Array.isArray(slideTextAnns) && slideTextAnns.some(ann => ann.text && ann.text.trim() !== '');
                       
-                      return hasText || hasDrawing;
+                      return hasText || hasSlideDrawing || hasSlideText;
                     });
                     
                     const presenterSlide = presentation?.currentSlide !== undefined && presentation.currentSlide !== null 
@@ -2554,7 +2695,8 @@ function AppContent() {
                       maxSlideSeen,
                       presentation?.currentSlide || 1,
                       ...Object.keys(notesTextMap).map(Number).filter(n => !isNaN(n)),
-                      ...Object.keys(notesDrawingsMap).map(Number).filter(n => !isNaN(n)),
+                      ...Object.keys(studentSlideDrawingsMap).map(Number).filter(n => !isNaN(n)),
+                      ...Object.keys(studentSlideTextAnnotationsMap).map(Number).filter(n => !isNaN(n)),
                       ...Object.keys(pushedSlidesMap).map(Number).filter(n => !isNaN(n))
                     );
 
@@ -2597,21 +2739,23 @@ function AppContent() {
                                     className={`px-2.5 py-1 text-[10px] font-bold rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer shrink-0 group ${
                                       isCurrentTab 
                                         ? 'bg-purple-600 border-purple-500 text-white shadow-md shadow-purple-500/20 font-bold'
-                                        : 'bg-purple-950/80 border-purple-500/40 text-purple-200 hover:bg-purple-900 hover:border-purple-400 hover:text-white'
+                                        : isLight
+                                          ? 'bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300'
+                                          : 'bg-purple-950/80 border-purple-500/40 text-purple-200 hover:bg-purple-900 hover:border-purple-400 hover:text-white'
                                     }`}
                                     title={`Custom Blank Note Tab: ${tab.label}`}
                                   >
-                                    <FileText className="w-3 h-3 text-purple-300 shrink-0" />
+                                    <FileText className="w-3 h-3 text-purple-400 shrink-0" />
                                     <span>{tab.label}</span>
                                     {hasContent && !isCurrentTab && (
-                                      <span className="w-1 h-1 rounded-full bg-purple-300/80" title="Has notes" />
+                                      <span className="w-1 h-1 rounded-full bg-purple-400/80" title="Has notes" />
                                     )}
                                     <span 
                                       onClick={(e) => handleDeleteCustomTab(tab.id, e)}
                                       className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-purple-800/80 rounded transition-opacity ml-0.5 cursor-pointer"
                                       title="Delete note tab"
                                     >
-                                      <X className="w-2.5 h-2.5 text-purple-200 hover:text-white" />
+                                      <X className="w-2.5 h-2.5 text-purple-300 hover:text-white" />
                                     </span>
                                   </button>
                                 );
@@ -2625,7 +2769,9 @@ function AppContent() {
                                   className={`px-2.5 py-1 text-[10px] font-bold rounded-lg border transition-all flex items-center gap-1 cursor-pointer shrink-0 ${
                                     isCurrentTab 
                                       ? 'bg-osu-orange border-osu-orange text-white shadow-md shadow-orange-500/10'
-                                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+                                      : isLight
+                                        ? 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100 hover:border-slate-300'
+                                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
                                   }`}
                                 >
                                   <span>{tab.label}</span>
@@ -2633,7 +2779,7 @@ function AppContent() {
                                     <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse border border-green-300" title="Presenter is currently on this slide" />
                                   )}
                                   {!isPresenterSlide && hasContent && (
-                                    <span className="w-1 h-1 rounded-full bg-orange-300/60" title="Has notes" />
+                                    <span className="w-1 h-1 rounded-full bg-orange-400/80" title="Has notes" />
                                   )}
                                 </button>
                               );
@@ -2644,10 +2790,14 @@ function AppContent() {
                         <button
                           type="button"
                           onClick={handleAddCustomTab}
-                          className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold text-purple-300 bg-purple-950/80 hover:bg-purple-900 border border-purple-500/40 hover:border-purple-400 rounded-lg transition-all cursor-pointer active:scale-95 shadow-sm shrink-0"
+                          className={`flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold border rounded-lg transition-all cursor-pointer active:scale-95 shadow-sm shrink-0 ${
+                            isLight
+                              ? 'text-purple-700 bg-purple-50 hover:bg-purple-100 border-purple-200 hover:border-purple-300'
+                              : 'text-purple-300 bg-purple-950/80 hover:bg-purple-900 border-purple-500/40 hover:border-purple-400'
+                          }`}
                           title="Add a new blank note tab for website or non-PPT content"
                         >
-                          <Plus className="w-3 h-3 text-purple-400" />
+                          <Plus className="w-3 h-3 text-purple-500" />
                           <span>+ Blank Note</span>
                         </button>
                       </div>
@@ -2656,7 +2806,9 @@ function AppContent() {
 
                   {/* Slide Out-of-Sync Alert */}
                   {presentation && presentation.currentSlide !== undefined && presentation.currentSlide !== null && String(presentation.currentSlide) !== activeTab && (
-                    <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-orange-500/10 border border-orange-500/20 text-[10px] shrink-0 text-orange-200 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className={`flex items-center justify-between px-3 py-1.5 rounded-xl border text-[10px] shrink-0 animate-in fade-in slide-in-from-top-2 duration-300 ${
+                      isLight ? 'bg-orange-50 border-orange-200 text-orange-900' : 'bg-orange-500/10 border-orange-500/20 text-orange-200'
+                    }`}>
                       <span className="flex items-center gap-1.5 font-medium">
                         <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse shrink-0" />
                         Presenter is on Slide {presentation.currentSlide} (You are on {getTabTitle(activeTab)})
@@ -2678,46 +2830,26 @@ function AppContent() {
                    {/* Split-screen Side-by-Side Editor and Slide Preview Container */}
                   <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-3 relative" ref={notesContainerRef}>
                     
-                    {/* Notes Writing Area (Left/Top) */}
+                    {/* Notes Writing Area (Permanently locked to Typed Notes RichTextEditor) */}
                     <div 
                       className="flex flex-col min-w-0 min-h-0"
                       style={{ flex: `1 1 ${notesSplitRatio}%`, minWidth: '150px' }}
                     >
-                      {notesMode === 'text' ? (
-                        <RichTextEditor
-                          value={notesTextMap[activeTab] || ''}
-                          onChange={(newVal) => {
-                            setLastTypedAt(Date.now());
-                            setNotesTextMap(prev => ({
-                              ...prev,
-                              [activeTab]: newVal
-                            }));
-                          }}
-                          onFocus={() => setIsEditorFocused(true)}
-                          onBlur={() => setIsEditorFocused(false)}
-                          placeholder={`Type your notes for ${getTabTitle(activeTab)} here...`}
-                          className="flex-1 min-h-[120px]"
-                          notesMode={notesMode}
-                          onNotesModeChange={setNotesMode}
-                          editorTheme={editorTheme}
-                          onEditorThemeChange={handleEditorThemeChange}
-                        />
-                      ) : (
-                        <HandwrittenCanvas
-                          value={notesDrawingsMap[activeTab] || ''}
-                          onChange={(newVal) => {
-                            setNotesDrawingsMap(prev => ({
-                              ...prev,
-                              [activeTab]: newVal
-                            }));
-                          }}
-                          placeholder={`Draw your notes for ${getTabTitle(activeTab)} here...`}
-                          notesMode={notesMode}
-                          onNotesModeChange={setNotesMode}
-                          editorTheme={editorTheme}
-                          onEditorThemeChange={handleEditorThemeChange}
-                        />
-                      )}
+                      <RichTextEditor
+                        value={notesTextMap[activeTab] || ''}
+                        onChange={(newVal) => {
+                          setLastTypedAt(Date.now());
+                          setNotesTextMap(prev => ({
+                            ...prev,
+                            [activeTab]: newVal
+                          }));
+                        }}
+                        onFocus={() => setIsEditorFocused(true)}
+                        onBlur={() => setIsEditorFocused(false)}
+                        placeholder={`Type your notes for ${getTabTitle(activeTab)} here...`}
+                        className="flex-1 min-h-[120px]"
+                        editorTheme={studentTheme}
+                      />
                     </div>
 
                     {/* Interactive Drag Splitter between Notes and Preview */}
@@ -2729,16 +2861,20 @@ function AppContent() {
                         className="hidden md:flex w-2 h-full cursor-col-resize items-center justify-center flex-shrink-0 group/notes-splitter select-none bg-transparent hover:bg-white/[0.01] transition-colors rounded-lg"
                         title="Drag to resize notes and slide preview (double-click to reset)"
                       >
-                        <div className="w-[3px] h-20 bg-slate-800/80 group-hover/notes-splitter:bg-osu-orange/70 group-active/notes-splitter:bg-osu-orange rounded-full transition-all duration-200" />
+                        <div className={`w-[3px] h-20 group-hover/notes-splitter:bg-osu-orange/70 group-active/notes-splitter:bg-osu-orange rounded-full transition-all duration-200 ${
+                          isLight ? 'bg-slate-300' : 'bg-slate-800/80'
+                        }`} />
                       </div>
                     )}
 
                     {/* Premium Large Slide Preview (Right/Bottom) */}
                     {true && (
                       <div 
-                        className="flex flex-col min-w-0 min-h-[200px] md:min-h-0 rounded-xl border border-slate-800 bg-slate-950 select-none group shadow-xl relative overflow-hidden"
+                        className={`flex flex-col min-w-0 min-h-[200px] md:min-h-0 rounded-xl border select-none group shadow-xl relative overflow-hidden ${
+                          isLight ? 'border-slate-200 bg-slate-950' : 'border-slate-800 bg-slate-950'
+                        }`}
                         style={{ flex: `1 1 ${100 - notesSplitRatio}%`, minWidth: '150px' }}
-                        title={getSlidePreviewUrl(activeTab) ? `${getTabTitle(activeTab)} Preview (Click to Zoom)` : "No slide preview shared yet"}
+                        title={getSlidePreviewUrl(activeTab) ? `${getTabTitle(activeTab)} Preview (Click Slide to Annotate & Zoom)` : "No slide preview shared yet"}
                       >
                         {getSlidePreviewUrl(activeTab) ? (
                           <div className="w-full h-full relative flex flex-col h-full justify-between">
@@ -2751,7 +2887,7 @@ function AppContent() {
                                 }
                               }}
                               className="flex-1 relative overflow-hidden bg-black flex items-center justify-center min-h-0 cursor-zoom-in group/preview"
-                              title="Click to zoom in"
+                              title="Click slide to annotate & zoom"
                             >
                               <div ref={desktopPreviewFrameRef} className="absolute inset-0">
                                 <img 
@@ -2782,6 +2918,7 @@ function AppContent() {
                                       viewBox="0 0 1000 1000"
                                       preserveAspectRatio="none"
                                       className="w-full h-full pointer-events-none z-10"
+                                      style={{ filter: 'drop-shadow(0px 0px 1.5px rgba(0,0,0,0.75)) drop-shadow(0px 0px 1.5px rgba(255,255,255,0.55))' }}
                                     >
                                       {strokes.map((stroke, idx) => {
                                         if (stroke.text) {
@@ -2835,6 +2972,7 @@ function AppContent() {
                                       viewBox="0 0 1000 1000"
                                       preserveAspectRatio="none"
                                       className="absolute inset-0 w-full h-full pointer-events-none z-20"
+                                      style={{ filter: 'drop-shadow(0px 0px 1.5px rgba(0,0,0,0.75)) drop-shadow(0px 0px 1.5px rgba(255,255,255,0.55))' }}
                                     >
                                       {strokes.map((stroke, idx) => {
                                         if (stroke.text) {
@@ -2876,25 +3014,71 @@ function AppContent() {
                                   return null;
                                 }
                               })()}
+                              {/* Student Personal Slide Text Annotations Layer */}
+                              {(() => {
+                                const textAnns = studentSlideTextAnnotationsMap[activeTab];
+                                if (!Array.isArray(textAnns) || textAnns.length === 0) return null;
+                                const previewWidth = desktopPreviewBounds.renderedWidth || 400;
+                                const scaleRatio = Math.max(0.22, previewWidth / 1000);
+                                return (
+                                  <div className="absolute inset-0 w-full h-full pointer-events-none z-30 overflow-hidden">
+                                    {textAnns.map(ann => {
+                                      if (!ann.text || !ann.text.trim()) return null;
+                                      const baseFontSize = ann.fontSize || 24;
+                                      const scaledFontSize = Math.max(8, Math.round(baseFontSize * scaleRatio));
+                                      const isDarkInk = (ann.color || '').trim().toUpperCase() === '#000000';
+                                      return (
+                                        <div
+                                          key={ann.id}
+                                          style={{
+                                            left: `${ann.xPct}%`,
+                                            top: `${ann.yPct}%`,
+                                            color: ann.color,
+                                            fontSize: `${scaledFontSize}px`,
+                                            lineHeight: 1.25,
+                                          }}
+                                          className={`absolute font-bold font-sans whitespace-pre-wrap break-words px-1.5 py-0.5 rounded-md border shadow-md max-w-[90%] ${
+                                            isDarkInk
+                                              ? 'bg-white/95 border-slate-400/90'
+                                              : 'bg-slate-950/90 border-white/25'
+                                          }`}
+                                        >
+                                          {ann.text}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                );
+                              })()}
                               </div>
                               {/* Floating Glassmorphic Expand Icon */}
-                              <div className="absolute top-2.5 right-2.5 p-2 rounded-lg bg-black/60 border border-white/10 text-white/70 group-hover/preview:text-white group-hover/preview:bg-osu-orange group-hover/preview:border-osu-orange/50 shadow-lg backdrop-blur-md opacity-0 group-hover/preview:opacity-100 transition-all duration-300 transform scale-95 group-hover/preview:scale-100 flex items-center justify-center">
-                                <Maximize className="w-4 h-4" />
+                              <div className="absolute top-2.5 right-2.5 p-2 rounded-lg bg-black/60 border border-white/10 text-white/70 group-hover/preview:text-white group-hover/preview:bg-osu-orange group-hover/preview:border-osu-orange/50 shadow-lg backdrop-blur-md opacity-0 group-hover/preview:opacity-100 transition-all duration-300 transform scale-95 group-hover/preview:scale-100 flex items-center justify-center gap-1">
+                                <Pen className="w-3.5 h-3.5" />
+                                <Maximize className="w-3.5 h-3.5" />
                               </div>
                             </div>
-                            <div className="bg-slate-900/90 backdrop-blur-sm py-2 px-3 flex items-center justify-between border-t border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-300 shrink-0">
-                              <span className="text-slate-400">{getTabTitle(activeTab)}</span>
-                              <span className="text-osu-orange group-hover:text-white font-black animate-pulse flex items-center gap-1">
-                                <span className="w-1.5 h-1.5 rounded-full bg-osu-orange inline-block"></span>
-                                Live Preview (Click to Zoom)
+                            <div className={`py-2 px-3 flex items-center justify-between border-t text-[10px] font-black uppercase tracking-wider shrink-0 ${
+                              isLight
+                                ? 'bg-slate-50 border-slate-200 text-slate-700'
+                                : 'bg-slate-900/90 backdrop-blur-sm border-slate-800 text-slate-300'
+                            }`}>
+                              <span className={isLight ? 'text-slate-600' : 'text-slate-400'}>{getTabTitle(activeTab)}</span>
+                              <span className={`text-osu-orange font-black animate-pulse flex items-center gap-1.5 ${
+                                isLight ? 'group-hover:text-[#c03900]' : 'group-hover:text-white'
+                              }`}>
+                                <Pen className="w-3 h-3 shrink-0" />
+                                <ZoomIn className="w-3 h-3 shrink-0" />
+                                <span>CLICK SLIDE TO ANNOTATE &amp; ZOOM</span>
                               </span>
                             </div>
                           </div>
                         ) : (
-                          <div className="w-full h-full flex flex-col items-center justify-center p-4 bg-slate-950 text-slate-500 text-center min-h-[150px] md:min-h-0">
-                            <Tv className="w-8 h-8 text-slate-700 mb-2" />
+                          <div className={`w-full h-full flex flex-col items-center justify-center p-4 text-center min-h-[150px] md:min-h-0 ${
+                            isLight ? 'bg-slate-50 text-slate-500' : 'bg-slate-950 text-slate-500'
+                          }`}>
+                            <Tv className={`w-8 h-8 mb-2 ${isLight ? 'text-slate-400' : 'text-slate-700'}`} />
                             <span className="text-xs font-black uppercase tracking-widest text-slate-500 leading-none">{getTabTitle(activeTab)}</span>
-                            <span className="text-[9px] font-bold text-slate-600 uppercase leading-none mt-2">No Preview Available</span>
+                            <span className="text-[9px] font-bold text-slate-400 uppercase leading-none mt-2">No Preview Available</span>
                           </div>
                         )}
                       </div>
@@ -2919,6 +3103,19 @@ function AppContent() {
           setStudentSlideDrawingsMap(prev => ({
             ...prev,
             [activeTab]: newJson
+          }));
+        }}
+        textAnnotations={studentSlideTextAnnotationsMap[activeTab] || []}
+        onTextAnnotationsChange={(newAnnotations) => {
+          setStudentSlideTextAnnotationsMap(prev => ({
+            ...prev,
+            [activeTab]: newAnnotations
+          }));
+        }}
+        onCompositePreviewUpdate={(compositeDataUrl) => {
+          setCompositedSlidePreviewsMap(prev => ({
+            ...prev,
+            [activeTab]: compositeDataUrl
           }));
         }}
       />
@@ -2993,6 +3190,19 @@ function AppContent() {
           setStudentSlideDrawingsMap(prev => ({
             ...prev,
             [activeTab]: newJson
+          }));
+        }}
+        textAnnotations={studentSlideTextAnnotationsMap[activeTab] || []}
+        onTextAnnotationsChange={(newAnnotations) => {
+          setStudentSlideTextAnnotationsMap(prev => ({
+            ...prev,
+            [activeTab]: newAnnotations
+          }));
+        }}
+        onCompositePreviewUpdate={(compositeDataUrl) => {
+          setCompositedSlidePreviewsMap(prev => ({
+            ...prev,
+            [activeTab]: compositeDataUrl
           }));
         }}
       />

@@ -23,6 +23,15 @@ export interface DrawingStroke {
   text?: string;
 }
 
+export interface SlideTextAnnotation {
+  id: string;
+  xPct: number;
+  yPct: number;
+  text: string;
+  color: string;
+  fontSize?: number;
+}
+
 export interface SavedTheme {
   id: string;
   name: string;

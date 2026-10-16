@@ -64,8 +64,21 @@
   background: rgba(255, 255, 255, 0.1);
   border-radius: 4px;
 }
+.light-mode .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.15);
+}
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 102, 0, 0.4);
+}
+
+.light-mode {
+  background-color: #F8FAFC;
+  color: #0F172A;
+}
+
+.dark-mode {
+  background-color: #0B0F19;
+  color: #F8FAFC;
 }
 
 /* Pulsating animation for Projector Mode button (vibrant green glow) */
@@ -83,5 +96,3 @@
 .animate-projector-pulse {
   animation: projector-pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
-
-
