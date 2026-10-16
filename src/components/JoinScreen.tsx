@@ -266,44 +266,48 @@ export const JoinScreen: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              <h2 className="text-xl font-black uppercase tracking-wide text-white">Previous Session Ended</h2>
-              <p className="text-xs text-slate-300 leading-relaxed max-w-sm mx-auto">
-                Your previous session {lastSessionPin ? <span className="font-mono font-bold text-osu-orange">(Code: {lastSessionPin})</span> : ''} has ended. Would you like to download your notes (.docx) before joining the new session?
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800/80 border border-slate-700/60 text-slate-300 text-[11px] font-semibold">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Previous Session Complete</span>
+              </div>
+              <h2 className="text-xl font-bold tracking-tight text-white">Ready for Your Next Session?</h2>
+              <p className="text-xs text-slate-400 leading-relaxed max-w-sm mx-auto">
+                Your notes from session {lastSessionPin ? <span className="font-mono font-semibold text-slate-200">#{lastSessionPin}</span> : ''} are safely saved. You can jump straight into the new session now, or download a copy of your notes below.
               </p>
             </div>
 
             <div className="space-y-2.5 pt-2">
               <button
                 type="button"
-                onClick={handleDownloadPreviousNotes}
-                disabled={isDownloadingPreviousNotes}
-                className="w-full h-12 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-orange-500/15 active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
+                onClick={handleContinueToNewSession}
+                className="w-full h-12 bg-[#FF7A00] hover:bg-[#e66e00] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-orange-500/20 active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
               >
-                {isDownloadingPreviousNotes ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Preparing Document...</span>
-                  </>
-                ) : previousNotesDownloaded ? (
-                  <>
-                    <CheckCircle2 className="w-4 h-4 text-green-300" />
-                    <span>Notes Downloaded (.docx)!</span>
-                  </>
-                ) : (
-                  <>
-                    <Download className="w-4 h-4" />
-                    <span>Download Previous Notes (.docx)</span>
-                  </>
-                )}
+                <span>Continue to Join New Session</span>
+                <ArrowRight className="w-4 h-4" />
               </button>
 
               <button
                 type="button"
-                onClick={handleContinueToNewSession}
-                className="w-full h-11 border border-slate-700 hover:border-slate-600 bg-slate-800 hover:bg-slate-750 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+                onClick={handleDownloadPreviousNotes}
+                disabled={isDownloadingPreviousNotes}
+                className="w-full h-11 border border-slate-700 hover:border-slate-600 bg-slate-800/40 hover:bg-slate-800 text-slate-300 hover:text-white disabled:bg-slate-800/20 disabled:text-slate-500 text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
-                <span>Continue to Join New Session</span>
-                <ArrowRight className="w-4 h-4" />
+                {isDownloadingPreviousNotes ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+                    <span>Preparing Document...</span>
+                  </>
+                ) : previousNotesDownloaded ? (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <span className="text-emerald-300">Notes Downloaded (.docx)!</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4 text-slate-400" />
+                    <span>Download Previous Notes (.docx)</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -343,9 +347,17 @@ export const JoinScreen: React.FC = () => {
             <div className="flex flex-col gap-2 pt-1">
               <button
                 type="button"
+                onClick={handleContinueToNewSession}
+                className="w-full py-2 px-3 bg-[#FF7A00] hover:bg-[#e66e00] text-white text-[11px] font-bold rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-orange-500/10"
+              >
+                <span>Enter New Session Code</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
                 onClick={handleDownloadPreviousNotes}
                 disabled={isDownloadingPreviousNotes}
-                className="w-full py-2 px-3 bg-osu-orange hover:bg-[#c03900] disabled:bg-slate-800 text-white text-[11px] font-bold rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow"
+                className="w-full py-1.5 px-3 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white disabled:text-slate-600 text-[11px] font-medium rounded-xl border border-white/10 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 {isDownloadingPreviousNotes ? (
                   <>
@@ -354,22 +366,15 @@ export const JoinScreen: React.FC = () => {
                   </>
                 ) : previousNotesDownloaded ? (
                   <>
-                    <CheckCircle2 className="w-3.5 h-3.5 text-green-300" />
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />
                     <span>Notes Downloaded!</span>
                   </>
                 ) : (
                   <>
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Download Notes (.docx)</span>
+                    <Download className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Download Previous Notes (.docx)</span>
                   </>
                 )}
-              </button>
-              <button
-                type="button"
-                onClick={handleContinueToNewSession}
-                className="w-full py-1.5 px-3 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-[11px] font-medium rounded-xl border border-white/10 transition-colors flex items-center justify-center cursor-pointer"
-              >
-                Enter New Session Code
               </button>
             </div>
           </div>
