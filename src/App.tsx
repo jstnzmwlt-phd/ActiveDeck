@@ -1068,7 +1068,11 @@ function AppContent() {
 
   const [presenterSidebarWidth, setPresenterSidebarWidth] = useState(() => {
     const saved = localStorage.getItem('activeDeckPresenterSidebarWidth');
-    return saved ? Math.max(270, parseInt(saved, 10)) : 300;
+    if (saved) {
+      const parsed = parseInt(saved, 10);
+      return !isNaN(parsed) && parsed >= 440 ? parsed : 440;
+    }
+    return 440;
   });
 
   const [audienceChatWidth, setAudienceChatWidth] = useState(() => {
@@ -1214,8 +1218,8 @@ function AppContent() {
   };
 
   const handleDoubleClickPresenter = () => {
-    setPresenterSidebarWidth(300);
-    localStorage.setItem('activeDeckPresenterSidebarWidth', '300');
+    setPresenterSidebarWidth(440);
+    localStorage.setItem('activeDeckPresenterSidebarWidth', '440');
   };
 
   const handleDoubleClickAudienceChat = () => {
@@ -1274,7 +1278,7 @@ function AppContent() {
       if (isDraggingPresenterRef.current) {
         const containerPadding = 24; // p-6 is 24px
         const calculatedWidth = window.innerWidth - clientX - containerPadding;
-        const constrainedWidth = Math.max(270, Math.min(500, calculatedWidth));
+        const constrainedWidth = Math.max(280, Math.min(650, calculatedWidth));
         setPresenterSidebarWidth(constrainedWidth);
         localStorage.setItem('activeDeckPresenterSidebarWidth', constrainedWidth.toString());
       }
@@ -3159,8 +3163,8 @@ function AppContent() {
 
             {/* Audience Chat (Resizable sidebar) */}
             <div 
-              style={{ width: `${presenterSidebarWidth}px`, minWidth: '270px' }}
-              className="h-full flex-shrink-0 rounded-xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.24)] border-2 border-osu-orange bg-white"
+              style={{ width: `${presenterSidebarWidth}px`, minWidth: '280px' }}
+              className="h-full flex-shrink-0 rounded-xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.24)] border-2 border-osu-orange bg-white flex flex-col"
             >
               <ChatSidebar 
                 presentation={presentation} 

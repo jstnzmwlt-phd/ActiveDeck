@@ -1504,7 +1504,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isAllCollapsed, setIsAllCollapsed] = useState(false);
   const [isQRExpanded, setIsQRExpanded] = useState(false);
-  const [isJoinHeaderVisible, setIsJoinHeaderVisible] = useState(true);
+  const [isJoinHeaderVisible, setIsJoinHeaderVisible] = useState(false);
 
   // Projector QR Code Horizontal Resizer State & Handlers
   const [projectorQrHeight, setProjectorQrHeight] = useState<number>(() => {
@@ -4245,25 +4245,26 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
         ) : null
       ) : (
         <div className={cn(
-          "flex flex-wrap items-center justify-between gap-2 min-w-0 shrink-0",
+          "flex flex-col gap-2 min-w-0 shrink-0",
           isChatOnly
             ? isDarkChat
               ? "px-3 py-2.5 bg-slate-900 border-b border-slate-800 text-white"
               : "px-3 py-2.5 bg-slate-50 border-b border-slate-200 text-slate-900"
-            : "p-4 bg-osu-black text-white"
+            : "px-3.5 py-3 bg-osu-black text-white border-b border-slate-800/80"
         )}>
-          <div className="flex items-center gap-1.5 min-w-0">
-            <MessageSquare className="text-osu-orange flex-shrink-0 w-4 h-4" />
-            <div className="flex flex-col min-w-0">
-              <h2 className={cn(
-                "uppercase font-bold tracking-tight text-xs sm:text-sm leading-tight",
-                isChatOnly && !isDarkChat ? "text-slate-900" : "text-white"
-              )}>
-                ActiveDeck Chat
-              </h2>
+          <div className="flex items-center justify-between min-w-0">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <MessageSquare className="text-osu-orange flex-shrink-0 w-4 h-4" />
+              <div className="flex flex-col min-w-0">
+                <h2 className={cn(
+                  "uppercase font-bold tracking-tight text-xs sm:text-sm leading-tight",
+                  isChatOnly && !isDarkChat ? "text-slate-900" : "text-white"
+                )}>
+                  ActiveDeck Chat
+                </h2>
+              </div>
             </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5 flex-shrink-0">
+
             {isChatOnly && onCollapseChat && (
               <button
                 onClick={onCollapseChat}
@@ -4282,84 +4283,83 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 )}
               </button>
             )}
-            {canModerate && (
-              <>
-                <button 
-                  onClick={() => setIsJoinHeaderVisible(!isJoinHeaderVisible)}
-                  className={cn(
-                    "px-2 py-1 rounded transition-colors flex items-center gap-1.5 text-xs font-bold",
-                    !isJoinHeaderVisible 
-                      ? "text-osu-orange bg-osu-orange/10 border border-osu-orange/30" 
-                      : "text-slate-400 hover:bg-slate-800 hover:text-white"
-                  )}
-                  title={isJoinHeaderVisible ? "Hide Join Code & QR Code" : "Show Join Code & QR Code"}
-                >
-                  <QrCode className="w-4 h-4" />
-                  {!isJoinHeaderVisible && (
-                    <span className="inline">Show Join Info</span>
-                  )}
-                </button>
-                {showAttendance && (
-                  <button 
-                    onClick={handleToggleDisableAttendance}
-                    className={cn(
-                      "px-2 py-1 rounded transition-colors flex items-center gap-1.5 text-xs font-bold",
-                      presentation?.disableAttendance 
-                        ? "text-red-400 hover:bg-slate-800 hover:text-red-300" 
-                        : "text-green-400 hover:bg-slate-800 hover:text-green-300"
-                    )}
-                    title={presentation?.disableAttendance ? "Attendance Disabled (QR displays static join link)" : "Attendance Enabled (QR rotates dynamic tokens)"}
-                  >
-                    {presentation?.disableAttendance ? <ToggleRight className="w-4 h-4 text-red-400" /> : <ToggleLeft className="w-4 h-4 text-green-400" />}
-                    <span className="inline">
-                      {presentation?.disableAttendance ? "Attendance Off" : "Attendance On"}
-                    </span>
-                  </button>
+          </div>
+
+          {canModerate && (
+            <div className="flex flex-wrap items-center gap-1.5 w-full">
+              <button 
+                onClick={() => setIsJoinHeaderVisible(!isJoinHeaderVisible)}
+                className={cn(
+                  "px-2 py-1 rounded transition-colors flex items-center gap-1.5 text-xs font-bold cursor-pointer",
+                  !isJoinHeaderVisible 
+                    ? "text-osu-orange bg-osu-orange/10 border border-osu-orange/30" 
+                    : "text-slate-400 hover:bg-slate-800 hover:text-white border border-transparent"
                 )}
+                title={isJoinHeaderVisible ? "Hide Join Code & QR Code" : "Show Join Code & QR Code"}
+              >
+                <QrCode className="w-4 h-4 shrink-0" />
+                <span className="inline">{isJoinHeaderVisible ? "Hide QR" : "Show Join Info"}</span>
+              </button>
+              {showAttendance && (
                 <button 
-                  onClick={handleToggleRestrictToDomain}
+                  onClick={handleToggleDisableAttendance}
                   className={cn(
-                    "px-2 py-1 rounded transition-colors flex items-center gap-1.5 text-xs font-medium",
-                    presentation?.restrictToDomain === false 
-                      ? "text-yellow-400 hover:bg-slate-800 hover:text-yellow-300" 
-                      : "text-red-400 hover:bg-slate-800 hover:text-red-300"
+                    "px-2 py-1 rounded transition-colors flex items-center gap-1.5 text-xs font-bold cursor-pointer",
+                    presentation?.disableAttendance 
+                      ? "text-red-400 hover:bg-slate-800 hover:text-red-300" 
+                      : "text-green-400 hover:bg-slate-800 hover:text-green-300"
                   )}
-                  title={presentation?.restrictToDomain === false ? "Anyone can join (Domain restriction disabled)" : "Only verified emails can join (Domain restriction active)"}
+                  title={presentation?.disableAttendance ? "Attendance Disabled (QR displays static join link)" : "Attendance Enabled (QR rotates dynamic tokens)"}
                 >
-                  {presentation?.restrictToDomain === false ? <Unlock className="w-4 h-4 text-yellow-400" /> : <Lock className="w-4 h-4 text-red-400" />}
+                  {presentation?.disableAttendance ? <ToggleRight className="w-4 h-4 text-red-400 shrink-0" /> : <ToggleLeft className="w-4 h-4 text-green-400 shrink-0" />}
                   <span className="inline">
-                    {presentation?.restrictToDomain === false ? "Open Join" : "Domain Restrict"}
+                    {presentation?.disableAttendance ? "Attendance Off" : "Attendance On"}
                   </span>
                 </button>
-                <button 
-                  onClick={handleToggleHideComments}
-                  className={cn(
-                    "p-1 hover:bg-slate-800 rounded transition-colors",
-                    presentation?.hideComments 
-                      ? "text-red-500 hover:text-red-400" 
-                      : "text-slate-400 hover:text-white"
-                  )}
-                  title={presentation?.hideComments ? "Comments Hidden from Audience" : "Comments Visible to Audience"}
-                >
-                  {presentation?.hideComments ? <MessageSquareOff className="w-4 h-4" /> : <MessageSquare className="w-4 h-4" />}
-                </button>
-                <button 
-                  onClick={handleDownloadWord}
-                  className="p-1 hover:bg-slate-800 rounded transition-colors text-slate-400 hover:text-white"
-                  title="Download as Word"
-                >
-                  <Download className="w-4 h-4" />
-                </button>
-                <button 
-                  onClick={() => setShowClearConfirm(true)}
-                  className="p-1 hover:bg-red-900/50 rounded transition-colors text-slate-400 hover:text-red-400"
-                  title="Clear Chat"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </>
-            )}
-          </div>
+              )}
+              <button 
+                onClick={handleToggleRestrictToDomain}
+                className={cn(
+                  "px-2 py-1 rounded transition-colors flex items-center gap-1.5 text-xs font-medium cursor-pointer",
+                  presentation?.restrictToDomain === false 
+                    ? "text-yellow-400 hover:bg-slate-800 hover:text-yellow-300" 
+                    : "text-red-400 hover:bg-slate-800 hover:text-red-300"
+                )}
+                title={presentation?.restrictToDomain === false ? "Anyone can join (Domain restriction disabled)" : "Only verified emails can join (Domain restriction active)"}
+              >
+                {presentation?.restrictToDomain === false ? <Unlock className="w-4 h-4 text-yellow-400 shrink-0" /> : <Lock className="w-4 h-4 text-red-400 shrink-0" />}
+                <span className="inline">
+                  {presentation?.restrictToDomain === false ? "Open Join" : "Domain Restrict"}
+                </span>
+              </button>
+              <button 
+                onClick={handleToggleHideComments}
+                className={cn(
+                  "p-1.5 hover:bg-slate-800 rounded transition-colors cursor-pointer",
+                  presentation?.hideComments 
+                    ? "text-red-500 hover:text-red-400" 
+                    : "text-slate-400 hover:text-white"
+                )}
+                title={presentation?.hideComments ? "Comments Hidden from Audience" : "Comments Visible to Audience"}
+              >
+                {presentation?.hideComments ? <MessageSquareOff className="w-4 h-4 shrink-0" /> : <MessageSquare className="w-4 h-4 shrink-0" />}
+              </button>
+              <button 
+                onClick={handleDownloadWord}
+                className="p-1.5 hover:bg-slate-800 rounded transition-colors text-slate-400 hover:text-white cursor-pointer"
+                title="Download as Word"
+              >
+                <Download className="w-4 h-4 shrink-0" />
+              </button>
+              <button 
+                onClick={() => setShowClearConfirm(true)}
+                className="p-1.5 hover:bg-red-900/50 rounded transition-colors text-slate-400 hover:text-red-400 cursor-pointer"
+                title="Clear Chat"
+              >
+                <Trash2 className="w-4 h-4 shrink-0" />
+              </button>
+            </div>
+          )}
         </div>
       )}
 

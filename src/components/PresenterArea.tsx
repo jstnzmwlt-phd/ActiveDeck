@@ -3377,31 +3377,58 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
   return (
     <div className="flex flex-col h-full bg-black relative group">
-      {/* Projector Mode: Slide to audience display tip */}
+      {/* Projector Mode: Slide to audience display tip (Centered & Larger) */}
       {showProjectorSlideTip && isProjectorMode && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 bg-slate-900/95 border-2 border-osu-orange text-white px-5 py-3 rounded-2xl shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-top-4 duration-300">
-          <div className="w-8 h-8 rounded-xl bg-osu-orange/20 border border-osu-orange/30 flex items-center justify-center text-osu-orange shrink-0">
-            <Monitor className="w-4 h-4" />
-          </div>
-          <div className="flex flex-col text-left">
-            <span className="text-xs font-bold text-white">Audience Display</span>
-            <span className="text-[11px] text-slate-300">Please slide this screen to the audience display screen</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setShowProjectorSlideTip(false)}
-            className="ml-2 px-3 py-1 bg-osu-orange hover:bg-orange-500 text-white font-black text-xs uppercase tracking-wider rounded-lg transition-all active:scale-95 cursor-pointer shadow"
+        <div 
+          onClick={() => setShowProjectorSlideTip(false)}
+          className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in duration-300"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="relative flex flex-col sm:flex-row items-center gap-5 bg-slate-900/98 border-2 border-osu-orange text-white p-6 sm:p-7 rounded-3xl shadow-[0_25px_60px_rgba(0,0,0,0.85)] ring-4 ring-osu-orange/25 max-w-xl w-full text-center sm:text-left animate-in zoom-in-95 duration-300"
           >
-            Got it
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowProjectorSlideTip(false)}
-            className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer"
-            title="Dismiss"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
+            {/* Close Button top-right */}
+            <button
+              type="button"
+              onClick={() => setShowProjectorSlideTip(false)}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+              title="Dismiss"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Large Display Icon */}
+            <div className="w-16 h-16 sm:w-18 sm:h-18 rounded-2xl bg-osu-orange/20 border-2 border-osu-orange/40 flex items-center justify-center text-osu-orange shrink-0 shadow-lg shadow-osu-orange/15">
+              <MonitorPlay className="w-9 h-9 sm:w-10 sm:h-10" />
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 min-w-0 pr-6 sm:pr-0">
+              <div className="flex items-center gap-2 justify-center sm:justify-start mb-1">
+                <span className="w-2.5 h-2.5 rounded-full bg-osu-orange animate-pulse" />
+                <span className="text-base sm:text-lg font-black uppercase tracking-wider text-osu-orange">
+                  Audience Display
+                </span>
+              </div>
+              <p className="text-sm sm:text-base text-slate-100 font-bold leading-snug mb-1.5">
+                Slide or drag this window to your projector or audience display screen.
+              </p>
+              <p className="text-xs text-slate-400 font-medium">
+                Press <span className="text-white font-mono font-bold bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">F11</span> on your keyboard to expand full screen for your audience.
+              </p>
+            </div>
+
+            {/* Action Button */}
+            <div className="shrink-0 pt-2 sm:pt-0">
+              <button
+                type="button"
+                onClick={() => setShowProjectorSlideTip(false)}
+                className="px-6 py-3 bg-osu-orange hover:bg-orange-500 text-white font-black text-sm uppercase tracking-wider rounded-xl transition-all active:scale-95 cursor-pointer shadow-lg shadow-osu-orange/30 whitespace-nowrap"
+              >
+                Got It
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
