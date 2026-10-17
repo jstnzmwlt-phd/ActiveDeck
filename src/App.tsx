@@ -1958,17 +1958,19 @@ function AppContent() {
                           return (
                             <div className="absolute inset-0 w-full h-full pointer-events-none z-10">
                               {textAnns.map((ann) => {
-                                const isDarkInk = (ann.color || '').trim().toUpperCase() === '#000000';
+                                const isWhiteInk = (ann.color || '').trim().toUpperCase() === '#FFFFFF';
                                 return (
                                   <div
                                     key={ann.id}
                                     style={{ left: `${ann.xPct}%`, top: `${ann.yPct}%` }}
-                                    className={`absolute flex items-stretch rounded-lg shadow-lg backdrop-blur-[2px] border px-2 py-0.5 select-none ${
-                                      isDarkInk ? 'bg-slate-50/90 border-slate-400/80 text-slate-900' : 'bg-slate-900/85 border-white/25 text-white'
+                                    className={`absolute flex items-stretch rounded-lg shadow-md border px-2 py-0.5 select-none ${
+                                      isWhiteInk
+                                        ? 'bg-slate-900/90 border-white/30 text-white'
+                                        : 'bg-white border-slate-300 shadow-md text-slate-900'
                                     }`}
                                   >
                                     <span
-                                      style={{ color: ann.color || '#EF4444', fontSize: `${Math.max(10, Math.round(ann.fontSize || 16))}px`, lineHeight: 1.3 }}
+                                      style={{ color: ann.color || '#000000', fontSize: `${Math.max(10, Math.round(ann.fontSize || 16))}px`, lineHeight: 1.3 }}
                                       className="font-sans font-bold whitespace-pre-wrap break-words"
                                     >
                                       {ann.text}
@@ -2046,7 +2048,7 @@ function AppContent() {
                           <div className="absolute inset-0 w-full h-full pointer-events-none z-30 overflow-hidden">
                             {slideTextAnns.map((ann) => {
                               if (!ann.text || !ann.text.trim()) return null;
-                              const isDarkInk = (ann.color || '').trim().toUpperCase() === '#000000';
+                              const isWhiteInk = (ann.color || '').trim().toUpperCase() === '#FFFFFF';
                               const fontSizePx = Math.max(7, Math.round((ann.fontSize || 16) * scaleRatio));
                               return (
                                 <div
@@ -2054,14 +2056,14 @@ function AppContent() {
                                   style={{
                                     left: `${ann.xPct}%`,
                                     top: `${ann.yPct}%`,
-                                    color: ann.color || '#EF4444',
+                                    color: ann.color || '#000000',
                                     fontSize: `${fontSizePx}px`,
                                     lineHeight: 1.25,
                                   }}
-                                  className={`absolute font-sans font-bold whitespace-pre-wrap break-words px-1 py-0.5 rounded shadow-md border max-w-[80%] ${
-                                    isDarkInk
-                                      ? 'bg-white/95 border-slate-400/90'
-                                      : 'bg-slate-950/90 border-white/25'
+                                  className={`absolute font-sans font-bold whitespace-pre-wrap break-words px-1.5 py-0.5 rounded shadow-md border max-w-[80%] ${
+                                    isWhiteInk
+                                      ? 'bg-slate-900/90 border-white/30 text-white'
+                                      : 'bg-white border-slate-300 text-slate-900'
                                   }`}
                                 >
                                   {ann.text}
@@ -3053,17 +3055,19 @@ function AppContent() {
                                   return (
                                     <div className="absolute inset-0 w-full h-full pointer-events-none z-10">
                                       {textAnns.map((ann) => {
-                                        const isDarkInk = (ann.color || '').trim().toUpperCase() === '#000000';
+                                        const isWhiteInk = (ann.color || '').trim().toUpperCase() === '#FFFFFF';
                                         return (
                                           <div
                                             key={ann.id}
                                             style={{ left: `${ann.xPct}%`, top: `${ann.yPct}%` }}
-                                            className={`absolute flex items-stretch rounded-lg shadow-lg backdrop-blur-[2px] border px-2 py-0.5 select-none ${
-                                              isDarkInk ? 'bg-slate-50/90 border-slate-400/80 text-slate-900' : 'bg-slate-900/85 border-white/25 text-white'
+                                            className={`absolute flex items-stretch rounded-lg shadow-md border px-2 py-0.5 select-none ${
+                                              isWhiteInk
+                                                ? 'bg-slate-900/90 border-white/30 text-white'
+                                                : 'bg-white border-slate-300 shadow-md text-slate-900'
                                             }`}
                                           >
                                             <span
-                                              style={{ color: ann.color || '#EF4444', fontSize: `${Math.max(10, Math.round(ann.fontSize || 16))}px`, lineHeight: 1.3 }}
+                                              style={{ color: ann.color || '#000000', fontSize: `${Math.max(10, Math.round(ann.fontSize || 16))}px`, lineHeight: 1.3 }}
                                               className="font-sans font-bold whitespace-pre-wrap break-words"
                                             >
                                               {ann.text}
@@ -3143,21 +3147,21 @@ function AppContent() {
                                       if (!ann.text || !ann.text.trim()) return null;
                                       const baseFontSize = ann.fontSize || 24;
                                       const scaledFontSize = Math.max(8, Math.round(baseFontSize * scaleRatio));
-                                      const isDarkInk = (ann.color || '').trim().toUpperCase() === '#000000';
+                                      const isWhiteInk = (ann.color || '').trim().toUpperCase() === '#FFFFFF';
                                       return (
                                         <div
                                           key={ann.id}
                                           style={{
                                             left: `${ann.xPct}%`,
                                             top: `${ann.yPct}%`,
-                                            color: ann.color,
+                                            color: ann.color || '#000000',
                                             fontSize: `${scaledFontSize}px`,
                                             lineHeight: 1.25,
                                           }}
                                           className={`absolute font-bold font-sans whitespace-pre-wrap break-words px-1.5 py-0.5 rounded-md border shadow-md max-w-[90%] ${
-                                            isDarkInk
-                                              ? 'bg-white/95 border-slate-400/90'
-                                              : 'bg-slate-950/90 border-white/25'
+                                            isWhiteInk
+                                              ? 'bg-slate-900/90 border-white/30 text-white'
+                                              : 'bg-white border-slate-300 text-slate-900'
                                           }`}
                                         >
                                           {ann.text}

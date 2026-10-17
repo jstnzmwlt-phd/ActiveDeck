@@ -566,16 +566,16 @@ export const generateCompositeSlideBase64 = async (
             const x = Math.max(0, Math.min(canvas.width - Math.min(boxWidth, canvas.width), rawX));
             const y = Math.max(0, Math.min(canvas.height - Math.min(boxHeight, canvas.height), rawY));
 
-            const isDarkInk = (ann.color || '').trim().toUpperCase() === '#000000';
-            ctx.fillStyle = isDarkInk ? 'rgba(248, 250, 252, 0.90)' : 'rgba(15, 23, 42, 0.82)';
-            ctx.strokeStyle = isDarkInk ? 'rgba(148, 163, 184, 0.75)' : 'rgba(255, 255, 255, 0.22)';
+            const isWhiteInk = (ann.color || '').trim().toUpperCase() === '#FFFFFF';
+            ctx.fillStyle = isWhiteInk ? 'rgba(15, 23, 42, 0.90)' : 'rgba(255, 255, 255, 0.95)';
+            ctx.strokeStyle = isWhiteInk ? 'rgba(255, 255, 255, 0.35)' : 'rgba(203, 213, 225, 0.9)';
             ctx.lineWidth = Math.max(1, Math.round(1.5 * widthScale));
 
             drawRoundedRectPath(ctx, x, y, boxWidth, boxHeight, borderRadius);
             ctx.fill();
             ctx.stroke();
 
-            ctx.fillStyle = ann.color || '#EF4444';
+            ctx.fillStyle = ann.color || '#000000';
             const verticalOffset = Math.round((lineHeight - fontSize) / 2);
             lines.forEach((line, idx) => {
               ctx.fillText(line, x + padX, y + padY + idx * lineHeight + verticalOffset);

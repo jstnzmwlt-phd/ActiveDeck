@@ -1364,7 +1364,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       xPct,
       yPct,
       text: '',
-      color: penColor,
+      color: penTool === 'text' && penColor ? penColor : '#000000',
       fontSize: 16
     };
 
@@ -3608,7 +3608,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         {currentSlideTextAnnotations.length > 0 && (
                           <div className="absolute inset-0 w-full h-full pointer-events-none z-30">
                             {currentSlideTextAnnotations.map(ann => {
-                              const isDarkInk = (ann.color || '').trim().toUpperCase() === '#000000';
+                              const isWhiteInk = (ann.color || '').trim().toUpperCase() === '#FFFFFF';
                               const scaleFactor = (presenterBounds.renderedWidth > 0 ? presenterBounds.renderedWidth : 1000) / 1000;
                               const fontSizePx = Math.max(10, Math.round((ann.fontSize || 16) * scaleFactor));
                               return (
@@ -3618,15 +3618,15 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                                     left: `${ann.xPct}%`,
                                     top: `${ann.yPct}%`,
                                   }}
-                                  className={`absolute flex items-stretch rounded-lg shadow-lg backdrop-blur-[2px] border px-2 py-0.5 select-none pointer-events-none ${
-                                    isDarkInk
-                                      ? 'bg-slate-50/90 border-slate-400/80 text-slate-900'
-                                      : 'bg-slate-900/85 border-white/25 text-white'
+                                  className={`absolute flex items-stretch rounded-lg shadow-md border px-2 py-0.5 select-none pointer-events-none ${
+                                    isWhiteInk
+                                      ? 'bg-slate-900/90 border-white/30 text-white'
+                                      : 'bg-white border-slate-300 text-slate-900'
                                   }`}
                                 >
                                   <span
                                     style={{
-                                      color: ann.color || '#EF4444',
+                                      color: ann.color || '#000000',
                                       fontSize: `${fontSizePx}px`,
                                       lineHeight: 1.3,
                                     }}
@@ -3922,7 +3922,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     {currentSlideTextAnnotations.length > 0 && (
                       <div className="absolute inset-0 w-full h-full pointer-events-none z-30">
                         {currentSlideTextAnnotations.map(ann => {
-                          const isDarkInk = (ann.color || '').trim().toUpperCase() === '#000000';
+                          const isWhiteInk = (ann.color || '').trim().toUpperCase() === '#FFFFFF';
                           const scaleFactor = (projectorBounds.renderedWidth > 0 ? projectorBounds.renderedWidth : 1000) / 1000;
                           const fontSizePx = Math.max(10, Math.round((ann.fontSize || 16) * scaleFactor));
                           return (
@@ -3932,15 +3932,15 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                                 left: `${ann.xPct}%`,
                                 top: `${ann.yPct}%`,
                               }}
-                              className={`absolute flex items-stretch rounded-lg shadow-lg backdrop-blur-[2px] border px-2 py-0.5 select-none pointer-events-none ${
-                                isDarkInk
-                                  ? 'bg-slate-50/90 border-slate-400/80 text-slate-900'
-                                  : 'bg-slate-900/85 border-white/25 text-white'
+                              className={`absolute flex items-stretch rounded-lg shadow-md border px-2 py-0.5 select-none pointer-events-none ${
+                                isWhiteInk
+                                  ? 'bg-slate-900/90 border-white/30 text-white'
+                                  : 'bg-white border-slate-300 text-slate-900'
                               }`}
                             >
                               <span
                                 style={{
-                                  color: ann.color || '#EF4444',
+                                  color: ann.color || '#000000',
                                   fontSize: `${fontSizePx}px`,
                                   lineHeight: 1.3,
                                 }}
@@ -4856,7 +4856,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             {currentSlideTextAnnotations.length > 0 && (
               <div className="absolute inset-0 w-full h-full pointer-events-none z-30">
                 {currentSlideTextAnnotations.map(ann => {
-                  const isDarkInk = (ann.color || '').trim().toUpperCase() === '#000000';
+                  const isWhiteInk = (ann.color || '').trim().toUpperCase() === '#FFFFFF';
                   const scaleFactor = (actualProjectorBounds.renderedWidth > 0 ? actualProjectorBounds.renderedWidth : 1000) / 1000;
                   const fontSizePx = Math.max(12, Math.round((ann.fontSize || 16) * scaleFactor * 1.3));
                   return (
@@ -4866,15 +4866,15 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         left: `${ann.xPct}%`,
                         top: `${ann.yPct}%`,
                       }}
-                      className={`absolute flex items-stretch rounded-lg shadow-lg backdrop-blur-[2px] border px-2.5 py-1 select-none pointer-events-none ${
-                        isDarkInk
-                          ? 'bg-slate-50/90 border-slate-400/80 text-slate-900'
-                          : 'bg-slate-900/85 border-white/25 text-white'
+                      className={`absolute flex items-stretch rounded-lg shadow-md border px-2.5 py-1 select-none pointer-events-none ${
+                        isWhiteInk
+                          ? 'bg-slate-900/90 border-white/30 text-white'
+                          : 'bg-white border-slate-300 text-slate-900'
                       }`}
                     >
                       <span
                         style={{
-                          color: ann.color || '#EF4444',
+                          color: ann.color || '#000000',
                           fontSize: `${fontSizePx}px`,
                           lineHeight: 1.3,
                         }}
@@ -4946,15 +4946,6 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
             </button>
 
-            <div className="w-px h-6 bg-slate-800 shrink-0" />
-
-            {presentation?.id && (
-              <PptxUploader
-                presentationId={presentation.id}
-                currentPptxUrl={presentation.pptxUrl}
-                compact={true}
-              />
-            )}
             <button
               onClick={() => setShowDownloadModal(true)}
               disabled={isDownloadingPresentation}
@@ -5126,7 +5117,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 <span>Highlighter</span>
               </button>
               <button
-                onClick={() => setPenTool('text')}
+                onClick={() => {
+                  setPenTool('text');
+                  setPenColor('#000000');
+                }}
                 className={`px-4.5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
                   penTool === 'text' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
                 }`}
@@ -5380,7 +5374,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               {currentSlideTextAnnotations.map((ann) => {
                 const isEditing = editingAnnotationId === ann.id;
                 const isBeingDragged = draggingAnnotationId === ann.id;
-                const isDarkInk = (ann.color || '').trim().toUpperCase() === '#000000';
+                const isWhiteInk = (ann.color || '').trim().toUpperCase() === '#FFFFFF';
                 const fontSizePx = ann.fontSize || 16;
 
                 return (
@@ -5392,10 +5386,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     }}
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => e.stopPropagation()}
-                    className={`group/textann absolute pointer-events-auto flex items-stretch rounded-lg shadow-lg backdrop-blur-[2px] border transition-shadow ${
-                      isDarkInk
-                        ? 'bg-slate-50/90 border-slate-400/80'
-                        : 'bg-slate-900/85 border-white/25'
+                    className={`group/textann absolute pointer-events-auto flex items-stretch rounded-lg shadow-md border transition-shadow ${
+                      isWhiteInk
+                        ? 'bg-slate-900/90 border-white/30 text-white'
+                        : 'bg-white border-slate-300 text-slate-900'
                     } ${
                       isEditing
                         ? 'ring-2 ring-osu-orange border-osu-orange z-40'
@@ -5406,9 +5400,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                     <div
                       onPointerDown={(e) => handleStartPresenterTextDrag(e, ann)}
                       className={`flex items-center justify-center px-1 cursor-grab active:cursor-grabbing rounded-l-lg border-r transition-colors select-none ${
-                        isDarkInk
-                          ? 'border-slate-300/70 text-slate-500 hover:text-slate-800 hover:bg-slate-200/60'
-                          : 'border-white/10 text-slate-400 hover:text-white hover:bg-white/10'
+                        isWhiteInk
+                          ? 'border-white/10 text-slate-400 hover:text-white hover:bg-white/10'
+                          : 'border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-100'
                       }`}
                       title="Drag to reposition text box"
                     >
@@ -5421,6 +5415,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                       onClick={() => {
                         if (editingAnnotationId !== ann.id) {
                           setEditingAnnotationId(ann.id);
+                          if (ann.color) setPenColor(ann.color);
                         }
                       }}
                     >
@@ -5445,6 +5440,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         rows={1}
                         onFocus={() => {
                           setEditingAnnotationId(ann.id);
+                          if (ann.color) setPenColor(ann.color);
                         }}
                         onBlur={() => handlePresenterTextBlur(ann.id)}
                         onChange={(e) => handlePresenterTextChange(ann.id, e.target.value)}
@@ -5455,13 +5451,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                           }
                         }}
                         style={{
-                          color: ann.color || '#EF4444',
+                          color: ann.color || '#000000',
                           fontSize: `${fontSizePx}px`,
                           lineHeight: 1.3,
                         }}
-                        className={`col-start-1 row-start-1 w-full h-full bg-transparent resize-none overflow-hidden focus:outline-none font-sans font-bold whitespace-pre-wrap break-words ${
-                          isDarkInk ? 'placeholder-slate-400' : 'placeholder-slate-400/70'
-                        } cursor-text`}
+                        className="col-start-1 row-start-1 w-full h-full bg-transparent resize-none overflow-hidden focus:outline-none font-sans font-bold whitespace-pre-wrap break-words placeholder-slate-400 cursor-text"
                       />
                     </div>
 

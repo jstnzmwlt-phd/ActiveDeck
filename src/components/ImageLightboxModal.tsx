@@ -421,7 +421,7 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
       xPct,
       yPct,
       text: '',
-      color: studentPenColor,
+      color: studentPenTool === 'text' && studentPenColor ? studentPenColor : '#000000',
       fontSize: 16
     };
 
@@ -773,8 +773,11 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
                   onClick={() => {
                     setInteractionMode('text');
                     setStudentPenTool('text');
+                    setStudentPenColor('#000000');
                   }}
-                  className="px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer text-slate-400 hover:text-white"
+                  className={`px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    interactionMode === 'text' || studentPenTool === 'text' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                  }`}
                   title="Text Tool (Click on slide to add text box)"
                 >
                   <Type className="w-4.5 h-4.5" />
@@ -967,8 +970,9 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
           {presenterTextAnnotations.length > 0 && (
             <div className="absolute inset-0 w-full h-full pointer-events-none z-15">
               {presenterTextAnnotations.map((ann) => {
-                const isDarkInk = (ann.color || '').trim().toUpperCase() === '#000000';
+                const isWhiteInk = (ann.color || '').trim().toUpperCase() === '#FFFFFF';
                 const fontSizePx = ann.fontSize || 16;
+
                 return (
                   <div
                     key={ann.id}
@@ -976,15 +980,15 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
                       left: `${ann.xPct}%`,
                       top: `${ann.yPct}%`,
                     }}
-                    className={`absolute flex items-stretch rounded-lg shadow-lg backdrop-blur-[2px] border px-2 py-1 select-none pointer-events-none ${
-                      isDarkInk
-                        ? 'bg-slate-50/90 border-slate-400/80 text-slate-900'
-                        : 'bg-slate-900/85 border-white/25 text-white'
+                    className={`absolute flex items-stretch rounded-lg shadow-md border px-2 py-1 select-none pointer-events-none ${
+                      isWhiteInk
+                        ? 'bg-slate-900/90 border-white/30 text-white'
+                        : 'bg-white border-slate-300 text-slate-900'
                     }`}
                   >
                     <span
                       style={{
-                        color: ann.color || '#EF4444',
+                        color: ann.color || '#000000',
                         fontSize: `${fontSizePx}px`,
                         lineHeight: 1.3,
                       }}
@@ -1068,7 +1072,7 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
             {localTextAnnotations.map((ann) => {
               const isEditing = editingAnnotationId === ann.id;
               const isBeingDragged = draggingAnnotationId === ann.id;
-              const isDarkInk = (ann.color || '').trim().toUpperCase() === '#000000';
+              const isWhiteInk = (ann.color || '').trim().toUpperCase() === '#FFFFFF';
               const fontSizePx = ann.fontSize || 16;
 
               return (
@@ -1080,10 +1084,10 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
                   }}
                   onPointerDown={(e) => e.stopPropagation()}
                   onClick={(e) => e.stopPropagation()}
-                  className={`group/textann absolute pointer-events-auto flex items-stretch rounded-lg shadow-lg backdrop-blur-[2px] border transition-shadow ${
-                    isDarkInk
-                      ? 'bg-slate-50/90 border-slate-400/80'
-                      : 'bg-slate-900/85 border-white/25'
+                  className={`group/textann absolute pointer-events-auto flex items-stretch rounded-lg shadow-md border transition-shadow ${
+                    isWhiteInk
+                      ? 'bg-slate-900/90 border-white/30 text-white'
+                      : 'bg-white border-slate-300 text-slate-900'
                   } ${
                     isEditing
                       ? 'ring-2 ring-osu-orange border-osu-orange z-40'
@@ -1095,9 +1099,9 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
                     <div
                       onPointerDown={(e) => handleStartTextAnnotationDrag(e, ann)}
                       className={`flex items-center justify-center px-1 cursor-grab active:cursor-grabbing rounded-l-lg border-r transition-colors select-none ${
-                        isDarkInk
-                          ? 'border-slate-300/70 text-slate-500 hover:text-slate-800 hover:bg-slate-200/60'
-                          : 'border-white/10 text-slate-400 hover:text-white hover:bg-white/10'
+                        isWhiteInk
+                          ? 'border-white/10 text-slate-400 hover:text-white hover:bg-white/10'
+                          : 'border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-100'
                       }`}
                       title="Drag to reposition text box"
                     >
@@ -1111,6 +1115,7 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
                     onClick={() => {
                       if (allowStudentDrawing && editingAnnotationId !== ann.id) {
                         setEditingAnnotationId(ann.id);
+                        if (ann.color) setStudentPenColor(ann.color);
                       }
                     }}
                   >
@@ -1137,6 +1142,7 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
                       onFocus={() => {
                         if (allowStudentDrawing) {
                           setEditingAnnotationId(ann.id);
+                          if (ann.color) setStudentPenColor(ann.color);
                         }
                       }}
                       onBlur={() => handleTextAnnotationBlur(ann.id)}
@@ -1148,13 +1154,11 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
                         }
                       }}
                       style={{
-                        color: ann.color || '#EF4444',
+                        color: ann.color || '#000000',
                         fontSize: `${fontSizePx}px`,
                         lineHeight: 1.3,
                       }}
-                      className={`col-start-1 row-start-1 w-full h-full bg-transparent resize-none overflow-hidden focus:outline-none font-sans font-bold whitespace-pre-wrap break-words ${
-                        isDarkInk ? 'placeholder-slate-400' : 'placeholder-slate-400/70'
-                      } ${allowStudentDrawing ? 'cursor-text' : 'cursor-default'}`}
+                      className={`col-start-1 row-start-1 w-full h-full bg-transparent resize-none overflow-hidden focus:outline-none font-sans font-bold whitespace-pre-wrap break-words placeholder-slate-400 ${allowStudentDrawing ? 'cursor-text' : 'cursor-default'}`}
                     />
                   </div>
 
