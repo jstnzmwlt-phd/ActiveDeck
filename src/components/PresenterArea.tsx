@@ -2145,7 +2145,27 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     }
   };
 
-  // Background 2-Stage Automatic Slide Preview Capture & Upload Effect (Immediate + Delayed Animation Capture)
+  // Helper to convert base64 data URLs to Blob without network calls
+  const base64ToBlob = (base64: string): Blob | null => {
+    try {
+      if (!base64 || typeof base64 !== 'string') return null;
+      const parts = base64.split(',');
+      if (parts.length < 2) return null;
+      const match = parts[0].match(/:(.*?);/);
+      const mime = match ? match[1] : 'image/jpeg';
+      const bstr = atob(parts[1]);
+      let n = bstr.length;
+      const u8arr = new Uint8Array(n);
+      while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+      }
+      return new Blob([u8arr], { type: mime });
+    } catch {
+      return null;
+    }
+  };
+
+  // Background 2-Stage Automatic Slide Preview Capture & Upload Effect (Pristine Bridge COM Slide Priority + Video Fallback)
   useEffect(() => {
     if (!presentation?.id || (!isCapturing && !isBridgeConnected)) return;
 
@@ -2156,48 +2176,68 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       try {
         let blob: Blob | null = null;
 
-        // 1. If screen capture video stream is live, capture directly from video to capture live animations & transitions
-        const video = containerRef.current?.querySelector('video') || videoRef.current;
-        if (video && video.videoWidth > 0 && video.videoHeight > 0) {
-          const canvas = document.createElement('canvas');
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            blob = await new Promise<Blob | null>((resolveBlob) => {
-              canvas.toBlob((b) => resolveBlob(b), 'image/jpeg', 0.85);
-            });
-            console.log(`[SlidePreview 2-Stage] ${stageName} captured live video frame (${canvas.width}x${canvas.height}) for slide ${activeSlideNum}`);
+        // 1. FIRST PRIORITY: Pristine, full-resolution static slide directly from PowerPoint Bridge (COM API).
+        // This eliminates transitional animation artifacts, scattered flying text, and video compression.
+        if (isBridgeConnected) {
+          // A. Try currentSlideBase64 from WebSocket if it matches active slide
+          if (currentSlideBase64 && activeSlideNum === currentSlide) {
+            blob = base64ToBlob(currentSlideBase64);
+            if (!blob) {
+              try {
+                const response = await fetch(currentSlideBase64);
+                if (response.ok) blob = await response.blob();
+              } catch {}
+            }
+            if (blob) {
+              console.log(`[SlidePreview] ${stageName}: Prioritized clean static slide from bridge currentSlideBase64 for slide ${activeSlideNum}`);
+            }
+          }
+
+          // B. Try slideThumbnails dictionary from WebSocket
+          if (!blob && slideThumbnails && slideThumbnails[activeSlideNum]) {
+            const thumb = slideThumbnails[activeSlideNum];
+            blob = base64ToBlob(thumb);
+            if (!blob) {
+              try {
+                const response = await fetch(thumb);
+                if (response.ok) blob = await response.blob();
+              } catch {}
+            }
+            if (blob) {
+              console.log(`[SlidePreview] ${stageName}: Prioritized clean static slide from bridge slideThumbnails for slide ${activeSlideNum}`);
+            }
+          }
+
+          // C. Try direct HTTP fetch from local bridge COM export
+          if (!blob) {
+            try {
+              const slideUrl = `http://127.0.0.1:5000/slides/${activeSlideNum}.jpg${activeDeckKey ? `?d=${encodeURIComponent(activeDeckKey)}` : ''}`;
+              const response = await fetch(slideUrl);
+              if (response.ok) {
+                blob = await response.blob();
+                console.log(`[SlidePreview] ${stageName}: Prioritized clean COM export from local bridge HTTP for slide ${activeSlideNum}`);
+              }
+            } catch (fetchErr) {
+              console.warn(`[SlidePreview] Local bridge HTTP fetch skipped:`, fetchErr);
+            }
           }
         }
 
-        // 2. Fallback to WebSocket currentSlideBase64 if video capture was unavailable
-        if (!blob && isBridgeConnected && currentSlideBase64 && activeSlideNum === currentSlide) {
-          try {
-            const response = await fetch(currentSlideBase64);
-            if (response.ok) {
-              blob = await response.blob();
-              console.log(`[SlidePreview 2-Stage] ${stageName} retrieved clean slide image from currentSlideBase64 for slide ${activeSlideNum}`);
+        // 2. SECOND PRIORITY (Fallback): ONLY if PowerPoint Bridge is not available, snapshot the screen capture video stream
+        if (!blob) {
+          const video = containerRef.current?.querySelector('video') || videoRef.current;
+          if (video && video.videoWidth > 0 && video.videoHeight > 0) {
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+              blob = await new Promise<Blob | null>((resolveBlob) => {
+                canvas.toBlob((b) => resolveBlob(b), 'image/jpeg', 0.88);
+              });
+              console.log(`[SlidePreview] ${stageName}: Captured video frame (${canvas.width}x${canvas.height}) for slide ${activeSlideNum} (Bridge unavailable)`);
             }
-          } catch (base64Err) {
-            console.warn(`[SlidePreview 2-Stage] ${stageName} failed to get blob from currentSlideBase64, falling back to bridge fetch:`, base64Err);
-          }
-        }
-
-        // 3. Fallback to clean, static slide image exported by the PowerPoint bridge if video was unavailable
-        if (!blob && isBridgeConnected) {
-          try {
-            const slideUrl = `http://127.0.0.1:5000/slides/${activeSlideNum}.jpg${activeDeckKey ? `?d=${encodeURIComponent(activeDeckKey)}` : ''}`;
-            const response = await fetch(slideUrl);
-            if (response.ok) {
-              blob = await response.blob();
-              console.log(`[SlidePreview 2-Stage] ${stageName} fetched clean slide image from local bridge for slide ${activeSlideNum}`);
-            } else {
-              console.warn(`[SlidePreview 2-Stage] Local bridge returned status ${response.status} for slide ${activeSlideNum}`);
-            }
-          } catch (fetchErr) {
-            console.warn(`[SlidePreview 2-Stage] ${stageName} failed to fetch clean slide image from bridge:`, fetchErr);
           }
         }
 
@@ -2229,33 +2269,34 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
             timestamp: serverTimestamp()
           });
 
-          console.log(`[SlidePreview 2-Stage] ${stageName} upload complete for slide ${activeSlideNum}!`);
+          console.log(`[SlidePreview] ${stageName} upload complete for slide ${activeSlideNum}!`);
         } catch (uploadErr) {
-          console.error(`[SlidePreview 2-Stage] ${stageName} upload failed:`, uploadErr);
+          console.error(`[SlidePreview] ${stageName} upload failed:`, uploadErr);
         } finally {
           setIsUploadingPreview(false);
         }
       } catch (err) {
-        console.error(`[SlidePreview 2-Stage] Error in ${stageName}:`, err);
+        console.error(`[SlidePreview] Error in ${stageName}:`, err);
         setIsUploadingPreview(false);
       }
     };
 
-    // Stage 1: Delayed push (1500ms) so transitions are finished before capture
-    const immediateTimeoutId = setTimeout(() => {
-      captureAndUpload('Stage 1 (Delayed)');
-    }, 1500);
+    const stage1Delay = isBridgeConnected ? 400 : 2500;
+    const stage2Delay = isBridgeConnected ? 2000 : 4500;
 
-    // Stage 2: Updated push after animations/build-ins complete (4000ms)
+    const immediateTimeoutId = setTimeout(() => {
+      captureAndUpload('Stage 1 (Initial)');
+    }, stage1Delay);
+
     const delayedTimeoutId = setTimeout(() => {
-      captureAndUpload('Stage 2 (Animation Complete)');
-    }, 4000);
+      captureAndUpload('Stage 2 (Final)');
+    }, stage2Delay);
 
     return () => {
       clearTimeout(immediateTimeoutId);
       clearTimeout(delayedTimeoutId);
     };
-  }, [currentSlide, presentation?.currentSlide, isCapturing, isBridgeConnected, presentation?.id, captureTrigger]);
+  }, [currentSlide, presentation?.currentSlide, isCapturing, isBridgeConnected, currentSlideBase64, slideThumbnails, presentation?.id, captureTrigger]);
 
   useEffect(() => {
     return () => {
@@ -2657,7 +2698,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     if (!presentation?.id) return;
     setIsDownloadingPresentation(true);
     try {
-      await exportPresentationToDocx({ presentation, includeChat });
+      await exportPresentationToDocx({ presentation, includeChat, bridgeThumbnails: slideThumbnails });
     } catch (err) {
       console.error("Failed to compile presentation export:", err);
       alert("Failed to export presentation document.");

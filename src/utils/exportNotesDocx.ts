@@ -1207,10 +1207,11 @@ export const exportNotesToDocx = async (options: ExportNotesOptions): Promise<bo
 export interface ExportPresentationOptions {
   presentation: Presentation;
   includeChat?: boolean;
+  bridgeThumbnails?: Record<number, string>;
 }
 
 export const exportPresentationToDocx = async (options: ExportPresentationOptions): Promise<boolean> => {
-  const { presentation, includeChat = false } = options;
+  const { presentation, includeChat = false, bridgeThumbnails } = options;
   if (!presentation?.id) {
     alert("Presentation session not found!");
     return false;
@@ -1231,6 +1232,15 @@ export const exportPresentationToDocx = async (options: ExportPresentationOption
       previewsMap[String(data.slide)] = data.fileUrl;
     }
   });
+
+  // Prioritize clean static slide thumbnails from PowerPoint Bridge when available
+  if (bridgeThumbnails && Object.keys(bridgeThumbnails).length > 0) {
+    Object.entries(bridgeThumbnails).forEach(([slideKey, cleanUrl]) => {
+      if (cleanUrl) {
+        previewsMap[String(slideKey)] = cleanUrl;
+      }
+    });
+  }
 
   const sortedSlides = Object.keys(previewsMap).sort((a, b) => {
     const numA = Number(a);
