@@ -921,6 +921,7 @@ function AppContent() {
       studentSlideTextAnnotationsMap,
       pushedSlidesMap,
       presenterDrawingsMap: presentation?.presenterDrawings,
+      presenterTextAnnotationsMap: presentation?.presenterTextAnnotations,
       customTabs
     });
     if (!success) {
@@ -1195,7 +1196,7 @@ function AppContent() {
       channel.onmessage = (event) => {
         if (event.data?.type === 'clear-all-drawings') {
           console.log('AppContent - Received clear-all-drawings broadcast');
-          setPresentation(prev => prev ? { ...prev, presenterDrawings: {} } : null);
+          setPresentation(prev => prev ? { ...prev, presenterDrawings: {}, presenterTextAnnotations: {} } : null);
         }
       };
       return () => {
@@ -1947,6 +1948,40 @@ function AppContent() {
                           return null;
                         }
                       })()}
+                      {/* Presenter Live Slide Text Annotations Layer */}
+                      {(() => {
+                        const textAnnsJson = presentation?.presenterTextAnnotations?.[activeTab];
+                        if (!textAnnsJson) return null;
+                        try {
+                          const textAnns: SlideTextAnnotation[] = JSON.parse(textAnnsJson);
+                          if (!Array.isArray(textAnns) || textAnns.length === 0) return null;
+                          return (
+                            <div className="absolute inset-0 w-full h-full pointer-events-none z-10">
+                              {textAnns.map((ann) => {
+                                const isDarkInk = (ann.color || '').trim().toUpperCase() === '#000000';
+                                return (
+                                  <div
+                                    key={ann.id}
+                                    style={{ left: `${ann.xPct}%`, top: `${ann.yPct}%` }}
+                                    className={`absolute flex items-stretch rounded-lg shadow-lg backdrop-blur-[2px] border px-2 py-0.5 select-none ${
+                                      isDarkInk ? 'bg-slate-50/90 border-slate-400/80 text-slate-900' : 'bg-slate-900/85 border-white/25 text-white'
+                                    }`}
+                                  >
+                                    <span
+                                      style={{ color: ann.color || '#EF4444', fontSize: `${Math.max(10, Math.round(ann.fontSize || 16))}px`, lineHeight: 1.3 }}
+                                      className="font-sans font-bold whitespace-pre-wrap break-words"
+                                    >
+                                      {ann.text}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        } catch {
+                          return null;
+                        }
+                      })()}
                       {/* Student Personal Slide Markings Layer */}
                       {(() => {
                         const studentJson = studentSlideDrawingsMap[activeTab];
@@ -2394,6 +2429,7 @@ function AppContent() {
             imageUrl={lightboxImgUrl} 
             title={`Slide ${activeTab} Preview`} 
             drawingStrokesJson={presentation?.presenterDrawings?.[activeTab]}
+            presenterTextAnnotationsJson={presentation?.presenterTextAnnotations?.[activeTab]}
             allowStudentDrawing={true}
             studentStrokesJson={studentSlideDrawingsMap[activeTab] || ''}
             onStudentStrokesChange={(newJson) => {
@@ -3007,6 +3043,40 @@ function AppContent() {
                                   return null;
                                 }
                               })()}
+                              {/* Presenter Live Slide Text Annotations Layer */}
+                              {(() => {
+                                const textAnnsJson = presentation?.presenterTextAnnotations?.[activeTab];
+                                if (!textAnnsJson) return null;
+                                try {
+                                  const textAnns: SlideTextAnnotation[] = JSON.parse(textAnnsJson);
+                                  if (!Array.isArray(textAnns) || textAnns.length === 0) return null;
+                                  return (
+                                    <div className="absolute inset-0 w-full h-full pointer-events-none z-10">
+                                      {textAnns.map((ann) => {
+                                        const isDarkInk = (ann.color || '').trim().toUpperCase() === '#000000';
+                                        return (
+                                          <div
+                                            key={ann.id}
+                                            style={{ left: `${ann.xPct}%`, top: `${ann.yPct}%` }}
+                                            className={`absolute flex items-stretch rounded-lg shadow-lg backdrop-blur-[2px] border px-2 py-0.5 select-none ${
+                                              isDarkInk ? 'bg-slate-50/90 border-slate-400/80 text-slate-900' : 'bg-slate-900/85 border-white/25 text-white'
+                                            }`}
+                                          >
+                                            <span
+                                              style={{ color: ann.color || '#EF4444', fontSize: `${Math.max(10, Math.round(ann.fontSize || 16))}px`, lineHeight: 1.3 }}
+                                              className="font-sans font-bold whitespace-pre-wrap break-words"
+                                            >
+                                              {ann.text}
+                                            </span>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  );
+                                } catch {
+                                  return null;
+                                }
+                              })()}
                               {/* Student Personal Slide Markings Layer */}
                               {(() => {
                                 const studentJson = studentSlideDrawingsMap[activeTab];
@@ -3144,6 +3214,7 @@ function AppContent() {
         imageUrl={lightboxImgUrl} 
         title={`${getTabTitle(activeTab)} Preview`} 
         drawingStrokesJson={presentation?.presenterDrawings?.[activeTab]}
+        presenterTextAnnotationsJson={presentation?.presenterTextAnnotations?.[activeTab]}
         allowStudentDrawing={true}
         studentStrokesJson={studentSlideDrawingsMap[activeTab] || ''}
         onStudentStrokesChange={(newJson) => {
@@ -3251,6 +3322,7 @@ function AppContent() {
         imageUrl={lightboxImgUrl} 
         title={`Slide ${activeTab} Preview`} 
         drawingStrokesJson={presentation?.presenterDrawings?.[activeTab]}
+        presenterTextAnnotationsJson={presentation?.presenterTextAnnotations?.[activeTab]}
         allowStudentDrawing={true}
         studentStrokesJson={studentSlideDrawingsMap[activeTab] || ''}
         onStudentStrokesChange={(newJson) => {

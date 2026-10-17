@@ -14,6 +14,7 @@ interface ImageLightboxModalProps {
   imageUrl: string;
   title?: string;
   drawingStrokesJson?: string; // Presenter drawings (read-only base layer)
+  presenterTextAnnotationsJson?: string; // Presenter text annotations (read-only base layer)
   allowStudentDrawing?: boolean; // True when student can annotate slides
   studentStrokesJson?: string; // Student's personal freehand drawings on this slide
   onStudentStrokesChange?: (newStrokesJson: string) => void;
@@ -28,6 +29,7 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
   imageUrl,
   title = "Pushed Slide View",
   drawingStrokesJson,
+  presenterTextAnnotationsJson,
   allowStudentDrawing = true,
   studentStrokesJson = '',
   onStudentStrokesChange,
@@ -79,6 +81,15 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
     try {
       const parsed = JSON.parse(drawingStrokesJson);
       if (Array.isArray(parsed)) presenterStrokes = parsed;
+    } catch {}
+  }
+
+  // Parse presenter text annotations (read-only base layer)
+  let presenterTextAnnotations: SlideTextAnnotation[] = [];
+  if (presenterTextAnnotationsJson) {
+    try {
+      const parsed = JSON.parse(presenterTextAnnotationsJson);
+      if (Array.isArray(parsed)) presenterTextAnnotations = parsed;
     } catch {}
   }
 
@@ -950,6 +961,41 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
                 );
               })}
             </svg>
+          )}
+
+          {/* Presenter Text Annotations Layer (Read-only Base Layer) */}
+          {presenterTextAnnotations.length > 0 && (
+            <div className="absolute inset-0 w-full h-full pointer-events-none z-15">
+              {presenterTextAnnotations.map((ann) => {
+                const isDarkInk = (ann.color || '').trim().toUpperCase() === '#000000';
+                const fontSizePx = ann.fontSize || 16;
+                return (
+                  <div
+                    key={ann.id}
+                    style={{
+                      left: `${ann.xPct}%`,
+                      top: `${ann.yPct}%`,
+                    }}
+                    className={`absolute flex items-stretch rounded-lg shadow-lg backdrop-blur-[2px] border px-2 py-1 select-none pointer-events-none ${
+                      isDarkInk
+                        ? 'bg-slate-50/90 border-slate-400/80 text-slate-900'
+                        : 'bg-slate-900/85 border-white/25 text-white'
+                    }`}
+                  >
+                    <span
+                      style={{
+                        color: ann.color || '#EF4444',
+                        fontSize: `${fontSizePx}px`,
+                        lineHeight: 1.3,
+                      }}
+                      className="font-sans font-bold whitespace-pre-wrap break-words"
+                    >
+                      {ann.text}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           )}
 
           {/* Interactive Student Drawing Layer (Student's own private slide markings) */}

@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Presentation, Message, Poll, WordCloud, OpenEndedQuestion, DeckItem } from '../types';
+import { Presentation, Message, Poll, WordCloud, OpenEndedQuestion, DeckItem, SlideTextAnnotation } from '../types';
 import { ScreenCapture } from './ScreenCapture';
-import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play, X, Loader2, Tv, Minimize, Maximize, FileText, Square, Send, CheckCircle2, Check, Clock, Pen, Eraser, Highlighter, MoveRight, Type, Undo2, Redo2, Trash2, Minus, Circle, Search, Plus, Layers, UploadCloud, ScreenShare } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Info, ShieldAlert, Presentation as PresentationIcon, Monitor, MonitorPlay, MousePointer2, Play, X, Loader2, Tv, Minimize, Maximize, FileText, Square, Send, CheckCircle2, Check, Clock, Pen, Eraser, Highlighter, MoveRight, Type, Undo2, Redo2, Trash2, Minus, Circle, Search, Plus, Layers, UploadCloud, ScreenShare, GripVertical } from 'lucide-react';
 import { useBridge } from '../contexts/BridgeContext';
 import { auth, db, storage } from '../firebase';
 import { doc, getDoc, updateDoc, setDoc, onSnapshot, collection, query, where } from 'firebase/firestore';
 import { ref, uploadBytes, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { QRCodeSVG } from 'qrcode.react';
-import { compositeSlideWithAnnotations, createSlidePlaceholderImage } from '../utils/exportNotesDocx';
+import { compositeSlideWithAnnotations, createSlidePlaceholderImage, exportPresentationToDocx } from '../utils/exportNotesDocx';
 import { PptxUploader } from './PptxUploader';
 
 export interface DrawingPoint {
@@ -1012,11 +1012,33 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const activeDrawingStrokeRef = useRef<DrawingStroke | null>(null);
   const isDrawingPointerDownRef = useRef<boolean>(false);
 
-  const [drawingUndoStack, setDrawingUndoStack] = useState<Record<string, DrawingStroke[][]>>({});
-  const [drawingRedoStack, setDrawingRedoStack] = useState<Record<string, DrawingStroke[][]>>({});
+  const [presenterTextAnnotationsMap, setPresenterTextAnnotationsMap] = useState<Record<string, SlideTextAnnotation[]>>({});
+  const [editingAnnotationId, setEditingAnnotationId] = useState<string | null>(null);
+  const [draggingAnnotationId, setDraggingAnnotationId] = useState<string | null>(null);
+  const textareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
+  const textDragRef = useRef<{
+    id: string;
+    startClientX: number;
+    startClientY: number;
+    initialXPct: number;
+    initialYPct: number;
+    hasMoved: boolean;
+    preDragSnapshot: {
+      strokes: DrawingStroke[];
+      textAnnotations: SlideTextAnnotation[];
+    };
+  } | null>(null);
+
+  interface PresenterHistorySnapshot {
+    strokes: DrawingStroke[];
+    textAnnotations: SlideTextAnnotation[];
+  }
+  const [drawingUndoStack, setDrawingUndoStack] = useState<Record<string, PresenterHistorySnapshot[]>>({});
+  const [drawingRedoStack, setDrawingRedoStack] = useState<Record<string, PresenterHistorySnapshot[]>>({});
 
   const activeSlideKey = String(currentSlide !== null ? currentSlide : (presentation?.currentSlide || 1));
   const currentSlideStrokes = isCapturing ? (presenterStrokesMap[activeSlideKey] || []) : [];
+  const currentSlideTextAnnotations = isCapturing ? (presenterTextAnnotationsMap[activeSlideKey] || []) : [];
 
   const lastActiveStrokeBroadcastRef = useRef<number>(0);
 
@@ -1094,27 +1116,59 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     }
   };
 
-  // Sync presenter drawings from Firestore
+  // Sync presenter drawings & text annotations from Firestore (with automatic migration of legacy stroke.text)
   useEffect(() => {
     if (!isCapturing) {
       setPresenterStrokesMap({});
+      setPresenterTextAnnotationsMap({});
       return;
     }
+
+    const parsedStrokesMap: Record<string, DrawingStroke[]> = {};
+    const legacyMigratedTextMap: Record<string, SlideTextAnnotation[]> = {};
+
     if (presentation?.presenterDrawings) {
-      const parsedMap: Record<string, DrawingStroke[]> = {};
       Object.entries(presentation.presenterDrawings).forEach(([slideKey, jsonStr]) => {
         try {
           const parsed = JSON.parse(jsonStr);
           if (Array.isArray(parsed)) {
-            parsedMap[slideKey] = parsed;
+            const cleanStrokes: DrawingStroke[] = [];
+            parsed.forEach((s, idx) => {
+              if (s && s.text && s.points?.[0]) {
+                if (!legacyMigratedTextMap[slideKey]) legacyMigratedTextMap[slideKey] = [];
+                legacyMigratedTextMap[slideKey].push({
+                  id: `migrated_pres_${slideKey}_${idx}`,
+                  xPct: Number(Math.max(1, Math.min(92, s.points[0].x / 10)).toFixed(2)),
+                  yPct: Number(Math.max(1, Math.min(92, s.points[0].y / 10)).toFixed(2)),
+                  text: s.text,
+                  color: s.color || '#EF4444',
+                  fontSize: 16
+                });
+              } else {
+                cleanStrokes.push(s);
+              }
+            });
+            parsedStrokesMap[slideKey] = cleanStrokes;
           }
         } catch {}
       });
-      setPresenterStrokesMap(parsedMap);
-    } else {
-      setPresenterStrokesMap({});
     }
-  }, [presentation?.presenterDrawings, isCapturing]);
+
+    const parsedTextMap: Record<string, SlideTextAnnotation[]> = { ...legacyMigratedTextMap };
+    if (presentation?.presenterTextAnnotations) {
+      Object.entries(presentation.presenterTextAnnotations).forEach(([slideKey, jsonStr]) => {
+        try {
+          const parsed = JSON.parse(jsonStr);
+          if (Array.isArray(parsed)) {
+            parsedTextMap[slideKey] = parsed;
+          }
+        } catch {}
+      });
+    }
+
+    setPresenterStrokesMap(parsedStrokesMap);
+    setPresenterTextAnnotationsMap(parsedTextMap);
+  }, [presentation?.presenterDrawings, presentation?.presenterTextAnnotations, isCapturing]);
 
   // Sync live active drawing stroke on Projector Mode from Firebase
   useEffect(() => {
@@ -1140,12 +1194,18 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
           ...prev,
           [e.data.slide]: e.data.strokes
         }));
+      } else if (e.data && e.data.type === 'slide-text-annotations-update' && e.data.presentationId === presentation?.id) {
+        setPresenterTextAnnotationsMap(prev => ({
+          ...prev,
+          [e.data.slide]: e.data.textAnnotations
+        }));
       } else if (e.data && e.data.type === 'active-stroke-update' && e.data.presentationId === presentation?.id) {
         if (isProjectorMode && e.data.slide === activeSlideKey) {
           setActiveDrawingStroke(e.data.activeStroke);
         }
       } else if (e.data && e.data.type === 'clear-all-drawings' && e.data.presentationId === presentation?.id) {
         setPresenterStrokesMap({});
+        setPresenterTextAnnotationsMap({});
         setActiveDrawingStroke(null);
         activeDrawingStrokeRef.current = null;
       }
@@ -1187,6 +1247,214 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     }
   };
 
+  const updatePresenterTextAnnotations = async (slideKey: string, newAnnotations: SlideTextAnnotation[]) => {
+    setPresenterTextAnnotationsMap(prev => ({
+      ...prev,
+      [slideKey]: newAnnotations
+    }));
+
+    try {
+      const channel = new BroadcastChannel('activedeck-presenter-drawing');
+      channel.postMessage({
+        type: 'slide-text-annotations-update',
+        presentationId: presentation?.id,
+        slide: slideKey,
+        textAnnotations: newAnnotations
+      });
+      channel.close();
+    } catch (e) {
+      console.warn("Failed to broadcast presenter text annotations update:", e);
+    }
+
+    if (presentation?.id) {
+      try {
+        await updateDoc(doc(db, 'presentations', presentation.id), {
+          [`presenterTextAnnotations.${slideKey}`]: JSON.stringify(newAnnotations)
+        });
+      } catch (err) {
+        console.error("Error updating presenter text annotations in Firebase:", err);
+      }
+    }
+  };
+
+  // Auto-focus newly selected/created text annotation
+  useEffect(() => {
+    if (editingAnnotationId) {
+      const el = textareaRefs.current[editingAnnotationId];
+      if (el) {
+        el.focus();
+      }
+    }
+  }, [editingAnnotationId]);
+
+  // Global pointer move / up listeners for dragging presenter text annotations smoothly
+  useEffect(() => {
+    if (!draggingAnnotationId) return;
+
+    const handleGlobalPointerMove = (e: PointerEvent) => {
+      const dragInfo = textDragRef.current;
+      const wrapper = poppedPenFrameRef.current;
+      if (!dragInfo || !wrapper) return;
+
+      const svgElem = wrapper.querySelector('svg');
+      const rect = svgElem ? svgElem.getBoundingClientRect() : wrapper.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return;
+
+      const dxPx = e.clientX - dragInfo.startClientX;
+      const dyPx = e.clientY - dragInfo.startClientY;
+
+      if (!dragInfo.hasMoved && Math.hypot(dxPx, dyPx) > 3) {
+        dragInfo.hasMoved = true;
+        setDrawingUndoStack(prev => ({
+          ...prev,
+          [activeSlideKey]: [
+            ...(prev[activeSlideKey] || []),
+            dragInfo.preDragSnapshot
+          ]
+        }));
+        setDrawingRedoStack(prev => ({ ...prev, [activeSlideKey]: [] }));
+      }
+
+      if (dragInfo.hasMoved) {
+        const dxPct = (dxPx / rect.width) * 100;
+        const dyPct = (dyPx / rect.height) * 100;
+        const nextXPct = Number(Math.max(0, Math.min(95, dragInfo.initialXPct + dxPct)).toFixed(2));
+        const nextYPct = Number(Math.max(0, Math.min(95, dragInfo.initialYPct + dyPct)).toFixed(2));
+
+        setPresenterTextAnnotationsMap(prev => {
+          const list = prev[activeSlideKey] || [];
+          const updated = list.map(ann =>
+            ann.id === dragInfo.id ? { ...ann, xPct: nextXPct, yPct: nextYPct } : ann
+          );
+          return { ...prev, [activeSlideKey]: updated };
+        });
+      }
+    };
+
+    const handleGlobalPointerUp = () => {
+      const dragInfo = textDragRef.current;
+      textDragRef.current = null;
+      setDraggingAnnotationId(null);
+      if (dragInfo?.hasMoved) {
+        setPresenterTextAnnotationsMap(prev => {
+          const list = prev[activeSlideKey] || [];
+          updatePresenterTextAnnotations(activeSlideKey, list);
+          return prev;
+        });
+      }
+    };
+
+    window.addEventListener('pointermove', handleGlobalPointerMove);
+    window.addEventListener('pointerup', handleGlobalPointerUp);
+    return () => {
+      window.removeEventListener('pointermove', handleGlobalPointerMove);
+      window.removeEventListener('pointerup', handleGlobalPointerUp);
+    };
+  }, [draggingAnnotationId, activeSlideKey]);
+
+  const handleCreatePresenterTextAnnotation = (coords: DrawingPoint) => {
+    const xPct = Number(Math.max(1, Math.min(90, coords.x / 10)).toFixed(2));
+    const yPct = Number(Math.max(1, Math.min(90, coords.y / 10)).toFixed(2));
+
+    const currentSlideAnns = presenterTextAnnotationsMap[activeSlideKey] || [];
+    const nonEmpty = currentSlideAnns.filter(a => a.text && a.text.trim() !== '');
+
+    const newAnnotation: SlideTextAnnotation = {
+      id: `pres_txt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      xPct,
+      yPct,
+      text: '',
+      color: penColor,
+      fontSize: 16
+    };
+
+    setDrawingUndoStack(prev => ({
+      ...prev,
+      [activeSlideKey]: [
+        ...(prev[activeSlideKey] || []),
+        { strokes: currentSlideStrokes, textAnnotations: nonEmpty }
+      ]
+    }));
+    setDrawingRedoStack(prev => ({ ...prev, [activeSlideKey]: [] }));
+
+    const updated = [...nonEmpty, newAnnotation];
+    updatePresenterTextAnnotations(activeSlideKey, updated);
+    setEditingAnnotationId(newAnnotation.id);
+  };
+
+  const handleStartPresenterTextDrag = (e: React.PointerEvent, ann: SlideTextAnnotation) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const currentSlideAnns = presenterTextAnnotationsMap[activeSlideKey] || [];
+    textDragRef.current = {
+      id: ann.id,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      initialXPct: ann.xPct,
+      initialYPct: ann.yPct,
+      hasMoved: false,
+      preDragSnapshot: {
+        strokes: currentSlideStrokes,
+        textAnnotations: currentSlideAnns.filter(a => a.text && a.text.trim() !== '')
+      }
+    };
+    setDraggingAnnotationId(ann.id);
+  };
+
+  const handlePresenterTextChange = (id: string, newText: string) => {
+    const currentSlideAnns = presenterTextAnnotationsMap[activeSlideKey] || [];
+    const updated = currentSlideAnns.map(ann =>
+      ann.id === id ? { ...ann, text: newText } : ann
+    );
+    updatePresenterTextAnnotations(activeSlideKey, updated);
+  };
+
+  const handlePresenterTextBlur = (id: string) => {
+    const currentSlideAnns = presenterTextAnnotationsMap[activeSlideKey] || [];
+    const target = currentSlideAnns.find(a => a.id === id);
+    let finalAnnotations = currentSlideAnns;
+    if (target && target.text.trim() === '') {
+      finalAnnotations = currentSlideAnns.filter(a => a.id !== id);
+    }
+    if (editingAnnotationId === id) {
+      setEditingAnnotationId(null);
+    }
+    updatePresenterTextAnnotations(activeSlideKey, finalAnnotations);
+  };
+
+  const handleDeletePresenterTextAnnotation = (id: string, e: React.MouseEvent | React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const currentSlideAnns = presenterTextAnnotationsMap[activeSlideKey] || [];
+    setDrawingUndoStack(prev => ({
+      ...prev,
+      [activeSlideKey]: [
+        ...(prev[activeSlideKey] || []),
+        { strokes: currentSlideStrokes, textAnnotations: currentSlideAnns }
+      ]
+    }));
+    setDrawingRedoStack(prev => ({ ...prev, [activeSlideKey]: [] }));
+
+    const updated = currentSlideAnns.filter(a => a.id !== id);
+    if (editingAnnotationId === id) {
+      setEditingAnnotationId(null);
+    }
+    updatePresenterTextAnnotations(activeSlideKey, updated);
+  };
+
+  const handleColorSelect = (color: string) => {
+    setPenColor(color);
+    if (editingAnnotationId) {
+      const currentSlideAnns = presenterTextAnnotationsMap[activeSlideKey] || [];
+      const updated = currentSlideAnns.map(ann =>
+        ann.id === editingAnnotationId ? { ...ann, color } : ann
+      );
+      updatePresenterTextAnnotations(activeSlideKey, updated);
+    }
+  };
+
   const getDrawingCoordinates = (e: React.PointerEvent<SVGSVGElement>): DrawingPoint | null => {
     const svgElem = e.currentTarget;
     if (!svgElem) return null;
@@ -1209,10 +1477,15 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     });
 
     if (remainingStrokes.length !== currentSlideStrokes.length) {
+      const currentSlideAnns = presenterTextAnnotationsMap[activeSlideKey] || [];
       setDrawingUndoStack(prev => ({
         ...prev,
-        [activeSlideKey]: [...(prev[activeSlideKey] || []), currentSlideStrokes]
+        [activeSlideKey]: [
+          ...(prev[activeSlideKey] || []),
+          { strokes: currentSlideStrokes, textAnnotations: currentSlideAnns.filter(a => a.text && a.text.trim() !== '') }
+        ]
       }));
+      setDrawingRedoStack(prev => ({ ...prev, [activeSlideKey]: [] }));
       updatePresenterStrokes(activeSlideKey, remainingStrokes);
     }
   };
@@ -1225,31 +1498,20 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     const coords = getDrawingCoordinates(e);
     if (!coords) return;
 
+    if (penTool === 'text') {
+      handleCreatePresenterTextAnnotation(coords);
+      return;
+    }
+
+    if (editingAnnotationId) {
+      setEditingAnnotationId(null);
+    }
+
     isDrawingPointerDownRef.current = true;
     setIsDrawingPointerDown(true);
 
     if (penTool === 'eraser') {
       eraseStrokeAtPoint(coords);
-    } else if (penTool === 'text') {
-      const enteredText = window.prompt("Enter text to display on slide:");
-      if (enteredText && enteredText.trim()) {
-        const textStroke: DrawingStroke = {
-          points: [coords],
-          color: penColor,
-          width: penWidth,
-          text: enteredText.trim()
-        };
-        const updatedStrokes = [...currentSlideStrokes, textStroke];
-        setDrawingUndoStack(prev => ({
-          ...prev,
-          [activeSlideKey]: [...(prev[activeSlideKey] || []), currentSlideStrokes]
-        }));
-        setDrawingRedoStack(prev => ({
-          ...prev,
-          [activeSlideKey]: []
-        }));
-        updatePresenterStrokes(activeSlideKey, updatedStrokes);
-      }
     } else if (penTool === 'arrow' || penTool === 'line' || penTool === 'circle' || penTool === 'rectangle') {
       const newStroke: DrawingStroke = {
         points: [coords, coords],
@@ -1287,7 +1549,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       }
     }
 
-    if (!isPenActive || !isDrawingPointerDownRef.current) return;
+    if (!isPenActive || !isDrawingPointerDownRef.current || penTool === 'text') return;
     e.preventDefault();
 
     const coords = getDrawingCoordinates(e);
@@ -1323,7 +1585,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   };
 
   const handleDrawingPointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (!isPenActive || !isDrawingPointerDownRef.current) return;
+    if (!isPenActive || !isDrawingPointerDownRef.current || penTool === 'text') return;
     e.preventDefault();
     isDrawingPointerDownRef.current = false;
     setIsDrawingPointerDown(false);
@@ -1331,9 +1593,13 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     const currentStroke = activeDrawingStrokeRef.current;
     if (currentStroke && currentStroke.points.length > 0) {
       const updatedStrokes = [...currentSlideStrokes, currentStroke];
+      const currentSlideAnns = presenterTextAnnotationsMap[activeSlideKey] || [];
       setDrawingUndoStack(prev => ({
         ...prev,
-        [activeSlideKey]: [...(prev[activeSlideKey] || []), currentSlideStrokes]
+        [activeSlideKey]: [
+          ...(prev[activeSlideKey] || []),
+          { strokes: currentSlideStrokes, textAnnotations: currentSlideAnns.filter(a => a.text && a.text.trim() !== '') }
+        ]
       }));
       setDrawingRedoStack(prev => ({ ...prev, [activeSlideKey]: [] }));
 
@@ -1350,16 +1616,22 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     const previousState = stack[stack.length - 1];
     const newStack = stack.slice(0, stack.length - 1);
 
+    const currentSlideAnns = presenterTextAnnotationsMap[activeSlideKey] || [];
     setDrawingRedoStack(prev => ({
       ...prev,
-      [activeSlideKey]: [...(prev[activeSlideKey] || []), currentSlideStrokes]
+      [activeSlideKey]: [
+        ...(prev[activeSlideKey] || []),
+        { strokes: currentSlideStrokes, textAnnotations: currentSlideAnns.filter(a => a.text && a.text.trim() !== '') }
+      ]
     }));
     setDrawingUndoStack(prev => ({
       ...prev,
       [activeSlideKey]: newStack
     }));
 
-    updatePresenterStrokes(activeSlideKey, previousState);
+    setEditingAnnotationId(null);
+    updatePresenterStrokes(activeSlideKey, previousState.strokes);
+    updatePresenterTextAnnotations(activeSlideKey, previousState.textAnnotations);
   };
 
   const handleRedoDrawing = () => {
@@ -1368,26 +1640,38 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     const nextState = stack[stack.length - 1];
     const newStack = stack.slice(0, stack.length - 1);
 
+    const currentSlideAnns = presenterTextAnnotationsMap[activeSlideKey] || [];
     setDrawingUndoStack(prev => ({
       ...prev,
-      [activeSlideKey]: [...(prev[activeSlideKey] || []), currentSlideStrokes]
+      [activeSlideKey]: [
+        ...(prev[activeSlideKey] || []),
+        { strokes: currentSlideStrokes, textAnnotations: currentSlideAnns.filter(a => a.text && a.text.trim() !== '') }
+      ]
     }));
     setDrawingRedoStack(prev => ({
       ...prev,
       [activeSlideKey]: newStack
     }));
 
-    updatePresenterStrokes(activeSlideKey, nextState);
+    setEditingAnnotationId(null);
+    updatePresenterStrokes(activeSlideKey, nextState.strokes);
+    updatePresenterTextAnnotations(activeSlideKey, nextState.textAnnotations);
   };
 
   const handleClearSlideDrawing = () => {
-    if (currentSlideStrokes.length === 0) return;
+    const currentSlideAnns = presenterTextAnnotationsMap[activeSlideKey] || [];
+    if (currentSlideStrokes.length === 0 && currentSlideAnns.length === 0) return;
     setDrawingUndoStack(prev => ({
       ...prev,
-      [activeSlideKey]: [...(prev[activeSlideKey] || []), currentSlideStrokes]
+      [activeSlideKey]: [
+        ...(prev[activeSlideKey] || []),
+        { strokes: currentSlideStrokes, textAnnotations: currentSlideAnns }
+      ]
     }));
     setDrawingRedoStack(prev => ({ ...prev, [activeSlideKey]: [] }));
+    setEditingAnnotationId(null);
     updatePresenterStrokes(activeSlideKey, []);
+    updatePresenterTextAnnotations(activeSlideKey, []);
   };
 
   const [currentSlidePreviewUrl, setCurrentSlidePreviewUrl] = useState<string | null>(null);
@@ -2373,471 +2657,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     if (!presentation?.id) return;
     setIsDownloadingPresentation(true);
     try {
-      const { collection, query, where, getDocs } = await import('firebase/firestore');
-      const { Document, Packer, Paragraph, TextRun, HeadingLevel, ImageRun, Table, TableRow, TableCell, WidthType, BorderStyle } = await import('docx');
-
-      const q = query(
-        collection(db, 'messages'),
-        where('presentationId', '==', presentation.id),
-        where('isBackgroundPreview', '==', true)
-      );
-
-      const querySnapshot = await getDocs(q);
-      const previewsMap: Record<string, string> = {};
-      querySnapshot.forEach(docSnap => {
-        const data = docSnap.data();
-        if (data.slide !== undefined && data.slide !== null && data.fileUrl) {
-          previewsMap[String(data.slide)] = data.fileUrl;
-        }
-      });
-
-      const sortedSlides = Object.keys(previewsMap).sort((a, b) => {
-        const numA = Number(a);
-        const numB = Number(b);
-        if (isNaN(numA) || isNaN(numB)) return a.localeCompare(b);
-        return numA - numB;
-      });
-
-      if (sortedSlides.length === 0) {
-        alert("No slides have been captured yet for this presentation. Present slides first!");
-        setIsDownloadingPresentation(false);
-        return;
-      }
-
-      const slideElements: any[] = [];
-
-      for (const slide of sortedSlides) {
-        const slideNum = Number(slide);
-        const titleStr = isNaN(slideNum) ? slide : `Slide ${slide}`;
-        slideElements.push(
-          new Paragraph({
-            text: titleStr,
-            heading: HeadingLevel.HEADING_2,
-            spacing: { before: 240, after: 120 }
-          })
-        );
-
-        const slideImgUrl = previewsMap[slide];
-        if (slideImgUrl) {
-          const presenterJson = presentation?.presenterDrawings?.[slide];
-          const imgResult = (await compositeSlideWithAnnotations(slideImgUrl, presenterJson)) || createSlidePlaceholderImage(titleStr);
-          if (imgResult) {
-            slideElements.push(
-              new Paragraph({
-                children: [
-                  new ImageRun({
-                    data: imgResult.data,
-                    transformation: { width: 500, height: 280 },
-                    type: imgResult.type
-                  })
-                ],
-                spacing: { after: 180 }
-              })
-            );
-          }
-        }
-      }
-
-      if (slideElements.length === 0) {
-        slideElements.push(
-          new Paragraph({
-            children: [
-              new TextRun({
-                text: "No slide images were recorded for this presentation session.",
-                italics: true,
-                font: "Arial",
-                color: "64748B"
-              })
-            ],
-            spacing: { before: 120, after: 240 }
-          })
-        );
-      }
-
-      const activityElements: any[] = [];
-      if (includeChat) {
-        // Query database for chat history and activities
-        const msgsQuery = query(collection(db, 'messages'), where('presentationId', '==', presentation.id));
-        const msgsSnap = await getDocs(msgsQuery);
-        const msgs = msgsSnap.docs
-          .map(doc => ({ id: doc.id, ...doc.data() }))
-          .filter((m: any) => !m.isBackgroundPreview) as Message[];
-        msgs.sort((a, b) => (a.timestamp?.toMillis() || 0) - (b.timestamp?.toMillis() || 0));
-
-        const pollsQuery = query(collection(db, 'polls'), where('presentationId', '==', presentation.id));
-        const pollsSnap = await getDocs(pollsQuery);
-        const ps = pollsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Poll[];
-        ps.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
-
-        const wcQuery = query(collection(db, 'wordClouds'), where('presentationId', '==', presentation.id));
-        const wcSnap = await getDocs(wcQuery);
-        const wcs = wcSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as WordCloud[];
-        wcs.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
-
-        const oeqQuery = query(collection(db, 'openEndedQuestions'), where('presentationId', '==', presentation.id));
-        const oeqSnap = await getDocs(oeqQuery);
-        const oeqs = oeqSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as OpenEndedQuestion[];
-        oeqs.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
-
-        const combinedItems = [
-          ...msgs.map(m => ({ ...m, type: 'message' as const })),
-          ...ps.map(p => ({ ...p, type: 'poll' as const })),
-          ...wcs.map(w => ({ ...w, type: 'wordCloud' as const })),
-          ...oeqs.map(q => ({ ...q, type: 'openEnded' as const }))
-        ].sort((a, b) => {
-          const timeA = ((a as any).timestamp || (a as any).createdAt)?.toMillis() || 0;
-          const timeB = ((b as any).timestamp || (b as any).createdAt)?.toMillis() || 0;
-          return timeA - timeB;
-        });
-
-        activityElements.push(
-          new Paragraph({
-            text: "Session Activity & Chat Log",
-            heading: HeadingLevel.HEADING_1,
-            pageBreakBefore: true,
-            spacing: { before: 240, after: 200 }
-          })
-        );
-
-        if (combinedItems.length === 0) {
-          activityElements.push(
-            new Paragraph({
-              text: "No chat messages or session activities recorded.",
-              spacing: { before: 120, after: 120 }
-            })
-          );
-        } else {
-          let runningMessageRows: any[] = [];
-
-          const flushMessages = () => {
-            if (runningMessageRows.length > 0) {
-              const tableHeader = new TableRow({
-                children: [
-                  new TableCell({ width: { size: 10, type: WidthType.PERCENTAGE }, shading: { fill: "F1F5F9" }, children: [new Paragraph({ children: [new TextRun({ text: "Date", bold: true, font: "Arial", size: 18 })] })] }),
-                  new TableCell({ width: { size: 12, type: WidthType.PERCENTAGE }, shading: { fill: "F1F5F9" }, children: [new Paragraph({ children: [new TextRun({ text: "Time", bold: true, font: "Arial", size: 18 })] })] }),
-                  new TableCell({ width: { size: 8, type: WidthType.PERCENTAGE }, shading: { fill: "F1F5F9" }, children: [new Paragraph({ children: [new TextRun({ text: "Slide", bold: true, font: "Arial", size: 18 })] })] }),
-                  new TableCell({ width: { size: 15, type: WidthType.PERCENTAGE }, shading: { fill: "F1F5F9" }, children: [new Paragraph({ children: [new TextRun({ text: "Name", bold: true, font: "Arial", size: 18 })] })] }),
-                  new TableCell({ width: { size: 20, type: WidthType.PERCENTAGE }, shading: { fill: "F1F5F9" }, children: [new Paragraph({ children: [new TextRun({ text: "Email", bold: true, font: "Arial", size: 18 })] })] }),
-                  new TableCell({ width: { size: 35, type: WidthType.PERCENTAGE }, shading: { fill: "F1F5F9" }, children: [new Paragraph({ children: [new TextRun({ text: "Question / Message", bold: true, font: "Arial", size: 18 })] })] }),
-                ]
-              });
-              activityElements.push(
-                new Table({
-                  width: { size: 100, type: WidthType.PERCENTAGE },
-                  rows: [tableHeader, ...runningMessageRows]
-                }),
-                new Paragraph({ spacing: { after: 240 } })
-              );
-              runningMessageRows = [];
-            }
-          };
-
-          for (const item of combinedItems) {
-            if (item.type === 'message') {
-              const m = item as Message;
-              const dateObj = m.timestamp?.toDate() || new Date();
-              const dateStr = dateObj.toLocaleDateString();
-              const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-              const slideStr = m.slide !== undefined && m.slide !== null ? `Slide ${m.slide}` : '-';
-              const nameStr = m.userName || '-';
-              const emailStr = m.userEmail || '-';
-              const textStr = m.text || '';
-              const likesStr = m.likes ? ` (👍 ${m.likes})` : '';
-
-              const cellBorders = {
-                top: { style: BorderStyle.NONE, size: 0, color: "auto" },
-                bottom: { style: BorderStyle.SINGLE, size: 4, color: "E2E8F0" },
-                left: { style: BorderStyle.NONE, size: 0, color: "auto" },
-                right: { style: BorderStyle.NONE, size: 0, color: "auto" }
-              };
-
-              runningMessageRows.push(
-                new TableRow({
-                  children: [
-                    new TableCell({ borders: cellBorders, children: [new Paragraph({ children: [new TextRun({ text: dateStr, font: "Arial", size: 18 })] })] }),
-                    new TableCell({ borders: cellBorders, children: [new Paragraph({ children: [new TextRun({ text: timeStr, font: "Arial", size: 18 })] })] }),
-                    new TableCell({ borders: cellBorders, children: [new Paragraph({ children: [new TextRun({ text: slideStr, font: "Arial", size: 18 })] })] }),
-                    new TableCell({ borders: cellBorders, children: [new Paragraph({ children: [new TextRun({ text: nameStr, font: "Arial", size: 18, bold: true })] })] }),
-                    new TableCell({ borders: cellBorders, children: [new Paragraph({ children: [new TextRun({ text: emailStr, font: "Arial", size: 18 })] })] }),
-                    new TableCell({ borders: cellBorders, children: [new Paragraph({ children: [
-                      new TextRun({ text: textStr, font: "Arial", size: 18 }),
-                      ...(likesStr ? [new TextRun({ text: likesStr, font: "Arial", size: 18, bold: true, color: "854D0E" })] : [])
-                    ] })] }),
-                  ]
-                })
-              );
-            } else {
-              flushMessages();
-
-              const cellBorders = {
-                top: { style: BorderStyle.NONE, size: 0, color: "auto" },
-                bottom: { style: BorderStyle.SINGLE, size: 4, color: "E2E8F0" },
-                left: { style: BorderStyle.NONE, size: 0, color: "auto" },
-                right: { style: BorderStyle.NONE, size: 0, color: "auto" }
-              };
-
-              if (item.type === 'poll') {
-                const p = item as Poll;
-                const dateObj = p.createdAt?.toDate() || new Date();
-                const dateStr = dateObj.toLocaleDateString();
-                const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                const slideStr = p.slide !== undefined ? ` [Slide ${p.slide}]` : '';
-                const totalVotes = Object.values(p.votes || {}).reduce((sum, val) => sum + val, 0);
-
-                activityElements.push(
-                  new Paragraph({
-                    text: "📊 MCQ POLL RESULTS",
-                    heading: HeadingLevel.HEADING_3,
-                    spacing: { before: 240, after: 60 }
-                  }),
-                  new Paragraph({
-                    children: [
-                      new TextRun({ text: `Triggered on ${dateStr} at ${timeStr}${slideStr}`, size: 16, color: "64748B", italics: true })
-                    ],
-                    spacing: { after: 120 }
-                  })
-                );
-
-                const pollRows = p.options.map(opt => {
-                  const count = p.votes[opt] || 0;
-                  const percentage = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
-                  const isCorrect = p.correctAnswer === opt;
-                  return new TableRow({
-                    children: [
-                      new TableCell({
-                        borders: cellBorders,
-                        width: { size: 30, type: WidthType.PERCENTAGE },
-                        children: [new Paragraph({ children: [new TextRun({ text: `Option ${opt}`, bold: true, font: "Arial", size: 18 })] })]
-                      }),
-                      new TableCell({
-                        borders: cellBorders,
-                        width: { size: 40, type: WidthType.PERCENTAGE },
-                        children: [new Paragraph({ children: [new TextRun({ text: `${count} votes (${percentage}%)`, font: "Arial", size: 18 })] })]
-                      }),
-                      new TableCell({
-                        borders: cellBorders,
-                        width: { size: 30, type: WidthType.PERCENTAGE },
-                        children: [new Paragraph({ children: [
-                          ...(isCorrect ? [new TextRun({ text: "✓ CORRECT ANSWER", bold: true, color: "10B981", font: "Arial", size: 18 })] : [])
-                        ] })]
-                      })
-                    ]
-                  });
-                });
-
-                if (pollRows.length > 0) {
-                  activityElements.push(
-                    new Table({
-                      width: { size: 100, type: WidthType.PERCENTAGE },
-                      rows: pollRows
-                    })
-                  );
-                } else {
-                  activityElements.push(
-                    new Paragraph({
-                      children: [new TextRun({ text: "No options recorded for this poll.", italics: true, font: "Arial", size: 18, color: "64748B" })],
-                      spacing: { after: 120 }
-                    })
-                  );
-                }
-
-                activityElements.push(
-                  new Paragraph({ spacing: { after: 120 } }),
-                  new Paragraph({
-                    children: [new TextRun({ text: `Total Votes: ${totalVotes}`, bold: true, font: "Arial", size: 18 })],
-                    spacing: { after: 240 }
-                  })
-                );
-
-              } else if (item.type === 'wordCloud') {
-                const w = item as WordCloud;
-                const dateObj = w.createdAt?.toDate() || new Date();
-                const dateStr = dateObj.toLocaleDateString();
-                const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                const slideStr = w.slide !== undefined ? ` [Slide ${w.slide}]` : '';
-                const totalWords = Object.values(w.words || {}).reduce((sum, val) => sum + val, 0);
-
-                activityElements.push(
-                  new Paragraph({
-                    text: "☁️ WORD CLOUD RESULTS",
-                    heading: HeadingLevel.HEADING_3,
-                    spacing: { before: 240, after: 60 }
-                  }),
-                  new Paragraph({
-                    children: [
-                      new TextRun({ text: `Triggered on ${dateStr} at ${timeStr}${slideStr}`, size: 16, color: "64748B", italics: true }),
-                      new TextRun({ text: `\nPrompt: "${w.prompt || ''}"`, bold: true, font: "Arial", size: 18 })
-                    ],
-                    spacing: { after: 120 }
-                  })
-                );
-
-                const wordRows = Object.entries(w.words || {})
-                  .sort((a, b) => b[1] - a[1])
-                  .map(([word, count]) => {
-                    return new TableRow({
-                      children: [
-                        new TableCell({
-                          borders: cellBorders,
-                          width: { size: 70, type: WidthType.PERCENTAGE },
-                          children: [new Paragraph({ children: [new TextRun({ text: word, bold: true, font: "Arial", size: 18 })] })]
-                        }),
-                        new TableCell({
-                          borders: cellBorders,
-                          width: { size: 30, type: WidthType.PERCENTAGE },
-                          children: [new Paragraph({ children: [new TextRun({ text: `${count} submissions`, font: "Arial", size: 18 })] })]
-                        })
-                      ]
-                    });
-                  });
-
-                if (wordRows.length > 0) {
-                  activityElements.push(
-                    new Table({
-                      width: { size: 100, type: WidthType.PERCENTAGE },
-                      rows: wordRows
-                    })
-                  );
-                } else {
-                  activityElements.push(
-                    new Paragraph({
-                      children: [new TextRun({ text: "No word submissions recorded for this word cloud.", italics: true, font: "Arial", size: 18, color: "64748B" })],
-                      spacing: { after: 120 }
-                    })
-                  );
-                }
-
-                activityElements.push(
-                  new Paragraph({ spacing: { after: 120 } }),
-                  new Paragraph({
-                    children: [new TextRun({ text: `Total Submissions: ${totalWords}`, bold: true, font: "Arial", size: 18 })],
-                    spacing: { after: 240 }
-                  })
-                );
-
-              } else if (item.type === 'openEnded') {
-                const q = item as OpenEndedQuestion;
-                const dateObj = q.createdAt?.toDate() || new Date();
-                const dateStr = dateObj.toLocaleDateString();
-                const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                const slideStr = q.slide !== undefined ? ` [Slide ${q.slide}]` : '';
-                const totalResponses = Object.values(q.responses || {}).length;
-
-                activityElements.push(
-                  new Paragraph({
-                    text: "💬 OPEN ENDED RESULTS",
-                    heading: HeadingLevel.HEADING_3,
-                    spacing: { before: 240, after: 60 }
-                  }),
-                  new Paragraph({
-                    children: [
-                      new TextRun({ text: `Triggered on ${dateStr} at ${timeStr}${slideStr}`, size: 16, color: "64748B", italics: true }),
-                      new TextRun({ text: `\nQuestion: "${q.prompt || ''}"`, bold: true, font: "Arial", size: 18 })
-                    ],
-                    spacing: { after: 120 }
-                  })
-                );
-
-                const responseEntries = Object.values(q.responses || {});
-                if (responseEntries.length > 0) {
-                  const responseParagraphs = responseEntries.map(resp => {
-                    return new Paragraph({
-                      children: [
-                        new TextRun({ text: `• `, bold: true, font: "Arial", size: 18 }),
-                        new TextRun({ text: `"${resp}"`, italics: true, font: "Arial", size: 18, color: "334155" })
-                      ],
-                      spacing: { before: 60, after: 60 }
-                    });
-                  });
-                  activityElements.push(...responseParagraphs);
-                } else {
-                  activityElements.push(
-                    new Paragraph({
-                      children: [new TextRun({ text: "No responses recorded for this question.", italics: true, font: "Arial", size: 18, color: "64748B" })],
-                      spacing: { after: 120 }
-                    })
-                  );
-                }
-
-                activityElements.push(
-                  new Paragraph({
-                    children: [new TextRun({ text: `Total Responses: ${totalResponses}`, bold: true, font: "Arial", size: 18 })],
-                    spacing: { before: 120, after: 240 }
-                  })
-                );
-              }
-            }
-          }
-
-          flushMessages();
-        }
-      }
-
-      const docFilename = `ActiveDeck_Presentation_${presentation.pinCode || 'Export'}.docx`;
-
-      const docxFile = new Document({
-        sections: [{
-          properties: {},
-          children: [
-            new Paragraph({
-              text: "ActiveDeck Presentation Export",
-              heading: HeadingLevel.HEADING_1,
-              spacing: { after: 200 }
-            }),
-            new Table({
-              width: { size: 100, type: WidthType.PERCENTAGE },
-              borders: {
-                top: { style: BorderStyle.NONE, size: 0, color: "auto" },
-                bottom: { style: BorderStyle.NONE, size: 0, color: "auto" },
-                left: { style: BorderStyle.SINGLE, size: 24, color: "EB5D00" },
-                right: { style: BorderStyle.NONE, size: 0, color: "auto" },
-              },
-              rows: [
-                new TableRow({
-                  children: [
-                    new TableCell({
-                      shading: { fill: "F8F9FA" },
-                      children: [
-                        new Paragraph({
-                          children: [
-                            new TextRun({ text: "Presenter Email: ", bold: true, color: "111111", font: "Arial" }),
-                            new TextRun({ text: presentation.presenterEmail || 'N/A', font: "Arial" }),
-                          ],
-                        }),
-                        new Paragraph({
-                          children: [
-                            new TextRun({ text: "Session PIN: ", bold: true, color: "111111", font: "Arial" }),
-                            new TextRun({ text: presentation.pinCode || 'N/A', font: "Arial" }),
-                          ],
-                        }),
-                        new Paragraph({
-                          children: [
-                            new TextRun({ text: "Date: ", bold: true, color: "111111", font: "Arial" }),
-                            new TextRun({ text: new Date().toLocaleDateString(), font: "Arial" }),
-                          ],
-                        }),
-                      ],
-                    }),
-                  ],
-                }),
-              ],
-            }),
-            new Paragraph({ spacing: { after: 240 } }),
-            ...slideElements,
-            ...activityElements
-          ]
-        }]
-      });
-
-      const docBlob = await Packer.toBlob(docxFile);
-      const docUrl = URL.createObjectURL(docBlob);
-      const link = document.createElement('a');
-      link.href = docUrl;
-      link.download = docFilename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(docUrl);
+      await exportPresentationToDocx({ presentation, includeChat });
     } catch (err) {
       console.error("Failed to compile presentation export:", err);
       alert("Failed to export presentation document.");
@@ -3283,6 +3103,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     // Reset drawings locally and exit pen mode
     setIsPenActive(false);
     setPresenterStrokesMap({});
+    setPresenterTextAnnotationsMap({});
     setActiveDrawingStroke(null);
     activeDrawingStrokeRef.current = null;
     setDrawingUndoStack({});
@@ -3292,6 +3113,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     if (presentation?.id) {
       updateDoc(doc(db, 'presentations', presentation.id), {
         presenterDrawings: {},
+        presenterTextAnnotations: {},
         activeDrawingStrokeJSON: null,
         currentSlideBase64: null,
         current_slide_base64: null,
@@ -3782,6 +3604,42 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                           )}
                         </svg>
 
+                        {/* Presenter Text Annotations Display */}
+                        {currentSlideTextAnnotations.length > 0 && (
+                          <div className="absolute inset-0 w-full h-full pointer-events-none z-30">
+                            {currentSlideTextAnnotations.map(ann => {
+                              const isDarkInk = (ann.color || '').trim().toUpperCase() === '#000000';
+                              const scaleFactor = (presenterBounds.renderedWidth > 0 ? presenterBounds.renderedWidth : 1000) / 1000;
+                              const fontSizePx = Math.max(10, Math.round((ann.fontSize || 16) * scaleFactor));
+                              return (
+                                <div
+                                  key={ann.id}
+                                  style={{
+                                    left: `${ann.xPct}%`,
+                                    top: `${ann.yPct}%`,
+                                  }}
+                                  className={`absolute flex items-stretch rounded-lg shadow-lg backdrop-blur-[2px] border px-2 py-0.5 select-none pointer-events-none ${
+                                    isDarkInk
+                                      ? 'bg-slate-50/90 border-slate-400/80 text-slate-900'
+                                      : 'bg-slate-900/85 border-white/25 text-white'
+                                  }`}
+                                >
+                                  <span
+                                    style={{
+                                      color: ann.color || '#EF4444',
+                                      fontSize: `${fontSizePx}px`,
+                                      lineHeight: 1.3,
+                                    }}
+                                    className="font-sans font-bold whitespace-pre-wrap break-words"
+                                  >
+                                    {ann.text}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
                         {/* Laser dot */}
                         {presentation?.laserActive && presentation.laserX !== undefined && presentation.laserY !== undefined && (
                           <div
@@ -4059,6 +3917,42 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         />
                       )}
                     </svg>
+
+                    {/* Presenter Text Annotations Display */}
+                    {currentSlideTextAnnotations.length > 0 && (
+                      <div className="absolute inset-0 w-full h-full pointer-events-none z-30">
+                        {currentSlideTextAnnotations.map(ann => {
+                          const isDarkInk = (ann.color || '').trim().toUpperCase() === '#000000';
+                          const scaleFactor = (projectorBounds.renderedWidth > 0 ? projectorBounds.renderedWidth : 1000) / 1000;
+                          const fontSizePx = Math.max(10, Math.round((ann.fontSize || 16) * scaleFactor));
+                          return (
+                            <div
+                              key={ann.id}
+                              style={{
+                                left: `${ann.xPct}%`,
+                                top: `${ann.yPct}%`,
+                              }}
+                              className={`absolute flex items-stretch rounded-lg shadow-lg backdrop-blur-[2px] border px-2 py-0.5 select-none pointer-events-none ${
+                                isDarkInk
+                                  ? 'bg-slate-50/90 border-slate-400/80 text-slate-900'
+                                  : 'bg-slate-900/85 border-white/25 text-white'
+                              }`}
+                            >
+                              <span
+                                style={{
+                                  color: ann.color || '#EF4444',
+                                  fontSize: `${fontSizePx}px`,
+                                  lineHeight: 1.3,
+                                }}
+                                className="font-sans font-bold whitespace-pre-wrap break-words"
+                              >
+                                {ann.text}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
 
                     {/* Real-time Virtual Laser Pointer Dot */}
                     {presentation?.laserActive && presentation.laserX !== undefined && presentation.laserY !== undefined && (
@@ -4958,6 +4852,42 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               )}
             </svg>
 
+            {/* Presenter Text Annotations Display for Audience Display */}
+            {currentSlideTextAnnotations.length > 0 && (
+              <div className="absolute inset-0 w-full h-full pointer-events-none z-30">
+                {currentSlideTextAnnotations.map(ann => {
+                  const isDarkInk = (ann.color || '').trim().toUpperCase() === '#000000';
+                  const scaleFactor = (actualProjectorBounds.renderedWidth > 0 ? actualProjectorBounds.renderedWidth : 1000) / 1000;
+                  const fontSizePx = Math.max(12, Math.round((ann.fontSize || 16) * scaleFactor * 1.3));
+                  return (
+                    <div
+                      key={ann.id}
+                      style={{
+                        left: `${ann.xPct}%`,
+                        top: `${ann.yPct}%`,
+                      }}
+                      className={`absolute flex items-stretch rounded-lg shadow-lg backdrop-blur-[2px] border px-2.5 py-1 select-none pointer-events-none ${
+                        isDarkInk
+                          ? 'bg-slate-50/90 border-slate-400/80 text-slate-900'
+                          : 'bg-slate-900/85 border-white/25 text-white'
+                      }`}
+                    >
+                      <span
+                        style={{
+                          color: ann.color || '#EF4444',
+                          fontSize: `${fontSizePx}px`,
+                          lineHeight: 1.3,
+                        }}
+                        className="font-sans font-bold whitespace-pre-wrap break-words"
+                      >
+                        {ann.text}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             {/* Real-time Virtual Laser Pointer Dot */}
             {presentation?.laserActive && presentation.laserX !== undefined && presentation.laserY !== undefined && (
               <div 
@@ -5231,7 +5161,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 ].map(c => (
                   <button
                     key={c.color}
-                    onClick={() => setPenColor(c.color)}
+                    onClick={() => handleColorSelect(c.color)}
                     className={`w-8 h-8 rounded-full border-2 transition-transform cursor-pointer ${
                       penColor === c.color
                         ? 'scale-125 border-white ring-2 ring-red-500'
@@ -5306,7 +5236,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               </button>
               <button
                 onClick={handleClearSlideDrawing}
-                disabled={currentSlideStrokes.length === 0}
+                disabled={currentSlideStrokes.length === 0 && currentSlideTextAnnotations.length === 0}
                 className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-red-950/60 border border-red-800/60 text-red-300 hover:bg-red-900 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed text-sm font-bold transition-all cursor-pointer"
                 title="Clear all drawings on this slide"
               >
@@ -5392,7 +5322,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
               <svg
                 viewBox="0 0 1000 1000"
                 preserveAspectRatio="none"
-                className="w-full h-full cursor-crosshair pointer-events-auto"
+                className={`w-full h-full ${penTool === 'text' ? 'cursor-text' : 'cursor-crosshair'} pointer-events-auto`}
                 onPointerDown={handleDrawingPointerDown}
                 onPointerMove={handleDrawingPointerMove}
                 onPointerUp={handleDrawingPointerUp}
@@ -5444,6 +5374,113 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                 />
               )}
             </svg>
+
+            {/* Interactive Draggable & Editable Presenter Text Annotations Layer */}
+            <div className="absolute inset-0 w-full h-full pointer-events-none z-30">
+              {currentSlideTextAnnotations.map((ann) => {
+                const isEditing = editingAnnotationId === ann.id;
+                const isBeingDragged = draggingAnnotationId === ann.id;
+                const isDarkInk = (ann.color || '').trim().toUpperCase() === '#000000';
+                const fontSizePx = ann.fontSize || 16;
+
+                return (
+                  <div
+                    key={ann.id}
+                    style={{
+                      left: `${ann.xPct}%`,
+                      top: `${ann.yPct}%`,
+                    }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
+                    className={`group/textann absolute pointer-events-auto flex items-stretch rounded-lg shadow-lg backdrop-blur-[2px] border transition-shadow ${
+                      isDarkInk
+                        ? 'bg-slate-50/90 border-slate-400/80'
+                        : 'bg-slate-900/85 border-white/25'
+                    } ${
+                      isEditing
+                        ? 'ring-2 ring-osu-orange border-osu-orange z-40'
+                        : 'hover:border-osu-orange/80'
+                    } ${isBeingDragged ? 'opacity-90 scale-[1.02] z-50 cursor-grabbing' : ''}`}
+                  >
+                    {/* Drag Handle */}
+                    <div
+                      onPointerDown={(e) => handleStartPresenterTextDrag(e, ann)}
+                      className={`flex items-center justify-center px-1 cursor-grab active:cursor-grabbing rounded-l-lg border-r transition-colors select-none ${
+                        isDarkInk
+                          ? 'border-slate-300/70 text-slate-500 hover:text-slate-800 hover:bg-slate-200/60'
+                          : 'border-white/10 text-slate-400 hover:text-white hover:bg-white/10'
+                      }`}
+                      title="Drag to reposition text box"
+                    >
+                      <GripVertical className="w-3.5 h-3.5" />
+                    </div>
+
+                    {/* Auto-resizing Inline Textarea Container */}
+                    <div
+                      className="inline-grid items-center px-2 py-1 min-w-[72px] max-w-[380px]"
+                      onClick={() => {
+                        if (editingAnnotationId !== ann.id) {
+                          setEditingAnnotationId(ann.id);
+                        }
+                      }}
+                    >
+                      {/* Hidden mirror span for automatic width & height sizing */}
+                      <span
+                        aria-hidden="true"
+                        style={{
+                          fontSize: `${fontSizePx}px`,
+                          lineHeight: 1.3,
+                        }}
+                        className="col-start-1 row-start-1 invisible whitespace-pre-wrap break-words font-sans font-bold pointer-events-none min-h-[1.3em]"
+                      >
+                        {(ann.text || 'Type note...') + ' '}
+                      </span>
+
+                      <textarea
+                        ref={(el) => {
+                          textareaRefs.current[ann.id] = el;
+                        }}
+                        value={ann.text}
+                        placeholder="Type note..."
+                        rows={1}
+                        onFocus={() => {
+                          setEditingAnnotationId(ann.id);
+                        }}
+                        onBlur={() => handlePresenterTextBlur(ann.id)}
+                        onChange={(e) => handlePresenterTextChange(ann.id, e.target.value)}
+                        onKeyDown={(e) => {
+                          e.stopPropagation();
+                          if (e.key === 'Escape') {
+                            e.currentTarget.blur();
+                          }
+                        }}
+                        style={{
+                          color: ann.color || '#EF4444',
+                          fontSize: `${fontSizePx}px`,
+                          lineHeight: 1.3,
+                        }}
+                        className={`col-start-1 row-start-1 w-full h-full bg-transparent resize-none overflow-hidden focus:outline-none font-sans font-bold whitespace-pre-wrap break-words ${
+                          isDarkInk ? 'placeholder-slate-400' : 'placeholder-slate-400/70'
+                        } cursor-text`}
+                      />
+                    </div>
+
+                    {/* Corner Delete (×) Button */}
+                    <button
+                      type="button"
+                      onPointerDown={(e) => handleDeletePresenterTextAnnotation(ann.id, e)}
+                      onClick={(e) => handleDeletePresenterTextAnnotation(ann.id, e)}
+                      className={`absolute -top-2.5 -right-2.5 w-5 h-5 rounded-full bg-red-600 hover:bg-red-500 text-white border border-white/40 shadow-md flex items-center justify-center transition-opacity cursor-pointer z-50 ${
+                        isEditing ? 'opacity-100' : 'opacity-0 group-hover/textann:opacity-100'
+                      }`}
+                      title="Delete text annotation"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
             {/* Virtual Laser Dot inside popped-out display */}

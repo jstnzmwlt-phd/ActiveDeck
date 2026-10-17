@@ -12,7 +12,9 @@ import {
   WidthType,
   VerticalAlignTable
 } from 'docx';
-import { DrawingStroke, SlideTextAnnotation } from '../types';
+import { DrawingStroke, SlideTextAnnotation, Presentation, Message, Poll, WordCloud, OpenEndedQuestion } from '../types';
+import { db } from '../firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 
 export const getSlideTextAnnotationsForSlide = (
   annotationsMap?: Record<string | number, SlideTextAnnotation[]>,
@@ -340,7 +342,8 @@ export const generateCompositeSlideBase64 = async (
   slideImgUrl: string,
   presenterDrawingsJson?: string,
   studentDrawingsJson?: string,
-  textAnnotations?: SlideTextAnnotation[]
+  textAnnotations?: SlideTextAnnotation[],
+  presenterTextAnnotationsJson?: string
 ): Promise<string | null> => {
   if (!slideImgUrl) return null;
 
@@ -523,10 +526,20 @@ export const generateCompositeSlideBase64 = async (
           } catch {}
         }
 
-        // (c) Draw all text annotations for that slide from state
-        if (Array.isArray(textAnnotations) && textAnnotations.length > 0) {
+        // (c) Draw all text annotations for that slide from state (both presenter and student)
+        let allTextAnns: SlideTextAnnotation[] = Array.isArray(textAnnotations) ? [...textAnnotations] : [];
+        if (presenterTextAnnotationsJson) {
+          try {
+            const parsed = JSON.parse(presenterTextAnnotationsJson);
+            if (Array.isArray(parsed)) {
+              allTextAnns = [...parsed, ...allTextAnns];
+            }
+          } catch {}
+        }
+
+        if (allTextAnns.length > 0) {
           const widthScale = canvas.width / 960;
-          textAnnotations.forEach(ann => {
+          allTextAnns.forEach(ann => {
             if (!ann || !ann.text || !ann.text.trim()) return;
             ctx.save();
 
@@ -601,7 +614,8 @@ export const compositeSlideWithAnnotations = async (
   slideImgUrl: string,
   presenterDrawingsJson?: string,
   studentDrawingsJson?: string,
-  textAnnotations?: SlideTextAnnotation[]
+  textAnnotations?: SlideTextAnnotation[],
+  presenterTextAnnotationsJson?: string
 ): Promise<{ data: Uint8Array; type: 'png' | 'jpg' | 'gif' | 'bmp' } | null> => {
   if (!slideImgUrl) return null;
 
@@ -615,13 +629,24 @@ export const compositeSlideWithAnnotations = async (
     }
   };
 
+  const hasPresenterText = (json?: string): boolean => {
+    if (!json) return false;
+    try {
+      const parsed = JSON.parse(json);
+      return Array.isArray(parsed) && parsed.some(a => a && a.text && a.text.trim() !== '');
+    } catch {
+      return false;
+    }
+  };
+
   const hasPresenter = hasStrokes(presenterDrawingsJson);
   const hasStudent = hasStrokes(studentDrawingsJson);
   const hasTextAnns = Array.isArray(textAnnotations) && textAnnotations.some(a => a && a.text && a.text.trim() !== '');
+  const hasPText = hasPresenterText(presenterTextAnnotationsJson);
 
   // If there are NO annotations, directly fetch the original image bytes
   // This avoids canvas re-encoding overhead and eliminates memory/taint issues
-  if (!hasPresenter && !hasStudent && !hasTextAnns) {
+  if (!hasPresenter && !hasStudent && !hasTextAnns && !hasPText) {
     return await fetchImageAsUint8Array(slideImgUrl);
   }
 
@@ -629,7 +654,8 @@ export const compositeSlideWithAnnotations = async (
     slideImgUrl,
     presenterDrawingsJson,
     studentDrawingsJson,
-    textAnnotations
+    textAnnotations,
+    presenterTextAnnotationsJson
   );
 
   if (dataUrl) {
@@ -745,6 +771,7 @@ export interface ExportNotesOptions {
   studentSlideTextAnnotationsMap?: Record<string | number, SlideTextAnnotation[]>;
   pushedSlidesMap?: Record<string, string>;
   presenterDrawingsMap?: Record<string, string>;
+  presenterTextAnnotationsMap?: Record<string, string>;
   customTabs?: Array<{ id: string; label: string; position: number }>;
 }
 
@@ -760,6 +787,7 @@ export const exportNotesToDocx = async (options: ExportNotesOptions): Promise<bo
     studentSlideTextAnnotationsMap: passedStudentTextAnnotations,
     pushedSlidesMap: passedPushedSlides,
     presenterDrawingsMap: passedPresenterDrawings,
+    presenterTextAnnotationsMap: passedPresenterTextAnnotations,
     customTabs: passedCustomTabs
   } = options;
 
@@ -769,6 +797,7 @@ export const exportNotesToDocx = async (options: ExportNotesOptions): Promise<bo
   let studentSlideTextAnnotationsMap = passedStudentTextAnnotations;
   let pushedSlidesMap = passedPushedSlides;
   let presenterDrawingsMap = passedPresenterDrawings;
+  let presenterTextAnnotationsMap = passedPresenterTextAnnotations;
   let customTabs = passedCustomTabs;
   let notesTitle = passedTitle;
 
@@ -836,6 +865,16 @@ export const exportNotesToDocx = async (options: ExportNotesOptions): Promise<bo
     }
   }
   presenterDrawingsMap = presenterDrawingsMap || {};
+
+  if (!presenterTextAnnotationsMap && presentationId) {
+    const saved = localStorage.getItem(`activeDeckPresenterTextAnnotations_${presentationId}`);
+    if (saved) {
+      try {
+        presenterTextAnnotationsMap = JSON.parse(saved);
+      } catch {}
+    }
+  }
+  presenterTextAnnotationsMap = presenterTextAnnotationsMap || {};
 
   if (!customTabs && presentationId) {
     const saved = localStorage.getItem(`activeDeckCustomTabs_${presentationId}`);
@@ -925,6 +964,7 @@ export const exportNotesToDocx = async (options: ExportNotesOptions): Promise<bo
 
     const slideImgUrl = pushedSlidesMap[slide];
     const presenterJson = presenterDrawingsMap[slide];
+    const presenterTextJson = presenterTextAnnotationsMap?.[slide];
     const studentJson = studentSlideDrawingsMap[slide];
     const slideTextAnns = getSlideTextAnnotationsForSlide(studentSlideTextAnnotationsMap, slide);
 
@@ -934,7 +974,8 @@ export const exportNotesToDocx = async (options: ExportNotesOptions): Promise<bo
         slideImgUrl,
         presenterJson,
         studentJson,
-        slideTextAnns
+        slideTextAnns,
+        presenterTextJson
       );
     }
     if (!imgResult) {
@@ -1160,5 +1201,779 @@ export const exportNotesToDocx = async (options: ExportNotesOptions): Promise<bo
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 
+  return true;
+};
+
+export interface ExportPresentationOptions {
+  presentation: Presentation;
+  includeChat?: boolean;
+}
+
+export const exportPresentationToDocx = async (options: ExportPresentationOptions): Promise<boolean> => {
+  const { presentation, includeChat = false } = options;
+  if (!presentation?.id) {
+    alert("Presentation session not found!");
+    return false;
+  }
+
+  // Query slide preview messages
+  const previewQuery = query(
+    collection(db, 'messages'),
+    where('presentationId', '==', presentation.id),
+    where('isBackgroundPreview', '==', true)
+  );
+
+  const querySnapshot = await getDocs(previewQuery);
+  const previewsMap: Record<string, string> = {};
+  querySnapshot.forEach(docSnap => {
+    const data = docSnap.data();
+    if (data.slide !== undefined && data.slide !== null && data.fileUrl) {
+      previewsMap[String(data.slide)] = data.fileUrl;
+    }
+  });
+
+  const sortedSlides = Object.keys(previewsMap).sort((a, b) => {
+    const numA = Number(a);
+    const numB = Number(b);
+    if (isNaN(numA) || isNaN(numB)) return a.localeCompare(b);
+    return numA - numB;
+  });
+
+  if (sortedSlides.length === 0) {
+    alert("No slides have been captured yet for this presentation. Present slides first!");
+    return false;
+  }
+
+  // Load chat and activities if includeChat is true or for slide questions
+  let msgs: Message[] = [];
+  let ps: Poll[] = [];
+  let wcs: WordCloud[] = [];
+  let oeqs: OpenEndedQuestion[] = [];
+
+  const msgsQuery = query(collection(db, 'messages'), where('presentationId', '==', presentation.id));
+  const msgsSnap = await getDocs(msgsQuery);
+  msgs = msgsSnap.docs
+    .map(doc => ({ id: doc.id, ...doc.data() }))
+    .filter((m: any) => !m.isBackgroundPreview) as Message[];
+  msgs.sort((a, b) => (a.timestamp?.toMillis() || 0) - (b.timestamp?.toMillis() || 0));
+
+  if (includeChat) {
+    const pollsQuery = query(collection(db, 'polls'), where('presentationId', '==', presentation.id));
+    const pollsSnap = await getDocs(pollsQuery);
+    ps = pollsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Poll[];
+    ps.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
+
+    const wcQuery = query(collection(db, 'wordClouds'), where('presentationId', '==', presentation.id));
+    const wcSnap = await getDocs(wcQuery);
+    wcs = wcSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as WordCloud[];
+    wcs.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
+
+    const oeqQuery = query(collection(db, 'openEndedQuestions'), where('presentationId', '==', presentation.id));
+    const oeqSnap = await getDocs(oeqQuery);
+    oeqs = oeqSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as OpenEndedQuestion[];
+    oeqs.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
+  }
+
+  const slideElements: (Paragraph | Table)[] = [];
+
+  for (let sIdx = 0; sIdx < sortedSlides.length; sIdx++) {
+    const slide = sortedSlides[sIdx];
+    const slideNum = Number(slide);
+    const titleStr = isNaN(slideNum) ? slide : `Slide ${slide}`;
+
+    // 1. Left Column (Slide image with 1pt solid black outline and bold header)
+    const leftCellChildren: Paragraph[] = [
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: titleStr,
+            bold: true,
+            size: 20, // 10pt
+            color: "0F172A",
+            font: "Arial"
+          })
+        ],
+        spacing: { before: 0, after: 60 }
+      })
+    ];
+
+    const slideImgUrl = previewsMap[slide];
+    const presenterJson = presentation?.presenterDrawings?.[slide];
+    const presenterTextJson = presentation?.presenterTextAnnotations?.[slide];
+
+    let imgResult: { data: Uint8Array; type: 'png' | 'jpg' | 'gif' | 'bmp' } | null = null;
+    if (slideImgUrl) {
+      imgResult = await compositeSlideWithAnnotations(
+        slideImgUrl,
+        presenterJson,
+        undefined,
+        undefined,
+        presenterTextJson
+      );
+    }
+    if (!imgResult) {
+      imgResult = createSlidePlaceholderImage(titleStr);
+    }
+
+    if (imgResult) {
+      leftCellChildren.push(
+        new Paragraph({
+          children: [
+            new ImageRun({
+              data: imgResult.data,
+              transformation: { width: 310, height: 174 },
+              type: imgResult.type,
+              outline: {
+                width: 12700, // 1pt solid black outline
+                type: "solidFill",
+                solidFillType: "rgb",
+                value: "000000"
+              }
+            })
+          ],
+          spacing: { before: 0, after: 40 }
+        })
+      );
+    }
+
+    const leftCell = new TableCell({
+      width: { size: 48, type: WidthType.PERCENTAGE },
+      verticalAlign: VerticalAlignTable.TOP,
+      borders: {
+        top: { style: BorderStyle.NONE, size: 0, color: "auto" },
+        bottom: { style: BorderStyle.NONE, size: 0, color: "auto" },
+        left: { style: BorderStyle.NONE, size: 0, color: "auto" },
+        right: { style: BorderStyle.NONE, size: 0, color: "auto" },
+      },
+      margins: { top: 40, bottom: 40, left: 0, right: 140 },
+      children: leftCellChildren
+    });
+
+    // 2. Right Column (Audience Questions / Slide Activity inside styled callout container)
+    const rightCellChildren: Paragraph[] = [];
+    const slideMsgs = msgs.filter(m => m.slide !== undefined && m.slide !== null && String(m.slide) === String(slide));
+    const slidePolls = ps.filter(p => p.slide !== undefined && p.slide !== null && String(p.slide) === String(slide));
+    const slideWcs = wcs.filter(w => w.slide !== undefined && w.slide !== null && String(w.slide) === String(slide));
+    const slideOeqs = oeqs.filter(q => q.slide !== undefined && q.slide !== null && String(q.slide) === String(slide));
+
+    if (slideMsgs.length > 0) {
+      rightCellChildren.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: "Audience Questions & Notes:",
+              bold: true,
+              color: "0F172A",
+              size: 18,
+              font: "Arial"
+            })
+          ],
+          spacing: { before: 0, after: 60 }
+        })
+      );
+
+      slideMsgs.forEach(m => {
+        const timeStr = m.timestamp
+          ? m.timestamp.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          : '';
+        const likesStr = m.likes ? ` (👍 ${m.likes})` : '';
+
+        rightCellChildren.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: `${m.userName || 'Student'}${timeStr ? ` [${timeStr}]` : ''}: `,
+                bold: true,
+                color: "1E293B",
+                size: 17,
+                font: "Arial"
+              }),
+              new TextRun({
+                text: m.text || '',
+                color: "334155",
+                size: 17,
+                font: "Arial"
+              }),
+              ...(likesStr ? [
+                new TextRun({
+                  text: likesStr,
+                  bold: true,
+                  color: "B45309",
+                  size: 16,
+                  font: "Arial"
+                })
+              ] : [])
+            ],
+            spacing: { before: 30, after: 30 }
+          })
+        );
+      });
+    }
+
+    if (slidePolls.length > 0) {
+      slidePolls.forEach(p => {
+        rightCellChildren.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: `📊 Poll: ${p.question || 'MCQ Poll'}`,
+                bold: true,
+                color: "0F172A",
+                size: 17,
+                font: "Arial"
+              })
+            ],
+            spacing: { before: 60, after: 30 }
+          })
+        );
+      });
+    }
+
+    if (slideWcs.length > 0) {
+      slideWcs.forEach(w => {
+        rightCellChildren.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: `☁️ Word Cloud: ${w.prompt || 'Activity'}`,
+                bold: true,
+                color: "0F172A",
+                size: 17,
+                font: "Arial"
+              })
+            ],
+            spacing: { before: 60, after: 30 }
+          })
+        );
+      });
+    }
+
+    if (slideOeqs.length > 0) {
+      slideOeqs.forEach(q => {
+        rightCellChildren.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: `❓ Open Question: ${q.question || 'Prompt'}`,
+                bold: true,
+                color: "0F172A",
+                size: 17,
+                font: "Arial"
+              })
+            ],
+            spacing: { before: 60, after: 30 }
+          })
+        );
+      });
+    }
+
+    if (rightCellChildren.length === 0) {
+      rightCellChildren.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: includeChat ? "No audience questions or notes recorded for this slide" : "Slide presentation overview",
+              italics: true,
+              color: "94A3B8",
+              size: 20, // 10pt
+              font: "Arial"
+            })
+          ],
+          spacing: { before: 80, after: 80 }
+        })
+      );
+    }
+
+    const rightCell = new TableCell({
+      width: { size: 52, type: WidthType.PERCENTAGE },
+      verticalAlign: VerticalAlignTable.TOP,
+      shading: { fill: "F8FAFC" },
+      borders: {
+        top: { style: BorderStyle.SINGLE, size: 6, color: "CBD5E1" },
+        bottom: { style: BorderStyle.SINGLE, size: 6, color: "CBD5E1" },
+        left: { style: BorderStyle.SINGLE, size: 6, color: "CBD5E1" },
+        right: { style: BorderStyle.SINGLE, size: 6, color: "CBD5E1" },
+      },
+      margins: { top: 140, bottom: 140, left: 160, right: 160 },
+      children: rightCellChildren
+    });
+
+    const slideTable = new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      borders: {
+        top: { style: BorderStyle.NONE, size: 0, color: "auto" },
+        bottom: { style: BorderStyle.NONE, size: 0, color: "auto" },
+        left: { style: BorderStyle.NONE, size: 0, color: "auto" },
+        right: { style: BorderStyle.NONE, size: 0, color: "auto" },
+        insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "auto" },
+        insideVertical: { style: BorderStyle.NONE, size: 0, color: "auto" },
+      },
+      rows: [
+        new TableRow({
+          cantSplit: true,
+          children: [leftCell, rightCell]
+        })
+      ]
+    });
+
+    slideElements.push(slideTable);
+
+    if (sIdx < sortedSlides.length - 1) {
+      slideElements.push(
+        new Paragraph({
+          spacing: { before: 100, after: 180 }
+        })
+      );
+    }
+  }
+
+  // Activity section
+  const activityElements: any[] = [];
+  if (includeChat) {
+    const combinedItems = [
+      ...msgs.map(m => ({ ...m, type: 'message' as const })),
+      ...ps.map(p => ({ ...p, type: 'poll' as const })),
+      ...wcs.map(w => ({ ...w, type: 'wordCloud' as const })),
+      ...oeqs.map(q => ({ ...q, type: 'openEnded' as const }))
+    ].sort((a, b) => {
+      const timeA = ((a as any).timestamp || (a as any).createdAt)?.toMillis() || 0;
+      const timeB = ((b as any).timestamp || (b as any).createdAt)?.toMillis() || 0;
+      return timeA - timeB;
+    });
+
+    activityElements.push(
+      new Paragraph({
+        text: "Session Activity & Chat Log",
+        heading: HeadingLevel.HEADING_1,
+        pageBreakBefore: true,
+        spacing: { before: 240, after: 200 }
+      })
+    );
+
+    if (combinedItems.length === 0) {
+      activityElements.push(
+        new Paragraph({
+          text: "No chat messages or session activities recorded.",
+          spacing: { before: 120, after: 120 }
+        })
+      );
+    } else {
+      let runningMessageRows: TableRow[] = [];
+
+      const flushMessages = () => {
+        if (runningMessageRows.length > 0) {
+          const headerBorders = {
+            top: { style: BorderStyle.SINGLE, size: 6, color: "CBD5E1" },
+            bottom: { style: BorderStyle.SINGLE, size: 6, color: "CBD5E1" },
+            left: { style: BorderStyle.NONE, size: 0, color: "auto" },
+            right: { style: BorderStyle.NONE, size: 0, color: "auto" }
+          };
+          const tableHeader = new TableRow({
+            children: [
+              new TableCell({ borders: headerBorders, width: { size: 10, type: WidthType.PERCENTAGE }, shading: { fill: "F1F5F9" }, children: [new Paragraph({ children: [new TextRun({ text: "Date", bold: true, font: "Arial", size: 18, color: "0F172A" })] })] }),
+              new TableCell({ borders: headerBorders, width: { size: 12, type: WidthType.PERCENTAGE }, shading: { fill: "F1F5F9" }, children: [new Paragraph({ children: [new TextRun({ text: "Time", bold: true, font: "Arial", size: 18, color: "0F172A" })] })] }),
+              new TableCell({ borders: headerBorders, width: { size: 8, type: WidthType.PERCENTAGE }, shading: { fill: "F1F5F9" }, children: [new Paragraph({ children: [new TextRun({ text: "Slide", bold: true, font: "Arial", size: 18, color: "0F172A" })] })] }),
+              new TableCell({ borders: headerBorders, width: { size: 15, type: WidthType.PERCENTAGE }, shading: { fill: "F1F5F9" }, children: [new Paragraph({ children: [new TextRun({ text: "Name", bold: true, font: "Arial", size: 18, color: "0F172A" })] })] }),
+              new TableCell({ borders: headerBorders, width: { size: 20, type: WidthType.PERCENTAGE }, shading: { fill: "F1F5F9" }, children: [new Paragraph({ children: [new TextRun({ text: "Email", bold: true, font: "Arial", size: 18, color: "0F172A" })] })] }),
+              new TableCell({ borders: headerBorders, width: { size: 35, type: WidthType.PERCENTAGE }, shading: { fill: "F1F5F9" }, children: [new Paragraph({ children: [new TextRun({ text: "Question / Message", bold: true, font: "Arial", size: 18, color: "0F172A" })] })] }),
+            ]
+          });
+          activityElements.push(
+            new Table({
+              width: { size: 100, type: WidthType.PERCENTAGE },
+              borders: {
+                top: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                bottom: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                left: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                right: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                insideVertical: { style: BorderStyle.NONE, size: 0, color: "auto" },
+              },
+              rows: [tableHeader, ...runningMessageRows]
+            }),
+            new Paragraph({ spacing: { after: 240 } })
+          );
+          runningMessageRows = [];
+        }
+      };
+
+      for (const item of combinedItems) {
+        if (item.type === 'message') {
+          const m = item as Message;
+          const dateObj = m.timestamp?.toDate() || new Date();
+          const dateStr = dateObj.toLocaleDateString();
+          const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          const slideStr = m.slide !== undefined && m.slide !== null ? `Slide ${m.slide}` : '-';
+          const nameStr = m.userName || '-';
+          const emailStr = m.userEmail || '-';
+          const textStr = m.text || '';
+          const likesStr = m.likes ? ` (👍 ${m.likes})` : '';
+
+          const cellBorders = {
+            top: { style: BorderStyle.NONE, size: 0, color: "auto" },
+            bottom: { style: BorderStyle.SINGLE, size: 4, color: "E2E8F0" },
+            left: { style: BorderStyle.NONE, size: 0, color: "auto" },
+            right: { style: BorderStyle.NONE, size: 0, color: "auto" }
+          };
+
+          runningMessageRows.push(
+            new TableRow({
+              children: [
+                new TableCell({ borders: cellBorders, children: [new Paragraph({ children: [new TextRun({ text: dateStr, font: "Arial", size: 18, color: "334155" })] })] }),
+                new TableCell({ borders: cellBorders, children: [new Paragraph({ children: [new TextRun({ text: timeStr, font: "Arial", size: 18, color: "334155" })] })] }),
+                new TableCell({ borders: cellBorders, children: [new Paragraph({ children: [new TextRun({ text: slideStr, font: "Arial", size: 18, color: "334155" })] })] }),
+                new TableCell({ borders: cellBorders, children: [new Paragraph({ children: [new TextRun({ text: nameStr, font: "Arial", size: 18, bold: true, color: "0F172A" })] })] }),
+                new TableCell({ borders: cellBorders, children: [new Paragraph({ children: [new TextRun({ text: emailStr, font: "Arial", size: 18, color: "334155" })] })] }),
+                new TableCell({ borders: cellBorders, children: [new Paragraph({ children: [
+                  new TextRun({ text: textStr, font: "Arial", size: 18, color: "334155" }),
+                  ...(likesStr ? [new TextRun({ text: likesStr, font: "Arial", size: 18, bold: true, color: "854D0E" })] : [])
+                ] })] }),
+              ]
+            })
+          );
+        } else {
+          flushMessages();
+
+          const cellBorders = {
+            top: { style: BorderStyle.NONE, size: 0, color: "auto" },
+            bottom: { style: BorderStyle.SINGLE, size: 4, color: "E2E8F0" },
+            left: { style: BorderStyle.NONE, size: 0, color: "auto" },
+            right: { style: BorderStyle.NONE, size: 0, color: "auto" }
+          };
+
+          if (item.type === 'poll') {
+            const p = item as Poll;
+            const dateObj = p.createdAt?.toDate() || new Date();
+            const dateStr = dateObj.toLocaleDateString();
+            const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const slideStr = p.slide !== undefined ? ` [Slide ${p.slide}]` : '';
+            const totalVotes = Object.values(p.votes || {}).reduce((sum, val) => sum + val, 0);
+
+            activityElements.push(
+              new Paragraph({
+                text: "📊 MCQ POLL RESULTS",
+                heading: HeadingLevel.HEADING_3,
+                spacing: { before: 240, after: 60 }
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({ text: `Triggered on ${dateStr} at ${timeStr}${slideStr}`, size: 16, color: "64748B", italics: true })
+                ],
+                spacing: { after: 120 }
+              })
+            );
+
+            const pollRows = p.options.map(opt => {
+              const count = p.votes[opt] || 0;
+              const percentage = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
+              const isCorrect = p.correctAnswer === opt;
+              return new TableRow({
+                children: [
+                  new TableCell({
+                    borders: cellBorders,
+                    width: { size: 30, type: WidthType.PERCENTAGE },
+                    children: [new Paragraph({ children: [new TextRun({ text: `Option ${opt}`, bold: true, font: "Arial", size: 18 })] })]
+                  }),
+                  new TableCell({
+                    borders: cellBorders,
+                    width: { size: 40, type: WidthType.PERCENTAGE },
+                    children: [new Paragraph({ children: [new TextRun({ text: `${count} votes (${percentage}%)`, font: "Arial", size: 18 })] })]
+                  }),
+                  new TableCell({
+                    borders: cellBorders,
+                    width: { size: 30, type: WidthType.PERCENTAGE },
+                    children: [new Paragraph({ children: [
+                      ...(isCorrect ? [new TextRun({ text: "✓ CORRECT ANSWER", bold: true, color: "10B981", font: "Arial", size: 18 })] : [])
+                    ] })]
+                  })
+                ]
+              });
+            });
+
+            if (pollRows.length > 0) {
+              activityElements.push(
+                new Table({
+                  width: { size: 100, type: WidthType.PERCENTAGE },
+                  borders: {
+                    top: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                    bottom: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                    left: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                    right: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                    insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                    insideVertical: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                  },
+                  rows: pollRows
+                })
+              );
+            } else {
+              activityElements.push(
+                new Paragraph({
+                  children: [new TextRun({ text: "No options recorded for this poll.", italics: true, font: "Arial", size: 18, color: "64748B" })],
+                  spacing: { after: 120 }
+                })
+              );
+            }
+
+            activityElements.push(
+              new Paragraph({ spacing: { after: 120 } }),
+              new Paragraph({
+                children: [new TextRun({ text: `Total Votes: ${totalVotes}`, bold: true, font: "Arial", size: 18 })],
+                spacing: { after: 240 }
+              })
+            );
+
+          } else if (item.type === 'wordCloud') {
+            const w = item as WordCloud;
+            const dateObj = w.createdAt?.toDate() || new Date();
+            const dateStr = dateObj.toLocaleDateString();
+            const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const slideStr = w.slide !== undefined ? ` [Slide ${w.slide}]` : '';
+            const totalSubmissions = Object.values(w.words || {}).reduce((sum, val) => sum + val, 0);
+
+            activityElements.push(
+              new Paragraph({
+                text: "☁️ WORD CLOUD SUBMISSIONS",
+                heading: HeadingLevel.HEADING_3,
+                spacing: { before: 240, after: 60 }
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({ text: `Triggered on ${dateStr} at ${timeStr}${slideStr}`, size: 16, color: "64748B", italics: true })
+                ],
+                spacing: { after: 120 }
+              })
+            );
+
+            const sortedWords = Object.entries(w.words || {}).sort((a, b) => b[1] - a[1]);
+            const wordRows = sortedWords.map(([word, count]) => {
+              return new TableRow({
+                children: [
+                  new TableCell({
+                    borders: cellBorders,
+                    width: { size: 60, type: WidthType.PERCENTAGE },
+                    children: [new Paragraph({ children: [new TextRun({ text: word, bold: true, font: "Arial", size: 18 })] })]
+                  }),
+                  new TableCell({
+                    borders: cellBorders,
+                    width: { size: 40, type: WidthType.PERCENTAGE },
+                    children: [new Paragraph({ children: [new TextRun({ text: `${count} submission${count > 1 ? 's' : ''}`, font: "Arial", size: 18 })] })]
+                  })
+                ]
+              });
+            });
+
+            if (wordRows.length > 0) {
+              activityElements.push(
+                new Table({
+                  width: { size: 100, type: WidthType.PERCENTAGE },
+                  borders: {
+                    top: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                    bottom: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                    left: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                    right: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                    insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                    insideVertical: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                  },
+                  rows: wordRows
+                })
+              );
+            } else {
+              activityElements.push(
+                new Paragraph({
+                  children: [new TextRun({ text: "No words submitted for this word cloud.", italics: true, font: "Arial", size: 18, color: "64748B" })],
+                  spacing: { after: 120 }
+                })
+              );
+            }
+
+            activityElements.push(
+              new Paragraph({ spacing: { after: 120 } }),
+              new Paragraph({
+                children: [new TextRun({ text: `Total Submissions: ${totalSubmissions}`, bold: true, font: "Arial", size: 18 })],
+                spacing: { after: 240 }
+              })
+            );
+
+          } else if (item.type === 'openEnded') {
+            const q = item as OpenEndedQuestion;
+            const dateObj = q.createdAt?.toDate() || new Date();
+            const dateStr = dateObj.toLocaleDateString();
+            const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const slideStr = q.slide !== undefined ? ` [Slide ${q.slide}]` : '';
+            const totalResponses = (q.responses || []).length;
+
+            activityElements.push(
+              new Paragraph({
+                text: "❓ OPEN-ENDED QUESTION RESPONSES",
+                heading: HeadingLevel.HEADING_3,
+                spacing: { before: 240, after: 60 }
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({ text: `Prompt: "${q.question}"`, bold: true, font: "Arial", size: 18, color: "0F172A" }),
+                ],
+                spacing: { after: 40 }
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({ text: `Triggered on ${dateStr} at ${timeStr}${slideStr}`, size: 16, color: "64748B", italics: true })
+                ],
+                spacing: { after: 120 }
+              })
+            );
+
+            const respRows = (q.responses || []).map((resp, idx) => {
+              return new TableRow({
+                children: [
+                  new TableCell({
+                    borders: cellBorders,
+                    width: { size: 10, type: WidthType.PERCENTAGE },
+                    children: [new Paragraph({ children: [new TextRun({ text: `#${idx + 1}`, bold: true, font: "Arial", size: 18 })] })]
+                  }),
+                  new TableCell({
+                    borders: cellBorders,
+                    width: { size: 90, type: WidthType.PERCENTAGE },
+                    children: [new Paragraph({ children: [new TextRun({ text: resp.text, font: "Arial", size: 18 })] })]
+                  })
+                ]
+              });
+            });
+
+            if (respRows.length > 0) {
+              activityElements.push(
+                new Table({
+                  width: { size: 100, type: WidthType.PERCENTAGE },
+                  borders: {
+                    top: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                    bottom: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                    left: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                    right: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                    insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                    insideVertical: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                  },
+                  rows: respRows
+                })
+              );
+            } else {
+              activityElements.push(
+                new Paragraph({
+                  children: [new TextRun({ text: "No responses recorded for this question.", italics: true, font: "Arial", size: 18, color: "64748B" })],
+                  spacing: { after: 120 }
+                })
+              );
+            }
+
+            activityElements.push(
+              new Paragraph({
+                children: [new TextRun({ text: `Total Responses: ${totalResponses}`, bold: true, font: "Arial", size: 18 })],
+                spacing: { before: 120, after: 240 }
+              })
+            );
+          }
+        }
+      }
+
+      flushMessages();
+    }
+  }
+
+  const presenterName = presentation.presenterEmail ? presentation.presenterEmail.split('@')[0] : 'Presenter';
+  const pinCode = presentation.pinCode || 'N/A';
+  const deckTitle = presentation.pptxFileName || `Session ${pinCode}`;
+  const docFilename = `ActiveDeck_Presentation_${pinCode}.docx`;
+
+  const docxFile = new Document({
+    sections: [{
+      properties: {},
+      children: [
+        new Paragraph({
+          text: "ActiveDeck Presentation Export",
+          heading: HeadingLevel.HEADING_1,
+          spacing: { after: 160 }
+        }),
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          borders: {
+            top: { style: BorderStyle.NONE, size: 0, color: "auto" },
+            bottom: { style: BorderStyle.NONE, size: 0, color: "auto" },
+            left: { style: BorderStyle.SINGLE, size: 24, color: "EB5D00" },
+            right: { style: BorderStyle.NONE, size: 0, color: "auto" },
+            insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "auto" },
+            insideVertical: { style: BorderStyle.NONE, size: 0, color: "auto" },
+          },
+          rows: [
+            new TableRow({
+              children: [
+                new TableCell({
+                  shading: { fill: "F8FAFC" },
+                  margins: { top: 120, bottom: 120, left: 160, right: 160 },
+                  children: [
+                    new Paragraph({
+                      children: [
+                        new TextRun({ text: "Presenter: ", bold: true, color: "0F172A", font: "Arial", size: 21 }),
+                        new TextRun({ text: presenterName, color: "334155", font: "Arial", size: 21 }),
+                      ],
+                      spacing: { after: 40 }
+                    }),
+                    new Paragraph({
+                      children: [
+                        new TextRun({ text: "Session PIN: ", bold: true, color: "0F172A", font: "Arial", size: 21 }),
+                        new TextRun({ text: pinCode, color: "334155", font: "Arial", size: 21 }),
+                      ],
+                      spacing: { after: 40 }
+                    }),
+                    new Paragraph({
+                      children: [
+                        new TextRun({ text: "Presentation: ", bold: true, color: "0F172A", font: "Arial", size: 21 }),
+                        new TextRun({ text: deckTitle, color: "334155", font: "Arial", size: 21 }),
+                      ],
+                      spacing: { after: 40 }
+                    }),
+                    new Paragraph({
+                      children: [
+                        new TextRun({ text: "Export Mode: ", bold: true, color: "0F172A", font: "Arial", size: 21 }),
+                        new TextRun({ text: includeChat ? "Presentation + Session Chat Log" : "Presentation Slides", color: "334155", font: "Arial", size: 21 }),
+                      ],
+                      spacing: { after: 40 }
+                    }),
+                    new Paragraph({
+                      children: [
+                        new TextRun({ text: "Date: ", bold: true, color: "0F172A", font: "Arial", size: 21 }),
+                        new TextRun({ text: new Date().toLocaleDateString(), color: "334155", font: "Arial", size: 21 }),
+                      ],
+                    }),
+                  ],
+                }),
+              ],
+            }),
+          ],
+        }),
+        // Clean horizontal divider before slides begin
+        new Paragraph({
+          border: {
+            bottom: {
+              style: BorderStyle.SINGLE,
+              size: 10,
+              color: "CBD5E1",
+              space: 1
+            }
+          },
+          spacing: { before: 180, after: 260 }
+        }),
+        ...slideElements,
+        ...activityElements
+      ]
+    }]
+  });
+
+  const docBlob = await Packer.toBlob(docxFile);
+  const docUrl = URL.createObjectURL(docBlob);
+  const link = document.createElement('a');
+  link.href = docUrl;
+  link.download = docFilename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(docUrl);
   return true;
 };

@@ -80,6 +80,7 @@ export interface Presentation {
   showSlidePreview?: boolean;
   chatEnabled?: boolean;
   presenterDrawings?: Record<string, string>;
+  presenterTextAnnotations?: Record<string, string>;
   activeDrawingStrokeJSON?: string | null;
   magnifierX?: number;
   magnifierY?: number;
