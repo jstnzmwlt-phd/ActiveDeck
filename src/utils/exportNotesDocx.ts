@@ -1416,7 +1416,7 @@ export const exportPresentationToDocx = async (options: ExportPresentationOption
           new Paragraph({
             children: [
               new TextRun({
-                text: `📊 Poll: ${p.question || 'MCQ Poll'}`,
+                text: `📊 Poll: ${p.question || p.prompt || 'MCQ Poll'}`,
                 bold: true,
                 color: "0F172A",
                 size: 17,
@@ -1454,7 +1454,7 @@ export const exportPresentationToDocx = async (options: ExportPresentationOption
           new Paragraph({
             children: [
               new TextRun({
-                text: `❓ Open Question: ${q.question || 'Prompt'}`,
+                text: `❓ Open Question: ${q.prompt || q.question || 'Prompt'}`,
                 bold: true,
                 color: "0F172A",
                 size: 17,
@@ -1800,7 +1800,10 @@ export const exportPresentationToDocx = async (options: ExportPresentationOption
             const dateStr = dateObj.toLocaleDateString();
             const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             const slideStr = q.slide !== undefined ? ` [Slide ${q.slide}]` : '';
-            const totalResponses = (q.responses || []).length;
+            const responseList: string[] = Array.isArray(q.responses)
+              ? (q.responses as any[]).map((r: any) => typeof r === 'string' ? r : r?.text || '')
+              : Object.values(q.responses || {});
+            const totalResponses = responseList.length;
 
             activityElements.push(
               new Paragraph({
@@ -1810,7 +1813,7 @@ export const exportPresentationToDocx = async (options: ExportPresentationOption
               }),
               new Paragraph({
                 children: [
-                  new TextRun({ text: `Prompt: "${q.question}"`, bold: true, font: "Arial", size: 18, color: "0F172A" }),
+                  new TextRun({ text: `Prompt: "${q.prompt || q.question || ''}"`, bold: true, font: "Arial", size: 18, color: "0F172A" }),
                 ],
                 spacing: { after: 40 }
               }),
@@ -1822,7 +1825,7 @@ export const exportPresentationToDocx = async (options: ExportPresentationOption
               })
             );
 
-            const respRows = (q.responses || []).map((resp, idx) => {
+            const respRows = responseList.map((respText, idx) => {
               return new TableRow({
                 children: [
                   new TableCell({
@@ -1833,7 +1836,7 @@ export const exportPresentationToDocx = async (options: ExportPresentationOption
                   new TableCell({
                     borders: cellBorders,
                     width: { size: 90, type: WidthType.PERCENTAGE },
-                    children: [new Paragraph({ children: [new TextRun({ text: resp.text, font: "Arial", size: 18 })] })]
+                    children: [new Paragraph({ children: [new TextRun({ text: String(respText), font: "Arial", size: 18 })] })]
                   })
                 ]
               });

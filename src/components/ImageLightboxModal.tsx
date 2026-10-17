@@ -776,7 +776,7 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
                     setStudentPenColor('#000000');
                   }}
                   className={`px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                    interactionMode === 'text' || studentPenTool === 'text' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                    studentPenTool === 'text' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
                   }`}
                   title="Text Tool (Click on slide to add text box)"
                 >

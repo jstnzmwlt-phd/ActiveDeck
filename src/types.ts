@@ -123,6 +123,8 @@ export interface Message {
 export interface Poll {
   id: string;
   presentationId: string;
+  question?: string;
+  prompt?: string;
   options: string[];
   votes: Record<string, number>;
   voters: Record<string, string>;
@@ -141,6 +143,7 @@ export interface OpenEndedQuestion {
   id: string;
   presentationId: string;
   prompt: string;
+  question?: string;
   responses: Record<string, string>;
   createdAt: Timestamp;
   active: boolean;
