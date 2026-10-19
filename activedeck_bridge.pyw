@@ -119,11 +119,118 @@ def move_ppt_silently(direction="next"):
     elif current_os == "Darwin":
         move_ppt_mac(direction)
 
+def find_local_fallback_ppt(url):
+    try:
+        parsed = urllib.parse.urlparse(url)
+        path = urllib.parse.unquote(parsed.path)
+        base = os.path.basename(path)
+        clean_name = re.sub(r'^\d+_\d+_', '', base)
+        words = [w.lower() for w in re.split(r'[_ -]+', os.path.splitext(clean_name)[0]) if len(w) > 2]
+
+        search_dirs = [
+            tempfile.gettempdir(),
+            os.path.join(os.path.expanduser("~"), "OneDrive", "Desktop", "JZ"),
+            os.path.join(os.path.expanduser("~"), "Desktop", "JZ"),
+            os.path.join(os.path.expanduser("~"), "OneDrive", "Desktop"),
+            os.path.join(os.path.expanduser("~"), "Desktop"),
+        ]
+
+        # 1. Exact or normalized filename match
+        for d in search_dirs:
+            if not os.path.exists(d):
+                continue
+            for fname in os.listdir(d):
+                if not fname.lower().endswith(('.pptx', '.ppt')):
+                    continue
+                fpath = os.path.join(d, fname)
+                if not os.path.isfile(fpath) or os.path.getsize(fpath) == 0:
+                    continue
+                if (fname.lower() == clean_name.lower() or 
+                    fname.lower().replace(' ', '_') == clean_name.lower() or 
+                    clean_name.lower().replace(' ', '_') == fname.lower().replace(' ', '_')):
+                    return fpath
+
+        # 2. Temp directory cached presentations matching slide text
+        if os.path.exists(tempfile.gettempdir()):
+            for fname in os.listdir(tempfile.gettempdir()):
+                if fname.lower().startswith(('activedeck_pres_', 'activedeck_downloaded_')) and fname.lower().endswith('.pptx'):
+                    fpath = os.path.join(tempfile.gettempdir(), fname)
+                    if os.path.isfile(fpath) and os.path.getsize(fpath) > 1000:
+                        try:
+                            import zipfile, xml.etree.ElementTree as ET
+                            with zipfile.ZipFile(fpath) as z:
+                                for s in z.namelist():
+                                    if 'slide1.xml' in s:
+                                        tree = ET.fromstring(z.read(s))
+                                        slide_text = ' '.join(tree.itertext()).lower()
+                                        if words and any(w in slide_text for w in words):
+                                            return fpath
+                        except Exception:
+                            pass
+
+        # 3. Keyword matching in candidate directories
+        for d in search_dirs[1:]:
+            if not os.path.exists(d):
+                continue
+            for fname in os.listdir(d):
+                if not fname.lower().endswith(('.pptx', '.ppt')):
+                    continue
+                fname_lower = fname.lower()
+                if words and any(w in fname_lower for w in words):
+                    fpath = os.path.join(d, fname)
+                    if os.path.isfile(fpath) and os.path.getsize(fpath) > 0:
+                        return fpath
+    except Exception as e:
+        try:
+            with open(os.path.join(tempfile.gettempdir(), "activedeck_error.log"), "a") as f:
+                f.write(f"\nfind_local_fallback_ppt error: {str(e)}")
+        except Exception:
+            pass
+    return None
+
 def download_and_open_ppt(url):
     global _last_exported_presentation, _cached_state, _cached_slide_index, _cached_total_slides, _thumbnails_cache, _notes_cache
     if not url:
         return
     try:
+        filepath = None
+
+        # 1. If already a valid local file path
+        if os.path.isfile(url):
+            filepath = os.path.abspath(url)
+        elif url.startswith(('http://', 'https://')):
+            try:
+                ctx = ssl._create_unverified_context()
+                timestamp = int(time.time())
+                candidate_path = os.path.abspath(os.path.join(tempfile.gettempdir(), f"activedeck_pres_{timestamp}.pptx"))
+
+                req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+                with urllib.request.urlopen(req, context=ctx) as resp, open(candidate_path, "wb") as out_file:
+                    out_file.write(resp.read())
+
+                if os.path.exists(candidate_path) and os.path.getsize(candidate_path) > 0:
+                    filepath = candidate_path
+            except Exception as dl_err:
+                try:
+                    with open(os.path.join(tempfile.gettempdir(), "activedeck_error.log"), "a") as f:
+                        f.write(f"\nRemote download failed ({dl_err}), checking local fallback...")
+                except Exception:
+                    pass
+
+        # 2. Smart local fallback if remote download failed or returned 404
+        if not filepath or not os.path.exists(filepath) or os.path.getsize(filepath) == 0:
+            fallback = find_local_fallback_ppt(url)
+            if fallback and os.path.exists(fallback):
+                filepath = fallback
+                try:
+                    with open(os.path.join(tempfile.gettempdir(), "activedeck_error.log"), "a") as f:
+                        f.write(f"\nUsing local fallback file: {filepath}")
+                except Exception:
+                    pass
+
+        if not filepath or not os.path.exists(filepath) or os.path.getsize(filepath) == 0:
+            raise RuntimeError(f"Presentation file could not be downloaded or found locally for url: {url}")
+
         # Reset state & clear caches
         _last_exported_presentation = ''
         _cached_state = None
@@ -132,7 +239,7 @@ def download_and_open_ppt(url):
         _thumbnails_cache.clear()
         _notes_cache.clear()
 
-        # Delete all .jpg/.JPG files inside activedeck_slides
+        # Delete all .jpg/.JPG files inside activedeck_slides only after we know we have a valid PPT file!
         os.makedirs(SLIDES_DIR, exist_ok=True)
         for f in os.listdir(SLIDES_DIR):
             if f.lower().endswith(('.jpg', '.jpeg')):
@@ -140,15 +247,6 @@ def download_and_open_ppt(url):
                     os.remove(os.path.join(SLIDES_DIR, f))
                 except Exception:
                     pass
-
-        # Use an unverified SSL context (ssl._create_unverified_context()) with urllib.request to download the url to a timestamped file (activedeck_pres_<timestamp>.pptx) in the temp directory
-        ctx = ssl._create_unverified_context()
-        timestamp = int(time.time())
-        filepath = os.path.abspath(os.path.join(tempfile.gettempdir(), f"activedeck_pres_{timestamp}.pptx"))
-
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, context=ctx) as resp, open(filepath, "wb") as out_file:
-            out_file.write(resp.read())
 
         if current_os == "Windows":
             with com_lock:
