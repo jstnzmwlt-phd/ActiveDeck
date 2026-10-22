@@ -599,6 +599,30 @@ def handle_direction_http(direction):
         return jsonify({'status': 'success', 'direction': direction})
     return jsonify({'status': 'ignored'})
 
+def send_all_thumbnails(ws):
+    if not os.path.exists(SLIDES_DIR):
+        return
+    try:
+        files = os.listdir(SLIDES_DIR)
+        thumbnails = {}
+        for f in files:
+            m = re.match(r'^(?:slide|Slide)?(\d+)\.(?:jpg|jpeg|JPG|JPEG)$', f)
+            if m:
+                s_idx = int(m.group(1))
+                f_path = os.path.join(SLIDES_DIR, f)
+                try:
+                    with open(f_path, "rb") as img_f:
+                        thumbnails[s_idx] = "data:image/jpeg;base64," + base64.b64encode(img_f.read()).decode('utf-8')
+                except Exception:
+                    pass
+        if thumbnails:
+            ws.send(json.dumps({
+                "type": "THUMBNAILS",
+                "thumbnails": thumbnails
+            }))
+    except Exception:
+        pass
+
 def handle_ws(ws):
     last_state = None
     while True:
@@ -621,7 +645,7 @@ def handle_ws(ws):
                                 threading.Thread(target=download_and_open_ppt, args=(url,), daemon=True).start()
                                 force_send = True
                         elif action == 'get_thumbnails':
-                            pass
+                            send_all_thumbnails(ws)
                         elif action == 'status':
                             force_send = True
                     else:

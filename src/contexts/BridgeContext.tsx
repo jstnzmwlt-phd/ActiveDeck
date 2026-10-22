@@ -161,23 +161,30 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // Optimistic UI update: advance the slide counter and next slide immediately for responsive feedback
     if (typeof direction === 'number') {
       setCurrentSlide(direction);
-      setCurrentSlideBase64(null);
+      setCurrentSlideBase64(slideThumbnails[direction] || null);
       if (totalSlides !== null && direction < totalSlides) {
         setNextSlide(direction + 1);
+        setNextSlideBase64(slideThumbnails[direction + 1] || null);
       } else {
         setNextSlide(null);
+        setNextSlideBase64(null);
       }
     } else if (direction === 'next') {
       setCurrentSlide((prev) => {
         if (prev === null) return 1;
         if (totalSlides !== null && prev >= totalSlides) return prev;
         const next = prev + 1;
-        setNextSlide(totalSlides !== null && next < totalSlides ? next + 1 : null);
+        const upcomingNext = totalSlides !== null && next < totalSlides ? next + 1 : null;
+        setNextSlide(upcomingNext);
         if (nextSlideBase64) {
           setCurrentSlideBase64(nextSlideBase64);
-          setNextSlideBase64(null);
+        } else if (slideThumbnails[next]) {
+          setCurrentSlideBase64(slideThumbnails[next]);
+        }
+        if (upcomingNext && slideThumbnails[upcomingNext]) {
+          setNextSlideBase64(slideThumbnails[upcomingNext]);
         } else {
-          setCurrentSlideBase64(null);
+          setNextSlideBase64(null);
         }
         return next;
       });
@@ -186,7 +193,12 @@ export const BridgeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (prev === null || prev <= 1) return 1;
         const prevNum = prev - 1;
         setNextSlide(prev);
-        setCurrentSlideBase64(null);
+        if (slideThumbnails[prevNum]) {
+          setCurrentSlideBase64(slideThumbnails[prevNum]);
+        }
+        if (slideThumbnails[prev]) {
+          setNextSlideBase64(slideThumbnails[prev]);
+        }
         return prevNum;
       });
     }

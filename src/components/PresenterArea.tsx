@@ -1814,25 +1814,47 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     ? nextSlide
     : (effectiveCurrentSlide < effectiveTotalSlides ? effectiveCurrentSlide + 1 : null);
 
-  const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
   const bridgeNextThumbnail = (effectiveNextSlide !== null && slideThumbnails[effectiveNextSlide]) || null;
-  const nextSlideLocalUrl = !isHttps && effectiveNextSlide !== null ? `http://127.0.0.1:5000/slides/${effectiveNextSlide}.jpg${activeDeckKey ? `?d=${encodeURIComponent(activeDeckKey)}` : ''}` : null;
+  const nextSlideLocalUrl = effectiveNextSlide !== null ? `http://127.0.0.1:5000/slides/${effectiveNextSlide}.jpg${activeDeckKey ? `?d=${encodeURIComponent(activeDeckKey)}` : ''}` : null;
   const nextSlideFirestoreUrl = effectiveNextSlide !== null ? (slidePreviewsMap[effectiveNextSlide] || null) : null;
-  const nextSlideImgUrl = (isBridgeConnected && (isPresentationActive || isBridgeActivePresentation) && nextSlideBase64)
-    ? nextSlideBase64
-    : (isBridgeConnected && (isPresentationActive || isBridgeActivePresentation) && bridgeNextThumbnail)
-      ? bridgeNextThumbnail
-      : null;
+  const nextSlideImgUrl = (effectiveNextSlide === null)
+    ? null
+    : (isBridgeConnected && (isPresentationActive || isBridgeActivePresentation) && nextSlide === effectiveNextSlide && nextSlideBase64)
+      ? nextSlideBase64
+      : (isBridgeConnected && bridgeNextThumbnail)
+        ? bridgeNextThumbnail
+        : (isBridgeConnected && !nextSlideImageError && nextSlideLocalUrl)
+          ? nextSlideLocalUrl
+          : nextSlideFirestoreUrl || null;
 
   useEffect(() => {
     setNextSlideImageError(false);
   }, [effectiveNextSlide]);
 
+  // Preload upcoming slides from bridge into browser cache so slide transitions never flash black
   useEffect(() => {
-    if (!nextSlideImgUrl) {
+    if (!isBridgeConnected || effectiveNextSlide === null) return;
+    const upcomingSlides = [effectiveNextSlide, effectiveNextSlide + 1];
+    upcomingSlides.forEach((sNum) => {
+      if (sNum <= effectiveTotalSlides && sNum > 0) {
+        const preImg = new Image();
+        preImg.src = `http://127.0.0.1:5000/slides/${sNum}.jpg${activeDeckKey ? `?d=${encodeURIComponent(activeDeckKey)}` : ''}`;
+      }
+    });
+  }, [effectiveNextSlide, effectiveTotalSlides, isBridgeConnected, activeDeckKey]);
+
+  useEffect(() => {
+    // End of presentation: clear preview
+    if (effectiveNextSlide === null) {
       setDisplayedNextSlideUrl(null);
       return;
     }
+
+    if (!nextSlideImgUrl) {
+      // Don't blank out existing preview if we're simply waiting for next image to resolve
+      return;
+    }
+
     if (nextSlideImgUrl === displayedNextSlideUrl) return;
 
     if (nextSlideImgUrl.startsWith('data:')) {
@@ -1843,21 +1865,27 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     let isMounted = true;
     const img = new Image();
     img.src = nextSlideImgUrl;
+
+    if (img.complete && img.naturalWidth > 0) {
+      setDisplayedNextSlideUrl(nextSlideImgUrl);
+      return;
+    }
+
     img.onload = () => {
       if (isMounted) setDisplayedNextSlideUrl(nextSlideImgUrl);
     };
     img.onerror = () => {
-      if (isMounted) setDisplayedNextSlideUrl(nextSlideImgUrl);
+      if (isMounted) setNextSlideImageError(true);
     };
     const timer = setTimeout(() => {
       if (isMounted) setDisplayedNextSlideUrl(nextSlideImgUrl);
-    }, 200);
+    }, 100);
 
     return () => {
       isMounted = false;
       clearTimeout(timer);
     };
-  }, [nextSlideImgUrl]);
+  }, [nextSlideImgUrl, effectiveNextSlide, displayedNextSlideUrl]);
 
   useEffect(() => {
     let intervalId: any;
@@ -3783,9 +3811,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                         
                         {/* Changed aspect-video to flex-1 min-h-0 to resize dynamically */}
                         <div className="relative w-full flex-1 min-h-0 bg-black border border-slate-850 rounded-2xl overflow-hidden p-1 flex items-center justify-center shadow-lg">
-                          {(displayedNextSlideUrl || nextSlideImgUrl || bridgeNextThumbnail) ? (
+                          {(displayedNextSlideUrl || nextSlideImgUrl || bridgeNextThumbnail || (!nextSlideImageError && nextSlideLocalUrl)) ? (
                             <img 
-                              src={(displayedNextSlideUrl || nextSlideImgUrl || bridgeNextThumbnail)!} 
+                              src={(displayedNextSlideUrl || nextSlideImgUrl || bridgeNextThumbnail || nextSlideLocalUrl)!} 
                               alt="Next Slide Preview" 
                               className="w-full h-full object-contain bg-black"
                               onError={() => setNextSlideImageError(true)}
