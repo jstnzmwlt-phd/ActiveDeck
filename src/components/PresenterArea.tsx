@@ -295,9 +295,10 @@ interface PresenterAreaProps {
   onCreatePresentation?: () => Promise<string>;
   isProjectorMode?: boolean;
   onStreamStateChange?: (isCapturing: boolean) => void;
+  presenterEmail?: string;
 }
 
-export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logoUrl, onCreatePresentation, isProjectorMode = false, onStreamStateChange }) => {
+export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logoUrl, onCreatePresentation, isProjectorMode = false, onStreamStateChange, presenterEmail: propPresenterEmail }) => {
   const { 
     currentSlide, 
     sendSlideCommand, 
@@ -573,8 +574,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   const multiFileInputRef = useRef<HTMLInputElement>(null);
 
   const effectivePresenterEmail = (
-    presentation?.presenterEmail || 
+    propPresenterEmail ||
+    sessionStorage.getItem('activeDeckViewingAs') || 
     sessionStorage.getItem('activePresenterEmail') || 
+    presentation?.presenterEmail || 
     localStorage.getItem('activeDeckLastPresenterEmail') || 
     ''
   ).trim().toLowerCase();
@@ -583,13 +586,17 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
   // Listen to presenter's permanent saved decks in Firestore (accessible on ANY computer/browser)
   useEffect(() => {
+    setPresenterSavedDecks([]);
     if (!effectivePresenterEmail) return;
     const unsub = onSnapshot(doc(db, 'whitelistedPresenters', effectivePresenterEmail), (snap) => {
       if (snap.exists() && Array.isArray(snap.data().savedDecks)) {
         setPresenterSavedDecks(snap.data().savedDecks);
+      } else {
+        setPresenterSavedDecks([]);
       }
     }, (err) => {
       console.warn("ActiveDeck: Could not load presenter savedDecks from Firestore:", err);
+      setPresenterSavedDecks([]);
     });
     return () => unsub();
   }, [effectivePresenterEmail]);
@@ -599,7 +606,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     const list: DeckItem[] = [];
     const seenUrls = new Set<string>();
 
-    // 1. Permanent saved presentations for this faculty member
+    // 1. Permanent saved presentations for this specific faculty member
     if (Array.isArray(presenterSavedDecks)) {
       presenterSavedDecks.forEach((d) => {
         if (d && d.url && !seenUrls.has(d.url)) {
@@ -609,8 +616,11 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       });
     }
 
-    // 2. Presentations uploaded to the current session
-    if (Array.isArray(presentation?.uploadedDecks)) {
+    // 2. Presentations uploaded to the current session (ONLY if session belongs to this presenter)
+    const sessionBelongsToPresenter = !presentation?.presenterEmail || 
+      (effectivePresenterEmail && presentation.presenterEmail.trim().toLowerCase() === effectivePresenterEmail);
+
+    if (sessionBelongsToPresenter && Array.isArray(presentation?.uploadedDecks)) {
       presentation.uploadedDecks.forEach((d) => {
         if (d && d.url && !seenUrls.has(d.url)) {
           seenUrls.add(d.url);
@@ -619,8 +629,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       });
     }
 
-    // 3. If pptxUrl exists but is not in list, add it as fallback entry
-    if (presentation?.pptxUrl && !seenUrls.has(presentation.pptxUrl)) {
+    // 3. If pptxUrl exists but is not in list, add it as fallback entry ONLY if session belongs to this presenter
+    if (sessionBelongsToPresenter && presentation?.pptxUrl && !seenUrls.has(presentation.pptxUrl)) {
       seenUrls.add(presentation.pptxUrl);
       list.push({
         id: presentation.selectedDeckId || 'initial_deck',
@@ -631,13 +641,17 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     }
 
     return list;
-  }, [presenterSavedDecks, presentation?.uploadedDecks, presentation?.pptxUrl, presentation?.pptxFileName, presentation?.selectedDeckId]);
+  }, [presenterSavedDecks, presentation?.uploadedDecks, presentation?.pptxUrl, presentation?.pptxFileName, presentation?.selectedDeckId, presentation?.presenterEmail, effectivePresenterEmail]);
 
   const [selectedDeckId, setSelectedDeckId] = useState<string | null>(() => {
-    return sessionStorage.getItem('activeDeckSelectedId') || 
-           presentation?.selectedDeckId || 
-           null;
+    const lastUserDeckId = effectivePresenterEmail ? localStorage.getItem(`activeDeckLastSelectedDeckId_${effectivePresenterEmail}`) : null;
+    return lastUserDeckId || presentation?.selectedDeckId || null;
   });
+
+  useEffect(() => {
+    const lastUserDeckId = effectivePresenterEmail ? localStorage.getItem(`activeDeckLastSelectedDeckId_${effectivePresenterEmail}`) : null;
+    setSelectedDeckId(lastUserDeckId || (presentation?.selectedDeckId ?? null));
+  }, [effectivePresenterEmail]);
 
   useEffect(() => {
     if (presentation?.selectedDeckId && presentation.selectedDeckId !== selectedDeckId) {
@@ -649,6 +663,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
   // Automatically sync permanent saved presentations to current presentation document if not present
   useEffect(() => {
     if (!presentation?.id || effectiveDecks.length === 0) return;
+    // CRITICAL: Do NOT write or sync decks to a presentation document that belongs to another presenter!
+    if (presentation.presenterEmail && effectivePresenterEmail && presentation.presenterEmail.trim().toLowerCase() !== effectivePresenterEmail) {
+      return;
+    }
     const currentUrls = new Set((presentation.uploadedDecks || []).map(d => d.url));
     const hasUnsyncedDecks = effectiveDecks.some(d => !currentUrls.has(d.url));
     if (hasUnsyncedDecks) {
@@ -665,7 +683,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         console.warn("ActiveDeck: Failed to sync permanent decks to presentation:", err);
       });
     }
-  }, [presentation?.id, presentation?.uploadedDecks, presentation?.pptxUrl, effectiveDecks, selectedDeckId]);
+  }, [presentation?.id, presentation?.presenterEmail, effectivePresenterEmail, presentation?.uploadedDecks, presentation?.pptxUrl, effectiveDecks, selectedDeckId]);
 
   const activeDeck = React.useMemo(() => {
     if (selectedDeckId) {
@@ -4193,7 +4211,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                           title="Share whatever window or presentation is already running on your computer"
                         >
                           <ScreenShare className="w-3.5 h-3.5 text-slate-400" />
-                          <span>Share Screen Directly (Already Open)</span>
+                          <span>Share Screen Directly (PPT already Open)</span>
                         </button>
                       </div>
                     </>

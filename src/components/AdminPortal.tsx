@@ -933,6 +933,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
     sessionStorage.setItem('activeDeckViewingAs', trimmed);
     sessionStorage.setItem('activePresenterEmail', trimmed);
     localStorage.setItem('activeDeckLastPresenterEmail', trimmed);
+    // Explicitly clear session ID and deck selections so the SuperUser's PPTs/session do not leak
+    sessionStorage.removeItem('activePresenterPresentationId');
+    sessionStorage.removeItem('activeDeckSelectedId');
+    localStorage.removeItem('activeDeckJoined');
+    localStorage.removeItem('activeDeckJoinedPresentationId');
     window.location.href = window.location.origin + window.location.pathname;
   };
 

@@ -276,6 +276,10 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
       }
       if (mode === 'different') {
         sessionStorage.removeItem('activePresenterEmail');
+        sessionStorage.removeItem('activeDeckViewingAs');
+        sessionStorage.removeItem('activeDeckAdminOriginalEmail');
+        sessionStorage.removeItem('activeDeckSelectedId');
+        localStorage.removeItem('activeDeckLastPresenterEmail');
       }
       sessionStorage.removeItem('activePresenterPresentationId');
       sessionStorage.setItem('activeDeckForceNewSession', 'true');

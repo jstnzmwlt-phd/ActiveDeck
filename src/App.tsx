@@ -225,6 +225,7 @@ function AppContent() {
       const pinCode = await generateUniquePin();
       const isAttendanceActive = settings?.showAttendance !== false;
       const effectiveEmail = (
+        sessionStorage.getItem('activeDeckViewingAs') ||
         sessionStorage.getItem('activePresenterEmail') || 
         presenterEmail || 
         localStorage.getItem('activeDeckLastPresenterEmail') || 
@@ -245,7 +246,7 @@ function AppContent() {
             if (Array.isArray(data.savedDecks)) {
               decksToSave = data.savedDecks;
               if (decksToSave.length > 0 && !pptxUrlToSave) {
-                const lastSelectedId = data.lastSelectedDeckId || sessionStorage.getItem('activeDeckSelectedId') || (effectiveEmail ? localStorage.getItem(`activeDeckLastSelectedDeckId_${effectiveEmail}`) : null);
+                const lastSelectedId = data.lastSelectedDeckId || (effectiveEmail ? localStorage.getItem(`activeDeckLastSelectedDeckId_${effectiveEmail}`) : null);
                 const targetDeck = (lastSelectedId && decksToSave.find((d: any) => d.id === lastSelectedId)) || decksToSave[0];
                 pptxUrlToSave = targetDeck.url;
                 pptxFileNameToSave = targetDeck.name;
@@ -1002,7 +1003,22 @@ function AppContent() {
     setCheckingEmailDomain(false);
 
     const targetPresentationId = presentation?.id || activePresentationId;
-    if (targetPresentationId) {
+    // CRITICAL: If current active presentation belongs to a different presenter, do NOT hijack or overwrite it!
+    if (presentation?.presenterEmail && presentation.presenterEmail.trim().toLowerCase() !== trimmed) {
+      console.warn(`AppContent - Switching presenter to ${trimmed}; resetting stale presentation session from ${presentation.presenterEmail}`);
+      sessionStorage.removeItem('activePresenterPresentationId');
+      sessionStorage.removeItem('activeDeckSelectedId');
+      setActivePresentationId(null);
+      setPresentation(null);
+      try {
+        const newId = await createNewPresentation(savedDecksFromPresenter);
+        if (newId) {
+          setActivePresentationId(newId);
+        }
+      } catch (err) {
+        console.error('Failed to create new presentation for newly verified presenter:', err);
+      }
+    } else if (targetPresentationId) {
       try {
         const updates: any = {
           presenterEmail: trimmed
@@ -1010,7 +1026,7 @@ function AppContent() {
         if (savedDecksFromPresenter.length > 0 && (!presentation?.uploadedDecks || presentation.uploadedDecks.length === 0)) {
           updates.uploadedDecks = savedDecksFromPresenter;
           if (!presentation?.pptxUrl) {
-            const lastSelectedId = sessionStorage.getItem('activeDeckSelectedId') || (trimmed ? localStorage.getItem(`activeDeckLastSelectedDeckId_${trimmed}`) : null);
+            const lastSelectedId = (trimmed ? localStorage.getItem(`activeDeckLastSelectedDeckId_${trimmed}`) : null);
             const targetDeck = (lastSelectedId && savedDecksFromPresenter.find((d: any) => d.id === lastSelectedId)) || savedDecksFromPresenter[0];
             updates.pptxUrl = targetDeck.url;
             updates.pptxFileName = targetDeck.name;
@@ -1094,6 +1110,9 @@ function AppContent() {
     localStorage.setItem('activeDeckLastPresenterEmail', original);
     sessionStorage.removeItem('activeDeckViewingAs');
     sessionStorage.removeItem('activeDeckAdminOriginalEmail');
+    // Explicitly clear session ID and deck selections from viewed user before returning to admin
+    sessionStorage.removeItem('activePresenterPresentationId');
+    sessionStorage.removeItem('activeDeckSelectedId');
     window.location.hash = '#admin';
     window.location.reload();
   };
@@ -1582,10 +1601,17 @@ function AppContent() {
         });
         activeUnsubscribeRef.current = unsub;
       } else if (!isChatOnly && user && !isJoinRoute) {
+        const currentPresenterEmail = (
+          sessionStorage.getItem('activeDeckViewingAs') ||
+          sessionStorage.getItem('activePresenterEmail') ||
+          presenterEmail ||
+          ''
+        ).trim().toLowerCase();
+
         if (activePresentationId) {
           console.log('AppContent - Found active presentation ID:', activePresentationId);
           const docRef = doc(db, 'presentations', activePresentationId);
-          const unsub = onSnapshot(docRef, (docSnap) => {
+          const unsub = onSnapshot(docRef, async (docSnap) => {
             if (docSnap.exists()) {
               const data = docSnap.data();
               if (data.isEnded === true || data.active === false) {
@@ -1597,10 +1623,20 @@ function AppContent() {
                 return;
               }
 
+              // Verify presentation ownership: strictly isolate per presenter email!
+              if (currentPresenterEmail && data.presenterEmail && data.presenterEmail.trim().toLowerCase() !== currentPresenterEmail) {
+                console.warn(`AppContent - Presentation ${docSnap.id} belongs to ${data.presenterEmail}, not active user ${currentPresenterEmail}. Clearing active presentation to isolate user decks.`);
+                sessionStorage.removeItem('activePresenterPresentationId');
+                sessionStorage.removeItem('activeDeckSelectedId');
+                setActivePresentationId(null);
+                setPresentation(null);
+                return;
+              }
+
               console.log('AppContent - Cached presentation exists in Firestore. Setting active:', docSnap.id);
               setPresentation({ id: docSnap.id, ...data } as Presentation);
               ensurePresentationHasPin(docSnap.id, data);
-              const localEmail = sessionStorage.getItem('activePresenterEmail');
+              const localEmail = currentPresenterEmail || sessionStorage.getItem('activePresenterEmail');
               if (localEmail && !data.presenterEmail) {
                 updateDoc(docRef, { presenterEmail: localEmail }).catch(err => 
                   console.error('Failed to sync local email to cached presentation:', err)
@@ -1622,9 +1658,9 @@ function AppContent() {
             setPresentationLoaded(true);
           });
           activeUnsubscribeRef.current = unsub;
-        } else if (presenterEmail) {
+        } else if (currentPresenterEmail || presenterEmail) {
           // No active presentation, but presenter is logged in! Auto-create a session.
-          console.log('AppContent - No cached presentation, but presenter is logged in. Auto-creating session...');
+          console.log('AppContent - No cached presentation, but presenter is logged in. Auto-creating session for:', currentPresenterEmail || presenterEmail);
           try {
             const newId = await createNewPresentation();
             if (newId) {
@@ -3283,6 +3319,7 @@ function AppContent() {
             logoUrl={settings?.theme.logoUrl} 
             onCreatePresentation={handleCreatePresentationForArea} 
             onStreamStateChange={setIsPresentationSharing}
+            presenterEmail={viewingAsEmail || presenterEmail}
           />
         </div>
 
