@@ -4211,7 +4211,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                           title="Share whatever window or presentation is already running on your computer"
                         >
                           <ScreenShare className="w-3.5 h-3.5 text-slate-400" />
-                          <span>Share Screen Directly (PPT already Open)</span>
+                          <span>Share Screen Directly (PPT already open)</span>
                         </button>
                       </div>
                     </>
