@@ -93,6 +93,94 @@ app.get('/api/proxy-image', async (req, res) => {
   }
 });
 
+app.post('/api/notify-login', async (req, res) => {
+  try {
+    const webhookUrl = process.env.TEAMS_WEBHOOK_URL;
+    if (!webhookUrl) {
+      console.warn('TEAMS_WEBHOOK_URL is not set; skipping Teams notification.');
+      return res.status(200).json({ skipped: true, message: 'No webhook URL configured' });
+    }
+
+    const { email, institution, institutionDomain, sessionPin } = req.body || {};
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const now = new Date();
+    const formattedTime = now.toLocaleString('en-US', {
+      timeZone: 'America/Chicago',
+      dateStyle: 'full',
+      timeStyle: 'medium',
+    });
+
+    const facts: Array<{ title: string; value: string }> = [
+      { title: 'Faculty Email:', value: String(email) },
+      { title: 'Timestamp:', value: `${formattedTime} (CT)` },
+    ];
+
+    if (institution) {
+      facts.push({ title: 'Institution:', value: String(institution) });
+    }
+    if (institutionDomain) {
+      facts.push({ title: 'Domain:', value: `@${String(institutionDomain)}` });
+    }
+    if (sessionPin) {
+      facts.push({ title: 'Session PIN:', value: String(sessionPin) });
+    }
+
+    const cardPayload = {
+      type: 'message',
+      attachments: [
+        {
+          contentType: 'application/vnd.microsoft.card.adaptive',
+          contentUrl: null,
+          content: {
+            $schema: 'http://adaptivecards.io/schemas/adaptive-card.json',
+            type: 'AdaptiveCard',
+            version: '1.4',
+            body: [
+              {
+                type: 'TextBlock',
+                text: '🎓 ActiveDeck — Faculty Login',
+                weight: 'Bolder',
+                size: 'Large',
+                color: 'Accent'
+              },
+              {
+                type: 'TextBlock',
+                text: 'A verified faculty presenter has logged into the ActiveDeck presentation portal.',
+                isSubtle: true,
+                wrap: true
+              },
+              {
+                type: 'FactSet',
+                facts: facts
+              }
+            ]
+          }
+        }
+      ]
+    };
+
+    const webhookResponse = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cardPayload)
+    });
+
+    if (!webhookResponse.ok) {
+      const errorText = await webhookResponse.text();
+      console.error(`Teams webhook responded with status ${webhookResponse.status}:`, errorText);
+      return res.status(502).json({ error: 'Failed to notify Teams channel', details: errorText });
+    }
+
+    return res.status(200).json({ success: true });
+  } catch (err: any) {
+    console.error('Error in /api/notify-login:', err);
+    return res.status(500).json({ error: 'Internal server error', message: err?.message });
+  }
+});
+
 // Vite middleware for development
 if (process.env.NODE_ENV !== "production") {
   const { createServer } = await import("vite");

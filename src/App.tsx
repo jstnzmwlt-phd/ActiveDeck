@@ -958,6 +958,7 @@ function AppContent() {
       }
 
       // Step 2: Auto-match institution domain (Optional - do not block if not found)
+      let matchedInstitutionName = '';
       const emailDomain = trimmed.split('@')[1];
       if (emailDomain) {
         try {
@@ -970,6 +971,7 @@ function AppContent() {
 
           if (matchedInstDoc) {
             const instData = matchedInstDoc.data();
+            matchedInstitutionName = instData.name || '';
             // Apply matching institution settings globally
             await updateDoc(doc(db, 'settings', 'global'), {
               theme: instData.theme,
@@ -988,6 +990,20 @@ function AppContent() {
       await updateDoc(presenterRef, {
         usageCount: increment(1),
         lastUsedAt: serverTimestamp()
+      });
+
+      // Step 4: Dispatch Teams login notification webhook for faculty presenter
+      fetch('/api/notify-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: trimmed,
+          institution: matchedInstitutionName,
+          institutionDomain: emailDomain,
+          sessionPin: presentation?.pinCode || undefined
+        })
+      }).catch(err => {
+        console.warn('Teams webhook notification failed:', err);
       });
 
     } catch (err: any) {
