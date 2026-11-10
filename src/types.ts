@@ -86,6 +86,7 @@ export interface Presentation {
   magnifierY?: number;
   magnifierActive?: boolean;
   isLocked?: boolean;
+  isPresentationActive?: boolean;
   currentSlideBase64?: string | null;
   pptxUrl?: string;
   pptxFileName?: string;

@@ -566,14 +566,12 @@ function AppContent() {
   const getSlidePreviewUrl = (tab: string | number | undefined | null): string | undefined => {
     if (tab === undefined || tab === null) return undefined;
 
-    // If no presentation is loaded on the main screen, do NOT show any slide preview
-    const hasPresentationLoaded = !!(
-      presentation?.pptxUrl || 
-      presentation?.currentSlideBase64 || 
-      (presentation as any)?.current_slide_base64 ||
-      (presentation?.uploadedDecks && presentation.uploadedDecks.length > 0 && presentation?.selectedDeckId)
-    );
-    if (!hasPresentationLoaded) {
+    // Strict validation: Only show slide previews when a presentation is ACTUALLY active and running on the main screen
+    const isLive = presentation?.isPresentationActive === true || 
+                   !!presentation?.currentSlideBase64 || 
+                   (typeof presentation?.currentSlide === 'number' && presentation.currentSlide > 0 && !!presentation?.pptxUrl);
+
+    if (!isLive) {
       return undefined;
     }
 
@@ -780,15 +778,12 @@ function AppContent() {
     }
 
     const currentDeckKey = presentation?.selectedDeckId || presentation?.pptxUrl || '';
-    const hasAnyDeck = !!(
-      presentation?.pptxUrl || 
-      presentation?.currentSlideBase64 || 
-      (presentation as any)?.current_slide_base64 ||
-      (presentation?.uploadedDecks && presentation.uploadedDecks.length > 0)
-    );
+    const isLive = presentation?.isPresentationActive === true || 
+                   !!presentation?.currentSlideBase64 || 
+                   (typeof presentation?.currentSlide === 'number' && presentation.currentSlide > 0 && !!presentation?.pptxUrl);
 
-    if (!hasAnyDeck) {
-      console.log("[SlidePreview] No presentation loaded in session, clearing pushedSlidesMap.");
+    if (!isLive) {
+      console.log("[SlidePreview] Presentation is not active on main screen, clearing pushedSlidesMap.");
       setPushedSlidesMap({});
       try {
         localStorage.removeItem(`activeDeckPushedSlides_${activePresentationId}`);
@@ -881,7 +876,7 @@ function AppContent() {
     return () => {
       unsubPreviews();
     };
-  }, [activePresentationId, presentation?.selectedDeckId, presentation?.pptxUrl]);
+  }, [activePresentationId, presentation?.selectedDeckId, presentation?.pptxUrl, presentation?.isPresentationActive, presentation?.currentSlide, presentation?.currentSlideBase64]);
 
   useEffect(() => {
     if (!activePresentationId) return;

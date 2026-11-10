@@ -268,6 +268,8 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
           await updateDoc(doc(db, 'presentations', presentationId), {
             isEnded: true,
             active: false,
+            isPresentationActive: false,
+            currentSlide: 0,
             endedAt: serverTimestamp()
           });
         } catch (e) {

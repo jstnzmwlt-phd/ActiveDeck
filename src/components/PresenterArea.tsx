@@ -1822,22 +1822,34 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
       ? knownTotal 
       : Math.max(effectiveCurrentSlide + 3, 20));
 
-  // Sync slide numbers to Firestore so students in chat know current slide
+  // Sync slide numbers and live presentation state to Firestore so audience in mobile view knows if presentation is active
   useEffect(() => {
     if (isProjectorMode || !presentation?.id) return;
     const updates: any = {};
-    if (typeof effectiveCurrentSlide === 'number' && effectiveCurrentSlide !== presentation.currentSlide) {
-      updates.currentSlide = effectiveCurrentSlide;
+
+    if (isPresentationActive) {
+      if (typeof effectiveCurrentSlide === 'number' && effectiveCurrentSlide !== presentation.currentSlide) {
+        updates.currentSlide = effectiveCurrentSlide;
+      }
+      if (typeof effectiveTotalSlides === 'number' && effectiveTotalSlides !== presentation.totalSlides) {
+        updates.totalSlides = effectiveTotalSlides;
+      }
+    } else {
+      if (presentation.currentSlide !== 0 && presentation.currentSlide !== undefined) {
+        updates.currentSlide = 0;
+      }
     }
-    if (typeof effectiveTotalSlides === 'number' && effectiveTotalSlides !== presentation.totalSlides) {
-      updates.totalSlides = effectiveTotalSlides;
+
+    if (presentation.isPresentationActive !== isPresentationActive) {
+      updates.isPresentationActive = isPresentationActive;
     }
+
     if (Object.keys(updates).length > 0) {
       updateDoc(doc(db, 'presentations', presentation.id), updates).catch(err => {
         console.warn("ActiveDeck: Error updating slide numbers in Firebase:", err);
       });
     }
-  }, [effectiveCurrentSlide, effectiveTotalSlides, isProjectorMode, presentation?.id, presentation?.currentSlide, presentation?.totalSlides]);
+  }, [isPresentationActive, effectiveCurrentSlide, effectiveTotalSlides, isProjectorMode, presentation?.id, presentation?.currentSlide, presentation?.totalSlides, presentation?.isPresentationActive]);
 
   const effectiveNextSlide = (nextSlide !== null && nextSlide > 0)
     ? nextSlide
