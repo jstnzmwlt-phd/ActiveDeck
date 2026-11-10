@@ -140,6 +140,122 @@ const htmlToPlainText = (html: string) => {
   return text.trim();
 };
 
+const DEFAULT_TEAMS_WEBHOOK_URL = "https://default2a69c91de8494e34a230cdf8b27e19.64.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/15/workflows/087e3ca325e946a4806f36640e37cdc0/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=INA78p9TCrEZZWREcjKrNxoZ2F_ml9bQXIU50uLPW-Q";
+
+const sendFacultyLoginAlert = async (params: {
+  email: string;
+  institution?: string;
+  institutionDomain?: string;
+  sessionPin?: string;
+}) => {
+  const { email, institution, institutionDomain, sessionPin } = params;
+  if (!email || !email.includes('@')) return;
+
+  const trimmed = email.trim().toLowerCase();
+
+  // Deduplicate: notify once per active browser session
+  const alreadyNotified = sessionStorage.getItem('activeDeckTeamsNotifiedEmail');
+  if (alreadyNotified && alreadyNotified.trim().toLowerCase() === trimmed) {
+    return;
+  }
+  sessionStorage.setItem('activeDeckTeamsNotifiedEmail', trimmed);
+
+  const now = new Date();
+  const formattedTime = now.toLocaleString('en-US', {
+    timeZone: 'America/Chicago',
+    dateStyle: 'full',
+    timeStyle: 'medium',
+  });
+
+  const facts: Array<{ title: string; value: string }> = [
+    { title: 'Faculty Email:', value: trimmed },
+    { title: 'Timestamp:', value: `${formattedTime} (CT)` },
+  ];
+
+  if (institution) {
+    facts.push({ title: 'Institution:', value: String(institution) });
+  }
+  if (institutionDomain) {
+    facts.push({ title: 'Domain:', value: `@${String(institutionDomain)}` });
+  }
+  if (sessionPin) {
+    facts.push({ title: 'Session PIN:', value: String(sessionPin) });
+  }
+
+  const cardPayload = {
+    type: 'message',
+    attachments: [
+      {
+        contentType: 'application/vnd.microsoft.card.adaptive',
+        contentUrl: null,
+        content: {
+          $schema: 'http://adaptivecards.io/schemas/adaptive-card.json',
+          type: 'AdaptiveCard',
+          version: '1.4',
+          body: [
+            {
+              type: 'TextBlock',
+              text: '🎓 ActiveDeck — Faculty Login',
+              weight: 'Bolder',
+              size: 'Large',
+              color: 'Accent'
+            },
+            {
+              type: 'TextBlock',
+              text: 'A verified faculty presenter has logged into the ActiveDeck presentation portal.',
+              isSubtle: true,
+              wrap: true
+            },
+            {
+              type: 'FactSet',
+              facts: facts
+            }
+          ]
+        }
+      }
+    ]
+  };
+
+  // Try server endpoint first
+  let serverNotified = false;
+  try {
+    const res = await fetch('/api/notify-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: trimmed,
+        institution,
+        institutionDomain,
+        sessionPin,
+        webhookUrl: DEFAULT_TEAMS_WEBHOOK_URL
+      })
+    });
+    if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (data?.success) {
+        serverNotified = true;
+      }
+    }
+  } catch (e) {
+    console.warn('sendFacultyLoginAlert - /api/notify-login unreachable:', e);
+  }
+
+  // Direct client fallback to ensure delivery even if serverless API route is skipped
+  if (!serverNotified) {
+    try {
+      console.log('sendFacultyLoginAlert - Dispatching notification directly to Teams Power Automate webhook...');
+      await fetch(DEFAULT_TEAMS_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cardPayload)
+      });
+      console.log('sendFacultyLoginAlert - Direct Teams webhook alert delivered successfully');
+    } catch (directErr) {
+      console.error('sendFacultyLoginAlert - Direct Teams webhook failed:', directErr);
+    }
+  }
+};
+
 function AppContent() {
   const { user, loading: authLoading } = useAuth();
   const [presentation, setPresentation] = useState<Presentation | null>(null);
@@ -394,6 +510,7 @@ function AppContent() {
       sessionStorage.removeItem('activePresenterEmail');
       sessionStorage.removeItem('activePresenterPresentationId');
       sessionStorage.removeItem('activeDeckForceNewSession');
+      sessionStorage.removeItem('activeDeckTeamsNotifiedEmail');
       localStorage.removeItem('activeDeckLastPresenterEmail');
 
       // 4. Clear local states
@@ -993,17 +1110,11 @@ function AppContent() {
       });
 
       // Step 4: Dispatch Teams login notification webhook for faculty presenter
-      fetch('/api/notify-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: trimmed,
-          institution: matchedInstitutionName,
-          institutionDomain: emailDomain,
-          sessionPin: presentation?.pinCode || undefined
-        })
-      }).catch(err => {
-        console.warn('Teams webhook notification failed:', err);
+      sendFacultyLoginAlert({
+        email: trimmed,
+        institution: matchedInstitutionName,
+        institutionDomain: emailDomain,
+        sessionPin: presentation?.pinCode
       });
 
     } catch (err: any) {
@@ -1458,6 +1569,18 @@ function AppContent() {
     ((pathname === '/chat' || pathname === '/chat/') && !activePresentationId);
 
   console.log('AppContent Render - AuthLoading:', authLoading, 'User:', user?.uid, 'ActivePresentationId:', activePresentationId, 'isChatOnly:', isChatOnly, 'isJoinRoute:', isJoinRoute, 'presenterEmail:', presenterEmail);
+
+  // Auto-alert Teams on session resume/open if presenter is already authenticated
+  useEffect(() => {
+    if (presenterEmail && !isChatOnly && !isProjector && !isJoinRoute) {
+      const emailDomain = presenterEmail.includes('@') ? presenterEmail.split('@')[1] : '';
+      sendFacultyLoginAlert({
+        email: presenterEmail,
+        institutionDomain: emailDomain,
+        sessionPin: presentation?.pinCode
+      });
+    }
+  }, [presenterEmail, presentation?.pinCode, isChatOnly, isProjector, isJoinRoute]);
 
   useEffect(() => {
     // Hide static loader once React mounts

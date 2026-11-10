@@ -279,6 +279,7 @@ export const Header: React.FC<HeaderProps> = ({ presentationId, showAttendance, 
         sessionStorage.removeItem('activeDeckViewingAs');
         sessionStorage.removeItem('activeDeckAdminOriginalEmail');
         sessionStorage.removeItem('activeDeckSelectedId');
+        sessionStorage.removeItem('activeDeckTeamsNotifiedEmail');
         localStorage.removeItem('activeDeckLastPresenterEmail');
       }
       sessionStorage.removeItem('activePresenterPresentationId');
