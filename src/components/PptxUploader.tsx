@@ -40,8 +40,11 @@ export const PptxUploader: React.FC<PptxUploaderProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.toLowerCase().endsWith('.pptx')) {
-      setUploadError('Please select a valid PowerPoint (.pptx) file.');
+    const lowerName = file.name.toLowerCase();
+    const isPptx = lowerName.endsWith('.pptx');
+    const isOdp = lowerName.endsWith('.odp');
+    if (!isPptx && !isOdp) {
+      setUploadError('Please select a valid PowerPoint (.pptx) or OpenDocument (.odp) file.');
       return;
     }
 
@@ -58,8 +61,12 @@ export const PptxUploader: React.FC<PptxUploaderProps> = ({
       const storagePath = `presentations/${presentationId}/decks/${Date.now()}_${safeName}`;
       const storageRef = ref(storage, storagePath);
 
+      const contentType = isOdp 
+        ? 'application/vnd.oasis.opendocument.presentation' 
+        : 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+
       const uploadTask = uploadBytesResumable(storageRef, file, {
-        contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+        contentType
       });
 
       await new Promise<void>((resolve, reject) => {
@@ -122,7 +129,7 @@ export const PptxUploader: React.FC<PptxUploaderProps> = ({
         <input
           ref={fileInputRef}
           type="file"
-          accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+          accept=".pptx,.odp,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.oasis.opendocument.presentation"
           onChange={handleFileChange}
           className="hidden"
           disabled={isUploading || !presentationId}
@@ -138,7 +145,7 @@ export const PptxUploader: React.FC<PptxUploaderProps> = ({
               ? 'bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-900/80'
               : 'bg-slate-800/90 border border-slate-700 text-slate-200 hover:bg-slate-700 hover:text-white'
           }`}
-          title="Upload .pptx presentation file"
+          title="Upload .pptx or .odp presentation file"
         >
           {isUploading ? (
             <>
@@ -148,12 +155,12 @@ export const PptxUploader: React.FC<PptxUploaderProps> = ({
           ) : currentPptxUrl || isSuccess ? (
             <>
               <FileCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="truncate max-w-[120px]">{fileName || currentFileName || 'PPTX Loaded'}</span>
+              <span className="truncate max-w-[120px]">{fileName || currentFileName || 'Deck Loaded'}</span>
             </>
           ) : (
             <>
               <UploadCloud className="w-3.5 h-3.5 text-osu-orange" />
-              <span>Upload PPTX</span>
+              <span>Upload Presentation</span>
             </>
           )}
         </button>
@@ -171,7 +178,7 @@ export const PptxUploader: React.FC<PptxUploaderProps> = ({
       <input
         ref={fileInputRef}
         type="file"
-        accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        accept=".pptx,.odp,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.oasis.opendocument.presentation"
         onChange={handleFileChange}
         className="hidden"
         disabled={isUploading || !presentationId}
@@ -215,7 +222,7 @@ export const PptxUploader: React.FC<PptxUploaderProps> = ({
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
               </div>
               <div className="w-full min-w-0 space-y-0.5">
-                <p className="text-xs font-bold text-emerald-300 truncate">PowerPoint Uploaded</p>
+                <p className="text-xs font-bold text-emerald-300 truncate">Presentation Uploaded</p>
                 <p className="text-[10px] text-slate-400 truncate max-w-[280px] mx-auto block" title={fileName || currentFileName || 'source.pptx'}>
                   {fileName || currentFileName || 'source.pptx'}
                 </p>
@@ -231,10 +238,10 @@ export const PptxUploader: React.FC<PptxUploaderProps> = ({
               </div>
               <div className="w-full min-w-0 space-y-0.5">
                 <p className="text-xs font-bold text-slate-200 group-hover:text-white transition-colors truncate">
-                  Upload PowerPoint (.pptx)
+                  Upload Presentation (.pptx / .odp)
                 </p>
                 <p className="text-[10px] text-slate-400 truncate max-w-[280px] mx-auto block">
-                  Select your presentation file to sync with ActiveDeck
+                  Select your PowerPoint or OpenDocument presentation to sync with ActiveDeck
                 </p>
               </div>
             </>

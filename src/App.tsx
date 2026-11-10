@@ -565,6 +565,18 @@ function AppContent() {
 
   const getSlidePreviewUrl = (tab: string | number | undefined | null): string | undefined => {
     if (tab === undefined || tab === null) return undefined;
+
+    // If no presentation is loaded on the main screen, do NOT show any slide preview
+    const hasPresentationLoaded = !!(
+      presentation?.pptxUrl || 
+      presentation?.currentSlideBase64 || 
+      (presentation as any)?.current_slide_base64 ||
+      (presentation?.uploadedDecks && presentation.uploadedDecks.length > 0 && presentation?.selectedDeckId)
+    );
+    if (!hasPresentationLoaded) {
+      return undefined;
+    }
+
     const strKey = String(tab);
     if (pushedSlidesMap[strKey]) return pushedSlidesMap[strKey];
     const numKey = Number(tab);
@@ -767,7 +779,24 @@ function AppContent() {
       return;
     }
 
-    console.log(`[SlidePreview] Subscribing to messages collection for background slidePreviews. presentationId: ${activePresentationId}`);
+    const currentDeckKey = presentation?.selectedDeckId || presentation?.pptxUrl || '';
+    const hasAnyDeck = !!(
+      presentation?.pptxUrl || 
+      presentation?.currentSlideBase64 || 
+      (presentation as any)?.current_slide_base64 ||
+      (presentation?.uploadedDecks && presentation.uploadedDecks.length > 0)
+    );
+
+    if (!hasAnyDeck) {
+      console.log("[SlidePreview] No presentation loaded in session, clearing pushedSlidesMap.");
+      setPushedSlidesMap({});
+      try {
+        localStorage.removeItem(`activeDeckPushedSlides_${activePresentationId}`);
+      } catch (e) {}
+      return;
+    }
+
+    console.log(`[SlidePreview] Subscribing to messages collection for background slidePreviews. presentationId: ${activePresentationId}, deck: ${currentDeckKey}`);
 
     const qPreviews = query(
       collection(db, 'messages'),
@@ -784,6 +813,11 @@ function AppContent() {
       snapshot.docs.forEach(docSnap => {
         const data = docSnap.data();
         if (data.fileUrl && data.slide !== undefined && data.slide !== null) {
+          // Strictly isolate slide previews to the currently selected deck if deckId is recorded
+          if (currentDeckKey && data.deckId && data.deckId !== currentDeckKey) {
+            return;
+          }
+
           const slideId = String(data.slide);
           const timestampVal = data.timestamp?.seconds 
             ? data.timestamp.seconds * 1000 
@@ -812,6 +846,8 @@ function AppContent() {
       setPushedSlidesMap(newPreviewsMap);
       if (activePresentationId && Object.keys(newPreviewsMap).length > 0) {
         localStorage.setItem(`activeDeckPushedSlides_${activePresentationId}`, JSON.stringify(newPreviewsMap));
+      } else {
+        localStorage.removeItem(`activeDeckPushedSlides_${activePresentationId}`);
       }
 
       if (incomingCustomTabs.length > 0) {
@@ -845,7 +881,7 @@ function AppContent() {
     return () => {
       unsubPreviews();
     };
-  }, [activePresentationId]);
+  }, [activePresentationId, presentation?.selectedDeckId, presentation?.pptxUrl]);
 
   useEffect(() => {
     if (!activePresentationId) return;
@@ -2262,14 +2298,18 @@ function AppContent() {
                   ) : (
                     <div className="w-full h-full flex flex-col items-center justify-center p-3 text-slate-500">
                       <Tv className="w-6 h-6 text-slate-700 mb-1" />
-                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 leading-none">Slide {activeTab}</span>
-                      <span className="text-[8px] font-bold text-slate-600 uppercase leading-none mt-1">No Preview Available</span>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 leading-none">
+                        {presentation?.pptxUrl ? `Slide ${activeTab}` : 'No Presentation Active'}
+                      </span>
+                      <span className="text-[8px] font-bold text-slate-600 uppercase leading-none mt-1">
+                        {presentation?.pptxUrl ? 'No Preview Available' : 'Waiting for presenter to load deck'}
+                      </span>
                     </div>
                   )}
                 </div>
 
                 {/* Slide Out-of-Sync Alert for Mobile */}
-                {presentation && presentation.currentSlide !== undefined && presentation.currentSlide !== null && String(presentation.currentSlide) !== activeTab && (
+                {presentation && typeof presentation.currentSlide === 'number' && presentation.currentSlide > 0 && String(presentation.currentSlide) !== activeTab && (
                   <div className={`flex items-center justify-between p-2 border-t text-[9px] ${
                     isLight ? 'bg-orange-50 border-orange-200 text-orange-800' : 'bg-orange-500/10 border-orange-500/20 text-orange-200'
                   }`}>
@@ -3373,8 +3413,12 @@ function AppContent() {
                             isLight ? 'bg-slate-50 text-slate-500' : 'bg-slate-950 text-slate-500'
                           }`}>
                             <Tv className={`w-8 h-8 mb-2 ${isLight ? 'text-slate-400' : 'text-slate-700'}`} />
-                            <span className="text-xs font-black uppercase tracking-widest text-slate-500 leading-none">{getTabTitle(activeTab)}</span>
-                            <span className="text-[9px] font-bold text-slate-400 uppercase leading-none mt-2">No Preview Available</span>
+                            <span className="text-xs font-black uppercase tracking-widest text-slate-500 leading-none">
+                              {presentation?.pptxUrl ? getTabTitle(activeTab) : 'No Presentation Active'}
+                            </span>
+                            <span className="text-[9px] font-bold text-slate-400 uppercase leading-none mt-2">
+                              {presentation?.pptxUrl ? 'No Preview Available' : 'Waiting for presenter to load deck'}
+                            </span>
                           </div>
                         )}
                       </div>

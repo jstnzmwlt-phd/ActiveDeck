@@ -140,7 +140,7 @@ def find_local_fallback_ppt(url):
             if not os.path.exists(d):
                 continue
             for fname in os.listdir(d):
-                if not fname.lower().endswith(('.pptx', '.ppt')):
+                if not fname.lower().endswith(('.pptx', '.ppt', '.odp')):
                     continue
                 fpath = os.path.join(d, fname)
                 if not os.path.isfile(fpath) or os.path.getsize(fpath) == 0:
@@ -153,14 +153,14 @@ def find_local_fallback_ppt(url):
         # 2. Temp directory cached presentations matching slide text
         if os.path.exists(tempfile.gettempdir()):
             for fname in os.listdir(tempfile.gettempdir()):
-                if fname.lower().startswith(('activedeck_pres_', 'activedeck_downloaded_')) and fname.lower().endswith('.pptx'):
+                if fname.lower().startswith(('activedeck_pres_', 'activedeck_downloaded_')) and fname.lower().endswith(('.pptx', '.odp')):
                     fpath = os.path.join(tempfile.gettempdir(), fname)
                     if os.path.isfile(fpath) and os.path.getsize(fpath) > 1000:
                         try:
                             import zipfile, xml.etree.ElementTree as ET
                             with zipfile.ZipFile(fpath) as z:
                                 for s in z.namelist():
-                                    if 'slide1.xml' in s:
+                                    if 'slide1.xml' in s or s == 'content.xml':
                                         tree = ET.fromstring(z.read(s))
                                         slide_text = ' '.join(tree.itertext()).lower()
                                         if words and any(w in slide_text for w in words):
@@ -173,7 +173,7 @@ def find_local_fallback_ppt(url):
             if not os.path.exists(d):
                 continue
             for fname in os.listdir(d):
-                if not fname.lower().endswith(('.pptx', '.ppt')):
+                if not fname.lower().endswith(('.pptx', '.ppt', '.odp')):
                     continue
                 fname_lower = fname.lower()
                 if words and any(w in fname_lower for w in words):
@@ -202,7 +202,8 @@ def download_and_open_ppt(url):
             try:
                 ctx = ssl._create_unverified_context()
                 timestamp = int(time.time())
-                candidate_path = os.path.abspath(os.path.join(tempfile.gettempdir(), f"activedeck_pres_{timestamp}.pptx"))
+                ext = '.odp' if ('.odp' in url.lower() or url.lower().endswith('.odp')) else '.pptx'
+                candidate_path = os.path.abspath(os.path.join(tempfile.gettempdir(), f"activedeck_pres_{timestamp}{ext}"))
 
                 req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
                 with urllib.request.urlopen(req, context=ctx) as resp, open(candidate_path, "wb") as out_file:

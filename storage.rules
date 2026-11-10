@@ -22,7 +22,7 @@ service firebase.storage {
       allow write: if request.auth != null && request.auth.token.email == 'jstnzmwlt@gmail.com';
     }
 
-    // Match presentation decks (pptx files loaded by the presenter & python bridge)
+    // Match presentation decks (pptx & odp files loaded by the presenter & python bridge)
     match /presentations/{presentationId}/decks/{fileName} {
       allow read: if true;
       allow write: if request.auth != null;
@@ -30,7 +30,7 @@ service firebase.storage {
 
     // Match the path for presentation documents & pushed slides
     match /presentations/{presentationId}/{folder}/{fileName} {
-      allow read: if request.auth != null || folder == 'decks' || fileName.matches('.*\\.pptx');
+      allow read: if request.auth != null || folder == 'decks' || fileName.matches('.*\\.(pptx|odp)');
       allow write: if request.auth != null && (
         folder == 'documents' || 
         folder == 'decks' ||
@@ -38,20 +38,25 @@ service firebase.storage {
         folder == 'slide_previews' || 
         folder == 'pushed_notes' || 
         folder == 'source' ||
-        fileName.matches('.*\\.pptx')
+        fileName.matches('.*\\.(pptx|odp)')
       );
     }
 
-    // Match source.pptx directly under the presentation path
+    // Match source.pptx / source.odp directly under the presentation path
     match /presentations/{presentationId}/source.pptx {
       allow read: if true;
       allow write: if true;
     }
 
-    // Match root presentation files directly in presentation directory (e.g., source.pptx)
+    match /presentations/{presentationId}/source.odp {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Match root presentation files directly in presentation directory (e.g., source.pptx, source.odp)
     match /presentations/{presentationId}/{fileName} {
       allow read: if true;
-      allow write: if fileName == 'source.pptx' || fileName.matches('.*\\.pptx');
+      allow write: if fileName == 'source.pptx' || fileName == 'source.odp' || fileName.matches('.*\\.(pptx|odp)');
     }
   }
 }

@@ -787,6 +787,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         updates.pptxUrl = '';
         updates.pptxFileName = '';
         updates.selectedDeckId = '';
+        updates.currentSlideBase64 = null;
+        updates.current_slide_base64 = null;
+        updates.currentSlide = 0;
+        updates.totalSlides = 0;
       }
     }
     try {
@@ -803,9 +807,12 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
   const uploadFilesList = async (files: FileList | File[]) => {
     if (!files || files.length === 0 || !presentation?.id) return;
-    const pptxFiles = Array.from(files).filter(f => f.name.toLowerCase().endsWith('.pptx'));
-    if (pptxFiles.length === 0) {
-      alert("Please select valid PowerPoint (.pptx) files.");
+    const validFiles = Array.from(files).filter(f => {
+      const lower = f.name.toLowerCase();
+      return lower.endsWith('.pptx') || lower.endsWith('.odp');
+    });
+    if (validFiles.length === 0) {
+      alert("Please select valid presentation (.pptx or .odp) files.");
       return;
     }
 
@@ -813,9 +820,9 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
     setUploadProgressPercent(0);
     try {
       const newDecks: DeckItem[] = [];
-      for (let i = 0; i < pptxFiles.length; i++) {
-        const file = pptxFiles[i];
-        const prefix = pptxFiles.length > 1 ? `[${i + 1}/${pptxFiles.length}] ` : '';
+      for (let i = 0; i < validFiles.length; i++) {
+        const file = validFiles[i];
+        const prefix = validFiles.length > 1 ? `[${i + 1}/${validFiles.length}] ` : '';
         setUploadProgressPercent(0);
         setUploadProgress(`${prefix}Uploading: 0% (0 MB / ${formatFileSize(file.size)})`);
         
@@ -823,8 +830,12 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
         const storagePath = `presentations/${presentation.id}/decks/${Date.now()}_${i}_${safeName}`;
         const storageRef = ref(storage, storagePath);
 
+        const contentType = file.name.toLowerCase().endsWith('.odp')
+          ? 'application/vnd.oasis.opendocument.presentation'
+          : 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+
         const uploadTask = uploadBytesResumable(storageRef, file, {
-          contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+          contentType
         });
 
         await new Promise<void>((resolve, reject) => {
@@ -4274,7 +4285,7 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                       type="file" 
                       ref={multiFileInputRef} 
                       multiple 
-                      accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                      accept=".pptx,.odp,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.oasis.opendocument.presentation"
                       onChange={(e) => uploadFilesList(e.target.files ? Array.from(e.target.files) : [])}
                       className="hidden" 
                     />
@@ -4283,10 +4294,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                       onClick={() => multiFileInputRef.current?.click()}
                       disabled={uploadingMulti}
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-osu-orange hover:bg-orange-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-osu-orange/20 cursor-pointer active:scale-95 disabled:opacity-50"
-                      title="Upload one or multiple .pptx files"
+                      title="Upload one or multiple .pptx or .odp files"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      <span>Add PPT</span>
+                      <span>Add Deck</span>
                     </button>
                   </div>
                 </div>
@@ -4325,10 +4336,10 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
                       </div>
                       <p className="text-sm font-bold text-slate-300 mb-1">No presentations loaded yet</p>
                       <p className="text-xs text-slate-500 max-w-xs mb-3">
-                        Drag and drop your PowerPoint (.pptx) files here, or click to browse multiple files.
+                        Drag and drop your presentation (.pptx, .odp) files here, or click to browse multiple files.
                       </p>
                       <span className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold border border-slate-700">
-                        Select .pptx files
+                        Select .pptx / .odp files
                       </span>
                     </div>
                   ) : (
@@ -4402,8 +4413,8 @@ export const PresenterArea: React.FC<PresenterAreaProps> = ({ presentation, logo
 
                 {/* Footer hint */}
                 <div className="pt-3 border-t border-slate-800/80 mt-2 flex items-center justify-between text-[11px] text-slate-500">
-                  <span>Drag & drop .pptx files to add</span>
-                  <span>PowerPoint (.pptx) supported</span>
+                  <span>Drag & drop .pptx or .odp files to add</span>
+                  <span>PowerPoint & OpenDocument (.pptx, .odp) supported</span>
                 </div>
               </div>
 
