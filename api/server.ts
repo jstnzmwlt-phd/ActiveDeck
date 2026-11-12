@@ -103,9 +103,15 @@ app.post('/api/notify-login', async (req, res) => {
       return res.status(200).json({ skipped: true, message: 'No webhook URL configured' });
     }
 
-    const { email, institution, institutionDomain, sessionPin } = req.body || {};
+    const { email, institution, institutionDomain, sessionPin, isViewingAs } = req.body || {};
     if (!email) {
       return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const trimmedEmail = String(email).trim().toLowerCase();
+    if (isViewingAs || trimmedEmail === 'justin.zumwalt@okstate.edu') {
+      console.log(`Skipping Teams login alert for ${trimmedEmail} (isViewingAs=${isViewingAs})`);
+      return res.status(200).json({ skipped: true, message: 'Superuser / view-as alert suppressed' });
     }
 
     const now = new Date();

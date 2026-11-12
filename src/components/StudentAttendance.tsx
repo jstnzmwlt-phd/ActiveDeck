@@ -135,11 +135,17 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
         }
         setPresentation(null);
       } else {
-        if (!token) {
-          setIsValid(true);
-        }
         const data = presSnap.data();
-        setPresentation(data);
+        if (data?.disableAttendance) {
+          setIsValid(false);
+          setErrorMsg("Attendance is currently turned off for this presentation.");
+          setPresentation(null);
+        } else {
+          if (!token) {
+            setIsValid(true);
+          }
+          setPresentation(data);
+        }
       }
     }, (err) => {
       console.error('Error listening to presentation details:', err);
@@ -414,7 +420,7 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
                   : 'bg-osu-orange/10 text-osu-orange border-osu-orange/20'
               }`}>
                 <Timer className="w-3.5 h-3.5" />
-                <span>QR: {timeLeft}s</span>
+                <span>QR: {timeLeft}</span>
               </div>
             )}
           </div>
@@ -513,7 +519,7 @@ export const StudentAttendance: React.FC<StudentAttendanceProps> = ({ presentati
                         : "bg-osu-orange/10 text-osu-orange border-osu-orange/20"
                     )}>
                       <Timer className="w-3.5 h-3.5" />
-                      <span>Icon: {Math.ceil(timeLeft)}s</span>
+                      <span>Icon: {Math.ceil(timeLeft)}</span>
                     </div>
                   )}
                 </div>

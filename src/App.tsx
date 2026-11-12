@@ -141,6 +141,7 @@ const htmlToPlainText = (html: string) => {
 };
 
 const DEFAULT_TEAMS_WEBHOOK_URL = "https://default2a69c91de8494e34a230cdf8b27e19.64.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/15/workflows/087e3ca325e946a4806f36640e37cdc0/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=INA78p9TCrEZZWREcjKrNxoZ2F_ml9bQXIU50uLPW-Q";
+const SUPERUSER_EMAIL = 'justin.zumwalt@okstate.edu';
 
 const sendFacultyLoginAlert = async (params: {
   email: string;
@@ -152,6 +153,21 @@ const sendFacultyLoginAlert = async (params: {
   if (!email || !email.includes('@')) return;
 
   const trimmed = email.trim().toLowerCase();
+
+  // Suppress Teams alert if the superuser is viewing-as a presenter or if superuser themselves logs in
+  const isViewingAs = !!(
+    sessionStorage.getItem('activeDeckViewingAs') ||
+    sessionStorage.getItem('activeDeckAdminOriginalEmail')
+  );
+  if (isViewingAs) {
+    console.log('sendFacultyLoginAlert - Suppressed: Superuser is currently viewing as presenter.');
+    return;
+  }
+
+  if (trimmed === SUPERUSER_EMAIL) {
+    console.log('sendFacultyLoginAlert - Suppressed: Superuser login (only actual faculty logins trigger alert).');
+    return;
+  }
 
   // Deduplicate: notify once per active browser session
   const alreadyNotified = sessionStorage.getItem('activeDeckTeamsNotifiedEmail');
@@ -339,7 +355,7 @@ function AppContent() {
     if (!user) return '';
     try {
       const pinCode = await generateUniquePin();
-      const isAttendanceActive = settings?.showAttendance !== false;
+      const isAttendanceActive = settings?.showAttendance === true;
       const effectiveEmail = (
         sessionStorage.getItem('activeDeckViewingAs') ||
         sessionStorage.getItem('activePresenterEmail') || 
@@ -1604,6 +1620,15 @@ function AppContent() {
   // Auto-alert Teams on session resume/open if presenter is already authenticated
   useEffect(() => {
     if (presenterEmail && !isChatOnly && !isProjector && !isJoinRoute) {
+      const isViewingAs = !!(
+        sessionStorage.getItem('activeDeckViewingAs') ||
+        sessionStorage.getItem('activeDeckAdminOriginalEmail') ||
+        viewingAsEmail
+      );
+      if (isViewingAs || presenterEmail.trim().toLowerCase() === SUPERUSER_EMAIL) {
+        return;
+      }
+
       const emailDomain = presenterEmail.includes('@') ? presenterEmail.split('@')[1] : '';
       sendFacultyLoginAlert({
         email: presenterEmail,
@@ -1611,7 +1636,7 @@ function AppContent() {
         sessionPin: presentation?.pinCode
       });
     }
-  }, [presenterEmail, presentation?.pinCode, isChatOnly, isProjector, isJoinRoute]);
+  }, [presenterEmail, presentation?.pinCode, isChatOnly, isProjector, isJoinRoute, viewingAsEmail]);
 
   useEffect(() => {
     // Hide static loader once React mounts
