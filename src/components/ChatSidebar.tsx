@@ -199,25 +199,18 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
   const [isCollapsed, setIsCollapsed] = useState(isInitiallyNew ? false : (forceCollapsed ?? initialCollapsed));
   const responsesData = q.responses || {};
   const isDraft = q.started === false || (!q.started && !q.active && Object.values(q.responses || {}).length === 0);
-  const showResults = !!q.showResults;
   const myResponse = user ? responsesData[user.uid] : null;
   const totalResponses = Object.values(responsesData).length;
   const [timeLeft, setTimeLeft] = useState<number | null>(() => {
     if (!q.active || !q.expiresAt) return null;
     const now = Date.now();
-    let expiresMs = 0;
-    const exp = q.expiresAt;
-    if (typeof exp.toMillis === 'function') {
-      expiresMs = exp.toMillis();
-    } else if (typeof exp.toDate === 'function') {
-      expiresMs = exp.toDate().getTime();
-    } else if (exp.seconds !== undefined) {
-      expiresMs = exp.seconds * 1000;
-    } else {
-      expiresMs = new Date(exp as any).getTime();
-    }
+    let expiresMs = getExpiresMs(q.expiresAt);
     return Math.max(0, Math.floor((expiresMs - now) / 1000));
   });
+
+  const isTimeExpired = (timeLeft !== null && timeLeft <= 0) || (q.expiresAt ? getExpiresMs(q.expiresAt) <= Date.now() : false);
+  const isEnded = !q.active && (q.expiresAt || q.started);
+  const showResults = !!q.showResults || isTimeExpired || isEnded;
 
   useEffect(() => {
     if (!q.active || !q.expiresAt) {
@@ -287,7 +280,7 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
           <span className={cn("text-[10px] font-black uppercase tracking-widest truncate", isDark ? "text-slate-400" : "text-slate-500")}>Open Question</span>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
-          {isCollapsed && q.active && timeLeft !== null && (
+          {isCollapsed && q.active && timeLeft !== null && timeLeft > 0 && (
             <div className={cn(
               "flex items-center gap-1.5 px-2 py-1 border rounded-lg text-xs font-mono font-black shrink-0",
               isDark ? "bg-red-950/60 border-red-800/60" : "bg-red-50 border-red-100",
@@ -301,11 +294,11 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
           {canModerate && (
             <>
               <button 
-                onClick={() => onToggleResults(q.id, !!q.showResults)}                
-                className={`p-1 ${q.showResults ? 'text-green-500' : 'text-slate-400'} hover:text-green-500 mr-1 shrink-0`}
-                title={q.showResults ? "Hide Results from Audience" : "Show Results to Audience"}
+                onClick={() => onToggleResults(q.id, !showResults)}                
+                className={`p-1 ${showResults ? 'text-green-500' : 'text-slate-400'} hover:text-green-500 mr-1 shrink-0`}
+                title={showResults ? "Hide Results from Audience" : "Show Results to Audience"}
               >
-                {q.showResults ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                {showResults ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
               </button>
               {q.active ? (
                 <button 
@@ -360,7 +353,7 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
             </div>
           )}
 
-          {q.active && timeLeft !== null && (
+          {q.active && timeLeft !== null && timeLeft > 0 && (
             <div className={cn(
               "mb-4 flex items-center justify-center gap-2.5 py-3 px-4 border rounded-2xl shadow-sm animate-pulse",
               isDark ? "bg-green-950/40 border-green-500/30" : "bg-green-50 border-green-200/40"
@@ -431,7 +424,7 @@ const OpenEndedQuestionCard: React.FC<OpenEndedQuestionCardProps> = ({ q, user, 
             </div>
           ) : (
             <>
-              {q.active && !canModerate && !isProjector ? (
+              {q.active && !isTimeExpired && !canModerate && !isProjector ? (
                 <form onSubmit={handleSubmit} className="flex gap-2 mb-2">
                   <input
                     type="text"
@@ -569,6 +562,8 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
 
   const isDraft = poll.started === false || (!poll.started && !poll.active && !poll.expiresAt);
   const isClosed = !poll.active && (poll.expiresAt || poll.started);
+  const isTimeExpired = (timeLeft !== null && timeLeft <= 0) || (poll.expiresAt ? getExpiresMs(poll.expiresAt) <= Date.now() : false);
+  const shouldShowResults = !!poll.showResults || isTimeExpired || isClosed;
 
   return (
     <div className={cn(
@@ -592,7 +587,7 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
           </button>
           <BarChart2 className="w-4 h-4 text-osu-orange shrink-0" />
           <span className={cn("text-[10px] font-black uppercase tracking-widest truncate", isDark ? "text-slate-400" : "text-slate-500")}>Poll</span>
-          {isCollapsed && timeLeft !== null && (
+          {isCollapsed && timeLeft !== null && timeLeft > 0 && (
             <div className={cn(
               "flex items-center gap-1.5 ml-1 px-2 py-1 border rounded-lg text-xs font-mono font-black shrink-0",
               isDark ? "bg-red-950/60 border-red-800/60 text-red-400" : "bg-red-50 border-red-100 text-red-600"
@@ -612,16 +607,16 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
           {canModerate && (
             <>
               <button 
-                onClick={() => onToggleResults(poll.id, !!poll.showResults)}
+                onClick={() => onToggleResults(poll.id, !shouldShowResults)}
                 className={cn(
                   "p-1 rounded transition-colors mr-1 shrink-0",
-                  poll.showResults 
+                  shouldShowResults 
                     ? "text-green-600 hover:text-green-700" 
                     : "text-red-500 hover:text-red-600"
                 )}
-                title={poll.showResults ? "Hide Results from Audience" : "Show Results to Audience"}
+                title={shouldShowResults ? "Hide Results from Audience" : "Show Results to Audience"}
               >
-                {poll.showResults ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                {shouldShowResults ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
               </button>
               {poll.active ? (
                 <button 
@@ -730,7 +725,7 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
             </div>
           ) : (
             <div className="space-y-3">
-              {poll.active && timeLeft !== null && (
+              {poll.active && timeLeft !== null && timeLeft > 0 && (
                 <div className={cn(
                   "flex items-center justify-center gap-2.5 py-3 px-4 border rounded-2xl shadow-sm animate-pulse",
                   isDark ? "bg-orange-950/40 border-osu-orange/30" : "bg-orange-50 border-orange-200/40"
@@ -748,12 +743,12 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
                 const isSelected = userVote === opt;
                 const isCorrect = poll.correctAnswer === opt;
                 const hasCorrectAnswer = !!poll.correctAnswer;
-                const canMarkCorrect = canModerate && !poll.active && poll.showResults;
+                const canMarkCorrect = canModerate && (shouldShowResults || !poll.active);
 
                 return (
                   <div key={opt} className="relative">
                     <button
-                      disabled={isProjector || (!poll.active && !canMarkCorrect) || (poll.active && (!!userVote || !isChatOnly))}
+                      disabled={isProjector || isTimeExpired || (!poll.active && !canMarkCorrect) || (poll.active && (!!userVote || !isChatOnly))}
                       onClick={() => {
                         if (isProjector) return;
                         if (canMarkCorrect) {
@@ -775,7 +770,7 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
                       )}
                     >
                       {/* Result Bar */}
-                      {poll.showResults && (
+                      {shouldShowResults && (
                         <div 
                           className="absolute inset-y-0 left-0 bg-osu-orange/35 transition-all duration-700 z-0" 
                           style={{ width: `${percentage}%` }}
@@ -795,7 +790,7 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
                         {hasCorrectAnswer && isCorrect && <CheckCircle2 className="w-3 h-3 text-green-500 ml-1" />}
                       </div>
                       
-                      {poll.showResults && (
+                      {shouldShowResults && (
                         <div className="flex items-center gap-2 relative z-10">
                           <span className="text-[10px] font-bold text-slate-400">{Math.round(percentage)}%</span>
                           <span className={cn("text-xs font-bold", isDark ? "text-slate-200" : "text-slate-700")}>{count}</span>
@@ -813,7 +808,7 @@ const PollCard: React.FC<PollCardProps> = ({ poll, user, isChatOnly, canModerate
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                 <span style={{ color: secondaryColor }} className="text-sm font-black transition-colors duration-300">{totalVotes}</span> Total Votes
               </span>
-              {!poll.active && (
+              {(shouldShowResults || !poll.active) && (
                 <span className="text-[9px] font-bold text-red-500 uppercase tracking-wider">
                   {poll.correctAnswer ? "Correct Answer Set" : "Final Results"}
                 </span>
@@ -934,6 +929,9 @@ const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, 
   };
 
   const isDraft = cloud.started === false || (!cloud.started && !cloud.active && !cloud.expiresAt);
+  const isTimeExpired = (timeLeft !== null && timeLeft <= 0) || (cloud.expiresAt ? getExpiresMs(cloud.expiresAt) <= Date.now() : false);
+  const isEnded = !cloud.active && (cloud.expiresAt || cloud.started);
+  const shouldShowResults = !!cloud.showResults || isTimeExpired || isEnded;
 
   return (
     <div className={cn(
@@ -959,7 +957,7 @@ const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, 
           <span className={cn("text-[10px] font-black uppercase tracking-widest truncate", isDark ? "text-slate-400" : "text-slate-500")}>Word Cloud</span>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
-          {isCollapsed && cloud.active && timeLeft !== null && (
+          {isCollapsed && cloud.active && timeLeft !== null && timeLeft > 0 && (
             <div className={cn(
               "flex items-center gap-1.5 px-2 py-1 border rounded-lg text-xs font-mono font-black shrink-0",
               isDark ? "bg-red-950/60 border-red-800/60" : "bg-red-50 border-red-100",
@@ -973,16 +971,16 @@ const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, 
           {canModerate && (
             <>
               <button 
-                onClick={() => onToggleResults(cloud.id, !!cloud.showResults)}
+                onClick={() => onToggleResults(cloud.id, !shouldShowResults)}
                 className={cn(
                   "p-1 rounded transition-colors mr-1 shrink-0",
-                  cloud.showResults 
+                  shouldShowResults 
                     ? "text-green-600 hover:text-green-700" 
                     : "text-red-500 hover:text-red-600"
                 )}
-                title={cloud.showResults ? "Hide Results from Audience" : "Show Results to Audience"}
+                title={shouldShowResults ? "Hide Results from Audience" : "Show Results to Audience"}
               >
-                {cloud.showResults ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                {shouldShowResults ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
               </button>
               {cloud.active ? (
                 <button 
@@ -1014,7 +1012,7 @@ const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, 
             <h4 className={cn("font-bold text-lg", isDark ? "text-slate-100" : "text-slate-800")}>{cloud.prompt}</h4>
           </div>
 
-          {cloud.active && timeLeft !== null && (
+          {cloud.active && timeLeft !== null && timeLeft > 0 && (
             <div className={cn(
               "mb-4 flex items-center justify-center gap-2.5 py-3 px-4 border rounded-2xl shadow-sm animate-pulse",
               isDark ? "bg-blue-950/40 border-blue-500/30" : "bg-blue-50 border-blue-200/40"
@@ -1072,7 +1070,7 @@ const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, 
             </div>
           ) : (
             <>
-              {cloud.active && !hasParticipated && isChatOnly && !isProjector && (
+              {cloud.active && !isTimeExpired && !hasParticipated && isChatOnly && !isProjector && (
                 <form onSubmit={handleSubmit} className="flex gap-2 mb-2">
                   <input
                     type="text"
@@ -1088,11 +1086,11 @@ const WordCloudCard: React.FC<WordCloudCardProps> = ({ cloud, user, isChatOnly, 
                 </form>
               )}
 
-              {hasParticipated && cloud.active && isChatOnly && !isProjector && (
+              {hasParticipated && cloud.active && !isTimeExpired && isChatOnly && !isProjector && (
                 <div className="text-xs text-slate-400 italic mb-2">You have submitted your response.</div>
               )}
 
-              {cloud.showResults && (
+              {shouldShowResults && (
                 <div className={cn(
                   "mt-4 p-4 rounded-lg border min-h-[150px] flex flex-wrap items-center justify-center gap-x-4 gap-y-2",
                   isDark ? "bg-slate-800/80 border-slate-700" : "bg-slate-50 border-slate-100"
@@ -1722,10 +1720,19 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const [nowTick, setNowTick] = useState(Date.now());
   const [localInteractiveEndedAt, setLocalInteractiveEndedAt] = useState<number | null>(null);
 
+  const isItemActive = (item: Poll | OpenEndedQuestion | WordCloud): boolean => {
+    if (!item.active) return false;
+    if (item.expiresAt) {
+      const exp = getExpiresMs(item.expiresAt);
+      if (exp > 0 && exp <= nowTick) return false;
+    }
+    return true;
+  };
+
   const hasActiveInteractive = 
-    openEndedQuestions.some(q => q.active) || 
-    polls.some(p => p.active) || 
-    wordClouds.some(w => w.active);
+    openEndedQuestions.some(isItemActive) || 
+    polls.some(isItemActive) || 
+    wordClouds.some(isItemActive);
 
   const prevHasActiveInteractiveRef = useRef(hasActiveInteractive);
 
@@ -1746,7 +1753,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
     ];
 
     for (const item of allItems) {
-      if (!item.active && (item.started || item.expiresAt || item.closedAt)) {
+      const active = isItemActive(item);
+      if (!active && (item.started || item.expiresAt || item.closedAt)) {
         let endedMs = 0;
         if (item.closedAt) {
           endedMs = getExpiresMs(item.closedAt);
@@ -1832,6 +1840,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
 
   // 1. 30-second timer for ended and viewable interactive elements
   useEffect(() => {
+    if (isProjector) return; // Projector screen keeps interactive elements expanded
+
     const allInteractiveItems: Array<Poll | OpenEndedQuestion | WordCloud> = [
       ...polls,
       ...openEndedQuestions,
