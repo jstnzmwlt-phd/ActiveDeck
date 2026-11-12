@@ -106,6 +106,17 @@ const formatHtmlTextWithLinks = (text: string): string => {
   });
 };
 
+const INTERACTIVE_CHAT_BUFFER_MS = 20 * 1000; // 20-second buffer after interactive element ends to prevent late answer spillover into chat
+
+const getExpiresMs = (exp: any): number => {
+  if (!exp) return 0;
+  if (typeof exp.toMillis === 'function') return exp.toMillis();
+  if (typeof exp.toDate === 'function') return exp.toDate().getTime();
+  if (exp.seconds !== undefined) return exp.seconds * 1000;
+  const t = new Date(exp).getTime();
+  return isNaN(t) ? 0 : t;
+};
+
 enum OperationType {
   CREATE = 'create',
   UPDATE = 'update',
@@ -1708,30 +1719,70 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const autoMinimizeStartTimesRef = useRef<Record<string, number>>({});
   const prevSlideRef = useRef<number | undefined | null>(undefined);
   const [nowTick, setNowTick] = useState(Date.now());
+  const [localInteractiveEndedAt, setLocalInteractiveEndedAt] = useState<number | null>(null);
 
-  // 1-second ticker when active/expiring items exist to ensure precise expiration detection
+  const hasActiveInteractive = 
+    openEndedQuestions.some(q => q.active) || 
+    polls.some(p => p.active) || 
+    wordClouds.some(w => w.active);
+
+  const prevHasActiveInteractiveRef = useRef(hasActiveInteractive);
+
+  useEffect(() => {
+    if (prevHasActiveInteractiveRef.current && !hasActiveInteractive) {
+      setLocalInteractiveEndedAt(Date.now());
+    }
+    prevHasActiveInteractiveRef.current = hasActiveInteractive;
+  }, [hasActiveInteractive]);
+
+  // Determine the most recent time an interactive element ended (from Firestore closedAt / expiresAt or local transition)
+  const latestInteractiveEndedAt = useMemo(() => {
+    let latest = localInteractiveEndedAt || 0;
+    const allItems: Array<Poll | OpenEndedQuestion | WordCloud> = [
+      ...polls,
+      ...wordClouds,
+      ...openEndedQuestions
+    ];
+
+    for (const item of allItems) {
+      if (!item.active && (item.started || item.expiresAt || item.closedAt)) {
+        let endedMs = 0;
+        if (item.closedAt) {
+          endedMs = getExpiresMs(item.closedAt);
+        } else if (item.expiresAt) {
+          const exp = getExpiresMs(item.expiresAt);
+          if (exp > 0 && exp <= nowTick) {
+            endedMs = exp;
+          }
+        }
+        if (endedMs > latest) {
+          latest = endedMs;
+        }
+      }
+    }
+    return latest > 0 ? latest : null;
+  }, [polls, wordClouds, openEndedQuestions, localInteractiveEndedAt, nowTick]);
+
+  const timeSinceInteractiveEnded = latestInteractiveEndedAt ? nowTick - latestInteractiveEndedAt : Infinity;
+  const isWithinBuffer = !hasActiveInteractive && timeSinceInteractiveEnded >= 0 && timeSinceInteractiveEnded < INTERACTIVE_CHAT_BUFFER_MS;
+  const bufferRemainingSeconds = isWithinBuffer ? Math.max(1, Math.ceil((INTERACTIVE_CHAT_BUFFER_MS - timeSinceInteractiveEnded) / 1000)) : 0;
+
+  // 1-second ticker when active/expiring items exist or when in post-activity buffer to ensure precise countdown
   useEffect(() => {
     const hasActiveOrExpiring = polls.some(p => p.active || p.expiresAt) ||
       openEndedQuestions.some(q => q.active || q.expiresAt) ||
       wordClouds.some(w => w.active || w.expiresAt);
 
-    if (!hasActiveOrExpiring) return;
+    const needsTicker = hasActiveOrExpiring || isWithinBuffer || (localInteractiveEndedAt !== null && (Date.now() - localInteractiveEndedAt < INTERACTIVE_CHAT_BUFFER_MS + 2000));
+
+    if (!needsTicker) return;
 
     const interval = setInterval(() => {
       setNowTick(Date.now());
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [polls, openEndedQuestions, wordClouds]);
-
-  const getExpiresMs = (exp: any): number => {
-    if (!exp) return 0;
-    if (typeof exp.toMillis === 'function') return exp.toMillis();
-    if (typeof exp.toDate === 'function') return exp.toDate().getTime();
-    if (exp.seconds !== undefined) return exp.seconds * 1000;
-    const t = new Date(exp).getTime();
-    return isNaN(t) ? 0 : t;
-  };
+  }, [polls, openEndedQuestions, wordClouds, isWithinBuffer, localInteractiveEndedAt]);
 
   // Auto-close expired interactive items and display results automatically when countdown reaches 0
   useEffect(() => {
@@ -2012,11 +2063,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
       }
     };
   }, []);
-
-  const hasActiveInteractive = 
-    openEndedQuestions.some(q => q.active) || 
-    polls.some(p => p.active) || 
-    wordClouds.some(w => w.active);
 
   const pinnedMessages = messages.filter(m => m.isPinned);
 
@@ -2600,7 +2646,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim() || !user) return;
-    if (isChatOnly && presentation?.hideComments) return;
+    if (isChatOnly && (presentation?.hideComments || hasActiveInteractive || isWithinBuffer)) return;
 
     try {
       const emailToSave = user.isAnonymous ? guestEmail : user.email;
@@ -3607,7 +3653,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const handleCloseWordCloud = async (cloudId: string) => {
     if (!canModerate) return;
     try {
-      await updateDoc(doc(db, 'wordClouds', cloudId), { active: false, showResults: true });
+      await updateDoc(doc(db, 'wordClouds', cloudId), { active: false, showResults: true, closedAt: serverTimestamp() });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `wordClouds/${cloudId}`);
     }
@@ -3652,7 +3698,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const handleCloseOpenEndedQuestion = async (id: string) => {
     if (!canModerate) return;
     try {
-      await updateDoc(doc(db, 'openEndedQuestions', id), { active: false, showResults: true });
+      await updateDoc(doc(db, 'openEndedQuestions', id), { active: false, showResults: true, closedAt: serverTimestamp() });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `openEndedQuestions/${id}`);
     }
@@ -3797,7 +3843,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
   const handleClosePoll = async (pollId: string) => {
     if (!canModerate) return;
     try {
-      await updateDoc(doc(db, 'polls', pollId), { active: false, showResults: true });
+      await updateDoc(doc(db, 'polls', pollId), { active: false, showResults: true, closedAt: serverTimestamp() });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `polls/${pollId}`);
     }
@@ -5091,7 +5137,18 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                   <p className={cn("text-[10px] font-bold uppercase tracking-tight", isDarkChat ? "text-blue-300" : "text-blue-700")}>Active Activity: Chat Paused</p>
                 </div>
               )}
-              {presentation?.hideComments && !hasActiveInteractive && (
+              {isWithinBuffer && !hasActiveInteractive && (
+                <div className={cn(
+                  "mb-1 px-2.5 py-1.5 border rounded-lg flex items-center gap-2 animate-in slide-in-from-bottom-2 duration-300",
+                  isDarkChat ? "bg-amber-950/60 border-amber-500/30" : "bg-amber-50 border-amber-200"
+                )}>
+                  <div className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse" />
+                  <p className={cn("text-[10px] font-bold uppercase tracking-tight", isDarkChat ? "text-amber-300" : "text-amber-700")}>
+                    Activity Ended: Chat Paused ({bufferRemainingSeconds}s)
+                  </p>
+                </div>
+              )}
+              {presentation?.hideComments && !hasActiveInteractive && !isWithinBuffer && (
                 <div className={cn(
                   "mb-1 px-2.5 py-1.5 border rounded-lg flex items-center gap-2 animate-in slide-in-from-bottom-2 duration-300",
                   isDarkChat ? "bg-red-950/60 border-red-500/30" : "bg-red-50 border-red-200"
@@ -5106,14 +5163,16 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                   placeholder={
                     hasActiveInteractive 
                       ? "Chat paused for active activity..." 
-                      : presentation?.hideComments 
-                        ? "Chat disabled by presenter..." 
-                        : "Type a message..."
+                      : isWithinBuffer
+                        ? `Chat paused (${bufferRemainingSeconds}s)...`
+                        : presentation?.hideComments 
+                          ? "Chat disabled by presenter..." 
+                          : "Type a message..."
                   }
-                  disabled={hasActiveInteractive || presentation?.hideComments}
+                  disabled={hasActiveInteractive || isWithinBuffer || presentation?.hideComments}
                   className={cn(
                     "flex-1 min-w-0 px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-osu-orange transition-all",
-                    (hasActiveInteractive || presentation?.hideComments)
+                    (hasActiveInteractive || isWithinBuffer || presentation?.hideComments)
                       ? isDarkChat
                         ? "bg-slate-800/50 border-slate-800 text-slate-500 cursor-not-allowed italic"
                         : "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed italic"
@@ -5126,10 +5185,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isChatOnly = false, pr
                 />
                 <button
                   type="submit"
-                  disabled={hasActiveInteractive || presentation?.hideComments || !inputText.trim()}
+                  disabled={hasActiveInteractive || isWithinBuffer || presentation?.hideComments || !inputText.trim()}
                   className={cn(
                     "shrink-0 p-2 rounded-lg transition-colors",
-                    (hasActiveInteractive || presentation?.hideComments || !inputText.trim())
+                    (hasActiveInteractive || isWithinBuffer || presentation?.hideComments || !inputText.trim())
                       ? isDarkChat
                         ? "bg-slate-800 text-slate-600 cursor-not-allowed"
                         : "bg-slate-200 text-slate-400 cursor-not-allowed"

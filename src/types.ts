@@ -131,6 +131,7 @@ export interface Poll {
   voters: Record<string, string>;
   createdAt: Timestamp;
   expiresAt?: Timestamp;
+  closedAt?: Timestamp;
   duration?: number;
   active: boolean;
   started?: boolean;
@@ -151,6 +152,7 @@ export interface OpenEndedQuestion {
   started?: boolean;
   showResults?: boolean;
   expiresAt?: Timestamp;
+  closedAt?: Timestamp;
   duration?: number;
   slide?: number;
   fileUrl?: string;
@@ -168,6 +170,7 @@ export interface WordCloud {
   showResults?: boolean;
   slide?: number;
   expiresAt?: Timestamp;
+  closedAt?: Timestamp;
   duration?: number;
 }
 
