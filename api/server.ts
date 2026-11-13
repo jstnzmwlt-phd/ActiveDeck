@@ -164,6 +164,74 @@ app.post('/api/verify-admin-pin', fileLimiter, async (req, res) => {
   }
 });
 
+app.post('/api/notify-pin-reset', fileLimiter, async (req, res) => {
+  try {
+    const webhookUrl = process.env.TEAMS_WEBHOOK_URL;
+    const { email } = req.body || {};
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const trimmedEmail = String(email).trim().toLowerCase();
+    const now = new Date();
+    const formattedTime = now.toLocaleString('en-US', {
+      timeZone: 'America/Chicago',
+      dateStyle: 'full',
+      timeStyle: 'medium',
+    });
+
+    if (webhookUrl) {
+      const cardPayload = {
+        type: 'message',
+        attachments: [
+          {
+            contentType: 'application/vnd.microsoft.card.adaptive',
+            contentUrl: null,
+            content: {
+              $schema: 'http://adaptivecards.io/schemas/adaptive-card.json',
+              type: 'AdaptiveCard',
+              version: '1.4',
+              body: [
+                {
+                  type: 'TextBlock',
+                  text: '🔑 ActiveDeck — Faculty PIN Reset Request',
+                  weight: 'Bolder',
+                  size: 'Large',
+                  color: 'Warning'
+                },
+                {
+                  type: 'TextBlock',
+                  text: 'A faculty presenter has requested a security PIN reset from the presentation login portal.',
+                  wrap: true
+                },
+                {
+                  type: 'FactSet',
+                  facts: [
+                    { title: 'Faculty Email:', value: trimmedEmail },
+                    { title: 'Requested At:', value: `${formattedTime} (CT)` },
+                    { title: 'Action:', value: 'Visit Admin Portal (#admin) to reset their PIN' }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      };
+
+      await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cardPayload)
+      }).catch(err => console.error('Failed to notify Teams of PIN reset:', err));
+    }
+
+    return res.status(200).json({ success: true });
+  } catch (err: any) {
+    console.error('Error in /api/notify-pin-reset:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 app.post('/api/notify-login', async (req, res) => {
   try {
     const webhookUrl = process.env.TEAMS_WEBHOOK_URL || req.body?.webhookUrl;

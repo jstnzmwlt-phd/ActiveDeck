@@ -3,7 +3,7 @@ import { doc, getDoc, setDoc, addDoc, collection, onSnapshot, deleteDoc, query, 
 import { db, storage } from '../firebase';
 import { ref, listAll, deleteObject } from 'firebase/storage';
 import { Theme, SavedTheme, Message, Poll, WordCloud, OpenEndedQuestion, Presentation } from '../types';
-import { Palette, UserCheck, Download, ArrowLeft, Loader2, Calendar, Database, AlertCircle, Trash2, Monitor, Plus, Mail, History, Copy, Check, FileText, Send, X, Presentation as PresentationIcon, ChevronDown, ChevronRight, ChevronsUpDown, User, Lock, Unlock, Eye } from 'lucide-react';
+import { Palette, UserCheck, Download, ArrowLeft, Loader2, Calendar, Database, AlertCircle, Trash2, Monitor, Plus, Mail, History, Copy, Check, FileText, Send, X, Presentation as PresentationIcon, ChevronDown, ChevronRight, ChevronsUpDown, User, Lock, Unlock, Eye, KeyRound, RotateCcw } from 'lucide-react';
 import { compositeSlideWithAnnotations, createSlidePlaceholderImage, exportPresentationToDocx } from '../utils/exportNotesDocx';
 
 const formatHtmlTextWithLinks = (text: string): string => {
@@ -923,6 +923,45 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
       alert("Error deleting presenters: " + e);
     } finally {
       setIsDeletingPresenters(false);
+    }
+  };
+
+  const handleResetPresenterPin = async (email: string) => {
+    const trimmed = email.trim().toLowerCase();
+    if (!confirm(`Are you sure you want to reset the Faculty PIN for ${trimmed}?\n\nThey will be prompted to create a new 4-digit PIN the next time they sign in.`)) {
+      return;
+    }
+    try {
+      await updateDoc(doc(db, 'whitelistedPresenters', trimmed), {
+        pinHash: null,
+        pinResetAt: serverTimestamp()
+      });
+      alert(`PIN successfully reset for ${trimmed}. The faculty member will set a new PIN on next login.`);
+    } catch (e: any) {
+      console.error('Error resetting presenter PIN:', e);
+      alert('Error resetting PIN: ' + (e?.message || e));
+    }
+  };
+
+  const handleBulkResetPresenterPins = async () => {
+    if (selectedPresenterKeysForBulk.length === 0) return;
+    if (!confirm(`Reset the security PIN for ${selectedPresenterKeysForBulk.length} selected presenter(s)?\n\nEach presenter will be prompted to create a new PIN on next login.`)) {
+      return;
+    }
+    try {
+      await Promise.all(
+        selectedPresenterKeysForBulk.map(email =>
+          updateDoc(doc(db, 'whitelistedPresenters', email.trim().toLowerCase()), {
+            pinHash: null,
+            pinResetAt: serverTimestamp()
+          })
+        )
+      );
+      setSelectedPresenterKeysForBulk([]);
+      alert(`PINs successfully reset for ${selectedPresenterKeysForBulk.length} presenter(s).`);
+    } catch (e: any) {
+      console.error('Error bulk resetting PINs:', e);
+      alert('Error bulk resetting PINs: ' + (e?.message || e));
     }
   };
 
@@ -2171,18 +2210,28 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                   
                   <div className="flex items-center gap-4">
                     {selectedPresenterKeysForBulk.length > 0 && (
-                      <button
-                        onClick={() => handleDeletePresenters(selectedPresenterKeysForBulk)}
-                        disabled={isDeletingPresenters}
-                        className="flex items-center gap-1.5 h-11 px-4 bg-red-950/40 hover:bg-red-900 border border-red-500/30 text-xs font-black uppercase tracking-wider text-red-400 hover:text-white rounded-xl transition-all cursor-pointer"
-                      >
-                        {isDeletingPresenters ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="w-4 h-4" />
-                        )}
-                        Remove Selected ({selectedPresenterKeysForBulk.length})
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={handleBulkResetPresenterPins}
+                          className="flex items-center gap-1.5 h-11 px-4 bg-amber-950/40 hover:bg-amber-900 border border-amber-500/30 text-xs font-black uppercase tracking-wider text-amber-400 hover:text-white rounded-xl transition-all cursor-pointer"
+                          title="Reset PINs for selected presenters"
+                        >
+                          <KeyRound className="w-4 h-4" />
+                          Reset PINs ({selectedPresenterKeysForBulk.length})
+                        </button>
+                        <button
+                          onClick={() => handleDeletePresenters(selectedPresenterKeysForBulk)}
+                          disabled={isDeletingPresenters}
+                          className="flex items-center gap-1.5 h-11 px-4 bg-red-950/40 hover:bg-red-900 border border-red-500/30 text-xs font-black uppercase tracking-wider text-red-400 hover:text-white rounded-xl transition-all cursor-pointer"
+                        >
+                          {isDeletingPresenters ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-4 h-4" />
+                          )}
+                          Remove Selected ({selectedPresenterKeysForBulk.length})
+                        </button>
+                      </div>
                     )}
                     <div className="bg-slate-950 px-4 py-2 border border-slate-800 rounded-xl text-right">
                       <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 block">Whitelisted Presenters</span>
@@ -2217,6 +2266,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                           <th className="py-3 px-5 sticky top-0 bg-slate-950">Presenter Display Name</th>
                           <th className="py-3 px-5 sticky top-0 bg-slate-950">Presenter Email Address</th>
                           <th className="py-3 px-5 sticky top-0 bg-slate-950">Date Whitelisted</th>
+                          <th className="py-3 px-5 text-center min-w-[120px] sticky top-0 bg-slate-950">PIN Status</th>
                           <th className="py-3 px-5 text-center min-w-[130px] w-36 sticky top-0 bg-slate-950">Sessions Hosted</th>
                           <th className="py-3 px-5 sticky top-0 bg-slate-950">Latest Session Date & Time</th>
                           <th className="py-3 px-5 text-right min-w-[160px] w-44 sticky top-0 bg-slate-950">Actions</th>
@@ -2225,14 +2275,14 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                       <tbody>
                         {loadingWhitelisted && whitelistedPresenters.length === 0 ? (
                           <tr>
-                            <td colSpan={7} className="py-16 text-center">
+                            <td colSpan={8} className="py-16 text-center">
                               <Loader2 className="w-8 h-8 text-osu-orange animate-spin mx-auto mb-2" />
                               <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500">Loading whitelist directory...</span>
                             </td>
                           </tr>
                         ) : whitelistedPresenters.length === 0 ? (
                           <tr>
-                            <td colSpan={7} className="py-16 text-center text-slate-500 text-xs italic">
+                            <td colSpan={8} className="py-16 text-center text-slate-500 text-xs italic">
                               No presenter accounts have been whitelisted yet. Enter an email address above to add one.
                             </td>
                           </tr>
@@ -2267,6 +2317,19 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                                 <td className="py-4 px-5 font-bold text-white capitalize">{displayHandle}</td>
                                 <td className="py-4 px-5 text-slate-300 font-mono text-xs">{presenter.email}</td>
                                 <td className="py-4 px-5 text-slate-400 text-xs">{addedDateString}</td>
+                                <td className="py-4 px-5 text-center">
+                                  {presenter.pinHash ? (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-950/80 border border-emerald-500/40 text-emerald-400">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                      Active
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-950/80 border border-amber-500/40 text-amber-400">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                                      Not Set
+                                    </span>
+                                  )}
+                                </td>
                                 <td className="py-4 px-5 text-center font-black text-osu-orange">
                                   <span className="inline-flex items-center justify-center bg-osu-orange/10 px-3.5 py-1 rounded-full border border-osu-orange/20 min-w-[54px] font-mono text-xs">
                                     {presenter.usageCount || 0}
@@ -2285,6 +2348,15 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                                     >
                                       <Eye className="w-3.5 h-3.5 shrink-0" />
                                       <span>View As</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleResetPresenterPin(presenter.email)}
+                                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 text-xs font-bold transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-sm whitespace-nowrap"
+                                      title={`Reset PIN for ${presenter.email}`}
+                                    >
+                                      <KeyRound className="w-3.5 h-3.5 shrink-0" />
+                                      <span>Reset PIN</span>
                                     </button>
                                     {isCreator ? (
                                       <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wide text-amber-500 bg-amber-500/10 px-2.5 py-1 rounded border border-amber-500/20" title="Creator account: Protected from removal">

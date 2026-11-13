@@ -6,7 +6,7 @@ import { Header } from './components/Header';
 import { Presentation, GlobalSettings, DrawingStroke, DeckItem, SlideTextAnnotation } from './types';
 import { db } from './firebase';
 import { collection, query, orderBy, limit, onSnapshot, doc, addDoc, serverTimestamp, updateDoc, getDoc, setDoc, increment, where } from 'firebase/firestore';
-import { Presentation as PresentationIcon, Loader2, AlertCircle, Maximize, Minimize, Lock, Pen, ZoomIn, Tv, ArrowLeftRight, MessageSquare, NotebookPen, Plus, FileText, X, Download, ChevronsLeft, ChevronsRight, Edit3, Sun, Moon, Eye } from 'lucide-react';
+import { Presentation as PresentationIcon, Loader2, AlertCircle, Maximize, Minimize, Lock, Pen, ZoomIn, Tv, ArrowLeftRight, MessageSquare, NotebookPen, Plus, FileText, X, Download, ChevronsLeft, ChevronsRight, Edit3, Sun, Moon, Eye, KeyRound, ArrowLeft, ShieldCheck, RefreshCw } from 'lucide-react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { BridgeProvider } from './contexts/BridgeContext';
 import { AdminGuard } from './components/AdminGuard';
@@ -474,6 +474,14 @@ function AppContent() {
   const [emailDomainError, setEmailDomainError] = useState<string | null>(null);
   const [checkingEmailDomain, setCheckingEmailDomain] = useState(false);
   const [presenterEmail, setPresenterEmail] = useState<string>(() => sessionStorage.getItem('activePresenterEmail') || '');
+  const [facultyAuthStep, setFacultyAuthStep] = useState<'email' | 'enter_pin' | 'create_pin'>('email');
+  const [pendingPresenterEmail, setPendingPresenterEmail] = useState<string>('');
+  const [pendingPresenterData, setPendingPresenterData] = useState<any>(null);
+  const [facultyPinInput, setFacultyPinInput] = useState<string>('');
+  const [facultyPinConfirmInput, setFacultyPinConfirmInput] = useState<string>('');
+  const [facultyPinError, setFacultyPinError] = useState<string | null>(null);
+  const [pinResetRequested, setPinResetRequested] = useState<boolean>(false);
+  const [isResettingPin, setIsResettingPin] = useState<boolean>(false);
 
   const [notesTextMap, setNotesTextMap] = useState<Record<string, string>>({});
   const [studentSlideDrawingsMap, setStudentSlideDrawingsMap] = useState<Record<string, string>>({});
@@ -1018,7 +1026,13 @@ function AppContent() {
 
 
 
-  const handleSavePresenterEmail = async (email: string) => {
+  const hashFacultyPin = async (pin: string): Promise<string> => {
+    const msgUint8 = new TextEncoder().encode(pin.trim());
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+    return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+  };
+
+  const handleVerifyPresenterEmail = async (email: string) => {
     const trimmed = email.trim().toLowerCase();
     if (!trimmed || !trimmed.includes('@')) {
       alert('Please enter a valid email address.');
@@ -1026,11 +1040,10 @@ function AppContent() {
     }
 
     setEmailDomainError(null);
+    setFacultyPinError(null);
     setCheckingEmailDomain(true);
 
-    let savedDecksFromPresenter: DeckItem[] = [];
     try {
-      // Step 1: Check Whitelisted Presenters
       const presenterRef = doc(db, 'whitelistedPresenters', trimmed);
       const presenterSnap = await getDoc(presenterRef);
       if (!presenterSnap.exists()) {
@@ -1039,11 +1052,108 @@ function AppContent() {
         return;
       }
 
-      if (Array.isArray(presenterSnap.data().savedDecks)) {
-        savedDecksFromPresenter = presenterSnap.data().savedDecks;
-      }
+      const data = presenterSnap.data() || {};
+      setPendingPresenterEmail(trimmed);
+      setPendingPresenterData(data);
+      setFacultyPinInput('');
+      setFacultyPinConfirmInput('');
+      setFacultyPinError(null);
+      setPinResetRequested(false);
+      setCheckingEmailDomain(false);
 
-      // Step 2: Auto-match institution domain (Optional - do not block if not found)
+      if (data.pinHash) {
+        setFacultyAuthStep('enter_pin');
+      } else {
+        setFacultyAuthStep('create_pin');
+      }
+    } catch (err: any) {
+      console.error('Error verifying presenter email:', err);
+      alert('An error occurred while verifying your presenter account. Please try again.');
+      setCheckingEmailDomain(false);
+    }
+  };
+
+  const handleVerifyFacultyPin = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!facultyPinInput.trim()) {
+      setFacultyPinError('Please enter your 4-digit PIN.');
+      return;
+    }
+
+    setFacultyPinError(null);
+    setCheckingEmailDomain(true);
+    try {
+      const hashed = await hashFacultyPin(facultyPinInput);
+      if (hashed === pendingPresenterData?.pinHash) {
+        await completePresenterLogin(pendingPresenterEmail, pendingPresenterData);
+      } else {
+        setFacultyPinError('Incorrect PIN. Please try again.');
+        setCheckingEmailDomain(false);
+      }
+    } catch (err: any) {
+      console.error('Error verifying PIN:', err);
+      setFacultyPinError('Verification error: ' + (err?.message || err));
+      setCheckingEmailDomain(false);
+    }
+  };
+
+  const handleCreateFacultyPin = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const pin = facultyPinInput.trim();
+    const confirm = facultyPinConfirmInput.trim();
+
+    if (pin.length < 4) {
+      setFacultyPinError('PIN must be at least 4 digits.');
+      return;
+    }
+    if (pin !== confirm) {
+      setFacultyPinError('PINs do not match. Please verify.');
+      return;
+    }
+
+    setFacultyPinError(null);
+    setCheckingEmailDomain(true);
+    try {
+      const hashed = await hashFacultyPin(pin);
+      const presenterRef = doc(db, 'whitelistedPresenters', pendingPresenterEmail);
+      await updateDoc(presenterRef, {
+        pinHash: hashed,
+        pinCreatedAt: serverTimestamp()
+      });
+      await completePresenterLogin(pendingPresenterEmail, { ...pendingPresenterData, pinHash: hashed });
+    } catch (err: any) {
+      console.error('Error saving faculty PIN:', err);
+      setFacultyPinError('Failed to save PIN: ' + (err?.message || err));
+      setCheckingEmailDomain(false);
+    }
+  };
+
+  const handleRequestPinReset = async () => {
+    if (!pendingPresenterEmail) return;
+    setIsResettingPin(true);
+    try {
+      await fetch('/api/notify-pin-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: pendingPresenterEmail })
+      });
+      setPinResetRequested(true);
+    } catch (err) {
+      console.error('Failed to notify PIN reset:', err);
+      setPinResetRequested(true);
+    } finally {
+      setIsResettingPin(false);
+    }
+  };
+
+  const completePresenterLogin = async (trimmed: string, presenterData: any) => {
+    let savedDecksFromPresenter: DeckItem[] = [];
+    if (Array.isArray(presenterData?.savedDecks)) {
+      savedDecksFromPresenter = presenterData.savedDecks;
+    }
+
+    try {
+      const presenterRef = doc(db, 'whitelistedPresenters', trimmed);
       let matchedInstitutionName = '';
       const emailDomain = trimmed.split('@')[1];
       if (emailDomain) {
@@ -1058,7 +1168,6 @@ function AppContent() {
           if (matchedInstDoc) {
             const instData = matchedInstDoc.data();
             matchedInstitutionName = instData.name || '';
-            // Apply matching institution settings globally
             await updateDoc(doc(db, 'settings', 'global'), {
               theme: instData.theme,
               activeInstitutionId: matchedInstDoc.id,
@@ -1072,34 +1181,28 @@ function AppContent() {
         }
       }
 
-      // Step 3: Increment usage stats
       await updateDoc(presenterRef, {
         usageCount: increment(1),
         lastUsedAt: serverTimestamp()
       });
 
-      // Step 4: Dispatch Teams login notification webhook for faculty presenter
       sendFacultyLoginAlert({
         email: trimmed,
         institution: matchedInstitutionName,
         institutionDomain: emailDomain,
         sessionPin: presentation?.pinCode
       });
-
     } catch (err: any) {
-      console.error('Error verifying whitelisted presenter:', err);
-      alert('An error occurred while verifying your presenter account. Please try again.');
-      setCheckingEmailDomain(false);
-      return;
+      console.error('Error finalizing presenter login:', err);
     }
 
     sessionStorage.setItem('activePresenterEmail', trimmed);
     localStorage.setItem('activeDeckLastPresenterEmail', trimmed);
     setPresenterEmail(trimmed);
+    setFacultyAuthStep('email');
     setCheckingEmailDomain(false);
 
     const targetPresentationId = presentation?.id || activePresentationId;
-    // CRITICAL: If current active presentation belongs to a different presenter, do NOT hijack or overwrite it!
     if (presentation?.presenterEmail && presentation.presenterEmail.trim().toLowerCase() !== trimmed) {
       console.warn(`AppContent - Switching presenter to ${trimmed}; resetting stale presentation session from ${presentation.presenterEmail}`);
       sessionStorage.removeItem('activePresenterPresentationId');
@@ -1859,87 +1962,280 @@ function AppContent() {
     return <JoinScreen />;
   }
 
-  // Ask for presenter's email before letting them proceed to the presenter screen (bypass for chat & projector)
+  // Ask for presenter's email & PIN before letting them proceed to the presenter screen (bypass for chat & projector)
   if (!isChatOnly && !isProjector && !presenterEmail) {
     return (
       <div className="h-full w-full flex flex-col items-center justify-center bg-slate-950 text-white p-6">
         <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl shadow-orange-500/5 text-center space-y-6 animate-in zoom-in-95 duration-200">
           <div className="w-16 h-16 bg-osu-orange/10 border border-osu-orange/20 text-osu-orange rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-orange-500/10">
-            <PresentationIcon className="w-8 h-8 animate-pulse" />
-          </div>
-          <div className="space-y-2">
-            <h1 className="text-2xl font-black uppercase tracking-wide text-white">Welcome to ActiveDeck</h1>
-            <p className="text-xs text-slate-400 leading-relaxed max-w-sm mx-auto">
-              Please enter your presenter email address. This will be used to generate your display name and log your sessions in the attendance registry.
-            </p>
-          </div>
-          <form 
-            onSubmit={(e) => {
-              e.preventDefault();
-              const formData = new FormData(e.currentTarget);
-              const email = formData.get('email') as string;
-              handleSavePresenterEmail(email);
-            }} 
-            className="space-y-4 pt-2"
-          >
-            <div className="space-y-1 text-left relative">
-              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">Presenter Email</label>
-              <input 
-                type="email" 
-                name="email"
-                required
-                disabled={checkingEmailDomain}
-                placeholder="e.g. name@institution.edu"
-                className="w-full h-12 rounded-xl px-4 text-sm text-white bg-slate-950 border border-slate-800 focus:outline-none focus:ring-2 focus:ring-osu-orange focus:border-transparent transition-all placeholder-slate-700 disabled:opacity-50"
-                onMouseDown={(e) => e.stopPropagation()}
-                onClick={(e) => {
-                  e.currentTarget.focus();
-                  e.stopPropagation();
-                }}
-                onKeyDown={(e) => {
-                  e.stopPropagation();
-                }}
-                onKeyUp={(e) => {
-                  e.stopPropagation();
-                }}
-              />
-            </div>
-            
-            {emailDomainError && (
-              <div className="flex items-start gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-200 text-xs text-left animate-in fade-in-50 duration-200">
-                <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <p className="font-bold text-red-400">Access Denied</p>
-                  <p className="leading-relaxed opacity-90">{emailDomainError}</p>
-                </div>
-              </div>
+            {facultyAuthStep === 'email' ? (
+              <PresentationIcon className="w-8 h-8 animate-pulse" />
+            ) : facultyAuthStep === 'create_pin' ? (
+              <ShieldCheck className="w-8 h-8 text-osu-orange" />
+            ) : (
+              <KeyRound className="w-8 h-8 text-osu-orange animate-pulse" />
             )}
+          </div>
 
-            <button 
-              type="submit"
-              disabled={checkingEmailDomain}
-              className="w-full h-12 bg-osu-orange hover:bg-[#c03900] text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-orange-500/15 active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50 disabled:pointer-events-none"
-            >
-              {checkingEmailDomain ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Verifying Institution...</span>
-                </>
-              ) : (
-                'Start Session'
-              )}
-            </button>
-            <button 
-              type="button"
-              onClick={() => {
-                sessionStorage.removeItem('presenterMode');
-                window.location.href = '/chat';
-              }}
-              className="w-full h-11 border border-slate-800 hover:border-osu-orange/30 bg-slate-900/40 hover:bg-slate-900/80 text-slate-400 hover:text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
-            >
-              Looking for Chat? Join Session
-            </button>
-          </form>
+          {facultyAuthStep === 'email' && (
+            <>
+              <div className="space-y-2">
+                <h1 className="text-2xl font-black uppercase tracking-wide text-white">Welcome to ActiveDeck</h1>
+                <p className="text-xs text-slate-400 leading-relaxed max-w-sm mx-auto">
+                  Please enter your presenter email address. This will be used to generate your display name and log your sessions in the attendance registry.
+                </p>
+              </div>
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const formData = new FormData(e.currentTarget);
+                  const email = formData.get('email') as string;
+                  handleVerifyPresenterEmail(email);
+                }} 
+                className="space-y-4 pt-2"
+              >
+                <div className="space-y-1 text-left relative">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">Presenter Email</label>
+                  <input 
+                    type="email" 
+                    name="email"
+                    required
+                    disabled={checkingEmailDomain}
+                    defaultValue={pendingPresenterEmail}
+                    placeholder="e.g. name@institution.edu"
+                    className="w-full h-12 rounded-xl px-4 text-sm text-white bg-slate-950 border border-slate-800 focus:outline-none focus:ring-2 focus:ring-osu-orange focus:border-transparent transition-all placeholder-slate-700 disabled:opacity-50"
+                  />
+                </div>
+                
+                {emailDomainError && (
+                  <div className="flex items-start gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-200 text-xs text-left animate-in fade-in-50 duration-200">
+                    <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="font-bold text-red-400">Access Denied</p>
+                      <p className="leading-relaxed opacity-90">{emailDomainError}</p>
+                    </div>
+                  </div>
+                )}
+
+                <button 
+                  type="submit"
+                  disabled={checkingEmailDomain}
+                  className="w-full h-12 bg-osu-orange hover:bg-[#c03900] text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-orange-500/15 active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+                >
+                  {checkingEmailDomain ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Verifying Presenter Account...</span>
+                    </>
+                  ) : (
+                    'Continue'
+                  )}
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => {
+                    sessionStorage.removeItem('presenterMode');
+                    window.location.href = '/chat';
+                  }}
+                  className="w-full h-11 border border-slate-800 hover:border-osu-orange/30 bg-slate-900/40 hover:bg-slate-900/80 text-slate-400 hover:text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  Looking for Chat? Join Session
+                </button>
+              </form>
+            </>
+          )}
+
+          {facultyAuthStep === 'enter_pin' && (
+            <>
+              <div className="space-y-2">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-950 border border-slate-800 text-slate-300 text-xs font-mono">
+                  <span>{pendingPresenterEmail}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFacultyAuthStep('email');
+                      setFacultyPinInput('');
+                      setFacultyPinError(null);
+                    }}
+                    className="text-osu-orange hover:underline text-[10px] font-bold uppercase tracking-wider cursor-pointer ml-1"
+                  >
+                    Change
+                  </button>
+                </div>
+                <h1 className="text-2xl font-black uppercase tracking-wide text-white">Enter Faculty PIN</h1>
+                <p className="text-xs text-slate-400 leading-relaxed max-w-sm mx-auto">
+                  Enter your security PIN to unlock your presentation workspace and student attendance records.
+                </p>
+              </div>
+
+              <form onSubmit={handleVerifyFacultyPin} className="space-y-4 pt-2">
+                <div className="space-y-1 text-left relative">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">Security PIN</label>
+                  <div className="relative">
+                    <input 
+                      type="password"
+                      autoFocus
+                      required
+                      value={facultyPinInput}
+                      onChange={(e) => setFacultyPinInput(e.target.value)}
+                      placeholder="••••"
+                      disabled={checkingEmailDomain}
+                      className="w-full h-12 rounded-xl px-4 text-center font-mono text-xl tracking-[0.3em] text-white bg-slate-950 border border-slate-800 focus:outline-none focus:ring-2 focus:ring-osu-orange focus:border-transparent transition-all placeholder-slate-700 disabled:opacity-50"
+                    />
+                    <KeyRound className="w-4 h-4 text-slate-600 absolute right-4 top-4 pointer-events-none" />
+                  </div>
+                </div>
+
+                {facultyPinError && (
+                  <div className="flex items-center gap-2 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-xs text-left animate-in fade-in-50 duration-200">
+                    <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                    <span>{facultyPinError}</span>
+                  </div>
+                )}
+
+                {pinResetRequested && (
+                  <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-200 text-xs text-left animate-in fade-in-50 duration-200">
+                    <ShieldCheck className="w-4 h-4 text-sky-400 flex-shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="font-bold text-sky-400">PIN Reset Requested</p>
+                      <p className="text-[11px] leading-relaxed opacity-90">
+                        An alert was sent to Justin Zumwalt. Once reset, entering your email will prompt you to set a new PIN.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <button 
+                  type="submit"
+                  disabled={checkingEmailDomain}
+                  className="w-full h-12 bg-osu-orange hover:bg-[#c03900] text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-orange-500/15 active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                >
+                  {checkingEmailDomain ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Unlocking Session...</span>
+                    </>
+                  ) : (
+                    'Unlock Session'
+                  )}
+                </button>
+
+                <div className="flex items-center justify-between pt-1">
+                  <button
+                    type="button"
+                    onClick={handleRequestPinReset}
+                    disabled={isResettingPin || pinResetRequested}
+                    className="text-[11px] font-bold text-slate-400 hover:text-osu-orange transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {isResettingPin ? 'Sending alert...' : 'Forgot PIN? Request Reset'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFacultyAuthStep('email');
+                      setFacultyPinInput('');
+                      setFacultyPinError(null);
+                    }}
+                    className="text-[11px] font-bold text-slate-500 hover:text-white transition-colors cursor-pointer"
+                  >
+                    Back
+                  </button>
+                </div>
+              </form>
+            </>
+          )}
+
+          {facultyAuthStep === 'create_pin' && (
+            <>
+              <div className="space-y-2">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-950 border border-slate-800 text-slate-300 text-xs font-mono">
+                  <span>{pendingPresenterEmail}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFacultyAuthStep('email');
+                      setFacultyPinInput('');
+                      setFacultyPinConfirmInput('');
+                      setFacultyPinError(null);
+                    }}
+                    className="text-osu-orange hover:underline text-[10px] font-bold uppercase tracking-wider cursor-pointer ml-1"
+                  >
+                    Change
+                  </button>
+                </div>
+                <h1 className="text-2xl font-black uppercase tracking-wide text-white">Create Security PIN</h1>
+                <p className="text-xs text-slate-400 leading-relaxed max-w-sm mx-auto">
+                  Protect your decks, attendance records, and sessions by creating a 4-digit PIN for your account.
+                </p>
+              </div>
+
+              <form onSubmit={handleCreateFacultyPin} className="space-y-4 pt-2">
+                <div className="space-y-1 text-left relative">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">Create 4-Digit PIN</label>
+                  <input 
+                    type="password"
+                    autoFocus
+                    required
+                    value={facultyPinInput}
+                    onChange={(e) => setFacultyPinInput(e.target.value)}
+                    placeholder="••••"
+                    disabled={checkingEmailDomain}
+                    className="w-full h-12 rounded-xl px-4 text-center font-mono text-xl tracking-[0.3em] text-white bg-slate-950 border border-slate-800 focus:outline-none focus:ring-2 focus:ring-osu-orange focus:border-transparent transition-all placeholder-slate-700 disabled:opacity-50"
+                  />
+                </div>
+
+                <div className="space-y-1 text-left relative">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">Confirm 4-Digit PIN</label>
+                  <input 
+                    type="password"
+                    required
+                    value={facultyPinConfirmInput}
+                    onChange={(e) => setFacultyPinConfirmInput(e.target.value)}
+                    placeholder="••••"
+                    disabled={checkingEmailDomain}
+                    className="w-full h-12 rounded-xl px-4 text-center font-mono text-xl tracking-[0.3em] text-white bg-slate-950 border border-slate-800 focus:outline-none focus:ring-2 focus:ring-osu-orange focus:border-transparent transition-all placeholder-slate-700 disabled:opacity-50"
+                  />
+                </div>
+
+                {facultyPinError && (
+                  <div className="flex items-center gap-2 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-xs text-left animate-in fade-in-50 duration-200">
+                    <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                    <span>{facultyPinError}</span>
+                  </div>
+                )}
+
+                <button 
+                  type="submit"
+                  disabled={checkingEmailDomain}
+                  className="w-full h-12 bg-osu-orange hover:bg-[#c03900] text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-orange-500/15 active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                >
+                  {checkingEmailDomain ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Saving PIN & Starting Session...</span>
+                    </>
+                  ) : (
+                    'Save PIN & Start Session'
+                  )}
+                </button>
+
+                <div className="text-center pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFacultyAuthStep('email');
+                      setFacultyPinInput('');
+                      setFacultyPinConfirmInput('');
+                      setFacultyPinError(null);
+                    }}
+                    className="text-[11px] font-bold text-slate-500 hover:text-white transition-colors cursor-pointer"
+                  >
+                    Back to Email
+                  </button>
+                </div>
+              </form>
+            </>
+          )}
         </div>
       </div>
     );
