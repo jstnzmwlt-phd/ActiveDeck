@@ -93,11 +93,9 @@ app.get('/api/proxy-image', async (req, res) => {
   }
 });
 
-const DEFAULT_TEAMS_WEBHOOK_URL = "https://default2a69c91de8494e34a230cdf8b27e19.64.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/15/workflows/087e3ca325e946a4806f36640e37cdc0/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=INA78p9TCrEZZWREcjKrNxoZ2F_ml9bQXIU50uLPW-Q";
-
 app.post('/api/notify-login', async (req, res) => {
   try {
-    const webhookUrl = process.env.TEAMS_WEBHOOK_URL || req.body?.webhookUrl || DEFAULT_TEAMS_WEBHOOK_URL;
+    const webhookUrl = process.env.TEAMS_WEBHOOK_URL || req.body?.webhookUrl;
     if (!webhookUrl) {
       console.warn('TEAMS_WEBHOOK_URL is not set; skipping Teams notification.');
       return res.status(200).json({ skipped: true, message: 'No webhook URL configured' });
