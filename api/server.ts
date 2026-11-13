@@ -140,7 +140,7 @@ app.get('/api/proxy-image', fileLimiter, async (req, res) => {
 app.post('/api/verify-admin-pin', fileLimiter, async (req, res) => {
   try {
     const { email, pin } = req.body || {};
-    const configuredPin = process.env.ADMIN_PIN || "1890";
+    const configuredPin = process.env.ADMIN_PIN || "1286";
     const trimmedEmail = String(email || '').trim().toLowerCase();
     const trimmedPin = String(pin || '').trim();
 

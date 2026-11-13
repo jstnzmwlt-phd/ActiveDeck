@@ -55,7 +55,7 @@ export const AdminGuard: React.FC<AdminGuardProps> = ({ presentationId, currentE
     } catch (err: any) {
       console.error('Error verifying admin pin:', err);
       // Fallback for local client development without API server running
-      if (email.trim().toLowerCase() === 'justin.zumwalt@okstate.edu' && pin.trim() === '1890') {
+      if (email.trim().toLowerCase() === 'justin.zumwalt@okstate.edu' && pin.trim() === '1286') {
         sessionStorage.setItem('activeDeckAdminUnlocked', 'true');
         setIsUnlocked(true);
       } else {
