@@ -1591,7 +1591,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
 
       {/* Main Workspace */}
       <main className="flex-1 p-8 flex justify-center overflow-y-auto">
-        <div className={`w-full transition-all duration-300 ${activeTab === 'attendance' ? 'max-w-[1450px]' : (activeTab === 'presenters' || activeTab === 'sessions') ? 'max-w-[1100px]' : 'max-w-5xl'}`}>
+        <div className={`w-full transition-all duration-300 ${activeTab === 'attendance' || activeTab === 'presenters' || activeTab === 'sessions' ? 'max-w-[1600px]' : 'max-w-5xl'}`}>
 
           {/* ========================================================
               TAB 1: INSTITUTIONS WORKSPACE
@@ -2269,7 +2269,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ presentationId }) => {
                           <th className="py-3 px-5 text-center min-w-[120px] sticky top-0 bg-slate-950">PIN Status</th>
                           <th className="py-3 px-5 text-center min-w-[130px] w-36 sticky top-0 bg-slate-950">Sessions Hosted</th>
                           <th className="py-3 px-5 sticky top-0 bg-slate-950">Latest Session Date & Time</th>
-                          <th className="py-3 px-5 text-right min-w-[160px] w-44 sticky top-0 bg-slate-950">Actions</th>
+                          <th className="py-3 px-5 text-right min-w-[260px] sticky top-0 bg-slate-950">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
