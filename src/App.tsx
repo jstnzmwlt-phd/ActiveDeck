@@ -9,7 +9,7 @@ import { collection, query, orderBy, limit, onSnapshot, doc, addDoc, serverTimes
 import { Presentation as PresentationIcon, Loader2, AlertCircle, Maximize, Minimize, Lock, Pen, ZoomIn, Tv, ArrowLeftRight, MessageSquare, NotebookPen, Plus, FileText, X, Download, ChevronsLeft, ChevronsRight, Edit3, Sun, Moon, Eye } from 'lucide-react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { BridgeProvider } from './contexts/BridgeContext';
-import { AdminPortal } from './components/AdminPortal';
+import { AdminGuard } from './components/AdminGuard';
 import { StudentAttendance } from './components/StudentAttendance';
 import { JoinScreen } from './components/JoinScreen';
 import { RichTextEditor } from './components/RichTextEditor';
@@ -1838,7 +1838,7 @@ function AppContent() {
   }
 
   if (hash === '#admin') {
-    return <AdminPortal presentationId={activePresentationId} />;
+    return <AdminGuard presentationId={activePresentationId} currentEmail={presenterEmail} />;
   }
 
   // Handle SPA path routing for Student Attendance

@@ -69,27 +69,98 @@ app.get('/api/shorten', async (req, res) => {
   }
 });
 
-app.get('/api/proxy-image', async (req, res) => {
+app.get('/api/proxy-image', fileLimiter, async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   const { url } = req.query;
   if (!url || typeof url !== 'string') {
     return res.status(400).send('URL is required');
   }
+
+  let parsedUrl: URL;
   try {
-    const response = await fetch(url);
+    parsedUrl = new URL(url);
+  } catch {
+    return res.status(400).send('Invalid URL format');
+  }
+
+  if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+    return res.status(400).send('Only HTTP and HTTPS protocols are supported');
+  }
+
+  // Block SSRF to loopback, link-local, private, and cloud metadata addresses
+  const hostname = parsedUrl.hostname.toLowerCase();
+  const isBlocked = 
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '::1' ||
+    hostname === '169.254.169.254' ||
+    hostname === 'metadata.google.internal' ||
+    hostname.startsWith('10.') ||
+    hostname.startsWith('192.168.') ||
+    /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname) ||
+    hostname.endsWith('.internal') ||
+    hostname.endsWith('.local');
+
+  if (isBlocked) {
+    return res.status(403).send('Forbidden destination host');
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
+
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeout);
+
     if (!response.ok) {
       return res.status(response.status).send(`Failed to fetch image: ${response.statusText}`);
     }
-    const contentType = response.headers.get('content-type') || 'image/jpeg';
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.toLowerCase().startsWith('image/')) {
+      return res.status(415).send('Target resource is not an image');
+    }
+
     res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
     
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     res.send(buffer);
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.name === 'AbortError') {
+      return res.status(504).send('Request timed out fetching image');
+    }
     console.error('Proxy image error:', error);
     res.status(500).send('Internal server error');
+  }
+});
+
+app.post('/api/verify-admin-pin', fileLimiter, async (req, res) => {
+  try {
+    const { email, pin } = req.body || {};
+    const configuredPin = process.env.ADMIN_PIN || "1890";
+    const trimmedEmail = String(email || '').trim().toLowerCase();
+    const trimmedPin = String(pin || '').trim();
+
+    const allowedAdminEmails = [
+      'justin.zumwalt@okstate.edu',
+      'jstnzmwlt@gmail.com'
+    ];
+
+    if (!trimmedEmail || !allowedAdminEmails.includes(trimmedEmail)) {
+      return res.status(403).json({ error: 'Unauthorized admin email address' });
+    }
+
+    if (trimmedPin !== configuredPin) {
+      return res.status(401).json({ error: 'Invalid Admin PIN' });
+    }
+
+    return res.status(200).json({ success: true });
+  } catch (err: any) {
+    console.error('Error in /api/verify-admin-pin:', err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
